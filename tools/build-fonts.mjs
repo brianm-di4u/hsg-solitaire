@@ -1,7 +1,7 @@
 // Inline the vendored OFL fonts (vendor/fonts/*.woff2) into assets/fonts.css as data URIs.
 // Chrome blocks @font-face loads from file:// URLs, so the fonts travel inside the stylesheet,
 // which a plain <link rel="stylesheet"> can load from file:// and http alike.
-// Run: node games/solitaire/tools/build-fonts.mjs
+// Run: node tools/build-fonts.mjs
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

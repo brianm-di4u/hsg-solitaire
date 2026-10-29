@@ -1,5 +1,5 @@
 // Before/after contact sheets for the visual campaign: pairs the same screenshot from two milestone runs side by side.
-// Run: node games/solitaire/tools/before-after.mjs [before=visual-before] [after=visual-final]
+// Run: node tools/before-after.mjs [before=visual-before] [after=visual-final]
 // Writes screenshots/<after>/before-after/<viewport>-NN.png (screenshots/ is git-ignored). Uses the harness's Playwright.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 const GAME = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const require = createRequire(path.resolve(GAME, '..', '..', 'shared', 'test-harness', 'package.json'));
+const require = createRequire(path.resolve(GAME, 'shared', 'test-harness', 'package.json'));
 const { chromium } = require('playwright');
 const [before = 'visual-before', after = 'visual-final'] = process.argv.slice(2);
 const SHOTS = ['rules-01-klondike-deal', 'rules-06-freecell-617', 'rules-08-spider4', 'screens-29-courts', 'screens-28-faces',

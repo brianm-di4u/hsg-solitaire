@@ -1,13 +1,13 @@
 // Opens the game straight from disk (file://), with no server, and checks that the vendored fonts and the painted
 // art load, with no console errors and no requests leaving the machine. The harness only serves over http, so this
 // covers the other way people open the game. Uses the harness's Playwright.
-// Run: node games/solitaire/tools/check-file-url.mjs
+// Run: node tools/check-file-url.mjs
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const GAME = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const require = createRequire(path.resolve(GAME, '..', '..', 'shared', 'test-harness', 'package.json'));
+const require = createRequire(path.resolve(GAME, 'shared', 'test-harness', 'package.json'));
 const { chromium } = require('playwright');
 
 const browser = await chromium.launch();
