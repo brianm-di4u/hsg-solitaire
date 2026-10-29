@@ -547,6 +547,9 @@ let undoStack = [], redoStack = [];
 let animDelay = {};          // uid → ms delay before its next tween starts (staggered autoplay)
 let flipQueue = [];          // uids that just turned face up (for flip animation + sound)
 let hintState = null;        // {list, i, until}
+let stuckVerdict = null;     // last dead-end check: 'dead' | 'live' | 'unknown' | null
+let stuckShownFor = null;    // posKey the "no more moves" popup was last shown for
+let stuckTimer = 0;
 let nextDeal = null;         // set by __game.seed(n)
 
 function snapshot() {
@@ -580,6 +583,14 @@ function rawMove(from, idx, to, delay) {
   return run;
 }
 
+// Spider: does the column end in a face-up King-to-Ace run of one suit?
+function endsInRun(p) {
+  if (p.length < 13) return false;
+  const seg = p.slice(-13); if (card(seg[0]).r !== 13 || !S.up[seg[12]]) return false;
+  for (let j = 0; j < 12; j++) if (!S.up[seg[j]] || !suitDesc(seg[j], seg[j + 1])) return false;
+  return true;
+}
+
 // Flip exposed tableau tops; Spider: lift completed K→A suit runs to the foundations.
 function settleTableau(delayBase) {
   let changed = true, d = delayBase || 0;
@@ -592,18 +603,14 @@ function settleTableau(delayBase) {
         if (S.mode === 'klondike' || S.mode === 'yukon') addScore(5);
         changed = true;
       }
-      if (def().runs && p.length >= 13) {
-        const seg = p.slice(-13); let ok = card(seg[0]).r === 13;
-        for (let j = 0; ok && j < 12; j++) ok = S.up[seg[j]] && suitDesc(seg[j], seg[j + 1]);
-        if (ok && S.up[seg[12]]) {
-          let f = 0; while (S.piles['f' + f].length) f++;
-          // move K..A as one run; the King ends on top so the completed foundation shows it
-          const run = p.splice(p.length - 13); run.reverse();
-          S.piles['f' + f].push(...run);
-          run.forEach((u, j) => { animDelay[u] = d + j * 28; });
-          d += 400; S.runs++; addScore(100); changed = true; sfx('run');
-          announce('Completed a run of ' + SUIT_NAME[card(run[0]).s]);
-        }
+      if (def().runs && endsInRun(p)) {
+        let f = 0; while (S.piles['f' + f].length) f++;
+        // move K..A as one run; the King ends on top so the completed foundation shows it
+        const run = p.splice(p.length - 13); run.reverse();
+        S.piles['f' + f].push(...run);
+        run.forEach((u, j) => { animDelay[u] = d + j * 28; });
+        d += 400; S.runs++; addScore(100); changed = true; sfx('run');
+        announce('Completed a run of ' + SUIT_NAME[card(run[0]).s]);
       }
     }
   }
@@ -658,7 +665,7 @@ function afterAction(opts = {}) {
   hintState = null;
   if (!S.won && isWon()) { S.won = true; onWin(d); }
   if (flipQueue.length) { sfx('flip'); flipQueue.length = 0; }
-  relayout(); updateHUD(); scheduleSave();
+  relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
 }
 
 function tryMove(from, idx, to, why = 'player') {
@@ -712,19 +719,20 @@ function undo() {
   if (!undoStack.length || !S || S.won) return { ok: false };
   redoStack.push(snapshot()); restore(undoStack.pop());
   S.usedUndo = true; S.assisted = true; hintState = null;
-  sfx('undo'); announce('Undone'); relayout(); updateHUD(); scheduleSave();
+  sfx('undo'); announce('Undone'); relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   return { ok: true };
 }
 function redo() {
   if (!redoStack.length || !S) return { ok: false };
   undoStack.push(snapshot()); restore(redoStack.pop());
-  sfx('place'); announce('Redone'); relayout(); updateHUD(); scheduleSave();
+  sfx('place'); announce('Redone'); relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   if (!S.won && isWon()) { S.won = true; onWin(0); }
   return { ok: true };
 }
 
 // --- Legal moves and hints ---
-function legalMoves() {
+// `all` keeps the moves the ranker would prune as pointless; the dead-end search needs every move.
+function legalMoves(all) {
   if (!S || S.won) return [];
   const out = []; const d = def();
   const dests = pileIds(S.mode).filter((id) => { const k = kindOf(id); return k === 'tab' || k === 'cell' || (k === 'found' && !d.runs); });
@@ -760,7 +768,7 @@ function legalMoves() {
           }
           if (fk === 'tab' && idx === 0 && !destEmpty) sc += 12;  // empties a column
           // pointless shuttle: the run already sits on a card it builds on, and nothing is revealed
-          if (under >= 0 && !reveals && buildsOn(under, run[0])) {
+          if (!all && under >= 0 && !reveals && buildsOn(under, run[0])) {
             const improves = d.lift === 'suit' && tk === 'tab' && !destEmpty && card(top(to)).s === card(run[0]).s && card(under).s !== card(run[0]).s;
             if (!improves) continue;
           }
@@ -774,23 +782,216 @@ function legalMoves() {
   return out.filter((m) => m.score > -50);
 }
 
+// --- Dead-end search (MECHANICS §3) ---
+// Hints and the "no more moves" check look ahead instead of ranking single moves. A breadth-first search
+// plays moves on throwaway copies of the position, looking for a line that raises potential() above where
+// it is now. Shuffling cards, cycling the stock or parking a card and taking it back never does, so those
+// loops are never hinted. A win beats every other position, so a search that runs out of
+// positions without finding progress proves the deal can't be won from here.
+const HINT_BUDGET = 5000, STUCK_BUDGET = 2500; // positions the search may visit
+const STOCK_MOVE = { stock: true };
+
+// Run fn with S pointed at another position (an undo snapshot or a search node); rules read S throughout.
+function inPosition(pos, fn) {
+  const real = S; S = Object.assign({}, real, { piles: pos.piles, up: pos.up });
+  try { return fn(); } finally { S = real; }
+}
+// Columns, free cells and foundations are interchangeable, so they're sorted: positions that differ only
+// in which column holds what count as one, which keeps FreeCell's cell shuffling from blowing up the search.
+// Cards go by rank and suit, not uid, so Spider's identical copies trading places is the same position.
+function posKey() {
+  let k = ''; const tabs = [], cells = [], found = [];
+  const cards = (p) => { let s = ''; for (const u of p) { const c = S.cards[u]; s += String.fromCharCode(65 + c.s * 13 + c.r); } return s; };
+  for (const id in S.piles) {
+    const p = S.piles[id], kind = kindOf(id);
+    if (kind === 'tab') { let down = 0; while (down < p.length && !S.up[p[down]]) down++; tabs.push(down + ':' + cards(p)); }
+    else if (kind === 'cell') cells.push(cards(p));
+    else if (kind === 'found') found.push(cards(p));
+    else k += cards(p) + ';';
+  }
+  return k + tabs.sort().join(';') + '|' + cells.sort().join(';') + '|' + found.sort().join(';');
+}
+function potential() {
+  const d = def(); let down = 0, free = 0, breaks = 0;
+  for (let i = 0; i < d.cols; i++) {
+    const p = S.piles['t' + i]; if (!p.length) free++;
+    for (let j = 0; j < p.length; j++) {
+      if (!S.up[p[j]]) down++;
+      else if (d.runs && j + 1 < p.length && !suitDesc(p[j], p[j + 1])) breaks++;
+    }
+  }
+  for (let i = 0; i < d.cells; i++) if (!S.piles['c' + i].length) free++;
+  const stock = (S.piles.stock ? S.piles.stock.length : 0) + (S.piles.waste ? S.piles.waste.length : 0);
+  return 1000 * totalFound() - 100 * down - 10 * stock + 5 * free - breaks;
+}
+// settleTableau() without score, sound or animation
+function simSettle() {
+  const d = def(); let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < d.cols; i++) {
+      const p = S.piles['t' + i];
+      if (p.length && !S.up[p[p.length - 1]]) { S.up[p[p.length - 1]] = true; changed = true; }
+      if (d.runs && endsInRun(p)) {
+        let f = 0; while (S.piles['f' + f].length) f++;
+        const run = p.splice(p.length - 13); run.reverse(); S.piles['f' + f].push(...run); changed = true;
+      }
+    }
+  }
+}
+// autoplay() without score, sound or animation; the search must see the auto-moves the player will get
+function simAutoplay() {
+  const mode = settings.autoFoundation; if (mode === 'off' || def().runs) return;
+  let moved = true, guard = 0;
+  while (moved && guard++ < 80) {
+    moved = false;
+    for (const id of sourcePiles()) {
+      if (kindOf(id) === 'found') continue;
+      const u = top(id); if (u < 0 || !S.up[u]) continue;
+      const f = foundationFor(u);
+      if (f && (mode === 'all' || safeToAutoplay(u))) { S.piles[f].push(S.piles[id].pop()); moved = true; simSettle(); break; }
+    }
+  }
+}
+// stockAction() without score, sound or undo; false when the stock can't be used
+function simStock() {
+  const d = def(), st = S.piles.stock;
+  if (d.stock === 'draw') {
+    const w = S.piles.waste;
+    if (st.length) { const n = Math.min(S.opts.draw, st.length); for (let i = 0; i < n; i++) { const u = st.pop(); w.push(u); S.up[u] = true; } }
+    else if (w.length) { while (w.length) { const u = w.pop(); st.push(u); S.up[u] = false; } }
+    else return false;
+    return true;
+  }
+  if (d.stock === 'spider') {
+    if (!st.length) return false;
+    for (let i = 0; i < 10; i++) if (!S.piles['t' + i].length) return false;
+    for (let i = 0; i < 10; i++) { const u = st.pop(); S.piles['t' + i].push(u); S.up[u] = true; }
+    simSettle();
+    return true;
+  }
+  return false;
+}
+// Klondike: each waste top the stock can reach (drawing and turning it over), played straight away, as one
+// "draw k times, then play" move. Drawing without playing never changes what the tableau can do, so the
+// search uses these instead of single draws and the stock stops multiplying its depth.
+function stockPlays() {
+  const out = [], n = S.piles.stock.length + S.piles.waste.length; if (!n) return out;
+  const dests = pileIds(S.mode).filter((id) => kindOf(id) === 'tab' || kindOf(id) === 'found');
+  const piles = {}; for (const k in S.piles) piles[k] = S.piles[k].slice();
+  inPosition({ piles, up: S.up.slice() }, () => {
+    // drawing and turning over never reorder the cards, so the stock's size alone says where in the cycle we are
+    const start = S.piles.stock.length, auto = settings.autoFoundation;
+    for (let k = 1; k <= 2 * n + 4; k++) {
+      simStock(); if (S.piles.stock.length === start) break;
+      const u = top('waste'); if (u < 0) continue;
+      // a draw that auto-moves a card home ends the walk there, as it would in play
+      if (auto !== 'off' && foundationFor(u) && (auto === 'all' || safeToAutoplay(u))) { out.push({ from: 'waste', to: null, count: 1, draws: k, auto: true, score: 60 }); break; }
+      let emptyTab = false, emptyFound = false;
+      for (const to of dests) {
+        if (!canDrop([u], to, 'waste')) continue;
+        const tk = kindOf(to), empty = !S.piles[to].length;
+        if (empty && tk === 'tab') { if (emptyTab) continue; emptyTab = true; }
+        if (empty && tk === 'found') { if (emptyFound) continue; emptyFound = true; }
+        out.push({ from: 'waste', to, count: 1, draws: k, score: tk === 'found' ? 60 : 22 });
+      }
+    }
+  });
+  return out;
+}
+// The position after move m (or STOCK_MOVE) from pos, or null if the stock can't be used.
+function simChild(pos, m) {
+  const piles = {}; for (const k in pos.piles) piles[k] = pos.piles[k].slice();
+  return inPosition({ piles, up: pos.up.slice() }, () => {
+    if (m.stock) { if (!simStock()) return null; }
+    else {
+      for (let i = 0; i < (m.draws || 0); i++) { simStock(); simAutoplay(); }
+      if (!m.auto) {
+        const run = S.piles[m.from].splice(m.draws ? S.piles[m.from].length - 1 : m.index);
+        S.piles[m.to].push(...run); for (const u of run) S.up[u] = true; simSettle();
+      }
+    }
+    simAutoplay();
+    return { piles: S.piles, up: S.up, key: posKey(), pot: potential() };
+  });
+}
+const nextMoves = () => S.mode === 'klondike' ? legalMoves(true).concat(stockPlays())
+  : S.mode === 'spider' ? legalMoves(true).concat(STOCK_MOVE) : legalMoves(true);
+const historyKeys = () => new Set(undoStack.map((sn) => inPosition(sn, posKey)));
+
+// productive: first moves of paths to a better position than this one, nearest first.
+// dead: every reachable position was checked and none is better.
+// avoidHistory (for hints): never route through a position this game has already been in, so following
+// hints can't go round in circles; a dip such as parking a card is only hinted if it leads somewhere new.
+function analyze(budget, stopAtFirst, avoidHistory) {
+  const none = { productive: [], dead: false, exhausted: false };
+  if (!S || S.won) return none;
+  const root = { piles: S.piles, up: S.up, depth: 0, first: -1 };
+  const baseline = inPosition(root, potential);
+  const seen = avoidHistory ? historyKeys() : new Set(), queue = [root], firsts = [], found = [];
+  seen.add(inPosition(root, posKey));
+  let visited = 0;
+  for (let qi = 0; qi < queue.length; qi++) {
+    const n = queue[qi];
+    // a level past the nearest payoff is plenty of alternatives to cycle through
+    if (found.length && n.depth > found[0].depth) break;
+    for (const m of inPosition(n, nextMoves)) {
+      if (visited >= budget) return { productive: found, dead: false, exhausted: false };
+      const c = simChild(n, m); if (!c || seen.has(c.key)) continue;
+      seen.add(c.key); visited++;
+      const first = n.depth ? n.first : firsts.push(m) - 1;
+      if (c.pot > baseline) {
+        if (!found.some((f) => f.first === first)) found.push(Object.assign({}, firsts[first], { depth: n.depth + 1, first }));
+        if (stopAtFirst) return { productive: found, dead: false, exhausted: false };
+        continue; // this line already pays off; no need to look past it
+      }
+      c.depth = n.depth + 1; c.first = first; queue.push(c);
+    }
+  }
+  // tableau moves before the stock, nearest payoff first, then the ranker's order
+  const viaStock = (m) => !!(m.stock || m.draws);
+  found.sort((a, b) => a.depth - b.depth || viaStock(a) - viaStock(b) || (b.score || 0) - (a.score || 0));
+  return { productive: found, dead: !found.length, exhausted: true };
+}
+
+// When the search runs out of budget: the ranked one-ply list, minus moves (and draws) that go back to a
+// position this game has already been in.
+function fallbackHints() {
+  const here = { piles: S.piles, up: S.up }, hist = historyKeys();
+  const fresh = (m) => { const c = simChild(here, m); return c && !hist.has(c.key); };
+  const list = legalMoves().filter(fresh);
+  if (def().stock && fresh(STOCK_MOVE)) list.push(STOCK_MOVE);
+  return list;
+}
+
+function stockHintText() {
+  if (S.mode === 'spider') return 'Hint: deal a new row from the stock';
+  return S.piles.stock.length ? 'Hint: draw from the stock' : 'Hint: turn the waste back over';
+}
+
 function hint() {
   if (!S || S.won) return { ok: false };
   // pressing Hint again on the same position cycles to the next move, however long the player waited
-  const sig = S.moves + '|' + undoStack.length + '|' + S.piles.stock.length;
+  const sig = S.moves + '|' + undoStack.length + '|' + (S.piles.stock ? S.piles.stock.length : 0);
   if (!hintState || hintState.sig !== sig) {
-    const list = legalMoves();
+    const a = analyze(HINT_BUDGET, false, true);
+    let list = a.productive;
+    if (!list.length && a.exhausted) {
+      // nothing new ahead; prove it's a dead end before saying so (the only way on may be back the way we came)
+      const d = analyze(STUCK_BUDGET, true, false);
+      stuckVerdict = d.dead ? 'dead' : d.productive.length ? 'live' : 'unknown';
+      if (d.dead) { hintState = null; showStuck(true); return { ok: true, move: null, stuck: true }; }
+    } else if (!list.length) { stuckVerdict = 'unknown'; list = fallbackHints(); }
+    else stuckVerdict = 'live';
     hintState = { list, i: 0, until: 0, sig };
-  } else hintState.i++;
+  } else hintState.i = (hintState.i + 1) % Math.max(1, hintState.list.length);
   const L = hintState.list;
-  if (!L.length || hintState.i >= L.length) {
-    hintState.i = L.length ? -1 : 0;
-    const d = def();
-    if (d.stock === 'draw' && (S.piles.stock.length || S.piles.waste.length)) { hintState.stockHint = true; toast(S.piles.stock.length ? 'Hint: draw from the stock' : 'Hint: turn the waste back over'); }
-    else if (d.stock === 'spider' && S.piles.stock.length) { hintState.stockHint = true; toast('Hint: deal a new row from the stock'); }
-    else { hintState.stockHint = false; toast('No moves left. Try Undo or a new deal'); sfx('nope'); }
+  if (!L.length || L[hintState.i].stock || L[hintState.i].draws) {
+    hintState.stockHint = !!L.length;
+    if (L.length) toast(stockHintText());
+    else { toast('No useful moves found. Try Undo or a new deal'); sfx('nope'); }
     hintState.until = now() + 2200; hintState.cur = null; startLoop();
-    return { ok: true, move: null, stock: !!hintState.stockHint };
+    return { ok: true, move: null, stock: hintState.stockHint };
   }
   const m = L[hintState.i]; hintState.cur = m; hintState.stockHint = false; hintState.until = now() + 2600;
   shake(m.from, m.index);
@@ -798,6 +999,31 @@ function hint() {
   sfx('hint'); startLoop();
   return { ok: true, move: m };
 }
+
+// After every move, once the cards have settled: if no line of play can help, say so once per position.
+function scheduleStuckCheck() {
+  clearTimeout(stuckTimer);
+  stuckTimer = setTimeout(function tick() {
+    stuckTimer = 0;
+    if (!S || S.won || titleOn) return;
+    if (modalKind || drag || held || cascade || tweensActive(now())) { stuckTimer = setTimeout(tick, 400); return; }
+    checkStuck();
+  }, 500);
+}
+function checkStuck() {
+  if (!S || S.won) return null;
+  const a = analyze(STUCK_BUDGET, true, false);
+  stuckVerdict = a.dead ? 'dead' : a.productive.length ? 'live' : 'unknown';
+  if (a.dead) showStuck(false);
+  else if (a.productive.length) stuckShownFor = null; // coming back to a dead end later shows it again
+  return stuckVerdict;
+}
+function showStuck(force) {
+  const k = posKey();
+  if (!force && stuckShownFor === k) return;
+  stuckShownFor = k; sfx('nope'); openModal('stuck');
+}
+function clearStuck() { clearTimeout(stuckTimer); stuckTimer = 0; stuckVerdict = null; stuckShownFor = null; }
 
 function autoComplete() {
   if (!canAutoComplete()) return { ok: false };
@@ -824,7 +1050,7 @@ function autoComplete() {
   S.moves++;
   sfx('deal');
   if (!S.won && isWon()) { S.won = true; onWin(d); }
-  relayout(); updateHUD(); scheduleSave();
+  relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   return { ok: true };
 }
 
@@ -906,7 +1132,7 @@ function newGame(o = {}) {
   deal = mode === 'freecell' ? clamp(Math.floor(deal), 1, 1000000) : clamp(Math.floor(deal), 1, 2147483646);
   clearTimeout(winTimer); winTimer = 0;
   S = newState(mode, opts, deal, daily);
-  undoStack = []; redoStack = []; hintState = null; held = null; drag = null; cascade = null; cursor = { pile: null, depth: 0 };
+  undoStack = []; redoStack = []; hintState = null; held = null; drag = null; cascade = null; cursor = { pile: null, depth: 0 }; clearStuck();
   meta.lastMode = mode; meta.lastOpts = { draw: S.opts.draw, suits: S.opts.suits }; save('meta', meta);
   closeModal(); showTitle(false);
   dealAnimation(); updateHUD(); scheduleSave();
@@ -957,7 +1183,7 @@ function loadSaved() {
 function resumeSaved() {
   const c = loadSaved(); if (!c) return false;
   clearTimeout(winTimer); winTimer = 0;
-  S = c.state; undoStack = c.undo || []; redoStack = []; hintState = null; held = null; drag = null; cascade = null; fitHold = 1;
+  S = c.state; undoStack = c.undo || []; redoStack = []; hintState = null; held = null; drag = null; cascade = null; fitHold = 1; clearStuck();
   clockMark = now(); closeModal(); showTitle(false); relayout(true); dealAnimation(); updateHUD();
   return true;
 }
@@ -2899,9 +3125,12 @@ const MODALS = {
       '<div class="row"><button class="btn solid" data-a="new" data-focus>New deal</button><button class="btn" data-a="restart">Replay this deal</button><button class="btn" data-a="title">Change game</button></div>';
   },
   confirm: (d) => head(d.title) + '<p>' + d.text + '</p><div class="row"><button class="btn solid" data-a="yes">' + d.yes + '</button><button class="btn" data-close data-focus>Cancel</button></div>',
+  stuck: () => head('No more moves') + '<p>Nothing left on the table can lead anywhere. Every move that remains just shuffles cards around.</p><div class="row">' +
+    (undoStack.length ? '<button class="btn solid" data-a="undo" data-focus>Undo</button>' : '') +
+    '<button class="btn' + (undoStack.length ? '' : ' solid" data-focus="1') + '" data-a="restart">Restart this deal</button><button class="btn" data-a="new">New deal</button><button class="btn" data-close>Keep looking</button></div>',
 };
 const ACTIONS = {
-  resume: () => closeModal(), new: () => newGame({ mode: S ? S.mode : meta.lastMode }), restart: () => restartDeal(),
+  resume: () => closeModal(), new: () => newGame({ mode: S ? S.mode : meta.lastMode }), restart: () => restartDeal(), undo: () => { closeModal(); undo(); },
   deal: () => openModal('deal'), daily: () => openModal('daily'), title: () => { closeModal(); showTitle(true); },
   backs: () => openModal('backs'), settings: () => openModal('settings'), stats: () => openModal('stats'), help: () => openModal('help'),
   reseed: () => { settings.deckSeed = 1 + Math.floor(Math.random() * 1e6); saveSettings(); if (settings.back !== 'skylight') settings.back = 'skylight'; applyLook(); openModal('backs'); },
@@ -2912,6 +3141,7 @@ const BIND = {
   },
   menu() { BIND._common(); },
   win() { BIND._common(); },
+  stuck() { BIND._common(); },
   settings() {
     BIND._common();
     sheet.querySelectorAll('[data-set]').forEach((b) => (b.onclick = () => { setSetting(b.dataset.set, b.dataset.val); sheet.querySelectorAll('[data-set="' + b.dataset.set + '"]').forEach((x) => x.setAttribute('aria-pressed', x === b)); }));
@@ -2997,7 +3227,7 @@ window.__game = {
     return { scene: sceneName(), modal: modalKind, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, piles: notePiles(),
       score: S.score, moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, started: S.started, canAutoComplete: canAutoComplete(),
       undoDepth: undoStack.length, redoDepth: redoStack.length, held: held ? Object.assign({}, held) : null, cursor: Object.assign({}, cursor),
-      settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, storageOK };
+      settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, stuck: stuckVerdict, storageOK };
   },
   setState(s) {
     fitHold = 1;
@@ -3006,7 +3236,7 @@ window.__game = {
     st.cards = []; st.up = []; for (const id in st.piles) st.piles[id] = [];
     for (const id in s.piles || {}) { if (!st.piles[id]) continue; for (const n of s.piles[id]) { const c = parseNote(n); st.piles[id].push(st.cards.length); st.cards.push({ s: c.s, r: c.r }); st.up.push(c.up); } }
     if (s.score != null) st.score = s.score; if (s.moves != null) st.moves = s.moves;
-    S = st; undoStack = []; redoStack = []; held = null; drag = null; cascade = null; hintState = null; lastWin = null;
+    S = st; undoStack = []; redoStack = []; held = null; drag = null; cascade = null; hintState = null; lastWin = null; clearStuck();
     clearTimeout(winTimer); winTimer = 0;
     closeModal(); showTitle(false); relayout(true); updateHUD(); markDirty();
     return true;
@@ -3032,6 +3262,7 @@ window.__game = {
       case 'undo': return undo();
       case 'redo': return redo();
       case 'hint': return hint();
+      case 'checkStuck': clearTimeout(stuckTimer); stuckTimer = 0; return { ok: true, verdict: checkStuck() };
       case 'autoComplete': return autoComplete();
       case 'tap': return tapAt(a[0], a[1]);
       case 'key': { const r = gameKey({ key: a[0], ctrlKey: !!a[1], metaKey: false, altKey: false, shiftKey: false }); return { ok: r }; }

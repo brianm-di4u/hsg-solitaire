@@ -97,7 +97,41 @@ export const tests = [
       const h2 = await t.game('act', 'hint'); t.expect(h2.move && JSON.stringify(h2.move) !== JSON.stringify(h1.move), 'second press cycles to another move');
       await t.game('setState', { mode: 'klondike', piles: { stock: [], waste: [], t0: ['5C'], t1: ['5S'], t2: [], t3: [], t4: [], t5: [], t6: [] } });
       const h3 = await t.game('act', 'hint'); t.equal(h3.move, null, 'no move available');
-      const toast = await t.page.textContent('#toast'); t.expect(/No moves left/.test(toast), 'no-move message shown: ' + toast);
+      t.equal(h3.stuck, true, 'hint reports a dead end');
+      t.equal((await t.state()).modal, 'stuck', 'no-more-moves popup shown');
+    },
+  },
+  {
+    name: 'play-16b hints skip futile loops',
+    async run(t) {
+      await baseSettings(t);
+      // 5H can shuttle between the black sixes and the stock can cycle forever, but nothing ever plays
+      const deadKlondike = { mode: 'klondike', opts: { draw: 1 }, piles: { stock: ['#9C', '#9S'], waste: [], t0: ['#2D', '6S'], t1: ['#3D', '6C', '5H'], t2: [], t3: [], t4: [], t5: [], t6: [] } };
+      await t.game('setState', deadKlondike);
+      const h = await t.game('act', 'hint');
+      t.equal([h.move, h.stock, h.stuck], [null, undefined, true], 'no shuttle or stock hint, reported stuck');
+      t.equal((await t.state()).modal, 'stuck', 'popup shown from the hint');
+      await t.shot('play-16b-stuck');
+      await t.page.click('#sheet [data-close]:not(.x)');
+      t.equal((await t.state()).modal, null, 'Keep looking closes it');
+      const c1 = await t.game('act', 'checkStuck'); t.equal(c1.verdict, 'dead', 'auto-check agrees');
+      t.equal((await t.state()).modal, null, 'not shown twice for the same position');
+
+      // the automatic check fires after a move, once things settle
+      t.expect((await t.game('act', 'move', 't1', 't0', 1)).ok, 'the shuttle is a legal move'); await t.game('act', 'skip');
+      const auto = await t.page.waitForFunction(() => window.__game.getState().modal === 'stuck', null, { timeout: 4000 }).then(() => true, () => false);
+      t.expect(auto, 'popup appears on its own after a move into a dead end');
+      await t.page.click('#sheet [data-a="undo"]');
+      const s = await t.state(); t.equal([s.modal, s.undoDepth], [null, 0], 'Undo button closes the popup and undoes');
+
+      // FreeCell: cards can only trade places with the free cell and empty column; no move is ever useful
+      await t.game('setState', { mode: 'freecell', piles: { c0: ['3C'], c1: ['3S'], c2: ['5C'], c3: [], t0: ['9C'], t1: ['9S'], t2: ['7C'], t3: ['7S'], t4: ['KC'], t5: ['KS'], t6: ['JC'], t7: ['JS'] } });
+      const fh = await t.game('act', 'hint'); t.equal(fh.stuck, true, 'FreeCell cell shuffling is a dead end');
+
+      // the only way on is to cycle the stock to the ace: drawing is hinted and the game is live
+      await t.game('setState', Object.assign({}, deadKlondike, { piles: Object.assign({}, deadKlondike.piles, { stock: ['#AH', '#9C', '#9S'] }) }));
+      const dh = await t.game('act', 'hint'); t.equal([dh.move, dh.stock, dh.stuck], [null, true, undefined], 'draw from the stock is hinted');
+      t.equal((await t.game('act', 'checkStuck')).verdict, 'live', 'not a dead end');
     },
   },
   {
@@ -132,7 +166,8 @@ export const tests = [
     name: 'play-19 keyboard-only play',
     async run(t) {
       await baseSettings(t);
-      await t.game('setState', { mode: 'klondike', piles: { stock: ['#4C', '#7D'], waste: [], t0: ['#5C', '9H'], t1: ['#2D', 'TS'], t2: ['AS'], t3: [], t4: [], t5: [], t6: ['KD'] } });
+      // the 2S in the stock keeps the game alive, so H gives a hint rather than the no-more-moves popup
+      await t.game('setState', { mode: 'klondike', piles: { stock: ['#4C', '#7D', '#2S'], waste: [], t0: ['#5C', '9H'], t1: ['#2D', 'TS'], t2: ['AS'], t3: [], t4: [], t5: [], t6: ['KD'] } });
       await t.page.focus('#cv');
       await t.page.keyboard.press('1');          // cursor to column 1
       await t.page.keyboard.press('Enter');      // pick up 9H

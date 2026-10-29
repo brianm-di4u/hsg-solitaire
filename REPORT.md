@@ -148,8 +148,10 @@ Docs:
 
 ## Known gaps
 
-- **No solver.** Hints are a ranked one-ply move list, not a search, and there is no "winnable deals only"
-  option. Both are listed as out of scope in the PRD.
+- **No full solver.** Hints and the "No more moves" popup use a bounded look-ahead search for the next
+  real progress (see MECHANICS §3), not a full solve. In very open positions, mostly FreeCell and four-suit
+  Spider, the search can run out before proving anything. Then no popup is shown and hints fall back to
+  the ranked list. There is no "winnable deals only" option (out of scope in the PRD).
 - **Klondike Draw 3 auto-complete** plays foundation moves and cycles the stock. In a rare Draw 3 stock
   order it can stop short and leave a few cards for the player. The button is only offered once no
   face-down tableau cards remain.

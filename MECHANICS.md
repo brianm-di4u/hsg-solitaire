@@ -95,8 +95,30 @@ that can legally go to a foundation:
 - a pointless shuttle, where the same run moves onto an equivalent card without revealing anything: excluded
 - moving a king run into an empty column when it is already at the column bottom: excluded
 
-Pressing H again cycles through the ranked list. If no tableau moves remain, the hint says "Draw from the
-stock"; if the stock is empty too, it says "No moves left: undo or deal again".
+The ranking only orders the hints. Which moves count is decided by a **look-ahead search**, so a hint never
+sends the player round in circles:
+- **Potential.** Each position gets a score: 1000 × cards on foundations − 100 × face-down cards − 10 ×
+  stock and waste cards + 5 × empty cells and columns − (Spider) suit breaks in face-up runs. Moving cards
+  around, cycling the stock or parking a card and taking it back leave the score where it was. A won
+  position beats every other one.
+- **Search.** Breadth-first, on throwaway copies of the position, using every legal move (the ranker's
+  "pointless shuttle" pruning is off) plus the auto-moves the player would get from the auto-foundation
+  setting. Klondike's stock is searched as "draw until card X is on top, then play it", not as single
+  draws. Columns, cells and foundations are interchangeable, and Spider's identical cards count as the
+  same, so swapping them doesn't make a new position. The search stops at 5,000 positions (hints) or 2,500
+  (the automatic check).
+- **Hints** are the first moves of paths that beat the current score, nearest payoff first, with tableau
+  moves before the stock. The search never passes through a position this game has already been in, so
+  following hints can't loop. A drawing or dealing hint only appears when the stock leads somewhere.
+- **No more moves.** If the search checks every reachable position and none beats the current one, the
+  deal can't be won from here. A "No more moves" popup offers Undo, Restart this deal, New deal and Keep
+  looking. The check runs on its own about half a second after each move, undo or redo, once the cards
+  have settled. It shows once per position, and Hint brings it back.
+- **Too big to finish** (mostly FreeCell and four-suit Spider mid-game): no popup. Hints fall back to the
+  ranked list, minus moves and draws that return to an earlier position. If the only way on is back through
+  an earlier position, the hint says "No useful moves found. Try Undo or a new deal".
+
+Pressing H again cycles through the hints.
 
 **Auto-complete.** Klondike and Yukon offer it when no face-down tableau cards remain. FreeCell offers it
 when every column and cell is in descending order with no blockers. The loop plays foundation moves (and
@@ -195,7 +217,8 @@ counts as one undo step.
 
 ## 6. AI
 
-None. The only "AI" is the hint ranker. Auto-complete is deterministic.
+None. The only "AI" is the hint ranker and the look-ahead search behind it (§3). Auto-complete is
+deterministic.
 
 ## 7. RNG
 
@@ -222,12 +245,12 @@ this browser".
 | Method | Returns / does |
 |---|---|
 | `seed(n)` | sets the next deal number to `n` and reseeds the cosmetic RNG |
-| `getState()` | `{scene, mode, opts, deal, daily, piles:{id:[notation]}, score, moves, elapsedMs, won, canAutoComplete, undoDepth, redoDepth, held, cursor, settings, stockCount, runs, modal}` |
+| `getState()` | `{scene, mode, opts, deal, daily, piles:{id:[notation]}, score, moves, elapsedMs, won, canAutoComplete, undoDepth, redoDepth, held, cursor, settings, stockCount, runs, modal, stuck}`; `stuck` is the last dead-end verdict: `'dead'`, `'live'`, `'unknown'` (search ran out) or `null` |
 | `setState(s)` | loads `{mode, opts, deal, piles, score?, moves?}` in notation, clears undo, redraws |
 | `isIdle()` | no animation in flight |
 | `scene(name)` | `title`, `game`, `settings`, `backs`, `stats`, `help`, `win`, `deal` |
 | `newGame(opts)` | `{mode, draw, suits, deal, daily}` |
-| `act(name, ...args)` | `move(from, to, count)`, `draw`, `undo`, `redo`, `hint`, `autoComplete`, `tap(pileId, index)`, `key(key)`, `skip` (finish animations). Returns `{ok, ...}` |
+| `act(name, ...args)` | `move(from, to, count)`, `draw`, `undo`, `redo`, `hint` (`{move}`, `{stock: true}` or `{stuck: true}`), `checkStuck` (runs the dead-end check now, `{verdict}`), `autoComplete`, `tap(pileId, index)`, `key(key)`, `skip` (finish animations). Returns `{ok, ...}` |
 | `getLayout()` | `{cardW, cardH, indexPx, idxFull, idxCap, fanUp, bottom, fit, piles:{id:{x,y,w,h,cards:[{x,y,w,h,up}]}}}` in page CSS px, for pointer-driven and layout tests |
 | `act('ceremonyAt', ms)` / `act('unfreeze')` | renders the win ceremony at exactly `ms` and holds that frame (v3) |
 | `frameStats(reset)` | `{frames, avgMs, p50Ms, p95Ms, maxMs}`: CPU time per drawn frame (v3 perf tests) |
