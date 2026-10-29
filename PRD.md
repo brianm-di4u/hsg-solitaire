@@ -152,6 +152,18 @@ Title ──► Game ──► Win dialog ──► (New deal | Replay | Title)
   - UI chrome uses the default theme: light is gilded-spa, dark is deco-neon.
   - Each back uses its motif palette (town-content §1). Tables use P5 felt, P6 linen, P2 thermal, the
     marble swatch, and P5 midnight.
+- **v3 visual campaign (2026-10):** see `VISUAL-PLAN.md` and `VISUAL-REPORT.md`. In short:
+  - six lit tables (Card-Room Felt, Fordyce Bath Hall, Quapaw Mosaic, Thermal Pool, Midnight Club, Linen Postcard);
+  - Blender brass hardware;
+  - a dark lacquer HUD and toolbar;
+  - three bundled OFL faces;
+  - flat Art Deco courts as the default, with the painted set as an option;
+  - card motion with arc, lift, lean, settle and sheen;
+  - a skylight-rosette win ceremony and an engraved bath ticket;
+  - a full-bleed title and themed dialogs.
+
+  The "Faces" and "Courts" bullets below describe v2. In v3 the indices use Libre Bodoni, and the default courts
+  are the Art Deco set (town-content §11).
 - **Painted art (v2):** the deck follows the reference photos in `Sample Images/` (an Art Deco deck with
   illustrated courts and painted backs). Original illustrations were generated with Codex image generation and
   packed to `assets/*.webp` (`art-src/art.json`, `node shared/test-harness/art-pack.mjs games/solitaire`).

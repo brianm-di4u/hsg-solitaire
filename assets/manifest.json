@@ -65,36 +65,6 @@
   "h": 560,
   "bytes": 75312
  },
- "table-felt": {
-  "file": "table-felt.webp",
-  "w": 1600,
-  "h": 1000,
-  "bytes": 206064
- },
- "table-linen": {
-  "file": "table-linen.webp",
-  "w": 1600,
-  "h": 1000,
-  "bytes": 428956
- },
- "table-pool": {
-  "file": "table-pool.webp",
-  "w": 1600,
-  "h": 1000,
-  "bytes": 130610
- },
- "table-marble": {
-  "file": "table-marble.webp",
-  "w": 1600,
-  "h": 1000,
-  "bytes": 118484
- },
- "table-midnight": {
-  "file": "table-midnight.webp",
-  "w": 1600,
-  "h": 1000,
-  "bytes": 63960
- },
  "court-ks": {
   "file": "court-ks.webp",
   "w": 480,
@@ -183,6 +153,192 @@
   "file": "title-hero.webp",
   "w": 1600,
   "h": 900,
-  "bytes": 313404
+  "bytes": 252600
+ },
+ "tex-felt-l": {
+  "file": "tex-felt-l.webp",
+  "w": 1536,
+  "h": 1024,
+  "bytes": 254662
+ },
+ "tex-felt-p": {
+  "file": "tex-felt-p.webp",
+  "w": 1024,
+  "h": 1536,
+  "bytes": 210852
+ },
+ "tex-marble-l": {
+  "file": "tex-marble-l.webp",
+  "w": 1536,
+  "h": 1024,
+  "bytes": 33094
+ },
+ "tex-marble-p": {
+  "file": "tex-marble-p.webp",
+  "w": 1024,
+  "h": 1536,
+  "bytes": 36114
+ },
+ "brass-corner": {
+  "file": "brass-corner.webp",
+  "w": 320,
+  "h": 320,
+  "bytes": 16936
+ },
+ "brass-slot": {
+  "file": "brass-slot.webp",
+  "w": 300,
+  "h": 420,
+  "bytes": 22354
+ },
+ "brass-cell": {
+  "file": "brass-cell.webp",
+  "w": 300,
+  "h": 420,
+  "bytes": 23198
+ },
+ "brass-recycle": {
+  "file": "brass-recycle.webp",
+  "w": 192,
+  "h": 192,
+  "bytes": 7570
+ },
+ "tex-pool-l": {
+  "file": "tex-pool-l.webp",
+  "w": 1536,
+  "h": 1024,
+  "bytes": 199616
+ },
+ "tex-pool-p": {
+  "file": "tex-pool-p.webp",
+  "w": 1024,
+  "h": 1536,
+  "bytes": 171668
+ },
+ "tex-midnight-l": {
+  "file": "tex-midnight-l.webp",
+  "w": 1536,
+  "h": 1024,
+  "bytes": 87838
+ },
+ "tex-midnight-p": {
+  "file": "tex-midnight-p.webp",
+  "w": 1024,
+  "h": 1536,
+  "bytes": 84848
+ },
+ "tex-linen-l": {
+  "file": "tex-linen-l.webp",
+  "w": 1536,
+  "h": 1024,
+  "bytes": 288388
+ },
+ "tex-linen-p": {
+  "file": "tex-linen-p.webp",
+  "w": 1024,
+  "h": 1536,
+  "bytes": 231660
+ },
+ "tex-quapaw-l": {
+  "file": "tex-quapaw-l.webp",
+  "w": 1536,
+  "h": 1024,
+  "bytes": 250876
+ },
+ "tex-quapaw-p": {
+  "file": "tex-quapaw-p.webp",
+  "w": 1024,
+  "h": 1536,
+  "bytes": 225212
+ },
+ "glow-skylight": {
+  "file": "glow-skylight.webp",
+  "w": 1024,
+  "h": 683,
+  "bytes": 16660
+ },
+ "deco-jc": {
+  "file": "deco-jc.webp",
+  "w": 660,
+  "h": 440,
+  "bytes": 32358
+ },
+ "deco-qc": {
+  "file": "deco-qc.webp",
+  "w": 660,
+  "h": 440,
+  "bytes": 34766
+ },
+ "deco-kc": {
+  "file": "deco-kc.webp",
+  "w": 660,
+  "h": 440,
+  "bytes": 29874
+ },
+ "deco-jd": {
+  "file": "deco-jd.webp",
+  "w": 660,
+  "h": 440,
+  "bytes": 28688
+ },
+ "deco-qd": {
+  "file": "deco-qd.webp",
+  "w": 660,
+  "h": 440,
+  "bytes": 31430
+ },
+ "deco-kd": {
+  "file": "deco-kd.webp",
+  "w": 660,
+  "h": 440,
+  "bytes": 30150
+ },
+ "deco-jh": {
+  "file": "deco-jh.webp",
+  "w": 660,
+  "h": 440,
+  "bytes": 39930
+ },
+ "deco-qh": {
+  "file": "deco-qh.webp",
+  "w": 660,
+  "h": 440,
+  "bytes": 25124
+ },
+ "deco-kh": {
+  "file": "deco-kh.webp",
+  "w": 660,
+  "h": 440,
+  "bytes": 34226
+ },
+ "deco-js": {
+  "file": "deco-js.webp",
+  "w": 660,
+  "h": 440,
+  "bytes": 30952
+ },
+ "deco-qs": {
+  "file": "deco-qs.webp",
+  "w": 660,
+  "h": 440,
+  "bytes": 30802
+ },
+ "deco-ks": {
+  "file": "deco-ks.webp",
+  "w": 660,
+  "h": 440,
+  "bytes": 24260
+ },
+ "brass-frame": {
+  "file": "brass-frame.webp",
+  "w": 512,
+  "h": 512,
+  "bytes": 35142
+ },
+ "ticket-stock": {
+  "file": "ticket-stock.webp",
+  "w": 960,
+  "h": 480,
+  "bytes": 62736
  }
 }

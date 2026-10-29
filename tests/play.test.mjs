@@ -169,6 +169,22 @@ export const tests = [
     },
   },
   {
+    name: 'play-31 win ceremony frames',
+    async run(t) {
+      await baseSettings(t);
+      await t.game('setState', nearWinKlondike());
+      await t.game('act', 'move', 't0', 'f3');
+      // frozen-clock frames: the rosette forming, the rosette under the skylight glow, the fountain spray
+      for (const [ms, name] of [[600, 'gather'], [1350, 'rosette'], [2500, 'spray']]) {
+        t.expect((await t.game('act', 'ceremonyAt', ms)).ok, 'ceremony frame at ' + ms + ' ms');
+        await t.shot('play-31-ceremony-' + name);
+      }
+      await t.game('act', 'unfreeze');
+      await t.waitForStable(8000);
+      t.equal((await t.state()).scene, 'win', 'win dialog after the ceremony');
+    },
+  },
+  {
     name: 'play-30 win screen with cascade and fact card',
     async run(t) {
       await baseSettings(t);
@@ -176,12 +192,12 @@ export const tests = [
       await t.game('act', 'move', 't0', 'f3');
       await t.page.waitForTimeout(1500);
       await rawShot(t, 'play-30-cascade');
-      t.expect(!(await t.game('isIdle')), 'cascade is running');
+      t.expect(!(await t.game('isIdle')), 'ceremony is running');
       await t.waitForStable(6000);
       const s = await t.state(); t.equal(s.scene, 'win', 'win dialog after the cascade');
       const txt = await t.page.textContent('#sheet');
       t.expect(/Did you know\?/.test(txt) && /Source:/.test(txt), 'fact card with a source');
-      t.expect(/BATH TICKET/.test(txt), 'bath ticket');
+      t.expect(/bath ticket/i.test(txt), 'bath ticket');
       await t.shot('play-30-win', { fullPage: false });
       await t.checkLayout();
     },

@@ -13,7 +13,7 @@ export const tests = [
     name: 'art-50 painted assets load',
     async run(t) {
       t.log(Object.keys(MANIFEST).length + ' assets, ' + MB.toFixed(2) + ' MB');
-      t.expect(MB <= 3.5, 'asset folder ≤ 3.5 MB (' + MB.toFixed(2) + ')');
+      t.expect(MB <= 6, 'asset folder ≤ 6 MB (' + MB.toFixed(2) + ')');
       await baseSettings(t);
       await t.game('scene', 'backs'); // the picker requests every back and table
       await t.waitForStable();

@@ -101,3 +101,17 @@ written fresh for this project. The attributions below record where ideas came f
 | Deal numbers | Rosetta description | MS-compatible LCG for FreeCell, and mulberry32 seeded deals for the other games |
 | Autoplay | Freecell Solver rule | Safe autoplay: optional, on by default in FreeCell |
 | Supermove | Solitairey formula | `(cells+1)·2^(empty cols)`, halved when the destination is empty |
+
+## Vendored third-party files (v3 visual campaign)
+
+Shipped in `vendor/fonts/` with each font's licence, and inlined into `assets/fonts.css` by
+`tools/build-fonts.mjs`. All come from the npm registry, pinned:
+
+| File | Package (npm) | Version | Licence | Used for |
+|---|---|---|---|---|
+| `limelight-latin-400-normal.woff2` | `@fontsource/limelight` | 5.3.0 | SIL OFL 1.1 (`LICENSE-Limelight.txt`) | Display type: the title, mode name and dialog headings |
+| `josefin-sans-latin-{400,600,700}-normal.woff2` | `@fontsource/josefin-sans` | 5.3.0 | SIL OFL 1.1 (`LICENSE-JosefinSans.txt`) | UI, the in-game bar and the toolbar |
+| `libre-bodoni-latin-700-normal.woff2` | `@fontsource/libre-bodoni` | 5.3.0 | SIL OFL 1.1 (`LICENSE-LibreBodoni.txt`) | Card corner indices and empty-slot marks |
+
+No code or art was copied from any game. The benchmark screenshots in `benchmarks/` (git-ignored) were used
+for review only.

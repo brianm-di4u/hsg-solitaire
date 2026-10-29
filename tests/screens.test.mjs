@@ -2,7 +2,7 @@
 import { baseSettings } from './_util.mjs';
 
 const BACK_IDS = ['skylight', 'lozenge', 'quapaw', 'ironwork', 'paterae', 'sculpin', 'neon', 'deco', 'pines', 'steam', 'lake', 'silks'];
-const TABLE_IDS = ['felt', 'linen', 'pool', 'marble', 'midnight'];
+const TABLE_IDS = ['felt', 'marble', 'quapaw', 'pool', 'midnight', 'linen'];
 const suitRun = (s) => ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'].map((r) => r + s);
 const facesState = { mode: 'klondike', piles: { stock: ['#2C'], waste: [], t0: suitRun('S'), t1: suitRun('H'), t2: suitRun('D'), t3: suitRun('C'), t4: ['#5C', '#6C', 'KH'], t5: ['QS'], t6: ['JD'] } };
 const courtsState = { mode: 'freecell', piles: { c0: ['AS'], c1: ['AH'], c2: ['AD'], c3: ['AC'], f0: [], f1: [], f2: [], f3: [], t0: ['QD', 'KS'], t1: ['QC', 'KH'], t2: ['JS', 'KD'], t3: ['JH', 'KC'], t4: ['JD', 'QS'], t5: ['JC', 'QH'], t6: ['TS', 'JS'], t7: ['7H', 'JD'] } };
@@ -59,7 +59,7 @@ export const tests = [
       await baseSettings(t);
       await t.game('scene', 'backs');
       t.equal(await t.page.locator('[data-back]').count(), 12, 'twelve backs in the picker');
-      t.equal(await t.page.locator('[data-table]').count(), 5, 'five tables in the picker');
+      t.equal(await t.page.locator('[data-table]').count(), 6, 'six tables in the picker');
       await t.shot('screens-26-backs');
       await t.checkLayout();
       await t.page.click('[data-back="quapaw"]');
@@ -80,7 +80,7 @@ export const tests = [
     },
   },
   {
-    name: 'screens-27 five tables',
+    name: 'screens-27 six tables',
     async run(t) {
       await baseSettings(t);
       for (const id of TABLE_IDS) {
@@ -89,7 +89,7 @@ export const tests = [
         await t.shot('screens-27-table-' + id);
       }
       await t.page.reload(); await t.page.waitForFunction(() => !!window.__game);
-      t.equal((await t.state()).settings.table, 'midnight', 'table persists after reload');
+      t.equal((await t.state()).settings.table, TABLE_IDS[TABLE_IDS.length - 1], 'table persists after reload');
     },
   },
   {
@@ -202,6 +202,7 @@ export const tests = [
       await t.game('newGame', { mode: 'spider', suits: 2, deal: 37 });
       for (const sc of scenes) {
         await t.game('scene', sc);
+        await t.waitForStable(); // the win ticket rises in; measure it at rest
         await t.checkLayout();
         if (t.viewport === 'mobile') {
           const small = (await touchTargets(t)).filter((b) => b.h < 44 || b.w < 44);

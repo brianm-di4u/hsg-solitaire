@@ -1,36 +1,381 @@
 {
  "quality": 0.84,
  "items": [
-  { "name": "court-ks", "src": "court-ks.png", "w": 480, "h": 320 },
-  { "name": "court-kh", "src": "court-kh.png", "w": 480, "h": 320 },
-  { "name": "court-kd", "src": "court-kd.png", "w": 480, "h": 320 },
-  { "name": "court-kc", "src": "court-kc.png", "w": 480, "h": 320 },
-  { "name": "court-qs", "src": "court-qs.png", "w": 480, "h": 320 },
-  { "name": "court-qh", "src": "court-qh.png", "w": 480, "h": 320 },
-  { "name": "court-qd", "src": "court-qd.png", "w": 480, "h": 320 },
-  { "name": "court-qc", "src": "court-qc.png", "w": 480, "h": 320 },
-  { "name": "court-js", "src": "court-js.png", "w": 480, "h": 320 },
-  { "name": "court-jh", "src": "court-jh.png", "w": 480, "h": 320 },
-  { "name": "court-jd", "src": "court-jd.png", "w": 480, "h": 320 },
-  { "name": "court-jc", "src": "court-jc.png", "w": 480, "h": 320 },
-  { "name": "back-skylight", "src": "back-skylight.png", "w": 400, "h": 560 },
-  { "name": "back-lozenge", "src": "back-lozenge.png", "w": 400, "h": 560 },
-  { "name": "back-quapaw", "src": "back-quapaw.png", "w": 400, "h": 560 },
-  { "name": "back-ironwork", "src": "back-ironwork.png", "w": 400, "h": 560 },
-  { "name": "back-paterae", "src": "back-paterae.png", "w": 400, "h": 560 },
-  { "name": "back-sculpin", "src": "back-sculpin.png", "w": 400, "h": 560 },
-  { "name": "back-neon", "src": "back-neon.png", "w": 400, "h": 560 },
-  { "name": "back-deco", "src": "back-deco.png", "w": 400, "h": 560 },
-  { "name": "back-pines", "src": "back-pines.png", "w": 400, "h": 560 },
-  { "name": "back-steam", "src": "back-steam.png", "w": 400, "h": 560 },
-  { "name": "back-lake", "src": "back-lake.png", "w": 400, "h": 560 },
-  { "name": "back-silks", "src": "back-silks.png", "w": 400, "h": 560 },
-  { "name": "ace-medallion", "src": "ace-medallion.png", "w": 384, "h": 384, "fit": "contain", "keyWhite": 14 },
-  { "name": "table-felt", "src": "table-felt.png", "w": 1600, "h": 1000, "quality": 0.8 },
-  { "name": "table-linen", "src": "table-linen.png", "w": 1600, "h": 1000, "quality": 0.8 },
-  { "name": "table-pool", "src": "table-pool.png", "w": 1600, "h": 1000, "quality": 0.8 },
-  { "name": "table-marble", "src": "table-marble.png", "w": 1600, "h": 1000, "quality": 0.8 },
-  { "name": "table-midnight", "src": "table-midnight.png", "w": 1600, "h": 1000, "quality": 0.8 },
-  { "name": "title-hero", "src": "title-hero.png", "w": 1600, "h": 900, "quality": 0.8 }
+  {
+   "name": "court-ks",
+   "src": "court-ks.png",
+   "w": 480,
+   "h": 320
+  },
+  {
+   "name": "court-kh",
+   "src": "court-kh.png",
+   "w": 480,
+   "h": 320
+  },
+  {
+   "name": "court-kd",
+   "src": "court-kd.png",
+   "w": 480,
+   "h": 320
+  },
+  {
+   "name": "court-kc",
+   "src": "court-kc.png",
+   "w": 480,
+   "h": 320
+  },
+  {
+   "name": "court-qs",
+   "src": "court-qs.png",
+   "w": 480,
+   "h": 320
+  },
+  {
+   "name": "court-qh",
+   "src": "court-qh.png",
+   "w": 480,
+   "h": 320
+  },
+  {
+   "name": "court-qd",
+   "src": "court-qd.png",
+   "w": 480,
+   "h": 320
+  },
+  {
+   "name": "court-qc",
+   "src": "court-qc.png",
+   "w": 480,
+   "h": 320
+  },
+  {
+   "name": "court-js",
+   "src": "court-js.png",
+   "w": 480,
+   "h": 320
+  },
+  {
+   "name": "court-jh",
+   "src": "court-jh.png",
+   "w": 480,
+   "h": 320
+  },
+  {
+   "name": "court-jd",
+   "src": "court-jd.png",
+   "w": 480,
+   "h": 320
+  },
+  {
+   "name": "court-jc",
+   "src": "court-jc.png",
+   "w": 480,
+   "h": 320
+  },
+  {
+   "name": "back-skylight",
+   "src": "back-skylight.png",
+   "w": 400,
+   "h": 560
+  },
+  {
+   "name": "back-lozenge",
+   "src": "back-lozenge.png",
+   "w": 400,
+   "h": 560
+  },
+  {
+   "name": "back-quapaw",
+   "src": "back-quapaw.png",
+   "w": 400,
+   "h": 560
+  },
+  {
+   "name": "back-ironwork",
+   "src": "back-ironwork.png",
+   "w": 400,
+   "h": 560
+  },
+  {
+   "name": "back-paterae",
+   "src": "back-paterae.png",
+   "w": 400,
+   "h": 560
+  },
+  {
+   "name": "back-sculpin",
+   "src": "back-sculpin.png",
+   "w": 400,
+   "h": 560
+  },
+  {
+   "name": "back-neon",
+   "src": "back-neon.png",
+   "w": 400,
+   "h": 560
+  },
+  {
+   "name": "back-deco",
+   "src": "back-deco.png",
+   "w": 400,
+   "h": 560
+  },
+  {
+   "name": "back-pines",
+   "src": "back-pines.png",
+   "w": 400,
+   "h": 560
+  },
+  {
+   "name": "back-steam",
+   "src": "back-steam.png",
+   "w": 400,
+   "h": 560
+  },
+  {
+   "name": "back-lake",
+   "src": "back-lake.png",
+   "w": 400,
+   "h": 560
+  },
+  {
+   "name": "back-silks",
+   "src": "back-silks.png",
+   "w": 400,
+   "h": 560
+  },
+  {
+   "name": "ace-medallion",
+   "src": "ace-medallion.png",
+   "w": 384,
+   "h": 384,
+   "fit": "contain",
+   "keyWhite": 14
+  },
+  {
+   "name": "title-hero",
+   "src": "title-hero-v3.png",
+   "w": 1600,
+   "h": 900,
+   "quality": 0.8
+  },
+  {
+   "name": "tex-felt-l",
+   "src": "t3-felt-l.png",
+   "w": 1536,
+   "h": 1024,
+   "quality": 0.66
+  },
+  {
+   "name": "tex-felt-p",
+   "src": "t3-felt-p.png",
+   "w": 1024,
+   "h": 1536,
+   "quality": 0.66
+  },
+  {
+   "name": "tex-marble-l",
+   "src": "t3-marble-l.png",
+   "w": 1536,
+   "h": 1024,
+   "quality": 0.8
+  },
+  {
+   "name": "tex-marble-p",
+   "src": "t3-marble-p.png",
+   "w": 1024,
+   "h": 1536,
+   "quality": 0.8
+  },
+  {
+   "name": "brass-corner",
+   "src": "blender/renders/corner-fan.png",
+   "w": 320,
+   "h": 320,
+   "quality": 0.86
+  },
+  {
+   "name": "brass-slot",
+   "src": "blender/renders/slot-plate.png",
+   "w": 300,
+   "h": 420,
+   "quality": 0.86
+  },
+  {
+   "name": "brass-cell",
+   "src": "blender/renders/slot-cell.png",
+   "w": 300,
+   "h": 420,
+   "quality": 0.86
+  },
+  {
+   "name": "brass-recycle",
+   "src": "blender/renders/token-recycle.png",
+   "w": 192,
+   "h": 192,
+   "quality": 0.86
+  },
+  {
+   "name": "tex-pool-l",
+   "src": "t3-pool-l.png",
+   "w": 1536,
+   "h": 1024,
+   "quality": 0.66
+  },
+  {
+   "name": "tex-pool-p",
+   "src": "t3-pool-p.png",
+   "w": 1024,
+   "h": 1536,
+   "quality": 0.66
+  },
+  {
+   "name": "tex-midnight-l",
+   "src": "t3-midnight-l.png",
+   "w": 1536,
+   "h": 1024,
+   "quality": 0.78
+  },
+  {
+   "name": "tex-midnight-p",
+   "src": "t3-midnight-p.png",
+   "w": 1024,
+   "h": 1536,
+   "quality": 0.78
+  },
+  {
+   "name": "tex-linen-l",
+   "src": "t3-linen-l.png",
+   "w": 1536,
+   "h": 1024,
+   "quality": 0.66
+  },
+  {
+   "name": "tex-linen-p",
+   "src": "t3-linen-p.png",
+   "w": 1024,
+   "h": 1536,
+   "quality": 0.66
+  },
+  {
+   "name": "tex-quapaw-l",
+   "src": "t3-quapaw-l.png",
+   "w": 1536,
+   "h": 1024,
+   "quality": 0.66
+  },
+  {
+   "name": "tex-quapaw-p",
+   "src": "t3-quapaw-p.png",
+   "w": 1024,
+   "h": 1536,
+   "quality": 0.66
+  },
+  {
+   "name": "glow-skylight",
+   "src": "t3-skylight-glow.png",
+   "w": 1024,
+   "h": 683,
+   "quality": 0.8
+  },
+  {
+   "name": "deco-jc",
+   "src": "c3-jc.png",
+   "w": 660,
+   "h": 440,
+   "quality": 0.84
+  },
+  {
+   "name": "deco-qc",
+   "src": "c3-qc.png",
+   "w": 660,
+   "h": 440,
+   "quality": 0.84
+  },
+  {
+   "name": "deco-kc",
+   "src": "c3-kc.png",
+   "w": 660,
+   "h": 440,
+   "quality": 0.84
+  },
+  {
+   "name": "deco-jd",
+   "src": "c3-jd.png",
+   "w": 660,
+   "h": 440,
+   "quality": 0.84
+  },
+  {
+   "name": "deco-qd",
+   "src": "c3-qd.png",
+   "w": 660,
+   "h": 440,
+   "quality": 0.84
+  },
+  {
+   "name": "deco-kd",
+   "src": "c3-kd.png",
+   "w": 660,
+   "h": 440,
+   "quality": 0.84
+  },
+  {
+   "name": "deco-jh",
+   "src": "c3-jh.png",
+   "w": 660,
+   "h": 440,
+   "quality": 0.84
+  },
+  {
+   "name": "deco-qh",
+   "src": "c3-qh.png",
+   "w": 660,
+   "h": 440,
+   "quality": 0.84
+  },
+  {
+   "name": "deco-kh",
+   "src": "c3-kh.png",
+   "w": 660,
+   "h": 440,
+   "quality": 0.84
+  },
+  {
+   "name": "deco-js",
+   "src": "c3-js.png",
+   "w": 660,
+   "h": 440,
+   "quality": 0.84
+  },
+  {
+   "name": "deco-qs",
+   "src": "c3-qs.png",
+   "w": 660,
+   "h": 440,
+   "quality": 0.84
+  },
+  {
+   "name": "deco-ks",
+   "src": "c3-ks.png",
+   "w": 660,
+   "h": 440,
+   "quality": 0.84
+  },
+  {
+   "name": "brass-frame",
+   "src": "blender/renders/dialog-frame.png",
+   "w": 512,
+   "h": 512,
+   "quality": 0.9
+  },
+  {
+   "name": "ticket-stock",
+   "src": "ticket-stock.png",
+   "w": 960,
+   "h": 480,
+   "quality": 0.8
+  }
  ]
 }

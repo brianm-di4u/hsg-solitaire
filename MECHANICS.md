@@ -132,6 +132,33 @@ counts as one undo step.
 
 ## 5. Rendering
 
+> **v3 visual campaign (2026-10).** The sections below describe v1–v2. The v3 changes are listed first; the
+> full write-up is `VISUAL-REPORT.md`.
+>
+> - **Lit tables.** Each table is a frameless texture (`tex-<id>-l` / `-p`, picked by orientation), lit in code
+>   (`drawLitTable`): a tone wash, a soft-light lamp pool, a vignette, and for the Fordyce Bath Hall a coloured
+>   skylight glow. Then comes a brass inlay with Blender-rendered Deco fans (`brassInlay`), and on tall phones a
+>   faint printed emblem (`feltEmblem`). It is drawn once per resize into the table canvas.
+> - **Brass slot inlays** (`brassPlaceholder`): Blender renders with an engraved A, K or fan, and a recycle token.
+> - **Card motion.** `dispPos` returns `{x, y, lift, rot}`. Moves fly on an arc that lifts the card (scale +5.5%, a
+>   longer and softer shadow) and leans it toward the direction of travel. Drops settle with a small overshoot
+>   (`easeBack`). Flips foreshorten with a perspective shear and a sweeping sheen. A dragged run tilts with hand
+>   speed, wears a gold rim and leaves ghost copies on fast flicks. Gold glints play where a card lands on a
+>   foundation.
+> - **Win ceremony** (`startCascade` / `drawCascade`). The board fades and dims, then the cards gather into a rosette
+>   under a skylight-coloured glow, hold, and peel off in bouncing arcs that stamp a fading trail, with steam and
+>   brass confetti. Then the bath ticket rises and the next of the 21 holes is punched. `act('ceremonyAt', ms)`
+>   freezes one exact frame for tests.
+> - **Indices.** Three bundled faces (`assets/fonts.css`): Libre Bodoni for indices, Josefin Sans for the UI,
+>   Limelight for display. `idxScale` gives phones a jumbo index (46% of card width). The face-up fan step is never
+>   smaller than the measured rank glyph (`indexBottom`). If a column can't fit at that step, `relayout` shrinks the
+>   cards in 6% steps until it does.
+> - **Courts.** Two sets: `deco-*` (flat Art Deco, the default) and `court-*` (the v2 painted portraits), chosen by
+>   the `courts` setting. Deco courts are full-bleed and double-ended, with feathered ivory corners under the
+>   indices. On phones they show a head-and-shoulders cameo framed by `COURT_FOCUS`.
+> - **Low-end fallback.** A watchdog (an EMA of frame CPU over 12 ms) or `?fx=low` turns off glints, confetti,
+>   ceremony steam and the glow. `?art=0` still gives the full vector look.
+
 - **Layers**
   1. A cached **table canvas** (felt, linen and so on), redrawn on resize or theme change.
   2. The **main canvas**: pile outlines, cards, the cursor ring, hint glows, drag shadow, and the steam and
@@ -201,7 +228,10 @@ this browser".
 | `scene(name)` | `title`, `game`, `settings`, `backs`, `stats`, `help`, `win`, `deal` |
 | `newGame(opts)` | `{mode, draw, suits, deal, daily}` |
 | `act(name, ...args)` | `move(from, to, count)`, `draw`, `undo`, `redo`, `hint`, `autoComplete`, `tap(pileId, index)`, `key(key)`, `skip` (finish animations). Returns `{ok, ...}` |
-| `getLayout()` | `{cardW, cardH, indexPx, piles:{id:{x,y,w,h,cards:[{x,y,w,h,up}]}}}` in CSS px, for pointer-driven tests |
+| `getLayout()` | `{cardW, cardH, indexPx, idxFull, idxCap, fanUp, bottom, fit, piles:{id:{x,y,w,h,cards:[{x,y,w,h,up}]}}}` in page CSS px, for pointer-driven and layout tests |
+| `act('ceremonyAt', ms)` / `act('unfreeze')` | renders the win ceremony at exactly `ms` and holds that frame (v3) |
+| `frameStats(reset)` | `{frames, avgMs, p50Ms, p95Ms, maxMs}`: CPU time per drawn frame (v3 perf tests) |
+| `fxLevel()` | `'full'` or `'low'` (v3 low-effects fallback) |
 | `legalMoves()` | `[{from, index, to, count, score}]` |
 | `setSettings(obj)` | merge settings, re-layout and redraw |
 | `freecellDeal(n)` | the 8 columns of deal `n` in notation (a test vector helper) |

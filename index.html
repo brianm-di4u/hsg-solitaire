@@ -11,6 +11,7 @@
   One HTML file plus painted art in assets/ (vector fallbacks built in); all sound is WebAudio, nothing loads from other origins.
   Rules and algorithms written fresh for this project; see SAMPLES.md for the ideas surveyed.
 -->
+<link rel="stylesheet" href="assets/fonts.css" id="fontCss" media="print" onload="this.media='all'">
 <style>
   /* Tokens copied from shared/design/tokens.css (values unchanged). */
   :root{
@@ -18,20 +19,25 @@
     --color-primary:#8E3622; --color-on-primary:#FFFFFF; --color-accent:#355E41; --color-on-accent:#FFFFFF;
     --color-success:#2E6A3C; --color-danger:#9A2A1C; --color-highlight:#D9A23A; --color-border:#CDBF9F;
     --font-serif-victorian:"Palatino Linotype","Book Antiqua",Palatino,Georgia,"Times New Roman",serif;
-    --font-deco:"Century Gothic",Futura,"Avenir Next","Trebuchet MS","Gill Sans",sans-serif;
+    --font-deco:"Josefin Sans","Century Gothic",Futura,"Avenir Next","Trebuchet MS","Gill Sans",sans-serif;
     --font-sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
     --font-mono:"Courier New",Courier,ui-monospace,Menlo,Consolas,monospace;
     --radius-sm:3px; --radius-md:6px; --radius-lg:12px; --radius-pill:999px;
     --sheet:#FBF8F1; /* derived: card-stock cream for dialogs */
     --chip:#F2EFE8;
     --bar-h:52px; --tools-h:64px;
+    --font-display:Limelight,"Josefin Sans","Century Gothic",Futura,sans-serif;
+    /* in-game chrome: dark lacquer and brass in both color schemes, so the lit table reads as the brightest thing */
+    --lac-1:#1E2A23; --lac-2:#101813; --lac-ink:#F1E6C8; --lac-muted:#B5AA8E; --brass:#C9A04A; --brass-hi:#E9C873;
+    --brass-rule:linear-gradient(90deg,#6E4C16,#E9C873 22%,#9C6E1E 50%,#E9C873 78%,#6E4C16);
   }
   @media (prefers-color-scheme: dark){
     :root{
-      --color-bg:#14121F; --color-surface:#1F1C2E; --color-text:#D8CFBD; --color-muted:#9A95A0;
-      --color-primary:#D4AF37; --color-on-primary:#14121F; --color-accent:#FF5A5A; --color-on-accent:#14121F;
-      --color-success:#5FD38A; --color-danger:#FF6B6B; --color-highlight:#4FC3FF; --color-border:#3A3550;
-      --sheet:#1F1C2E; --chip:#2A2640; /* derived */
+      /* derived for v3: black lacquer, jade and brass instead of the shared tokens' purple-navy */
+      --color-bg:#0E1411; --color-surface:#16201B; --color-text:#EDE3C8; --color-muted:#ABA088;
+      --color-primary:#E2BE66; --color-on-primary:#1B1408; --color-accent:#6FC3A8; --color-on-accent:#0E1411;
+      --color-success:#6FC3A8; --color-danger:#FF7A6B; --color-highlight:#E9C873; --color-border:#34443A;
+      --sheet:#16201B; --chip:#21302A;
     }
   }
   *{box-sizing:border-box}
@@ -41,47 +47,78 @@
   .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
   #app{position:fixed;inset:0;display:flex;flex-direction:column;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
-  #bar{height:var(--bar-h);flex:none;display:flex;align-items:center;gap:8px;padding:0 8px;
-    background:var(--color-surface);border-bottom:2px solid #B8862C;border-image:linear-gradient(90deg,#9C6E1E,#E9C873 25%,#B8862C 50%,#E9C873 75%,#9C6E1E) 1}
+  #bar{height:var(--bar-h);flex:none;display:flex;align-items:center;gap:10px;padding:0 10px;position:relative;z-index:1;
+    background:var(--lac-2) linear-gradient(var(--lac-1),var(--lac-2));color:var(--lac-ink);
+    border-bottom:2px solid var(--brass);border-image:var(--brass-rule) 1;box-shadow:0 3px 10px rgba(0,0,0,.45)}
   #ttl{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15}
-  #modeName{font-family:var(--font-deco);font-weight:700;font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #modeSub{font-size:.75rem;color:var(--color-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #status{display:flex;gap:12px;font-size:.8rem;color:var(--color-muted);white-space:nowrap}
-  #status b{display:block;font-family:var(--font-mono);font-size:1rem;color:var(--color-text);text-align:right}
+  #modeName{font-family:var(--font-display);font-weight:400;font-size:1.12rem;letter-spacing:.03em;color:var(--brass-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #modeSub{font-family:var(--font-deco);font-size:.74rem;letter-spacing:.04em;color:var(--lac-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #status{display:flex;gap:20px;font-family:var(--font-deco);font-size:.66rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--lac-muted);white-space:nowrap}
+  #status span{text-align:right}
+  #status b{display:block;font-family:var(--font-deco);font-weight:700;font-size:1.32rem;letter-spacing:.02em;color:var(--lac-ink);
+    text-align:right;font-variant-numeric:tabular-nums;margin-top:1px}
   #stage{flex:1;position:relative;min-height:0;overflow:hidden}
   #stage canvas{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
   #cv{touch-action:none;outline:none}
-  #cv.kb:focus{box-shadow:inset 0 0 0 3px var(--color-highlight)}
-  #tools{height:var(--tools-h);flex:none;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 6px;
-    background:var(--color-surface);border-top:2px solid #B8862C;border-image:linear-gradient(90deg,#9C6E1E,#E9C873 25%,#B8862C 50%,#E9C873 75%,#9C6E1E) 1}
-  .tb{flex:1;max-width:120px;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:1px;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--chip);cursor:pointer;
-    font-size:.78rem;padding:2px 4px}
-  .tb svg{width:22px;height:22px}
-  .tb:disabled{opacity:.42;cursor:default}
-  .tb.glow:not(:disabled){border-color:var(--color-primary);box-shadow:0 0 0 2px var(--color-primary) inset}
-  .ib{width:44px;height:44px;flex:none;border:1px solid var(--color-border);border-radius:var(--radius-lg);
-    background:var(--chip);display:grid;place-items:center;cursor:pointer}
+  #cv.kb:focus{box-shadow:inset 0 0 0 2px rgba(233,200,115,.55)}
+  #tools{height:var(--tools-h);flex:none;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 8px;position:relative;z-index:1;
+    background:var(--lac-2) linear-gradient(var(--lac-2),var(--lac-1));border-top:2px solid var(--brass);border-image:var(--brass-rule) 1;
+    box-shadow:0 -3px 10px rgba(0,0,0,.45)}
+  .tb{flex:1;max-width:118px;min-height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2px;border:1px solid rgba(233,200,115,.42);border-radius:14px;cursor:pointer;color:var(--lac-ink);
+    background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,0) 55%),linear-gradient(#26342C,#141D17) #1C2620;
+    box-shadow:inset 0 1px 0 rgba(255,236,190,.16),0 2px 4px rgba(0,0,0,.5);
+    font-family:var(--font-deco);font-weight:600;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;padding:3px 4px 2px;
+    transition:transform .08s,box-shadow .08s}
+  .tb svg{width:22px;height:22px;color:var(--brass-hi);filter:drop-shadow(0 1px 0 rgba(0,0,0,.6))}
+  .tb:active:not(:disabled){transform:translateY(1px);box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
+  .tb:disabled{opacity:.4;cursor:default}
+  .tb.glow:not(:disabled){color:#1B1408;border-color:#F3DA92;
+    background:linear-gradient(180deg,rgba(255,255,255,.35),rgba(255,255,255,0) 50%),linear-gradient(#E9C873,#B8862C) #D2A84E;
+    box-shadow:0 0 0 1px #6E4C16,0 0 14px rgba(233,200,115,.55)}
+  .tb.glow:not(:disabled) svg{color:#1B1408;filter:none}
+  .ib{width:44px;height:44px;flex:none;border:1.5px solid var(--brass);border-radius:50%;color:var(--brass-hi);
+    background:#18221C radial-gradient(circle at 50% 35%,#2C3B32,#121A15 70%);box-shadow:inset 0 1px 0 rgba(255,236,190,.18),0 2px 4px rgba(0,0,0,.5);
+    display:grid;place-items:center;cursor:pointer}
   .ib svg{width:22px;height:22px}
   button:focus-visible,.chip:focus-visible{outline:3px solid var(--color-highlight);outline-offset:2px}
+  .tog:focus-visible{outline:0}
+  .tog:focus-visible::before{box-shadow:inset 0 2px 3px rgba(0,0,0,.6),0 0 0 3px var(--color-highlight)}
+  #bar button:focus-visible,#tools button:focus-visible{outline-color:#4FC3FF}
   #toast{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:92%;
-    background:rgba(20,18,31,.88);color:#F4F2EC;padding:10px 16px;border-radius:var(--radius-pill);font-size:.9rem;
+    background:rgba(16,24,19,.94);color:var(--lac-ink);padding:10px 18px;border-radius:var(--radius-pill);font-size:.92rem;
+    font-family:var(--font-deco);font-weight:600;letter-spacing:.02em;border:1px solid rgba(233,200,115,.6);box-shadow:0 4px 14px rgba(0,0,0,.45);
     text-align:center;pointer-events:none;opacity:0;transition:opacity .2s}
   #toast.on{opacity:1}
   /* Title screen */
-  #title{position:fixed;inset:0;z-index:20;overflow-y:auto;overflow-x:hidden;background:var(--color-bg);display:none}
+  /* Title: the painting runs full-bleed behind lacquer-and-brass plaques, in both color schemes */
+  #title{position:fixed;inset:0;z-index:20;overflow-y:auto;overflow-x:hidden;background:#0E1411;display:none;
+    --t-ink:#F1E6C8; --t-muted:#C9BEA2; --t-brass:#E9C873}
   #title.on{display:block}
-  #title .wrap{max-width:980px;margin:0 auto;padding:0 16px 32px}
-  #sky{display:block;width:100%;height:clamp(190px,28vw,290px)}
-  #title h1{font-family:var(--font-deco);font-size:clamp(2rem,6vw,3.2rem);letter-spacing:.06em;margin:4px 0 0;text-align:center;
-    color:var(--color-primary);font-weight:700}
-  #title .tag{text-align:center;color:var(--color-muted);margin:4px 0 18px;font-family:var(--font-serif-victorian);font-style:italic}
-  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-  @media (max-width:760px){.tiles{grid-template-columns:1fr 1fr}}
-  .tile{background:var(--sheet);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:12px;
-    display:flex;flex-direction:column;gap:8px}
-  .tile h2{margin:0;font-family:var(--font-deco);font-size:1.15rem}
-  .tile p{margin:0;font-size:.82rem;color:var(--color-muted);flex:1}
+  #title .wrap{position:relative;max-width:1000px;margin:0 auto;padding:clamp(150px,30vh,300px) 16px 28px}
+  #sky{position:fixed;inset:0;width:100%;height:100%;display:block}
+  #title h1{font-family:var(--font-display);font-size:clamp(2.4rem,7vw,4rem);letter-spacing:.05em;margin:4px 0 0;text-align:center;
+    color:var(--t-brass);font-weight:400;text-shadow:0 2px 0 #3A2810,0 0 24px rgba(0,0,0,.85),0 0 4px rgba(0,0,0,.9)}
+  #title .tag{text-align:center;color:var(--t-ink);margin:4px auto 20px;font-family:var(--font-deco);font-size:1rem;letter-spacing:.03em;
+    text-shadow:0 1px 8px rgba(0,0,0,.95);max-width:34em;padding:2px 10px;border-radius:999px;background:rgba(8,12,10,.38)}
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  @media (max-width:760px){.tiles{grid-template-columns:1fr 1fr;gap:10px}}
+  .tile{background:#111A15 linear-gradient(#1D2A23,#0F1612);color:var(--t-ink);border:14px solid #B8862C;border-radius:7px;
+    border-image:url(assets/brass-frame.webp) 118 / 14px stretch;background-clip:padding-box;padding:4px 6px 8px;
+    display:flex;flex-direction:column;gap:6px;box-shadow:0 10px 26px rgba(0,0,0,.55)}
+  .tile canvas{width:100%;height:clamp(70px,11vw,104px);display:block}
+  .tile h2{margin:0;font-family:var(--font-display);font-weight:400;font-size:1.3rem;letter-spacing:.03em;color:var(--t-brass);text-align:center}
+  .tile p{margin:0;font-size:.8rem;color:var(--t-muted);flex:1;text-align:center;line-height:1.35}
+  #title .chip{border-color:var(--t-brass);color:var(--t-brass);background:#111A15}
+  #title .chip.solid{background:#D2A84E linear-gradient(#E9C873,#B8862C);color:#1B1408;border-color:#F3DA92}
+  #title .btn{background:#16201B;color:var(--t-ink);border-color:rgba(233,200,115,.5)}
+  #title .btn.solid{background:#D2A84E linear-gradient(#E9C873,#B8862C);color:#1B1408;border-color:#F3DA92}
+  #title .credit{color:var(--t-muted)}
+  #tTop{margin:0 0 14px} #tTop:has(#tCont[hidden]){display:none}
+  #title .wrap:has(#tCont:not([hidden])){padding-top:clamp(110px,22vh,240px)}
+  #tCont{min-width:min(320px,100%);min-height:52px;border-radius:999px;font-size:1.05rem}
+  @media (max-aspect-ratio:3/4){ #title .wrap{padding-top:clamp(120px,17vh,200px)} #title .tag{margin-bottom:14px} }
   .chips{display:flex;flex-wrap:wrap;gap:6px}
   .chip{min-height:44px;min-width:44px;padding:0 12px;border-radius:var(--radius-pill);border:1px solid var(--color-primary);
     background:transparent;color:var(--color-primary);font-weight:600;cursor:pointer;flex:1 0 auto;white-space:nowrap}
@@ -89,32 +126,60 @@
   .row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:18px}
   .btn{min-height:48px;padding:0 18px;border-radius:var(--radius-lg);border:1px solid var(--color-border);background:var(--chip);
     cursor:pointer;font-weight:600}
-  .credit{margin-top:22px;text-align:center;font-size:.78rem;color:var(--color-muted)}
+  .credit{margin-top:22px;text-align:center;font-size:.76rem;color:var(--color-muted)}
   /* Modal */
-  #modal{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;background:rgba(10,9,16,.55);padding:12px}
+  #modal{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;background:rgba(10,9,16,.55);padding:12px;
+    padding-top:calc(env(safe-area-inset-top) + var(--bar-h) + 6px);padding-bottom:calc(env(safe-area-inset-bottom) + var(--tools-h) + 6px)}
   #modal.on{display:flex}
-  .sheet{background:var(--sheet);color:var(--color-text);border:1px solid var(--color-border);border-radius:var(--radius-lg);
-    width:min(640px,100%);max-height:100%;overflow-y:auto;overflow-x:hidden;padding:16px 18px 18px;box-shadow:0 18px 50px rgba(0,0,0,.35)}
+  /* dialogs: card stock (or lacquer in the dark scheme) inside a Blender-rendered brass frame, used as a 9-slice border */
+  .sheet{background:var(--sheet);color:var(--color-text);border:22px solid #B8862C;border-radius:9px;
+    border-image:url(assets/brass-frame.webp) 118 / 22px stretch;background-clip:padding-box;
+    width:min(660px,100%);max-height:100%;overflow-y:auto;overflow-x:hidden;padding:4px 8px 8px;box-shadow:0 18px 50px rgba(0,0,0,.5);
+    font-family:var(--font-deco)}
+  .sheet .btn,.sheet .chip,.sheet button{font-family:var(--font-deco)}
   .sheet.wide{width:min(900px,100%)}
-  .sheet h2{font-family:var(--font-deco);margin:0 0 10px;font-size:1.35rem;display:flex;align-items:center;gap:8px}
+  .sheet h2{font-family:var(--font-display);font-weight:400;letter-spacing:.03em;margin:0 0 12px;font-size:1.45rem;color:var(--color-primary);
+    padding-bottom:8px;border-bottom:2px solid transparent;border-image:linear-gradient(90deg,#B8862C,#E9C873 30%,rgba(184,134,44,0)) 1;display:flex;align-items:center;gap:8px}
   .sheet h2 .x{margin-left:auto}
   .sheet h3{margin:16px 0 6px;font-size:1rem;font-family:var(--font-deco)}
   .sheet p,.sheet li{line-height:1.45;font-size:.92rem}
-  .menu{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  @media (max-width:480px){.menu{grid-template-columns:1fr}}
-  .menu .btn{text-align:left}
+  .menu{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .menu .btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:84px;padding:8px 4px;
+    text-align:center;font-size:.82rem;line-height:1.15}
+  .menu .btn svg{width:26px;height:26px;color:var(--color-primary)}
+  .menu .btn.day{position:relative;gap:2px}
+  .menu .btn.day canvas{width:100%;height:44px;display:block;margin-bottom:2px}
+  .menu .btn.day b{font-family:var(--font-display);font-weight:400;font-size:1.05rem;color:var(--color-primary);letter-spacing:.02em}
+  .menu .btn.day small{font-size:.74rem;color:var(--color-muted)}
+  .menu .btn.day em{font-style:normal;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--color-muted);margin-top:2px}
+  .menu .btn.day.won em{color:#2E6A3C;font-weight:700}
+  .seal{position:absolute;right:6px;top:6px;width:26px;height:26px;border-radius:50%;
+    background:radial-gradient(circle at 40% 35%,#F3DA92,#C9A04A 55%,#8C6A2A);box-shadow:0 1px 2px rgba(0,0,0,.4);
+    -webkit-mask:radial-gradient(circle,#000 62%,transparent 64%),conic-gradient(#000 0 0);mask:none}
+  .seal::after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;font-weight:700;font-size:.85rem;color:#3A2810}
+  .menu .btn.solid{grid-column:1/-1;min-height:52px;flex-direction:row;font-size:1rem;border-radius:999px}
+  .menu .btn.solid svg{color:currentColor}
+  @media (max-width:480px){.menu{grid-template-columns:repeat(2,1fr)}}
   .set{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--color-border);min-height:52px}
   .set label{font-weight:600}
   .set small{display:block;font-weight:400;color:var(--color-muted)}
-  .seg{display:flex;border:1px solid var(--color-border);border-radius:var(--radius-pill);overflow:hidden;flex:none}
-  .seg button{min-height:44px;min-width:44px;padding:0 10px;border:0;background:transparent;cursor:pointer;font-size:.85rem}
-  .seg button[aria-pressed=true]{background:var(--color-primary);color:var(--color-on-primary)}
-  input[type=range]{width:140px;height:44px;accent-color:var(--color-primary)}
+  /* segmented choices: a row of stepped brass tabs; the chosen one is a raised brass plate */
+  .seg{display:flex;border:1px solid #B8862C;border-radius:4px;overflow:hidden;flex:none;box-shadow:inset 0 1px 2px rgba(0,0,0,.15)}
+  .seg button{min-height:44px;min-width:44px;padding:0 11px;border:0;border-left:1px solid rgba(184,134,44,.45);background:transparent;
+    cursor:pointer;font-size:.82rem;letter-spacing:.04em}
+  .seg button:first-child{border-left:0}
+  .seg button[aria-pressed=true]{background:#D2A84E linear-gradient(#F3DA92,#C9A04A 55%,#A87F2C);color:#1B1408;font-weight:700;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.5),inset 0 -1px 0 rgba(0,0,0,.25)}
+  input[type=range]{width:140px;height:44px;accent-color:#B8862C}
+  @media (max-width:420px){ .set{flex-wrap:wrap;row-gap:4px} .set label{flex:1 1 150px} .set .seg{margin-left:auto} }
   .tog{width:60px;height:44px;border:0;background:transparent;cursor:pointer;flex:none;position:relative}
-  .tog::before{content:"";position:absolute;left:6px;top:10px;width:48px;height:24px;border-radius:12px;background:var(--color-border)}
-  .tog::after{content:"";position:absolute;left:9px;top:13px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}
-  .tog[aria-pressed=true]::before{background:var(--color-primary)}
-  .tog[aria-pressed=true]::after{left:33px}
+  /* on/off: a brass lever in an inset slot; the knob is a turned brass stud */
+  .tog::before{content:"";position:absolute;left:6px;top:12px;width:48px;height:20px;border-radius:4px;background:#3A3226;
+    box-shadow:inset 0 2px 3px rgba(0,0,0,.6),0 0 0 1px #8C6A2A}
+  .tog::after{content:"";position:absolute;left:7px;top:8px;width:22px;height:28px;border-radius:4px;transition:left .15s;
+    background:#C9A04A linear-gradient(90deg,#8C6A2A,#F3DA92 45%,#C9A04A 60%,#8C6A2A);box-shadow:0 2px 3px rgba(0,0,0,.45)}
+  .tog[aria-pressed=true]::before{background:#2E6A3C;box-shadow:inset 0 2px 3px rgba(0,0,0,.45),0 0 0 1px #8C6A2A}
+  .tog[aria-pressed=true]::after{left:31px}
   .backs{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px}
   .bk{border:2px solid transparent;border-radius:var(--radius-lg);background:transparent;padding:6px;cursor:pointer;text-align:center;
     display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.8rem}
@@ -131,21 +196,40 @@
   table.keys td{padding:4px 6px;vertical-align:top;font-size:.88rem}
   kbd{font-family:var(--font-mono);border:1px solid var(--color-border);border-radius:4px;padding:1px 5px;background:var(--chip)}
   /* Win: bath ticket + fact card */
-  .ticket{position:relative;margin:4px auto 14px;max-width:420px;background:#F3E9D2;color:#1F2F5C;padding:14px 22px;
-    font-family:var(--font-mono);border-radius:4px;
-    -webkit-mask:radial-gradient(circle 7px at 0 50%,#0000 98%,#000) left/51% 100% no-repeat,
-                 radial-gradient(circle 7px at 100% 50%,#0000 98%,#000) right/51% 100% no-repeat;
-            mask:radial-gradient(circle 7px at 0 50%,#0000 98%,#000) left/51% 100% no-repeat,
-                 radial-gradient(circle 7px at 100% 50%,#0000 98%,#000) right/51% 100% no-repeat}
-  .ticket::before{content:"";position:absolute;inset:6px;border:1.5px dashed #8E3622;border-radius:3px;pointer-events:none}
-  .ticket .hd{font-family:var(--font-deco);font-weight:700;letter-spacing:.18em;text-align:center;font-size:.85rem;color:#8E3622}
-  .ticket .big{font-size:2.2rem;font-weight:700;text-align:center;color:#9A2A1C;letter-spacing:.04em;margin:2px 0}
-  .ticket .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;text-align:center;font-size:.8rem}
-  .ticket .grid b{display:block;font-size:1.05rem;color:#1F2F5C}
-  .ticket .best{color:#2E6A3C;font-weight:700;font-size:.75rem}
-  .course{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin-top:8px}
-  .course i{width:10px;height:10px;border-radius:50%;border:1.5px solid #8E3622;display:block}
+  /* The bath ticket: an engraved stock painting (assets/ticket-stock.webp) with typeset text; the right 19% is the stub */
+  .ticket{position:relative;margin:4px auto 14px;max-width:460px;aspect-ratio:2/1;color:#3A1A10;font-family:var(--font-deco);
+    background:#F3E9D2 url(assets/ticket-stock.webp) center/100% 100% no-repeat;border-radius:3px;box-shadow:0 6px 16px rgba(0,0,0,.35);
+    padding:7% 23% 5% 9%;display:flex;flex-direction:column;justify-content:center;transform:rotate(-1.2deg)}
+  .ticket .hd{font-family:var(--font-display);letter-spacing:.14em;text-align:center;font-size:clamp(.62rem,2.6vw,.82rem);color:#8E3622}
+  .ticket .big{font-family:"Libre Bodoni",var(--font-serif-victorian);font-size:clamp(1.5rem,7vw,2.3rem);font-weight:700;text-align:center;
+    color:#8E3622;letter-spacing:.03em;line-height:1.05;margin:1px 0 2px}
+  .ticket .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px;text-align:center;font-size:clamp(.56rem,2.3vw,.7rem);
+    letter-spacing:.1em;text-transform:uppercase;color:#6B3A26}
+  .ticket .grid b{display:block;font-size:clamp(.78rem,3.2vw,.98rem);letter-spacing:.02em;text-transform:none;color:#2A1408;font-variant-numeric:tabular-nums}
+  .ticket .best{color:#2E6A3C;font-weight:700;font-size:.62rem;letter-spacing:.08em}
+  .ticket .meta{text-align:center;font-size:clamp(.55rem,2.2vw,.68rem);margin-top:3px;color:#6B3A26}
+  .ticket .serial{position:absolute;right:3.5%;top:9%;width:13%;text-align:center;font-family:var(--font-mono);font-size:clamp(.42rem,1.8vw,.58rem);
+    color:#8E3622;writing-mode:vertical-rl;transform:rotate(180deg);height:30%;letter-spacing:.06em}
+  .ticket .punch{position:absolute;right:6.5%;bottom:8%;width:7%;aspect-ratio:1;border-radius:50%;
+    background:radial-gradient(circle at 50% 38%,#0E1411 0 48%,#1A2620 58%,#6B5A40 61%,#C9B48A 66%,transparent 70%)}
+  .sheet.rise .ticket .punch{animation:punch .45s .7s cubic-bezier(.3,1.6,.5,1) both}
+  .sheet.rise .ticket{animation:ticketIn .7s .1s cubic-bezier(.2,.9,.3,1.1) both}
+  @keyframes ticketIn{from{transform:translateY(30px) rotate(-6deg);opacity:0}to{transform:rotate(-1.2deg);opacity:1}}
+  .course{display:flex;flex-wrap:nowrap;gap:2px;justify-content:center;margin-top:5px}
+  .course i{width:clamp(6px,1.9vw,9px);aspect-ratio:1;border-radius:50%;border:1.2px solid #8E3622;display:block;flex:none}
   .course i.f{background:#8E3622}
+  .sheet.rise{animation:rise .5s cubic-bezier(.2,.9,.3,1.15) both}
+  .sheet.win{position:relative;background:#121A15 linear-gradient(#1A2620,#0E1411);color:#EDE3C8}
+  .sheet.win h2{color:#E9C873;justify-content:center;font-size:1.9rem;text-shadow:0 2px 0 #000}
+  .sheet.win h2 .x{position:absolute;right:10px}
+  .sheet.win .fact{background:#F3E9D2;color:#2A1A10;border-left-color:#2E6A3C;transform:rotate(.6deg);box-shadow:0 4px 12px rgba(0,0,0,.4)}
+  .sheet.win .fact .src{color:#5A4A38}
+  .sheet.win .btn{background:#1E2A23;color:#EDE3C8;border-color:rgba(233,200,115,.5)}
+  .sheet.win .btn.solid{background:#D2A84E linear-gradient(#F3DA92,#C9A04A 55%,#A87F2C);color:#1B1408;border-color:#F3DA92}
+  .course i.m{border-color:#B8862C;box-shadow:0 0 0 1px #E9C873}
+  .sheet.rise .course i.new{animation:punch .45s .6s cubic-bezier(.3,1.6,.5,1) both}
+  @keyframes rise{from{transform:translateY(40px) scale(.96);opacity:0}to{transform:none;opacity:1}}
+  @keyframes punch{0%{transform:scale(2.4);background:transparent;opacity:0}60%{opacity:1}100%{transform:none}}
   .fact{background:var(--chip);border-left:5px solid var(--color-accent);border-radius:var(--radius-md);padding:10px 14px;margin:0 0 12px}
   .fact .k{font-family:var(--font-deco);font-weight:700;color:var(--color-accent);font-size:.82rem;letter-spacing:.08em;text-transform:uppercase}
   .fact .q{font-weight:600;margin:4px 0 2px}
@@ -156,9 +240,11 @@
   .dl{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
   @media (max-width:520px){
     :root{--bar-h:56px}
-    #status{gap:8px;font-size:.7rem}
-    #status b{font-size:.9rem}
-    .tb{font-size:.72rem}
+    #status{gap:9px;font-size:.6rem;letter-spacing:.08em}
+    #status b{font-size:.98rem}
+    #modeName{font-size:1rem}
+    .course{gap:2px} .course i{width:8px;height:8px;border-width:1.2px}
+    .tb{font-size:.64rem;letter-spacing:.06em}
     .sheet{padding:14px 14px 16px}
   }
   @media (prefers-reduced-motion: reduce){ #toast{transition:none} .tog::after{transition:none} }
@@ -193,16 +279,16 @@
   <div class="wrap">
     <h1 id="tH">Spa City Solitaire</h1>
     <p class="tag">Patience, the Spa City way: four classic games, twelve Hot Springs card backs.</p>
+    <div class="row" id="tTop"><button class="btn solid" id="tCont" hidden>Continue game</button></div>
     <div class="tiles" id="tiles"></div>
     <div class="row" id="tRow">
-      <button class="btn solid" id="tCont" hidden>Continue game</button>
       <button class="btn" id="tDaily">Daily deals</button>
       <button class="btn" id="tBacks">Backs &amp; tables</button>
       <button class="btn" id="tStats">Statistics</button>
       <button class="btn" id="tSet">Settings</button>
       <button class="btn" id="tHelp">How to play</button>
     </div>
-    <p class="credit">Part of the open-source Hot Springs Games collection (MIT). Original art, painted and drawn for this game and "inspired by" real places; no logos, no real people.</p>
+    <p class="credit">Part of the open-source Hot Springs Games collection (MIT). All art is original; see How to play → About the art &amp; facts.</p>
   </div>
 </section>
 
@@ -277,7 +363,7 @@ function save(name, value) {
 
 const DEFAULT_SETTINGS = {
   sound: true, volume: 0.6, motion: 'auto', leftHanded: false, cardSize: 'standard', fourColor: false,
-  autoFoundation: 'safe', back: 'skylight', table: 'felt', showTimer: true, deckSeed: 1914,
+  autoFoundation: 'safe', back: 'skylight', table: 'felt', showTimer: true, deckSeed: 1914, courts: 'deco',
 };
 const settings = Object.assign({}, DEFAULT_SETTINGS, load('settings', {}));
 let stats = load('stats', {});
@@ -690,9 +776,11 @@ function legalMoves() {
 
 function hint() {
   if (!S || S.won) return { ok: false };
-  if (!hintState || hintState.until < now()) {
+  // pressing Hint again on the same position cycles to the next move, however long the player waited
+  const sig = S.moves + '|' + undoStack.length + '|' + S.piles.stock.length;
+  if (!hintState || hintState.sig !== sig) {
     const list = legalMoves();
-    hintState = { list, i: 0, until: 0 };
+    hintState = { list, i: 0, until: 0, sig };
   } else hintState.i++;
   const L = hintState.list;
   if (!L.length || hintState.i >= L.length) {
@@ -704,8 +792,9 @@ function hint() {
     hintState.until = now() + 2200; hintState.cur = null; startLoop();
     return { ok: true, move: null, stock: !!hintState.stockHint };
   }
-  const m = L[hintState.i]; hintState.cur = m; hintState.stockHint = false; hintState.until = now() + 2200;
-  toast('Hint: ' + describeRun(S.piles[m.from].slice(m.index)) + ' to ' + pileName(m.to));
+  const m = L[hintState.i]; hintState.cur = m; hintState.stockHint = false; hintState.until = now() + 2600;
+  shake(m.from, m.index);
+  announce('Hint: ' + describeRun(S.piles[m.from].slice(m.index)) + ' to ' + pileName(m.to));
   sfx('hint'); startLoop();
   return { ok: true, move: m };
 }
@@ -829,6 +918,7 @@ function restartDeal() { if (!S) return; newGame({ mode: S.mode, draw: S.opts.dr
 
 let lastWin = null;
 function onWin(delay) {
+  loadArt(LATE_ART); // the ticket stock, ready long before the ceremony ends
   tickClock();
   const k = modeKey(S.mode, S.opts); const st = statFor(k);
   let bonus = 0;
@@ -867,7 +957,7 @@ function loadSaved() {
 function resumeSaved() {
   const c = loadSaved(); if (!c) return false;
   clearTimeout(winTimer); winTimer = 0;
-  S = c.state; undoStack = c.undo || []; redoStack = []; hintState = null; held = null; drag = null; cascade = null;
+  S = c.state; undoStack = c.undo || []; redoStack = []; hintState = null; held = null; drag = null; cascade = null; fitHold = 1;
   clockMark = now(); closeModal(); showTitle(false); relayout(true); dealAnimation(); updateHUD();
   return true;
 }
@@ -883,21 +973,39 @@ const ART_ON = !/[?&]art=0\b/.test(location.search);
 const art = {}, artWant = new Set();
 let artTick = 0, artPending = 0;
 const artImg = (name) => art[name] || null;
-const COURT_ART = []; for (const s of 'cdhs') for (const r of 'jqk') COURT_ART.push('court-' + r + s);
-const essentialArt = () => [...COURT_ART, 'ace-medallion', 'back-' + settings.back, 'table-' + settings.table, 'title-hero'];
+// Two court sets: flat Art Deco colour-block ("deco-*", the default) and the v2 painted portraits ("court-*").
+const courtSet = (set) => { const a = []; for (const s of 'cdhs') for (const r of 'jqk') a.push((set === 'painted' ? 'court-' : 'deco-') + r + s); return a; };
+// Vendored OFL fonts (assets/fonts.css, data URIs) must be ready before card sprites are baked.
+// The stylesheet is non-blocking, so wait for it to apply before asking for the faces (a face that isn't declared
+// yet would "load" instantly as the fallback). Give up after 4 s and keep the system fallback fonts.
+let fontsPending = !!(document.fonts && document.fonts.load);
+if (fontsPending) {
+  const css = document.getElementById('fontCss');
+  new Promise((res) => { if (!css || css.media === 'all') res(); else { css.addEventListener('load', () => setTimeout(res, 0)); css.addEventListener('error', res); } setTimeout(res, 4000); })
+    .then(() => Promise.all(['700 20px "Josefin Sans"', '600 20px "Josefin Sans"', '20px Limelight', '700 20px "Libre Bodoni"'].map((f) => document.fonts.load(f))))
+    .catch(() => {}).finally(() => { fontsPending = false; if (S && W) relayout(true); artChanged(); });
+}
+const LATE_ART = ['ticket-stock']; // fetched once the first deal is on the table
+const BRASS_ART = ['brass-corner', 'brass-slot', 'brass-cell', 'brass-recycle', 'brass-frame']; // the frame is a CSS border-image; decoding it here warms the cache
+// Table art: lit tables have landscape and portrait cuts of a frameless texture; the rest use one painted image.
+const tableArt = (id, both) => TABLE_LOOK[id] ? [...(both ? ['-l', '-p'] : [innerHeight > innerWidth * 1.1 ? '-p' : '-l']).map((o) => 'tex-' + id + o), ...(TABLE_LOOK[id].glow ? [TABLE_LOOK[id].glow] : [])] : ['table-' + id];
+const essentialArt = () => [...courtSet(settings.courts), ...BRASS_ART, 'ace-medallion', 'back-' + settings.back, ...tableArt(settings.table), 'title-hero'];
 function loadArt(names) {
   if (!ART_ON) return Promise.resolve();
   return Promise.all(names.filter((n) => !artWant.has(n)).map((n) => {
     artWant.add(n); artPending++; const im = new Image(); im.decoding = 'async'; im.src = 'assets/' + n + '.webp';
-    return im.decode().then(() => { art[n] = im; artChanged(); }, () => {}).finally(() => { artPending--; });
+    return im.decode().then(() => { if (COURT_FOCUS[n]) im.focusX = COURT_FOCUS[n]; art[n] = im; artChanged(); }, () => {}).finally(() => { artPending--; });
   }));
 }
+// Where each Art Deco court figure stands (0..1 across its painting), for framing the phone cameos. Measured once from
+// the art by art-src/court-focus.json; reading pixels at runtime would fail under file:// (a tainted canvas).
+const COURT_FOCUS = {"deco-jc":0.645,"deco-qc":0.712,"deco-kc":0.666,"deco-jd":0.687,"deco-qd":0.644,"deco-kd":0.713,"deco-jh":0.527,"deco-qh":0.75,"deco-kh":0.739,"deco-js":0.608,"deco-qs":0.572,"deco-ks":0.732};
 // New art arrived: rebake sprites once per frame at most.
 function artChanged() {
   if (artTick) return;
   artTick = requestAnimationFrame(() => {
     artTick = 0; sprites.clear(); tableDirty = true; markDirty();
-    if (titleOn) drawSky(now());
+    if (titleOn) { drawSky(now()); paintHands(); }
     if (modalKind === 'backs') paintPickers();
   });
 }
@@ -918,8 +1026,9 @@ function grain() {
 
 const INK = { black: '#1F2A24', red: '#B3261E', blue: '#1F5BA8', green: '#2E6A3C' };
 const suitColor = (s) => settings.fourColor ? [INK.green, INK.blue, INK.red, INK.black][s] : (isRed(s) ? INK.red : INK.black);
-const SERIF = '"Palatino Linotype","Book Antiqua",Palatino,Georgia,"Times New Roman",serif';
-const DECO = '"Century Gothic",Futura,"Avenir Next","Trebuchet MS","Gill Sans",sans-serif';
+const SERIF = '"Libre Bodoni","Palatino Linotype","Book Antiqua",Palatino,Georgia,"Times New Roman",serif';
+const DECO = '"Josefin Sans","Century Gothic",Futura,"Avenir Next","Trebuchet MS","Gill Sans",sans-serif';
+const DISPLAY = 'Limelight,"Josefin Sans","Century Gothic",Futura,sans-serif';
 
 function rrect(ctx, x, y, w, h, r) {
   ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
@@ -980,27 +1089,43 @@ const PIPS = { // [column, f] with column L/C/R and f in 0..1 down the pip area
   10: [['L', 0], ['R', 0], ['C', 1 / 6], ['L', 1 / 3], ['R', 1 / 3], ['L', 2 / 3], ['R', 2 / 3], ['C', 5 / 6], ['L', 1], ['R', 1]],
 };
 
+// Corner index size as a fraction of card width. Narrow cards (phones, Spider) get the heavy jumbo index that
+// carries all the reading in a fanned column.
+// Only on phones: desktop cards shrunk to fit a long column keep the normal proportions.
+const idxScale = (w, large) => w < 70 && innerWidth < 560 ? { rs: .46, ss: .30 } : large ? { rs: .40, ss: .29 } : { rs: .30, ss: .22 };
+// Height of the face's index block (rank glyph including J/Q descenders), measured with the real font.
+let idxMeasure = null;
+function indexBottom(w, h, large) {
+  const { rs } = idxScale(w, large), size = w * rs;
+  if (!idxMeasure) idxMeasure = document.createElement('canvas').getContext('2d');
+  idxMeasure.font = '700 ' + size + 'px ' + SERIF; let desc = 0, asc = 0;
+  for (const ch of ['Q', 'J', '3', 'A']) { const m = idxMeasure.measureText(ch); desc = Math.max(desc, m.actualBoundingBoxDescent || size * .2); asc = Math.max(asc, m.actualBoundingBoxAscent || size * .72); }
+  const base = h * .02 + size * .86;
+  return { full: base + desc, cap: base - asc * .1 + 1 };
+}
 function drawFace(ctx, c, w, h, large) {
   const col = suitColor(c.s);
   cardStock(ctx, w, h);
   const small = w < 58;
   // Corner index: rank top-left, suit top-right. Sized so it stays readable in a 28%-of-height fan strip.
-  const big = large || small;
-  const rs = w * (big ? .40 : .30);
+  const { rs: rsK, ss: ssK } = idxScale(w, large);
+  const rs = w * rsK;
   ctx.fillStyle = col; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
   ctx.font = '700 ' + rs + 'px ' + SERIF;
   const lab = RANK_LABEL[c.r];
   ctx.save(); ctx.translate(w * .06, h * .02 + rs * .86);
-  if (lab === '10') ctx.scale(.78, 1);
+  if (lab === '10') ctx.scale(.84, 1);
   ctx.fillText(lab, 0, 0); ctx.restore();
-  const ss = w * (big ? .29 : .22);
+  const ss = w * ssK;
   drawSuit(ctx, c.s, w - w * .07 - ss * .45, h * .03 + ss / 2 + rs * .1, ss, col);
   const tallCourt = c.r > 10 && !small && artImg(courtArt(c)); // painted courts fill the card instead
+  if (c.r > 10 && settings.courts !== 'painted' && artImg(courtArt(c))) { drawDecoCourt(ctx, c, w, h, small, rs, ss, col); return; }
   if (!small && !tallCourt) {
     // bottom-right mirrored index on roomy cards
     ctx.save(); ctx.translate(w, h); ctx.rotate(Math.PI);
     const bs = w * .19; ctx.font = '700 ' + bs + 'px ' + SERIF; ctx.fillStyle = col;
-    ctx.save(); ctx.translate(w * .06, bs * .9 + h * .015); if (lab === '10') ctx.scale(.78, 1); ctx.fillText(lab, 0, 0); ctx.restore();
+    ctx.save(); ctx.translate(w * .06, bs * .9 + h * .015); if (lab === '10') ctx.scale(.84, 1); ctx.fillText(lab, 0, 0); ctx.restore();
+    drawSuit(ctx, c.s, w * .06 + bs * .36, bs * .9 + h * .015 + bs * .52, bs * .62, col); // the suit under the rank, as on a printed deck
     ctx.restore();
   }
   if (c.r > 10) { drawCourtPanel(ctx, c, w, h, small); return; }
@@ -1008,10 +1133,25 @@ function drawFace(ctx, c, w, h, large) {
   if (small) { drawSuit(ctx, c.s, w * .5, h * .64, w * .52, col); return; }
   const ps = w * (c.r >= 9 ? .17 : .19);
   const xs = { L: w * .3, C: w * .5, R: w * .7 };
+  decoBrackets(ctx, w * .2, h * .245, w * .6, h * .51, w);
   for (const [cl, f] of PIPS[c.r]) {
-    const y = h * (.33 + f * .5) + ps * .1;
+    const y = h * (.37 + f * .44) + ps * .1;
     drawSuit(ctx, c.s, xs[cl], y, ps, col, f > .5);
   }
+}
+// Stepped Art Deco brackets in fine brass at the corners of a pip field.
+function decoBrackets(ctx, x, y, bw, bh, w) {
+  ctx.save(); ctx.strokeStyle = 'rgba(156,110,30,.55)'; ctx.lineWidth = Math.max(.6, w * .008); ctx.lineCap = 'square';
+  const a = w * .07, st = w * .022;
+  for (const [cx, cy, sx, sy] of [[x, y, 1, 1], [x + bw, y, -1, 1], [x, y + bh, 1, -1], [x + bw, y + bh, -1, -1]]) {
+    ctx.beginPath();
+    for (let k = 0; k < 2; k++) {
+      const o = k * st, L = a - k * st * 1.3;
+      ctx.moveTo(cx + sx * o, cy + sy * (o + L)); ctx.lineTo(cx + sx * o, cy + sy * o); ctx.lineTo(cx + sx * (o + L), cy + sy * o);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 // Card stock: warm ivory with a faint grain, a soft inner edge and a fine border.
@@ -1027,7 +1167,7 @@ function cardStock(ctx, w, h) {
 
 function drawAce(ctx, c, w, h, small) {
   const col = suitColor(c.s);
-  const size = w * (small ? .56 : .5); const cx = w / 2, cy = h * (small ? .64 : .6);
+  const size = w * (small ? .5 : .5); const cx = w / 2, cy = h * (small ? .68 : .6);
   const med = artImg('ace-medallion');
   if (med) { const ms = size * (small ? 1.5 : 1.75); ctx.save(); ctx.globalAlpha = .92; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(med, cx - ms / 2, cy - ms / 2 - size * .02, ms, ms); ctx.restore(); }
   drawSuit(ctx, c.s, cx, cy, size, col);
@@ -1048,7 +1188,7 @@ function drawAce(ctx, c, w, h, small) {
 
 // Court cards: original era-costume archetypes (bath attendant / jockey jacks, promenade queens,
 // card-room kings). Flat geometric figures; no real person is depicted.
-const courtArt = (c) => 'court-' + 'jqk'[c.r - 11] + 'cdhs'[c.s];
+const courtArt = (c, set = settings.courts) => (set === 'painted' ? 'court-' : 'deco-') + 'jqk'[c.r - 11] + 'cdhs'[c.s];
 function drawCourtPanel(ctx, c, w, h, small) {
   const col = suitColor(c.s);
   const img = artImg(courtArt(c)), tall = img && !small;
@@ -1073,6 +1213,53 @@ function drawCourtPanel(ctx, c, w, h, small) {
   if (!small) {
     const ss = w * .13; drawSuit(ctx, c.s, x + ss * .75, y + ss * .75, ss, col);
     if (img) drawSuit(ctx, c.s, x + pw - ss * .75, y + ph - ss * .75, ss, col, true);
+  }
+}
+// Flat Art Deco court: a full-bleed, double-ended panel. Ivory notches are cut out of the panel for the corner
+// indices, so a fanned court still shows rank and suit, with a strip of the figure's hat between them.
+function drawDecoCourt(ctx, c, w, h, small, rs, ss, col) {
+  const img = artImg(courtArt(c));
+  const px = w * .05, py = h * .035, pw = w - 2 * px, r = w * .04;
+  const lab = RANK_LABEL[c.r]; ctx.font = '700 ' + rs + 'px ' + SERIF;
+  const rankW = ctx.measureText(lab).width, ib = indexBottom(w, h, small || rs / w > .35);
+  // notch boxes in card coordinates (top-left for the rank, top-right for the suit); the bottom pair is the 180-degree turn
+  const nr = { x: px, y: py, w: w * .06 + rankW + w * .035 - px, h: ib.full + h * .012 - py };
+  const sx0 = w - w * .07 - ss * .9 - w * .035; const ns = { x: sx0, y: py, w: w - px - sx0, h: h * .03 + ss + rs * .1 + h * .012 - py };
+  if (small) {
+    // phones: one upright half-figure under the index strip; it reads far better than a mirrored postage stamp
+    const top = Math.max(nr.h, ns.h) + py + h * .01, ph = h - top - py;
+    ctx.save(); rrect(ctx, px, top, pw, ph, r); ctx.clip(); ctx.fillStyle = '#F4EDE0'; ctx.fillRect(px, top, pw, ph);
+    // a tight head-and-shoulders crop centred on the figure (found from the art when it loaded)
+    const fx = img.focusX != null ? img.focusX : .56; const zoom = 1.45, k = Math.max(pw / img.naturalWidth, ph / img.naturalHeight) * zoom;
+    const dw = img.naturalWidth * k, dh = img.naturalHeight * k;
+    ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, px + pw / 2 - fx * dw, top - dh * .04, dw, dh); ctx.restore();
+    gildFrame(ctx, px, top, pw, ph, w); return;
+  }
+  // full-bleed double-ended panel; the index corners fade into ivory card stock instead of being boxed
+  ctx.save(); rrect(ctx, px, py, pw, h - 2 * py, r); ctx.clip();
+  ctx.fillStyle = '#F4EDE0'; ctx.fillRect(0, 0, w, h);
+  const hh = h / 2 - py;
+  ctx.save(); ctx.beginPath(); ctx.rect(px, py, pw, hh); ctx.clip(); coverImg(ctx, img, px, py, pw, hh, .55, .12); ctx.restore();
+  ctx.save(); ctx.translate(w, h); ctx.rotate(Math.PI); ctx.beginPath(); ctx.rect(px, py, pw, hh); ctx.clip(); coverImg(ctx, img, px, py, pw, hh, .55, .12); ctx.restore();
+  for (const n of [nr, ns]) for (const q of [n, { x: w - n.x - n.w, y: h - n.y - n.h, w: n.w, h: n.h }]) {
+    const cx = q.x + q.w / 2, cy = q.y + q.h / 2, rr = Math.max(q.w, q.h) * .85;
+    const g = ctx.createRadialGradient(cx, cy, rr * .45, cx, cy, rr);
+    g.addColorStop(0, 'rgba(250,245,234,.97)'); g.addColorStop(1, 'rgba(250,245,234,0)');
+    ctx.fillStyle = g; ctx.fillRect(cx - rr, cy - rr, rr * 2, rr * 2);
+  }
+  ctx.restore();
+  ctx.save(); rrect(ctx, px, py, pw, h - 2 * py, r);
+  const g = ctx.createLinearGradient(0, 0, w, h); g.addColorStop(0, '#E9C873'); g.addColorStop(.45, '#B8862C'); g.addColorStop(.55, '#D9B256'); g.addColorStop(1, '#9C6E1E');
+  ctx.strokeStyle = g; ctx.lineWidth = Math.max(1.2, w * .02); ctx.stroke();
+  ctx.strokeStyle = 'rgba(31,42,36,.7)'; ctx.lineWidth = Math.max(.6, w * .006); ctx.stroke(); ctx.restore();
+  courtBand(ctx, px, h / 2, pw, w, col);
+  // both indices go on top of the panel; the bottom one is the top one turned through 180 degrees
+  for (const turn of [false, true]) {
+    ctx.save(); if (turn) { ctx.translate(w, h); ctx.rotate(Math.PI); }
+    ctx.fillStyle = col; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left'; ctx.font = '700 ' + rs + 'px ' + SERIF;
+    ctx.save(); ctx.translate(w * .06, h * .02 + rs * .86); if (lab === '10') ctx.scale(.84, 1); ctx.fillText(lab, 0, 0); ctx.restore();
+    drawSuit(ctx, c.s, w - w * .07 - ss * .45, h * .03 + ss / 2 + rs * .1, ss, col);
+    ctx.restore();
   }
 }
 // Gilt double rule around a panel: a gold line with a fine dark keyline inside.
@@ -1177,9 +1364,9 @@ function drawCourt(ctx, c, x, y, w, h, col) {
 
 // --- Card backs (12) -------------------------------------------------------------------------
 const BACKS = [
-  { id: 'skylight', name: 'Fordyce Skylight', cap: 'Inspired by the Fordyce men\'s bath hall skylight, glass in "a sea of blue and green" (1914–15). Seeded, so your deck is one of a kind.' },
+  { id: 'skylight', name: 'Fordyce Skylight', cap: 'Inspired by the blue-green heart of the Fordyce men\'s bath hall skylight (1914–15); the real glass is mostly amber and honey around it. Seeded, so your deck is one of a kind.' },
   { id: 'lozenge', name: 'Fordyce Lozenge', cap: 'Lozenge-patterned brick of the Fordyce Bathhouse\'s upper stories.' },
-  { id: 'quapaw', name: 'Quapaw Dome', cap: 'The Quapaw\'s chevron-mosaic dome over red clay tile (1922). The tile colors are a guess.' },
+  { id: 'quapaw', name: 'Quapaw Dome', cap: 'The Quapaw\'s chevron-mosaic dome (1922) in invented colors: the real dome is buff and tan (see the Quapaw Mosaic table).' },
   { id: 'ironwork', name: 'Row Ironwork', cap: 'Wrought-iron scrolls like the grilles of the Hale and the Administration Building.' },
   { id: 'paterae', name: 'Superior Medallions', cap: 'The Superior\'s green tile medallions above brick pilasters (1916).' },
   { id: 'sculpin', name: 'Scallop & Sculpin', cap: 'Quapaw parapet scallops framing sculpin fish: gold as built, white today.' },
@@ -1191,11 +1378,18 @@ const BACKS = [
   { id: 'silks', name: 'Racing Silks', cap: 'Generic racing silks; horses have raced in Hot Springs since the 1890s. No real stable colors.' },
 ];
 const TABLES = [
-  { id: 'felt', name: 'Card-Table Felt', ink: 'rgba(244,242,236,.34)', text: '#F4F2EC' },
-  { id: 'linen', name: 'Linen Postcard', ink: 'rgba(31,47,92,.5)', text: '#1F2F5C' },
-  { id: 'pool', name: 'Thermal Pool', ink: 'rgba(244,242,236,.38)', text: '#F4F2EC' },
-  { id: 'marble', name: 'Bathhall Marble', ink: 'rgba(31,42,36,.4)', text: '#1F2A24' },
-  { id: 'midnight', name: 'Midnight Club', ink: 'rgba(212,175,55,.45)', text: '#D8CFBD' },
+  { id: 'felt', name: 'Card-Room Felt', ink: 'rgba(244,242,236,.34)', text: '#F4F2EC',
+    cap: 'Green baize under a hanging lamp, for a 1920s card room. Felt for card tables is a period convention; no club\'s own table is documented.' },
+  { id: 'marble', name: 'Fordyce Bath Hall', ink: 'rgba(31,42,36,.4)', text: '#1F2A24',
+    cap: 'Gray-veined white marble lit through a stained-glass skylight: amber and honey glass around a blue-green centre, as in the Fordyce men\'s bath hall (1915).' },
+  { id: 'quapaw', name: 'Quapaw Mosaic', ink: 'rgba(60,40,20,.5)', text: '#3A2A18',
+    cap: 'Buff and tan chevron tile, after the mosaic dome of the Quapaw Bathhouse (1922), photographed in colour for the Historic American Buildings Survey in 1984.' },
+  { id: 'pool', name: 'Thermal Pool', ink: 'rgba(244,242,236,.38)', text: '#F4F2EC',
+    cap: 'Looking down into a soaking pool of spring water, which reaches the surface at about 143\u00B0F.' },
+  { id: 'midnight', name: 'Midnight Club', ink: 'rgba(212,175,55,.45)', text: '#D8CFBD',
+    cap: 'Dark walnut for an after-hours card table. Invented: the furnishings of the town\'s gaming clubs are not documented.' },
+  { id: 'linen', name: 'Linen Postcard', ink: 'rgba(31,47,92,.5)', text: '#1F2F5C',
+    cap: 'The airbrushed blue sky of a linen-finish souvenir postcard, the kind sold all over the Spa City.' },
 ];
 
 function spiral(ctx, cx, cy, r, turns, dir, a0) {
@@ -1502,7 +1696,85 @@ function drawBack(ctx, id, w, h, seed) {
 }
 
 // --- Tables (5) -----------------------------------------------------------------------------
+// Lit tabletop: a frameless material texture (landscape or portrait cut, so nothing important is cropped),
+// a warm overhead lamp, a vignette and a brass Deco inlay fitted to whatever size the table is.
+// tone: a flat wash that sets the table's value under ivory cards; blur softens busy textures; glow: a coloured
+// light pattern multiplied over the surface (the Fordyce skylight); lamp/edge: the warm pool and the falloff.
+const TABLE_LOOK = {
+  felt: { tone: 'rgba(8,40,24,.30)', lamp: 'rgba(255,226,170,.22)', edge: 'rgba(4,10,6,.62)' },
+  marble: { tone: 'rgba(34,36,38,.5)', light: 1, glow: 'glow-skylight', lamp: 'rgba(255,236,200,.18)', edge: 'rgba(52,38,22,.58)' },
+  quapaw: { tone: 'rgba(96,72,44,.5)', zoom: 2.2, blur: 1.4, light: 1, lamp: 'rgba(255,226,170,.22)', edge: 'rgba(30,18,8,.6)' },
+  pool: { tone: 'rgba(6,36,40,.46)', light: 1, blur: 2.4, lamp: 'rgba(220,255,245,.16)', edge: 'rgba(2,18,22,.6)' },
+  midnight: { tone: null, lamp: 'rgba(255,196,130,.34)', edge: 'rgba(0,0,0,.66)' },
+  linen: { tone: 'rgba(16,34,70,.26)', light: 1, blur: .6, lamp: 'rgba(255,244,220,.18)', edge: 'rgba(8,18,40,.55)' },
+};
+function drawLitTable(ctx, id, W, H) {
+  const look = TABLE_LOOK[id]; if (!look) return false;
+  const tex = artImg('tex-' + id + (H > W * 1.1 ? '-p' : '-l')) || artImg('tex-' + id + (H > W * 1.1 ? '-l' : '-p'));
+  if (!tex) return false;
+  const z = look.zoom || 1; // zoom > 1 enlarges a fine pattern so it sits well below card-index scale
+  if (look.blur && W > 200) { ctx.save(); ctx.filter = 'blur(' + look.blur + 'px)'; coverImg(ctx, tex, -4, -4, W + 8, H + 8, .5, .5, z); ctx.restore(); }
+  else coverImg(ctx, tex, 0, 0, W, H, .5, .5, z);
+  if (look.tone) { ctx.fillStyle = look.tone; ctx.fillRect(0, 0, W, H); }
+  const glow = look.glow && artImg(look.glow);
+  if (glow) { // coloured daylight: multiply tints the stone, a soft-light pass keeps it luminous rather than muddy
+    ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = .26; coverImg(ctx, glow, 0, 0, W, H, .5, .35);
+    ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = .55; coverImg(ctx, glow, 0, 0, W, H, .5, .35); ctx.restore();
+  }
+  // the lamp hangs above the upper middle of the table, where the foundations and the top of the tableau sit
+  const lx = W * .5, ly = H * .3, R = Math.hypot(W, H) * .62;
+  ctx.save(); ctx.globalCompositeOperation = 'soft-light';
+  let g = ctx.createRadialGradient(lx, ly, 0, lx, ly, R); g.addColorStop(0, look.lamp.replace(/[\d.]+\)$/, '1)')); g.addColorStop(.55, look.lamp); g.addColorStop(1, 'rgba(0,0,0,.35)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore();
+  g = ctx.createRadialGradient(lx, ly + H * .1, Math.min(W, H) * .32, lx, ly + H * .1, R * 1.05);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, look.edge); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  if (W > 200 && H > W * 1.4) feltEmblem(ctx, W, H, look.light);
+  if (W > 200) brassInlay(ctx, W, H); // not on the little picker swatches
+  return true;
+}
+// On tall phones the lower table is printed with a faint Deco emblem, like the logo on a club's card-table felt.
+function feltEmblem(ctx, W, H, light) {
+  const cx = W / 2, cy = H * .72, r = W * .3;
+  ctx.save(); ctx.globalAlpha = light ? .14 : .1; ctx.strokeStyle = ctx.fillStyle = light ? '#3A2A18' : '#F3DA92'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 0); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, r * .82, Math.PI, 0); ctx.stroke();
+  for (let i = 0; i <= 12; i++) { const a = Math.PI + i / 12 * Math.PI, r0 = r * .3, r1 = r * (i % 2 ? .7 : .8); ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy); ctx.stroke();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.font = Math.round(W * .075) + 'px ' + DISPLAY; ctx.fillText('Spa City', cx, cy + r * .12);
+  ctx.font = '600 ' + Math.round(W * .03) + 'px ' + DECO; ctx.fillText('H O T   S P R I N G S ,   A R K .', cx, cy + r * .12 + W * .095);
+  ctx.restore();
+}
+// Brass inlay around the play area: a double rule with Blender-rendered Deco fans in the corners.
+function brassInlay(ctx, W, H) {
+  // phones put cards 6 px from the edge, so they get one hairline outside the cards; roomier tables get the double rule
+  const fan = artImg('brass-corner'), narrow = W < 560, m = narrow ? 2 : Math.max(5, Math.round(Math.min(W, H) * .012));
+  const g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#E9C873'); g.addColorStop(.35, '#9C6E1E'); g.addColorStop(.6, '#D9B256'); g.addColorStop(1, '#7A5418');
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 3; ctx.shadowOffsetY = 1;
+  ctx.strokeStyle = g; ctx.lineWidth = 2; ctx.strokeRect(m + .5, m + .5, W - 2 * m - 1, H - 2 * m - 1);
+  if (!narrow) { ctx.lineWidth = 1; ctx.strokeRect(m + 5.5, m + 5.5, W - 2 * m - 11, H - 2 * m - 11); }
+  ctx.restore();
+  if (!fan) return;
+  const s = clamp(Math.round(Math.min(W, H) * .13), 44, 128);
+  ctx.save(); ctx.imageSmoothingQuality = 'high';
+  // the sprite's corner is at its bottom-left; rotate it into each corner of the table
+  // the slot row runs into the top corners in every game, so the fans sit at the bottom; the top gets small stepped brackets
+  if (!narrow) {
+    ctx.save(); ctx.strokeStyle = g; ctx.lineWidth = 1.5;
+    for (const [x, y, sx] of [[m + 9, m + 9, 1], [W - m - 9, m + 9, -1]]) {
+      ctx.beginPath();
+      for (let k = 0; k < 3; k++) { const o = k * 4, l = 30 - k * 8; ctx.moveTo(x + sx * o, y + o + l); ctx.lineTo(x + sx * o, y + o); ctx.lineTo(x + sx * (o + l), y + o); }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  [[W - m, H - m, -Math.PI / 2], [m, H - m, 0]].forEach(([x, y, a]) => {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.drawImage(fan, -1, -s + 1, s, s); ctx.restore();
+  });
+  ctx.restore();
+}
+
 function drawTable(ctx, id, W, H) {
+  if (drawLitTable(ctx, id, W, H)) return;
   const img = artImg('table-' + id);
   if (img) {
     coverImg(ctx, img, 0, 0, W, H);
@@ -1539,6 +1811,10 @@ function drawTable(ctx, id, W, H) {
     }
     ctx.strokeStyle = '#C46A3E'; ctx.lineWidth = 8; ctx.strokeRect(4, 4, W - 8, H - 8);
     ctx.strokeStyle = '#4E7D5B'; ctx.lineWidth = 2; ctx.strokeRect(12, 12, W - 24, H - 24);
+  } else if (id === 'quapaw') {
+    ctx.fillStyle = '#B99A70'; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(90,60,30,.18)'; ctx.lineWidth = 2; const z = 14;
+    for (let y = -z; y < H + z; y += z) { ctx.beginPath(); for (let x = 0; x <= W + z; x += z) ctx.lineTo(x, y + ((x / z) % 2 ? z * .6 : 0)); ctx.stroke(); }
   } else {
     ctx.fillStyle = '#14121F'; ctx.fillRect(0, 0, W, H);
     const g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, 'rgba(79,195,255,.05)'); g.addColorStop(.5, 'rgba(255,255,255,0)'); g.addColorStop(.52, 'rgba(255,255,255,.04)'); g.addColorStop(1, 'rgba(255,59,59,.04)');
@@ -1553,16 +1829,18 @@ function drawTable(ctx, id, W, H) {
 function drawSkyline(ctx, W, H, t, dark) {
   const hero = artImg('title-hero');
   if (hero) {
-    coverImg(ctx, hero, 0, 0, W, H, .5, .62);
-    if (dark) { ctx.fillStyle = 'rgba(20,18,31,.38)'; ctx.fillRect(0, 0, W, H); }
-    // drifting steam over the painting, then a soft fade into the page
-    ctx.lineCap = 'round';
-    for (let i = 0; i < 7; i++) {
-      const px = W * (.08 + i * .14); ctx.strokeStyle = 'rgba(255,255,255,' + (dark ? .08 : .16) + ')'; ctx.lineWidth = 10 + (i % 3) * 5;
-      ctx.beginPath(); for (let k = 0; k <= 14; k++) { const f = k / 14; ctx.lineTo(px + Math.sin(f * 6 + t * 1.1 + i) * 14 * f, H * .78 - f * H * .6); } ctx.stroke();
+    coverImg(ctx, hero, 0, 0, W, H, H > W ? .72 : .55, H > W ? .8 : .45); // portrait: keep the bathhouses, not the sky
+    if (dark) { ctx.fillStyle = 'rgba(8,12,10,.25)'; ctx.fillRect(0, 0, W, H); }
+    // steam drifting up from the springs along the Row: soft puffs, each on its own slow cycle
+    const pf = puff(), u = Math.min(W, H);
+    for (let i = 0; i < 12; i++) {
+      const k = ((t * .05 + i * .37) % 1), x = W * ((i * .618) % 1) + Math.sin(k * 5 + i) * u * .03, y = H * (.72 - k * .5), r = u * (.05 + k * .09);
+      ctx.globalAlpha = (dark ? .12 : .2) * Math.sin(Math.PI * k); ctx.drawImage(pf, x - r, y - r, r * 2, r * 2);
     }
-    const f = ctx.createLinearGradient(0, H * .82, 0, H); f.addColorStop(0, 'rgba(0,0,0,0)'); f.addColorStop(1, getComputedStyle(document.getElementById('title')).backgroundColor || '#F2EFE8');
-    ctx.fillStyle = f; ctx.fillRect(0, H * .82, W, H * .18);
+    ctx.globalAlpha = 1;
+    // dusk falls toward the bottom so the plaques and their text sit on shadow
+    const f = ctx.createLinearGradient(0, H * .18, 0, H); f.addColorStop(0, 'rgba(8,12,10,0)'); f.addColorStop(.45, 'rgba(8,12,10,.55)'); f.addColorStop(1, 'rgba(8,12,10,.92)');
+    ctx.fillStyle = f; ctx.fillRect(0, 0, W, H);
     return;
   }
   const g = ctx.createLinearGradient(0, 0, 0, H);
@@ -1686,7 +1964,7 @@ function topSlots() {
     default: return lh ? [...n(4, 'f'), null, null, null] : [null, null, null, ...n(4, 'f')];
   }
 }
-function computeLayout() {
+function computeLayout(fit = 1) {
   const d = def(), cols = d.cols, mobile = W < 560;
   const margin = mobile ? 6 : Math.max(12, Math.round(W * .018));
   const size = settings.cardSize;
@@ -1695,17 +1973,24 @@ function computeLayout() {
   const hFit = (H - 2 * margin) / (1.4 * 4.3);
   const base = Math.min(widthFit, hFit, 140);
   let cw = size === 'compact' ? base * .84 : size === 'large' ? Math.min(widthFit, base * 1.14) : base;
-  cw = Math.max(24, Math.floor(cw));
+  cw = Math.max(24, Math.floor(cw * fit)); // fit < 1 when a long column would not otherwise show every rank
   const ch = Math.round(cw * 1.4);
   const gap = cols > 1 ? Math.min((W - 2 * margin - cols * cw) / (cols - 1), cw * .3) : 0;
   const rowW = cols * cw + (cols - 1) * gap, x0 = Math.round((W - rowW) / 2);
   const slotX = (i) => Math.round(x0 + i * (cw + gap));
-  const topY = margin, tabY = Math.round(margin + ch + Math.max(8, ch * .14));
+  // Portrait phones are width-bound and tall: lower the board a little toward the thumb and give the spare height to the fans.
+  const portrait = H > W * 1.25, lower = portrait ? Math.round(clamp((H / W - 1.4) * W * .22, 0, H * .07)) : 0;
+  const topY = margin + lower, tabY = Math.round(topY + ch + Math.max(8, ch * .14));
   const piles = {};
   topSlots().forEach((id, i) => { if (id) piles[id] = { x: slotX(i), y: topY }; });
   for (let i = 0; i < cols; i++) piles['t' + i] = { x: slotX(i), y: tabY };
   const largeIdx = size === 'large' || cw < 58;
-  return { cw, ch, gap, margin, piles, bottom: H - margin, largeIdx, fanUp: ch * (largeIdx ? .31 : .25), fanDown: ch * .14 };
+  const ib = indexBottom(cw, ch, largeIdx);
+  // columns stop clear of the brass inlay on the table edge
+  return { cw, ch, gap, margin, piles, bottom: H - margin - (mobile ? 2 : 8), largeIdx, portrait, fit,
+    // the face-up step always shows the whole rank glyph (J and Q descenders included) plus a little air
+    fanUp: Math.max(ch * (portrait ? .46 : largeIdx ? .31 : .25), ch * .28, ib.full + 3), fanMin: ib.full + 1,
+    idxFull: ib.full, idxCap: ib.cap, fanDown: ch * (portrait ? .27 : .14), downMin: ch * .06 };
 }
 // Target position for every card in the current state.
 function computeTargets() {
@@ -1717,55 +2002,104 @@ function computeTargets() {
       let nd = 0, nu = 0; for (let i = 0; i < p.length - 1; i++) S.up[p[i]] ? nu++ : nd++;
       let dd = L.fanDown, fu = L.fanUp; const avail = L.bottom - b.y - ch;
       if (nd * dd + nu * fu > avail) {
-        dd = Math.max(ch * .05, Math.min(dd, dd * avail / (nd * dd + nu * fu)));
-        if (nd * dd + nu * fu > avail && nu) fu = Math.max(ch * .1, (avail - nd * dd) / nu);
+        dd = Math.max(L.downMin, Math.min(dd, dd * avail / (nd * dd + nu * fu)));
+        if (nd * dd + nu * fu > avail && nu) fu = Math.max(L.fanMin, (avail - nd * dd) / nu);
+        if (nd * dd + nu * fu > avail && nu) fu = Math.max(L.idxCap, (avail - nd * dd) / nu);
       }
       let y = b.y;
-      p.forEach((u, i) => { T[u] = { x: b.x, y }; bm.cards.push({ x: b.x, y, w: cw, h: ch, up: S.up[u] }); y += S.up[u] ? fu : dd; });
+      p.forEach((u, i) => { T[u] = { x: b.x, y, pile: id }; bm.cards.push({ x: b.x, y, w: cw, h: ch, up: S.up[u] }); y += S.up[u] ? fu : dd; });
       b.zoneH = (p.length ? bm.cards[bm.cards.length - 1].y - b.y : 0) + ch;
     } else if (k === 'waste') {
       const fanN = S.opts.draw === 3 ? 3 : 1; const start = Math.max(0, p.length - fanN);
-      p.forEach((u, i) => { const off = i >= start ? (i - start) * cw * .27 : 0; T[u] = { x: b.x + off, y: b.y }; bm.cards.push({ x: b.x + off, y: b.y, w: cw, h: ch, up: true }); });
+      p.forEach((u, i) => { const off = i >= start ? (i - start) * cw * .27 : 0; T[u] = { x: b.x + off, y: b.y, pile: id }; bm.cards.push({ x: b.x + off, y: b.y, w: cw, h: ch, up: true }); });
       b.zoneH = ch;
     } else if (k === 'stock' && S.mode === 'spider') {
       const dir = settings.leftHanded ? 1 : -1;
-      p.forEach((u, i) => { const g = Math.floor(i / 10); const x = b.x + dir * g * cw * .14; T[u] = { x, y: b.y }; bm.cards.push({ x, y: b.y, w: cw, h: ch, up: false }); });
+      p.forEach((u, i) => { const g = Math.floor(i / 10); const x = b.x + dir * g * cw * .14; T[u] = { x, y: b.y, pile: id }; bm.cards.push({ x, y: b.y, w: cw, h: ch, up: false }); });
       b.zoneH = ch;
     } else {
-      p.forEach((u) => { T[u] = { x: b.x, y: b.y }; bm.cards.push({ x: b.x, y: b.y, w: cw, h: ch, up: S.up[u] }); });
+      p.forEach((u) => { T[u] = { x: b.x, y: b.y, pile: id }; bm.cards.push({ x: b.x, y: b.y, w: cw, h: ch, up: S.up[u] }); });
       b.zoneH = ch;
     }
   }
   return T;
 }
-let targets = [];
+// Long columns may shrink the board, but never below 80% of a Standard-size card (Large cards may give up a bit more).
+const FIT_FLOOR = () => settings.cardSize === 'large' ? .7 : .8;
+let targets = [], lastCw = 0, fitHold = 1; // fitHold: the smallest board scale used this deal
 const ease = (t) => 1 - Math.pow(1 - t, 3);
+const easeBack = (t) => { const c = 1.4; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); }; // overshoots ~4%, then settles
+// Cards travel on a shallow arc: they lift off the felt (bigger, softer shadow), lean into the direction of
+// travel, then settle. lift 0..1 drives scale and shadow; rot is the lean in radians.
 function dispPos(u, t) {
   const d = D[u]; if (!d) return null;
-  if (t < d.t0) return { x: d.sx, y: d.sy };
-  if (t >= d.t0 + d.dur) return { x: d.tx, y: d.ty };
-  const e = ease((t - d.t0) / d.dur); return { x: d.sx + (d.tx - d.sx) * e, y: d.sy + (d.ty - d.sy) * e };
+  if (t < d.t0) return { x: d.sx, y: d.sy, lift: 0, rot: 0 };
+  if (t >= d.t0 + d.dur) return { x: d.tx, y: d.ty, lift: 0, rot: 0 };
+  const k = (t - d.t0) / d.dur, e = d.back ? easeBack(k) : ease(k), hump = Math.sin(Math.PI * Math.min(1, k * 1.08));
+  return { x: d.sx + (d.tx - d.sx) * e, y: d.sy + (d.ty - d.sy) * e - (d.arc || 0) * hump, lift: hump, rot: (d.spin || 0) * hump };
 }
 function relayout(instant) {
   if (!S || !W) return;
-  L = computeLayout(); targets = computeTargets();
+  // Shrink the cards (in small steps) until every column fits with each face-up rank fully visible.
+  let fit = Math.min(1, fitHold);
+  for (;;) {
+    L = computeLayout(fit); let ok = true;
+    for (let i = 0; i < def().cols && ok; i++) {
+      const p = S.piles['t' + i], b = L.piles['t' + i]; let nd = 0, nu = 0;
+      for (let j = 0; j < p.length - 1; j++) S.up[p[j]] ? nu++ : nd++;
+      ok = b.y + L.ch + nd * L.downMin + nu * L.fanMin <= L.bottom + .5;
+    }
+    if (ok || fit <= FIT_FLOOR()) break;
+    fit = Math.max(FIT_FLOOR(), fit * .94);
+  }
+  fitHold = fit;
+  if (lastCw !== L.cw) { sprites.clear(); lastCw = L.cw; }
+  targets = computeTargets();
   const t = now(), rm = reducedMotion();
   for (let u = 0; u < S.cards.length; u++) {
     const T = targets[u]; if (!T) continue;
     let d = D[u];
-    if (!d || instant) { D[u] = { x: T.x, y: T.y, sx: T.x, sy: T.y, tx: T.x, ty: T.y, t0: 0, dur: 0, up: S.up[u], f0: -1e9 }; continue; }
+    if (!d || instant) { D[u] = { x: T.x, y: T.y, sx: T.x, sy: T.y, tx: T.x, ty: T.y, t0: 0, dur: 0, up: S.up[u], f0: -1e9, pile: T.pile }; continue; }
     const delay = animDelay[u] || 0;
     if (Math.abs(d.tx - T.x) > .5 || Math.abs(d.ty - T.y) > .5) {
       const p = dispPos(u, t); const dist = Math.hypot(T.x - p.x, T.y - p.y);
-      d.sx = p.x; d.sy = p.y; d.tx = T.x; d.ty = T.y; d.t0 = t + (rm ? 0 : delay); d.dur = rm ? 0 : clamp(140 + dist * .25, 160, 340);
+      d.sx = p.x; d.sy = p.y; d.tx = T.x; d.ty = T.y; d.t0 = t + (rm ? 0 : delay); d.dur = rm ? 0 : clamp(170 + dist * .3, 190, 420);
+      d.back = false; d.arc = rm ? 0 : clamp(dist * .1, 0, L.ch * .45); d.spin = rm ? 0 : clamp((T.x - p.x) / Math.max(1, W), -1, 1) * .16;
+      if (!rm && T.pile && kindOf(T.pile) === 'found' && d.pile !== T.pile) landFx.push({ u, at: d.t0 + d.dur });
     }
+    d.pile = T.pile;
     if (d.up !== S.up[u]) { d.up = S.up[u]; d.f0 = rm ? -1e9 : t + delay; }
   }
   animDelay = {};
   startLoop();
 }
+// Gold glints where a card lands on a foundation (scheduled by relayout, drawn by drawFx).
+let landFx = [], fx = [];
+function glints(x, y, n, spread, t0) {
+  if (lowFx) return;
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, v = spread * (.35 + Math.random() * .65);
+    fx.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - spread * .3, t0: t0 + Math.random() * 60, life: 420 + Math.random() * 380, r: 1.2 + Math.random() * 2.4 });
+  }
+}
+function drawFx(t) {
+  if (landFx.length) {
+    landFx = landFx.filter((q) => { if (t < q.at) return true; const d = D[q.u]; if (d) glints(d.tx + L.cw / 2, d.ty + L.ch * .3, 14, L.cw * 1.4, q.at); return false; });
+  }
+  if (!fx.length) return;
+  fx = fx.filter((p) => t < p.t0 + p.life);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const p of fx) {
+    if (t < p.t0) continue; const k = (t - p.t0) / p.life, s = (t - p.t0) / 1000;
+    const x = p.x + p.vx * s, y = p.y + p.vy * s + 260 * s * s, r = p.r * (1 - k * .6), a = (1 - k) * .95;
+    ctx.fillStyle = 'rgba(255,214,120,' + a.toFixed(3) + ')';
+    ctx.beginPath(); ctx.moveTo(x, y - r * 3); ctx.lineTo(x + r * .6, y); ctx.lineTo(x, y + r * 3); ctx.lineTo(x - r * .6, y); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x - r * 3, y); ctx.lineTo(x, y + r * .6); ctx.lineTo(x + r * 3, y); ctx.lineTo(x, y - r * .6); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
 function dealAnimation() {
-  relayout(true);
+  fitHold = 1; relayout(true);
   if (reducedMotion()) { markDirty(); return; }
   const t = now(); const src = L.piles.stock || { x: W / 2 - L.cw / 2, y: -L.ch * 1.4 };
   const order = [];
@@ -1773,7 +2107,10 @@ function dealAnimation() {
   const maxLen = Math.max(...tabs.map((p) => p.length));
   for (let r = 0; r < maxLen; r++) for (const p of tabs) if (p[r] != null) order.push(p[r]);
   const step = order.length > 60 ? 13 : 20;
-  order.forEach((u, i) => { const d = D[u]; d.sx = src.x; d.sy = src.y; d.t0 = t + i * step; d.dur = 200; if (S.up[u]) d.f0 = d.t0 + 120; });
+  order.forEach((u, i) => {
+    const d = D[u]; d.sx = src.x; d.sy = src.y; d.t0 = t + i * step; d.dur = 260;
+    d.arc = L.ch * .35; d.spin = (d.tx < src.x ? -1 : 1) * (.12 + (i % 3) * .04); if (S.up[u]) d.f0 = d.t0 + 170;
+  });
   startLoop();
 }
 
@@ -1798,18 +2135,52 @@ function startLoop() { if (!rafId) rafId = requestAnimationFrame(loop); }
 const markDirty = startLoop;
 function tweensActive(t) {
   if (!S) return false;
-  for (let u = 0; u < S.cards.length; u++) { const d = D[u]; if (d && (t < d.t0 + d.dur || t < d.f0 + 170)) return true; }
-  return false;
+  for (let u = 0; u < S.cards.length; u++) { const d = D[u]; if (d && (t < d.t0 + d.dur || t < d.f0 + FLIP_MS)) return true; }
+  return landFx.length > 0 || fx.length > 0;
 }
+// Test hook support: a frozen clock holds one exact frame of an animation (act('ceremonyAt', ms)).
+let frozenAt = null, modalAnimUntil = 0;
+const fstat = { n: 0, sum: 0, max: 0, xs: [] }; // CPU time spent drawing frames, for the performance tests
+// Low-end watchdog: if animated frames keep costing more than ~12 ms of CPU, drop the optional effects (glints,
+// confetti, ceremony steam and skylight glow). Cards, flights and flips stay. ?fx=low forces it for testing.
+let lowFx = /[?&]fx=low\b/.test(location.search), fxEma = 0;
 function loop() {
-  rafId = 0; const t = now();
-  frame(t);
-  if (tweensActive(t) || drag || cascade || steam.length || Object.keys(shakes).length || (hintState && hintState.until > t)) rafId = requestAnimationFrame(loop);
+  rafId = 0; if (frozenAt !== null) return; const t = now();
+  frame(t); const ft = now() - t; fstat.n++; fstat.sum += ft; if (ft > fstat.max) fstat.max = ft; if (fstat.xs.length < 4000) fstat.xs.push(ft);
+  fxEma = fxEma * .95 + ft * .05; if (!lowFx && fstat.n > 60 && fxEma > 12) { lowFx = true; fx = []; }
+  // frame() may already have queued the next frame (startLoop); never queue a second one
+  if (!rafId && (tweensActive(t) || drag || cascade || steam.length || Object.keys(shakes).length || (hintState && hintState.until > t))) rafId = requestAnimationFrame(loop);
 }
 function drawTableLayer() {
   tctx.setTransform(DPR, 0, 0, DPR, 0, 0); drawTable(tctx, settings.table, W, H); tableDirty = false;
 }
+// Empty piles on a lit table are brass inlays (Blender renders) with an engraved mark.
+function brassPlaceholder(id, b) {
+  const { cw, ch } = L; const k = kindOf(id); const plate = artImg(k === 'cell' ? 'brass-cell' : 'brass-slot');
+  if (!plate || !TABLE_LOOK[settings.table]) return false;
+  // a recessed well under the inlay; deeper on pale tables so the brass still reads
+  ctx.save(); ctx.fillStyle = TABLE_LOOK[settings.table].light ? 'rgba(20,12,4,.3)' : 'rgba(0,0,0,.2)'; rrect(ctx, b.x + 2, b.y + 2, cw - 4, ch - 4, cw * .07); ctx.fill();
+  ctx.globalAlpha = 1; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(plate, b.x - cw * .02, b.y - ch * .02, cw * 1.04, ch * 1.04); ctx.restore();
+  const engrave = (draw) => { // dark recess, then a bright lower lip, like lettering cut into brass
+    ctx.save(); ctx.globalAlpha = .55; ctx.fillStyle = 'rgba(0,0,0,.6)'; draw(0, 0); ctx.fillStyle = 'rgba(233,200,115,.75)'; draw(0, Math.max(1, cw * .012)); ctx.restore();
+  };
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (k === 'found' && !def().runs) engrave((dx, dy) => { ctx.font = '700 ' + cw * .42 + 'px ' + SERIF; ctx.fillText('A', b.x + cw / 2 + dx, b.y + ch / 2 + dy); });
+  else if (k === 'found') engrave((dx, dy) => { // a neutral Deco fan: Spider runs go home in any suit
+    const cx = b.x + cw / 2 + dx, cy = b.y + ch * .58 + dy, r = cw * .26;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, Math.PI * 1.08, Math.PI * 1.92); ctx.closePath(); ctx.fill();
+    ctx.save(); ctx.globalCompositeOperation = 'destination-out'; ctx.lineWidth = Math.max(1, cw * .025);
+    for (let i = 1; i < 6; i++) { const a = Math.PI * (1.08 + .84 * i / 6); ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); ctx.stroke(); }
+    ctx.restore();
+  });
+  else if (k === 'tab' && def().empty === 'king') engrave((dx, dy) => { ctx.font = '700 ' + cw * .42 + 'px ' + SERIF; ctx.fillText('K', b.x + cw / 2 + dx, b.y + ch / 2 + dy); });
+  else if (k === 'stock' && S.mode === 'klondike' && S.piles.waste.length) {
+    const tok = artImg('brass-recycle'); if (tok) { const s = cw * .62; ctx.drawImage(tok, b.x + (cw - s) / 2, b.y + (ch - s) / 2, s, s); }
+  }
+  return true;
+}
 function placeholder(id, b) {
+  if (brassPlaceholder(id, b)) return;
   const { cw, ch } = L; const ti = tableInfo(); const k = kindOf(id);
   rrect(ctx, b.x + 1, b.y + 1, cw - 2, ch - 2, cw * .075);
   ctx.lineWidth = Math.max(1.2, cw * .02); ctx.strokeStyle = ti.ink; ctx.setLineDash(k === 'cell' ? [cw * .08, cw * .06] : []); ctx.stroke(); ctx.setLineDash([]);
@@ -1823,25 +2194,50 @@ function placeholder(id, b) {
     ctx.moveTo(ax + cw * .1, ay - cw * .02); ctx.lineTo(ax - cw * .02, ay - cw * .1); ctx.lineTo(ax - cw * .01, ay + cw * .08); ctx.closePath(); ctx.fill();
   }
 }
-function drawCardAt(u, x, y, t, lifted) {
+const FLIP_MS = 220;
+// Draw one card. lift 0..1 raises it toward the lamp (scale, longer and softer shadow); rot leans it.
+function drawCardAt(u, x, y, t, lift = 0, rot = 0) {
   const { cw, ch } = L; const d = D[u];
-  let showUp = S.up[u], sx = 1;
-  if (d && t < d.f0 + 170 && t >= d.f0) { const p = (t - d.f0) / 170; sx = Math.abs(Math.cos(p * Math.PI)); showUp = p >= .5 ? S.up[u] : !S.up[u]; }
+  let showUp = S.up[u], sx = 1, fk = -1;
+  if (d && t < d.f0 + FLIP_MS && t >= d.f0) { fk = (t - d.f0) / FLIP_MS; sx = Math.abs(Math.cos(fk * Math.PI)); showUp = fk >= .5 ? S.up[u] : !S.up[u]; lift = Math.max(lift, Math.sin(fk * Math.PI) * .7); }
   else if (d && t < d.f0) showUp = !S.up[u];
   const sh = shakes[u]; if (sh) { const p = (t - sh) / 260; if (p >= 1) delete shakes[u]; else x += Math.sin(p * Math.PI * 6) * (1 - p) * cw * .06; }
   const img = showUp ? faceSprite(u) : backSprite();
-  x = Math.round(x * DPR) / DPR; y = Math.round(y * DPR) / DPR;
-  const shd = shadowSprite(!!lifted), p = shd.pad;
-  if (sx < .999) {
-    const dx = x + cw * (1 - sx) / 2, dw = cw * Math.max(.02, sx);
-    ctx.drawImage(shd, dx - p, y - p + cw * .03, dw + 2 * p, ch + 2 * p);
-    ctx.drawImage(img, dx, y, dw, ch);
-    // the card turns away from the light mid-flip
-    ctx.fillStyle = 'rgba(20,16,10,' + ((1 - sx) * .22).toFixed(3) + ')'; rrect(ctx, dx, y, dw, ch, Math.min(dw / 2, cw * .075)); ctx.fill();
-  } else {
-    ctx.drawImage(shd, x - p + (lifted ? cw * .05 : 0), y - p + (lifted ? cw * .08 : cw * .015), cw + 2 * p, ch + 2 * p);
-    ctx.drawImage(img, x, y, cw, ch);
+  if (lift < .01 && !rot && sx > .999) { // resting card: crisp, pixel-aligned fast path
+    x = Math.round(x * DPR) / DPR; y = Math.round(y * DPR) / DPR;
+    const shd = shadowSprite(false), p = shd.pad;
+    ctx.drawImage(shd, x - p, y - p + cw * .015, cw + 2 * p, ch + 2 * p);
+    ctx.drawImage(img, x, y, cw, ch); return;
   }
+  const sc = 1 + .055 * Math.min(lift, 1.2), cx = x + cw / 2, cy = y + ch / 2;
+  // the shadow falls away from the lamp (down and right) as the card rises
+  const shd = shadowSprite(true), p = shd.pad, off = cw * (.02 + .11 * lift);
+  ctx.save(); ctx.globalAlpha = Math.min(1, .55 + .45 * lift); ctx.translate(cx + off * .6, cy + off); ctx.rotate(rot); ctx.scale(sc * Math.max(.05, sx), sc);
+  ctx.drawImage(shd, -cw / 2 - p, -ch / 2 - p, cw + 2 * p, ch + 2 * p); ctx.restore();
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot);
+  // a card turning over: foreshortened, with a slight perspective shear
+  if (sx < .999) ctx.transform(Math.max(.02, sx), (fk < .5 ? 1 : -1) * .1 * (1 - sx), 0, 1, 0, 0);
+  ctx.scale(sc, sc);
+  ctx.drawImage(img, -cw / 2, -ch / 2, cw, ch);
+  if (sx < .999) {
+    ctx.fillStyle = 'rgba(20,16,10,' + ((1 - sx) * .25).toFixed(3) + ')'; rrect(ctx, -cw / 2, -ch / 2, cw, ch, cw * .075); ctx.fill();
+    ctx.globalAlpha = Math.sin(Math.PI * clamp(fk, 0, 1)) * .9; ctx.drawImage(sheenSprite(), -cw / 2, -ch / 2, cw, ch); ctx.globalAlpha = 1;
+  } else if (lift > .05) {
+    // the lamp catches a lifted card: a soft specular band across the stock
+    ctx.globalAlpha = lift * .5; ctx.drawImage(sheenSprite(), -cw / 2, -ch / 2, cw, ch); ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
+// A specular band across a card, baked once per card size.
+function sheenSprite() {
+  let c = sprites.get('sheen');
+  if (!c) {
+    const { cw, ch } = L; c = document.createElement('canvas'); c.width = Math.ceil(cw * DPR); c.height = Math.ceil(ch * DPR);
+    const g = c.getContext('2d'); g.scale(DPR, DPR); const gr = g.createLinearGradient(0, 0, cw, ch);
+    gr.addColorStop(0, 'rgba(255,250,235,0)'); gr.addColorStop(.36, 'rgba(255,250,235,.34)'); gr.addColorStop(.6, 'rgba(255,250,235,0)');
+    g.fillStyle = gr; rrect(g, 0, 0, cw, ch, cw * .075); g.fill(); sprites.set('sheen', c);
+  }
+  return c;
 }
 // Soft card shadow, baked once per card size (resting and lifted variants).
 function shadowSprite(lifted) {
@@ -1852,20 +2248,56 @@ function shadowSprite(lifted) {
     const g = c.getContext('2d'); g.scale(DPR, DPR);
     g.shadowColor = 'rgba(0,0,0,' + (lifted ? .42 : .30) + ')'; g.shadowBlur = cw * (lifted ? .14 : .05) * DPR;
     g.shadowOffsetX = 4000 * DPR; g.fillStyle = '#000'; rrect(g, pad - 4000, pad, cw, ch, cw * .075); g.fill();
+    // resting cards show a sliver of card edge below the face: the stock's thickness, like a printed deck
+    if (!lifted) { g.shadowColor = 'transparent'; g.fillStyle = '#B4A584'; rrect(g, pad, pad, cw, ch, cw * .075); g.fill(); }
     c.pad = pad; sprites.set(key, c);
   }
   return c;
 }
+// A brass arc from the hinted card to its destination; the dashes run toward the target.
+function hintArrow(x0, y0, x1, y1, t) {
+  const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy); if (d < 8) return;
+  const bend = Math.min(d * .35, L.ch * .9), nx = -dy / d, ny = dx / d, side = dx >= 0 ? -1 : 1;
+  const qx = (x0 + x1) / 2 + nx * bend * side, qy = (y0 + y1) / 2 + ny * bend * side - bend * .3;
+  const head = Math.max(8, L.cw * .14), k = .92;
+  const ex = (1 - k) * (1 - k) * x0 + 2 * (1 - k) * k * qx + k * k * x1, ey = (1 - k) * (1 - k) * y0 + 2 * (1 - k) * k * qy + k * k * y1;
+  const ang = Math.atan2(y1 - ey, x1 - ex);
+  ctx.save(); ctx.lineCap = 'round';
+  const lw = Math.max(3, L.cw * .045), path = () => { ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(qx, qy, ex, ey); };
+  ctx.setLineDash([L.cw * .16, L.cw * .1]); ctx.lineDashOffset = -(t / 18) % (L.cw * .26);
+  ctx.save(); ctx.translate(0, 2); ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = lw + 2; path(); ctx.stroke(); ctx.restore(); // cheap drop shadow
+  ctx.strokeStyle = '#E9C873'; ctx.lineWidth = lw; path(); ctx.stroke();
+  ctx.setLineDash([]); ctx.fillStyle = '#E9C873'; ctx.strokeStyle = '#6E4C16'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 - Math.cos(ang - .45) * head, y1 - Math.sin(ang - .45) * head);
+  ctx.lineTo(x1 - Math.cos(ang + .45) * head, y1 - Math.sin(ang + .45) * head); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+// A glowing rim: wide faint strokes under a crisp one. (shadowBlur looks the same but costs a full blur pass a frame.)
 function glowRect(x, y, w, h, color, alpha, width) {
-  ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = width; ctx.shadowColor = color; ctx.shadowBlur = 10;
-  rrect(ctx, x - 2, y - 2, w + 4, h + 4, L.cw * .09); ctx.stroke(); ctx.restore();
+  ctx.save(); ctx.strokeStyle = color; rrect(ctx, x - 2, y - 2, w + 4, h + 4, L.cw * .09);
+  ctx.globalAlpha = alpha * .18; ctx.lineWidth = width + 9; ctx.stroke();
+  ctx.globalAlpha = alpha * .3; ctx.lineWidth = width + 4; ctx.stroke();
+  ctx.globalAlpha = alpha; ctx.lineWidth = width; ctx.stroke(); ctx.restore();
 }
 function frame(t) {
   if (!S || !L) return;
   if (tableDirty) drawTableLayer();
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
   const { cw, ch } = L;
-  for (const id in L.piles) placeholder(id, L.piles[id]);
+  // during the win ceremony the emptied board steps back: slots fade out and the table dims under a spotlight
+  const cerK = cascade ? clamp((t - cascade.t0) / 350, 0, 1) : 0;
+  if (cerK < 1) { ctx.globalAlpha = 1 - cerK; for (const id in L.piles) placeholder(id, L.piles[id]); ctx.globalAlpha = 1; }
+  if (cerK > 0) {
+    const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .2, W / 2, H / 2, Math.hypot(W, H) * .6);
+    g.addColorStop(0, 'rgba(0,0,0,' + (.08 * cerK) + ')'); g.addColorStop(1, 'rgba(0,0,0,' + (.5 * cerK) + ')');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+  // squared-up piles (stock, waste, foundations) show their thickness as stacked card edges
+  for (const id in L.piles) {
+    const k = kindOf(id), n = S.piles[id].length; if (n < 2 || k === 'tab' || k === 'cell' || (k === 'stock' && S.mode === 'spider') || cascade) continue;
+    const b = L.piles[id], depth = Math.min(5, Math.ceil(n / 7)), step = Math.max(1, cw * .011);
+    for (let j = depth; j >= 1; j--) { ctx.fillStyle = j % 2 ? '#A89A7A' : '#D3C8AC'; rrect(ctx, b.x + j * step * .35, b.y + j * step, cw, ch, cw * .075); ctx.fill(); }
+  }
   const skip = new Set();
   if (drag) for (const u of drag.run) skip.add(u);
   if (cascade) for (const u of cascade.gone) skip.add(u);
@@ -1879,7 +2311,7 @@ function frame(t) {
     }
   }
   moving.sort((a, b) => D[a].t0 - D[b].t0);
-  for (const u of moving) { const p = dispPos(u, t); drawCardAt(u, p.x, p.y, t, t >= D[u].t0); }
+  for (const u of moving) { const p = dispPos(u, t); drawCardAt(u, p.x, p.y, t, p.lift, p.rot); }
   if (S.mode === 'spider' && L.piles.stock && S.piles.stock.length) {
     const b = L.piles.stock, n = S.piles.stock.length / 10;
     ctx.fillStyle = 'rgba(20,18,31,.82)'; const bw = cw * .42, bh = cw * .3; rrect(ctx, b.x + cw - bw - 3, b.y + ch - bh - 3, bw, bh, bh / 2); ctx.fill();
@@ -1892,7 +2324,8 @@ function frame(t) {
       const m = hintState.cur; const src = L.piles[m.from].cards; const first = src[m.index]; const last = src[src.length - 1];
       if (first) glowRect(first.x, first.y, cw, last.y + ch - first.y, '#F6C933', a, 3);
       const dst = L.piles[m.to]; const dl = dst.cards.length ? dst.cards[dst.cards.length - 1] : { x: dst.x, y: dst.y };
-      glowRect(dl.x, dl.y, cw, ch, '#4FC3FF', a, 3);
+      glowRect(dl.x, dl.y, cw, ch, '#FFF3D0', .35 + .4 * a, 2);
+      if (first) hintArrow(first.x + cw / 2, first.y + Math.min(ch, L.fanUp) * .5, dl.x + cw / 2, dl.y + ch * .45, t);
     } else if (hintState.stockHint && L.piles.stock) glowRect(L.piles.stock.x, L.piles.stock.y, cw, ch, '#F6C933', a, 3);
   }
   // keyboard: held cards lift, cursor ring
@@ -1904,10 +2337,25 @@ function frame(t) {
   if (kbMode && cursor.pile && L.piles[cursor.pile]) {
     const b = L.piles[cursor.pile]; const c = b.cards[cursor.depth] || b.cards[b.cards.length - 1] || { x: b.x, y: b.y };
     const hgt = b.cards.length && kindOf(cursor.pile) === 'tab' ? b.cards[b.cards.length - 1].y + ch - c.y : ch;
-    ctx.save(); ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 3; ctx.setLineDash([6, 4]); rrect(ctx, c.x - 4, c.y - 4, cw + 8, hgt + 8, cw * .1); ctx.stroke();
-    ctx.strokeStyle = '#1F2A24'; ctx.lineDashOffset = 5; ctx.stroke(); ctx.restore();
+    // one focus language: an ivory halo with a brass ring
+    ctx.save(); rrect(ctx, c.x - 5, c.y - 5, cw + 10, hgt + 10, cw * .11);
+    ctx.strokeStyle = 'rgba(255,248,230,.85)'; ctx.lineWidth = 5; ctx.stroke();
+    ctx.strokeStyle = '#B8862C'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.restore();
   }
-  if (drag) drag.run.forEach((u, i) => drawCardAt(u, drag.x, drag.y + i * (drag.fan || 0), t, true));
+  if (drag) {
+    // held cards: lifted, leaning with the hand's motion, with a gold rim like a card catching the light
+    drag.tilt = (drag.tilt || 0) * .82 + clamp((drag.vx || 0) * .003, -.12, .12) * .18; drag.vx = (drag.vx || 0) * .7;
+    const n = drag.run.length, hgt = (n - 1) * (drag.fan || 0) + ch;
+    ctx.save(); ctx.translate(drag.x + cw / 2, drag.y + ch / 2); ctx.rotate(drag.tilt); ctx.translate(-drag.x - cw / 2, -drag.y - ch / 2);
+    // a quick flick leaves two fading ghost copies along the path
+    if (!lowFx && drag.trail) drag.trail.forEach((q, k) => { ctx.globalAlpha = .12 + k * .08; ctx.drawImage(faceSprite(drag.run[0]), q.x, q.y, cw, ch); });
+    ctx.globalAlpha = 1;
+    drag.run.forEach((u, i) => drawCardAt(u, drag.x, drag.y + i * (drag.fan || 0), t, 1.35));
+    glowRect(drag.x - cw * .035, drag.y - ch * .035, cw * 1.07, hgt + ch * .07, '#F6C933', .75, 2.5);
+    ctx.restore();
+    if (Math.abs(drag.tilt) > .002) startLoop();
+  }
+  drawFx(t);
   drawSteam(t);
   if (cascade) drawCascade(t);
 }
@@ -1921,68 +2369,127 @@ function steamBurst() {
   for (let i = 0; i < 14; i++) steam.push({ x: src.x + L.cw * (.2 + Math.random() * .6), y: src.y + L.ch * .6, r: L.cw * (.08 + Math.random() * .1), t0: t + i * 40, life: 900 + Math.random() * 500, vx: (Math.random() - .5) * 30 });
   startLoop();
 }
+// A soft steam puff, baked once: a feathered radial blob (no hard disc edge) used for every wisp.
+let puffCanvas = null;
+function puff() {
+  if (puffCanvas) return puffCanvas;
+  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(.45, 'rgba(255,255,255,.55)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64); return (puffCanvas = c);
+}
 function drawSteam(t) {
   if (!steam.length) return;
   steam = steam.filter((p) => t < p.t0 + p.life);
+  const img = puff(); ctx.save();
   for (const p of steam) {
     if (t < p.t0) continue; const k = (t - p.t0) / p.life;
-    ctx.fillStyle = 'rgba(255,255,255,' + (.16 * (1 - k)) + ')'; ctx.beginPath();
-    ctx.arc(p.x + p.vx * k + Math.sin(k * 6 + p.r) * 6, p.y - k * L.ch * 1.1, p.r * (1 + k * 1.6), 0, 7); ctx.fill();
+    // rises, drifts and swells; fades in quickly and out slowly
+    const a = .22 * Math.sin(Math.PI * Math.min(1, k * 1.6) * .5 + (k > .3 ? 0 : 0)) * (1 - k), r = p.r * (1.2 + k * 2.2);
+    ctx.globalAlpha = Math.max(0, a);
+    ctx.drawImage(img, p.x + p.vx * k + Math.sin(k * 5 + p.r) * L.cw * .08 - r, p.y - k * L.ch * 1.1 - r, r * 2, r * 2);
   }
+  ctx.restore();
 }
 
 // ============================================================================================
-// 10. Win cascade: cards tumble down tufa terraces (an original take on the thermal cascade)
+// 10. Win ceremony: the cards gather into a rosette under a skylight glow, then spray out like a thermal
+//     fountain with steam and brass confetti. An original sequence; tap or a key skips it.
 // ============================================================================================
+const CER = { gather: 950, hold: 650, spray: 2600 };
 function startCascade() {
   if (!S) return;
   if (reducedMotion()) { openModal('win'); return; }
   const order = [];
   const f = []; for (let i = 0; i < def().found; i++) f.push(S.piles['f' + i].slice());
   let any = true; while (any) { any = false; for (const p of f) if (p.length) { order.push(p.pop()); any = true; } }
-  cascade = { t0: now(), last: now(), order, launched: 0, parts: [], gone: new Set(), puffs: [], levels: [H * .5, H * .68, H * .86] };
-  startLoop();
-}
-function drawTerraces(alpha) {
-  const lob = Math.max(46, L.cw * .9);
-  cascade.levels.forEach((ly, li) => {
-    for (let i = -1; i * lob < W + lob; i++) {
-      const x = i * lob + (li % 2) * lob / 2;
-      const g = ctx.createLinearGradient(0, ly - 6, 0, ly + 30); g.addColorStop(0, 'rgba(200,195,182,' + alpha + ')'); g.addColorStop(1, 'rgba(154,150,140,' + alpha * .9 + ')');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, ly + 22, lob * .6, 26, 0, Math.PI, 2 * Math.PI); ctx.fill();
-      ctx.strokeStyle = 'rgba(127,200,184,' + alpha + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, ly + 22, lob * .6, 26, 0, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
-      ctx.fillStyle = 'rgba(47,143,91,' + alpha + ')'; ctx.fillRect(x - lob * .5, ly + 21, lob, 2);
-    }
+  // the rosette, cards included, must fit the table: its radius plus a card's reach stays inside the frame
+  const n = order.length, cx = W / 2, cy = H * .5, reach = Math.hypot(L.cw, L.ch) * .5 + 10, R = Math.max(L.ch, Math.min(W / 2, H / 2) - reach);
+  const rings = n > 60 ? 2 : 1; // Spider's 104 cards make two rings
+  const parts = order.map((u, i) => {
+    const ring = rings === 2 ? i % 2 : 0, k = rings === 2 ? Math.floor(i / 2) : i, m = n / rings;
+    const a = -Math.PI / 2 + k / m * Math.PI * 2 + ring * Math.PI / m, rr = R * (ring ? .7 : 1);
+    const p = D[u] ? { x: D[u].tx, y: D[u].ty } : { x: cx, y: -L.ch };
+    return { u, sx: p.x + L.cw / 2, sy: p.y + L.ch / 2, a, rx: cx + Math.cos(a) * rr, ry: cy + Math.sin(a) * rr, d0: i * (CER.gather * .45 / n) };
   });
+  cascade = { t0: now(), last: now(), parts, gone: new Set(order), cx, cy, R, fly: [], puffs: [], flakes: [], sprayed: 0 };
+  sfx('deal'); startLoop();
 }
 function drawCascade(t) {
-  const c = cascade; const dt = Math.min(.05, (t - c.last) / 1000); c.last = t;
-  const el = t - c.t0; const sc = H / 800; const { cw, ch } = L;
-  drawTerraces(Math.min(1, el / 350) * .92);
-  while (c.launched < c.order.length && el > c.launched * 48) {
-    const u = c.order[c.launched++]; const p = D[u] ? { x: D[u].tx, y: D[u].ty } : { x: W / 2, y: 0 };
-    const dir = p.x + cw / 2 < W / 2 ? 1 : -1;
-    c.parts.push({ u, x: p.x, y: p.y, vx: dir * (90 + Math.random() * 260) * sc * (Math.random() < .25 ? -1 : 1), vy: -(160 + Math.random() * 320) * sc, rot: 0, vr: (Math.random() - .5) * 4, level: 0 });
-    c.gone.add(u);
+  const c = cascade, el = t - c.t0, dt = Math.min(.05, (t - c.last) / 1000); c.last = t;
+  const { cw, ch } = L, sc = Math.min(W, H) / 800, T1 = CER.gather, T2 = T1 + CER.hold;
+  // the skylight: amber ring light with a blue-green heart, blooming as the rosette forms
+  const glowA = lowFx ? 0 : clamp(el / T1, 0, 1) * (el < T2 + 600 ? 1 : Math.max(0, 1 - (el - T2 - 600) / 900));
+  if (glowA > 0) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = glowA * .55;
+    const g = ctx.createRadialGradient(c.cx, c.cy, 0, c.cx, c.cy, c.R * 1.35);
+    g.addColorStop(0, 'rgba(110,220,200,.75)'); g.addColorStop(.35, 'rgba(60,150,150,.35)'); g.addColorStop(.62, 'rgba(255,190,90,.45)'); g.addColorStop(1, 'rgba(255,170,60,0)');
+    const gr = c.R * 1.35; ctx.fillStyle = g; ctx.fillRect(c.cx - gr, c.cy - gr, gr * 2, gr * 2);
+    // slow leaded-glass spokes
+    ctx.globalAlpha = glowA * .22; ctx.strokeStyle = '#FFE3A0'; ctx.lineWidth = 2;
+    for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2 + el / 4000; ctx.beginPath(); ctx.moveTo(c.cx + Math.cos(a) * c.R * .25, c.cy + Math.sin(a) * c.R * .25); ctx.lineTo(c.cx + Math.cos(a) * c.R * 1.25, c.cy + Math.sin(a) * c.R * 1.25); ctx.stroke(); }
+    ctx.restore();
   }
-  const g = 2100 * sc;
+  const spin = el > T1 ? (el - T1) / 5200 : 0;
+  // gather and hold: every card arcs from its foundation to its place in the rosette, pointing outward
   for (const p of c.parts) {
-    p.vy += g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
-    if (p.x < -cw * .3) { p.x = -cw * .3; p.vx = Math.abs(p.vx); } if (p.x > W - cw * .7) { p.x = W - cw * .7; p.vx = -Math.abs(p.vx); }
-    if (p.level < 3 && p.vy > 0 && p.y + ch > c.levels[p.level] + 8) {
-      p.y = c.levels[p.level] + 8 - ch; p.vy = -p.vy * .42; p.vx *= .85; p.level++;
-      if (c.puffs.length < 60) c.puffs.push({ x: p.x + cw / 2, y: c.levels[p.level - 1] + 6, t0: t });
+    if (p.flying) continue;
+    const k = clamp((el - p.d0) / (T1 * .55), 0, 1), e = ease(k), hump = Math.sin(Math.PI * k);
+    const a = p.a + spin, tx = c.cx + Math.cos(a) * Math.hypot(p.rx - c.cx, p.ry - c.cy), ty = c.cy + Math.sin(a) * Math.hypot(p.rx - c.cx, p.ry - c.cy);
+    const ly = p.sy + (ty - p.sy) * e, x = p.sx + (tx - p.sx) * e, y = Math.max(ch * .55, ly - hump * ch * .6), rot = (a + Math.PI / 2) * e;
+    drawCardAt(p.u, x - cw / 2, y - ch / 2, t, Math.max(hump, .25), rot);
+  }
+  // spray: the cards peel off the rosette one by one and fall in bouncing arcs, each bounce raising a puff of
+  // steam and every few frames stamping the card into a fading trail (a nod to the classic solitaire finale)
+  if (el > T2) {
+    const due = Math.min(c.parts.length, Math.floor((el - T2) / (CER.spray * .6) * c.parts.length));
+    while (c.sprayed < due) {
+      const p = c.parts[c.sprayed++]; p.flying = true; const a = p.a + spin, rr = Math.hypot(p.rx - c.cx, p.ry - c.cy);
+      const x = c.cx + Math.cos(a) * rr, y = c.cy + Math.sin(a) * rr, out = Math.cos(a) >= 0 ? 1 : -1;
+      const narrow = W < H; // portrait: fall mostly downward into the open felt
+      c.fly.push({ u: p.u, x, y, vx: out * (narrow ? 40 + Math.random() * 90 : 120 + Math.random() * 200) * sc, vy: (narrow ? -60 - Math.random() * 120 : -160 - Math.random() * 220) * sc, rot: a + Math.PI / 2, vr: out * (1.5 + Math.random() * 2), n: 0, bounces: 0 });
     }
   }
-  c.parts = c.parts.filter((p) => p.y < H + ch * 1.5);
-  for (const p of c.parts) {
-    ctx.save(); ctx.translate(p.x + cw / 2, p.y + ch / 2); ctx.rotate(p.rot * .25);
-    const shd = shadowSprite(true); ctx.drawImage(shd, -cw / 2 - shd.pad + cw * .05, -ch / 2 - shd.pad + cw * .08, cw + 2 * shd.pad, ch + 2 * shd.pad);
-    ctx.drawImage(faceSprite(p.u), -cw / 2, -ch / 2, cw, ch); ctx.restore();
+  // the trail is a soft, fading layer, so it lives at 1x resolution whatever the screen's pixel ratio
+  if (!c.trail) { c.trail = document.createElement('canvas'); c.trail.width = Math.round(W); c.trail.height = Math.round(H); c.tg = c.trail.getContext('2d'); }
+  const grav = 1700 * sc, floor = H - ch * .5 - 6;
+  c.tg.save(); c.tg.setTransform(1, 0, 0, 1, 0, 0); c.tg.globalCompositeOperation = 'destination-out'; c.tg.fillStyle = 'rgba(0,0,0,.07)'; c.tg.fillRect(0, 0, c.trail.width, c.trail.height); c.tg.restore();
+  for (const f of c.fly) {
+    f.vy += grav * dt; f.x += f.vx * dt; f.y += f.vy * dt; f.rot += f.vr * dt;
+    const rim = Math.hypot(cw, ch) * .5 + 4; if (f.x < rim) { f.x = rim; f.vx = Math.abs(f.vx) * .7; } else if (f.x > W - rim) { f.x = W - rim; f.vx = -Math.abs(f.vx) * .7; }
+    if (f.y > floor && f.vy > 0 && f.bounces < 3) {
+      f.y = floor; f.vy *= -(.62 - f.bounces * .1); f.vx *= .92; f.vr *= .7; f.bounces++;
+      if (!lowFx && c.puffs.length < 60) c.puffs.push({ x: f.x, y: H - 4, t0: t, r: cw * (.5 + Math.random() * .4), floor: true });
+    }
+    if (!lowFx && (f.n++ % 3) === 0) {
+      c.tg.save(); c.tg.globalAlpha = .55; c.tg.translate(f.x, f.y); c.tg.rotate(f.rot); c.tg.drawImage(faceSprite(f.u), -cw / 2, -ch / 2, cw, ch); c.tg.restore();
+    }
   }
-  c.puffs = c.puffs.filter((q) => t - q.t0 < 900);
-  for (const q of c.puffs) { const k = (t - q.t0) / 900; ctx.fillStyle = 'rgba(255,255,255,' + .35 * (1 - k) + ')'; ctx.beginPath(); ctx.arc(q.x + Math.sin(k * 5) * 8, q.y - k * 60 * sc, 10 + k * 26, 0, 7); ctx.fill(); }
-  if ((c.launched >= c.order.length && !c.parts.length) || el > 3400) endCascade();
+  c.fly = c.fly.filter((f) => f.y < H + ch * 1.5);
+  if (!lowFx) ctx.drawImage(c.trail, 0, 0, W, H);
+  for (const f of c.fly) drawCardAt(f.u, f.x - cw / 2, f.y - ch / 2, t, .8, f.rot);
+  // steam rising from the spray and the floor of the table
+  if (!lowFx && el > T2 && el < T2 + CER.spray && c.puffs.length < 60 && Math.random() < .2) c.puffs.push({ x: Math.random() * W, y: H + 10, t0: t, r: cw * (.6 + Math.random() * .8), floor: true });
+  const img = puff(); ctx.save();
+  c.puffs = c.puffs.filter((q) => t - q.t0 < 1800);
+  for (const q of c.puffs) {
+    const k = (t - q.t0) / 1800, r = q.r * (1 + k * 1.8); ctx.globalAlpha = (W < 560 ? .17 : .26) * Math.sin(Math.PI * k);
+    ctx.drawImage(img, q.x + Math.sin(k * 4 + q.r) * 14 - r, q.y - k * (q.floor ? H * .45 : ch * 1.6) - r, r * 2, r * 2);
+  }
+  ctx.restore();
+  // brass confetti: little foil flakes that flutter as they fall
+  if (!lowFx && el > T2 - 200 && el < T2 + CER.spray * .8) while (c.flakes.length < 140 && Math.random() < .9) {
+    c.flakes.push({ x: Math.random() * W, y: -10 - Math.random() * H * .2, vy: (60 + Math.random() * 90) * sc, ph: Math.random() * 6, w: 4 + Math.random() * 5, hue: Math.random() });
+    if (c.flakes.length % 7 === 0) break;
+  }
+  for (const q of c.flakes) {
+    q.y += q.vy * dt; q.ph += dt * 6; const flip = Math.cos(q.ph);
+    ctx.save(); ctx.translate(q.x + Math.sin(q.ph * .7) * 10, q.y); ctx.rotate(q.ph * .3); ctx.scale(1, Math.abs(flip) + .08);
+    ctx.fillStyle = q.hue < .7 ? (flip > 0 ? '#F3DA92' : '#B8862C') : (flip > 0 ? '#9FE0D0' : '#2A9D8F');
+    ctx.fillRect(-q.w / 2, -q.w * .3, q.w, q.w * .6); ctx.restore();
+  }
+  c.flakes = c.flakes.filter((q) => q.y < H + 20);
+  if (el > T2 + CER.spray + 900 || (c.sprayed >= c.parts.length && !c.fly.length && el > T2 + 600 && !c.flakes.length)) endCascade();
 }
 function endCascade() {
   if (!cascade) return; cascade = null; markDirty(); openModal('win');
@@ -2026,6 +2533,9 @@ cv.addEventListener('pointermove', (e) => {
       fan: cs.length > index + 1 ? cs[index + 1].y - c.y : 0 };
     sfx('pick');
   }
+  drag.vx = (drag.vx || 0) + (p.x - drag.ox - drag.x);
+  const sp = Math.hypot(p.x - drag.ox - drag.x, p.y - drag.oy - drag.y);
+  drag.trail = sp > L.cw * .25 ? [...(drag.trail || []), { x: drag.x, y: drag.y }].slice(-2) : [];
   drag.x = p.x - drag.ox; drag.y = p.y - drag.oy; markDirty();
 });
 function finishDrag() {
@@ -2042,7 +2552,10 @@ function finishDrag() {
   if (best) { tryMove(dr.from, dr.index, best); }
   else { sfx('nope'); }
   // tween every dragged card from where it was dropped to its (new or old) home
-  dr.run.forEach((u) => { const d = D[u], T = targets[u]; if (!T) return; d.tx = T.x; d.ty = T.y; d.t0 = t; d.dur = reducedMotion() ? 0 : 170; });
+  dr.run.forEach((u) => {
+    const d = D[u], T = targets[u]; if (!T) return; const dist = Math.hypot(T.x - d.sx, T.y - d.sy);
+    d.tx = T.x; d.ty = T.y; d.t0 = t; d.dur = reducedMotion() ? 0 : clamp(170 + dist * .25, 200, 320); d.arc = 0; d.spin = 0; d.back = true;
+  });
   startLoop();
 }
 cv.addEventListener('pointerup', (e) => {
@@ -2212,11 +2725,28 @@ const TILES = [
   { mode: 'spider', desc: 'Two decks. Build same-suit runs from King down to Ace.', chips: [['1 suit', { suits: 1 }], ['2 suits', { suits: 2 }], ['4 suits', { suits: 4 }]] },
   { mode: 'yukon', desc: 'No stock: move any face-up card along with everything on top of it.', chips: [['Play', {}]] },
 ];
+// A small fanned hand on each title plaque, in the player's current back and court style.
+const HANDS = { klondike: [[13, 3], [12, 2], [11, 0], 'back'], freecell: [[1, 3], [1, 2], [1, 1], [1, 0]], spider: [[13, 3], [12, 3], [11, 3], [10, 3]], yukon: ['back', 'back', [13, 2], [12, 0]] };
+function paintHands(scope = '#tiles') {
+  document.querySelectorAll(scope + ' canvas[data-hand]').forEach((c) => {
+    const w = c.clientWidth, h = c.clientHeight; if (!w) return; const dpr = Math.min(2, window.devicePixelRatio || 1);
+    c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const hand = HANDS[c.dataset.hand], ch = h * .92, cw = Math.round(ch / 1.4), n = hand.length;
+    hand.forEach((k, i) => {
+      const a = (i - (n - 1) / 2) * .2; g.save(); g.translate(w / 2 + (i - (n - 1) / 2) * cw * .32, h * .98 + ch * .1); g.rotate(a);
+      g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 6; g.shadowOffsetY = 2; g.fillStyle = '#000'; rrect(g, -cw / 2, -ch, cw, ch, cw * .075); g.fill(); g.shadowColor = 'transparent';
+      g.translate(-cw / 2, -ch);
+      if (k === 'back') drawBack(g, settings.back, cw, ch, settings.deckSeed); else drawFace(g, { r: k[0], s: k[1] }, cw, ch, false);
+      g.restore();
+    });
+  });
+}
 function buildTitle() {
   const el = $('#tiles'); el.innerHTML = '';
   for (const tl of TILES) {
     const d = document.createElement('div'); d.className = 'tile';
-    d.innerHTML = '<h2>' + MODES[tl.mode].name + '</h2><p>' + tl.desc + '</p><div class="chips"></div>';
+    d.innerHTML = '<canvas aria-hidden="true"></canvas><h2>' + MODES[tl.mode].name + '</h2><p>' + tl.desc + '</p><div class="chips"></div>';
+    d.querySelector('canvas').dataset.hand = tl.mode;
     for (const [label, o] of tl.chips) {
       const b = document.createElement('button'); b.className = 'chip' + (label === 'Play' || label === 'Draw 1' || label === '1 suit' ? ' solid' : '');
       b.textContent = label; b.setAttribute('aria-label', MODES[tl.mode].name + ': ' + (o.suits ? o.suits + (o.suits > 1 ? ' suits' : ' suit') : label));
@@ -2236,8 +2766,9 @@ let skyRaf = 0;
 const darkScheme = () => window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
 function drawSky(t) {
   const c = $('#sky'); const w = c.clientWidth, h = c.clientHeight; if (!w) return;
-  if (c.width !== Math.round(w * DPR)) { c.width = Math.round(w * DPR); c.height = Math.round(h * DPR); }
-  const g = c.getContext('2d'); g.setTransform(DPR, 0, 0, DPR, 0, 0); drawSkyline(g, w, h, t / 1000, darkScheme());
+  const sd = Math.min(1.5, DPR); // a full-screen painting with drifting steam: 1.5x is plenty and keeps phones cool
+  if (c.width !== Math.round(w * sd) || c.height !== Math.round(h * sd)) { c.width = Math.round(w * sd); c.height = Math.round(h * sd); }
+  const g = c.getContext('2d'); g.setTransform(sd, 0, 0, sd, 0, 0); drawSkyline(g, w, h, t / 1000, darkScheme());
 }
 function skyLoop(t) { skyRaf = 0; if (!titleOn) return; drawSky(t); if (!reducedMotion()) skyRaf = requestAnimationFrame(skyLoop); }
 function showTitle(on) {
@@ -2246,7 +2777,7 @@ function showTitle(on) {
     $('#tCont').hidden = !loadSaved();
     { const day = todayStr(); const n = Object.keys(meta.daily).filter((k) => k.startsWith(day + '|') && meta.daily[k] === 'won').length; $('#tDaily').textContent = 'Daily deals' + (n ? ' (' + n + '/7 ✓)' : ''); }
     DPR = Math.min(3, window.devicePixelRatio || 1);
-    drawSky(now()); if (!skyRaf && !reducedMotion()) skyRaf = requestAnimationFrame(skyLoop);
+    drawSky(now()); paintHands(); if (!skyRaf && !reducedMotion()) skyRaf = requestAnimationFrame(skyLoop);
     setTimeout(() => { const b = $('#tCont').hidden ? $('#tiles .chip') : $('#tCont'); if (b && !modalKind) b.focus({ preventScroll: true }); }, 0);
   } else if (!modalKind) setTimeout(() => cv.focus({ preventScroll: true }), 0);
 }
@@ -2273,11 +2804,13 @@ const head = (title) => '<h2 id="mT">' + title + '<button class="ib x" data-clos
 function openModal(kind, data) {
   tickClock();
   if (modalKind && kind !== modalKind && ['settings', 'backs', 'stats', 'help', 'deal', 'daily'].includes(kind) && modalKind === 'menu') modalReturn = 'menu';
-  modalKind = kind; sheet.className = 'sheet' + (kind === 'backs' || kind === 'help' ? ' wide' : '');
+  modalKind = kind; sheet.className = 'sheet' + (kind === 'backs' || kind === 'help' ? ' wide' : '') + (kind === 'win' ? ' win' : '') + (kind === 'win' && !reducedMotion() ? ' rise' : '');
+  if (kind === 'win' && !reducedMotion()) { modalAnimUntil = now() + 1250; setTimeout(() => sfx('place', 1), 650); } // the ticket punch
   sheet.innerHTML = (MODALS[kind] || (() => ''))(data || {});
   modalEl.classList.add('on');
   sheet.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => closeModal(true)));
   const binder = BIND[kind]; if (binder) binder(data || {});
+  if (kind === 'daily') paintHands('#sheet');
   const f = sheet.querySelector('[data-focus]') || sheet.querySelector('button:not([data-close])') || sheet.querySelector('button');
   if (f) f.focus({ preventScroll: true });
   sheet.scrollTop = 0;
@@ -2288,17 +2821,16 @@ const seg = (key, opts) => '<div class="seg" role="group">' + opts.map(([v, l]) 
 const tog = (key, label) => '<button class="tog" data-tog="' + key + '" aria-pressed="' + !!settings[key] + '" aria-label="' + label + '"></button>';
 const MODALS = {
   menu: () => head('Menu') + '<div class="menu">' +
-    '<button class="btn solid" data-a="resume" data-focus>Resume</button><button class="btn" data-a="new">New deal</button>' +
-    '<button class="btn" data-a="restart">Restart this deal</button><button class="btn" data-a="deal">Choose deal number…</button>' +
-    '<button class="btn" data-a="daily">Daily deals</button><button class="btn" data-a="title">Change game</button>' +
-    '<button class="btn" data-a="backs">Backs &amp; tables</button><button class="btn" data-a="settings">Settings</button>' +
-    '<button class="btn" data-a="stats">Statistics</button><button class="btn" data-a="help">How to play</button></div>',
+    '<button class="btn solid" data-a="resume" data-focus><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5v14l11-7z"/></svg>Resume</button>' +
+    '<button class="btn" data-a="new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="11" height="15" rx="2"/><path d="M9 21h9a2 2 0 0 0 2-2V8"/></svg>New deal</button><button class="btn" data-a="restart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M4 4v4h4"/></svg>Restart this deal</button><button class="btn" data-a="deal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/></svg>Choose deal number…</button><button class="btn" data-a="daily"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Daily deals</button>' +
+    '<button class="btn" data-a="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10l8-6 8 6v10"/><path d="M9 20v-6h6v6"/></svg>Change game</button><button class="btn" data-a="backs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="9" height="13" rx="1.5"/><rect x="11" y="7" width="9" height="13" rx="1.5"/><path d="M15.5 11.5l-2 2 2 2 2-2z"/></svg>Backs &amp; tables</button><button class="btn" data-a="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Settings</button><button class="btn" data-a="stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V11M12 20V5M19 20v-7"/></svg>Statistics</button><button class="btn" data-a="help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.3-.9.8-.9 1.4v.6M12 17h.01"/></svg>How to play</button></div>',
   settings: () => head('Settings') +
     '<div class="set"><label>Sound<small>Card clicks, chimes and the win fanfare</small></label>' + tog('sound', 'Sound') + '</div>' +
     '<div class="set"><label for="vol">Volume</label><input type="range" id="vol" min="0" max="1" step="0.05" value="' + settings.volume + '"></div>' +
     '<div class="set"><label>Motion<small>Auto follows your system setting</small></label>' + seg('motion', [['auto', 'Auto'], ['full', 'Full'], ['reduced', 'Reduced']]) + '</div>' +
     '<div class="set"><label>Left-handed layout<small>Stock and free cells on the left</small></label>' + tog('leftHanded', 'Left-handed layout') + '</div>' +
     '<div class="set"><label>Card size<small>Large also enlarges the corner index</small></label>' + seg('cardSize', [['compact', 'Compact'], ['standard', 'Standard'], ['large', 'Large']]) + '</div>' +
+    '<div class="set"><label>Court cards<small>Art Deco line art, or the painted portraits</small></label>' + seg('courts', [['deco', 'Art Deco'], ['painted', 'Painted']]) + '</div>' +
     '<div class="set"><label>Four-color suits<small>Blue diamonds, green clubs</small></label>' + tog('fourColor', 'Four-color suits') + '</div>' +
     '<div class="set"><label>Auto-move to foundations<small>Safe moves only cards nothing else needs</small></label>' + seg('autoFoundation', [['off', 'Off'], ['safe', 'Safe'], ['all', 'All']]) + '</div>' +
     '<div class="set"><label>Show timer</label>' + tog('showTimer', 'Show timer') + '</div>' +
@@ -2308,7 +2840,7 @@ const MODALS = {
     BACKS.map((b) => '<button class="bk" data-back="' + b.id + '" aria-pressed="' + (settings.back === b.id) + '"><canvas width="168" height="236"></canvas><b>' + b.name + '</b></button>').join('') +
     '</div><p class="cap" id="bkCap"></p><div class="row" style="margin-top:6px"><button class="btn" data-a="reseed">Reshuffle the skylight glass</button></div>' +
     '<h3>Tables</h3><div class="backs">' + TABLES.map((t) => '<button class="bk tbl" data-table="' + t.id + '" aria-pressed="' + (settings.table === t.id) + '"><canvas width="240" height="144"></canvas><b>' + t.name + '</b></button>').join('') + '</div>' +
-    '<p class="cap">Original painted designs, "inspired by" the real buildings and places; every color is an estimate.</p>',
+    '<p class="cap" id="tblCap">' + esc(tableInfo().cap || '') + '</p>',
   stats: (d) => {
     const k = d.key || (S ? modeKey(S.mode, S.opts) : 'klondike1'); const st = statFor(k);
     const rowS = (a, b) => '<tr><td>' + a + '</td><td>' + b + '</td></tr>';
@@ -2325,7 +2857,12 @@ const MODALS = {
     const day = todayStr();
     const list = [['klondike', { draw: 1 }], ['klondike', { draw: 3 }], ['freecell', {}], ['spider', { suits: 1 }], ['spider', { suits: 2 }], ['spider', { suits: 4 }], ['yukon', {}]];
     return head('Daily deals') + '<p>Everyone gets the same deals today (' + day + '). A new set arrives at midnight.</p><div class="menu">' +
-      list.map(([m, o], i) => { const k = modeKey(m, Object.assign({ draw: 1, suits: 1 }, o)); const st = meta.daily[day + '|' + k]; return '<button class="btn' + (i === 0 ? '" data-focus' : '"') + ' data-daily="' + i + '">' + (st === 'won' ? '✓ ' : '') + modeKeyLabel(k) + (st === 'won' ? ' (won)' : st ? ' (in progress)' : '') + '</button>'; }).join('') + '</div>';
+      list.map(([m, o], i) => {
+        const k = modeKey(m, Object.assign({ draw: 1, suits: 1 }, o)); const st = meta.daily[day + '|' + k];
+        const [name, sub] = modeKeyLabel(k).split(' · ');
+        return '<button class="btn day' + (st === 'won' ? ' won' : '') + '"' + (i === 0 ? ' data-focus' : '') + ' data-daily="' + i + '"><canvas aria-hidden="true" data-hand="' + m + '"></canvas><b>' + name + '</b><small>' + (sub || '&nbsp;') + '</small>' +
+          '<em>' + (st === 'won' ? 'Won' : st ? 'In progress' : 'Not played') + '</em>' + (st === 'won' ? '<i class="seal" aria-hidden="true"></i>' : '') + '</button>';
+      }).join('') + '</div>';
   },
   help: () => head('How to play') +
     '<p><b>Goal:</b> move every card to the foundations, building each up by suit from Ace to King (Spider: complete eight King-to-Ace runs).</p>' +
@@ -2351,12 +2888,13 @@ const MODALS = {
     const k = modeKey(w.mode, w.opts); const filled = ((w.totalWins - 1) % 21) + 1; const courses = Math.floor((w.totalWins - 1) / 21);
     const f = w.fact;
     return head('You won!') +
-      '<div class="ticket" role="group" aria-label="Bath ticket"><div class="hd">SPA CITY BATH TICKET</div>' +
+      '<div class="ticket" role="group" aria-label="Bath ticket"><div class="hd">Spa City Bath Ticket</div>' +
+      '<div class="serial" aria-hidden="true">No. ' + String(w.deal).padStart(6, '0') + '</div><div class="punch" aria-hidden="true"></div>' +
       '<div class="big">' + w.score + '</div>' +
       '<div class="grid"><div>Time<b>' + fmtTime(w.ms) + '</b>' + (w.best.time ? '<span class="best">best</span>' : '') + '</div><div>Moves<b>' + w.moves + '</b>' + (w.best.moves ? '<span class="best">best</span>' : '') + '</div><div>Score<b>' + w.score + '</b>' + (w.best.score ? '<span class="best">best</span>' : '') + '</div></div>' +
-      '<div style="text-align:center;font-size:.78rem;margin-top:6px">' + esc(modeKeyLabel(k)) + ' · ' + (w.daily ? 'Daily ' + w.daily : 'Deal #' + w.deal) + (w.bonus ? ' · time bonus +' + w.bonus : '') + '</div>' +
-      '<div class="course" aria-label="Course progress ' + filled + ' of 21">' + Array.from({ length: 21 }, (_, i) => '<i class="' + (i < filled ? 'f' : '') + '"></i>').join('') + '</div>' +
-      '<div style="text-align:center;font-size:.75rem;margin-top:4px">Course of 21 baths: ' + filled + ' of 21' + (courses ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : '') + '</div></div>' +
+      '<div class="meta">' + esc(modeKeyLabel(k)) + ' · ' + (w.daily ? 'Daily ' + w.daily : 'Deal #' + w.deal) + (w.bonus ? ' · time bonus +' + w.bonus : '') + '</div>' +
+      '<div class="course" aria-label="Course progress ' + filled + ' of 21">' + Array.from({ length: 21 }, (_, i) => '<i class="' + (i < filled ? 'f' : '') + (i === filled - 1 ? ' new' : '') + ((i + 1) % 7 === 0 ? ' m' : '') + '"' + ((i + 1) % 7 === 0 ? ' title="' + (i + 1) + ' baths"' : '') + '></i>').join('') + '</div>' +
+      '<div class="meta">Course of 21 baths: ' + filled + ' of 21' + (courses ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : '') + '</div></div>' +
       '<div class="fact"><div class="k">Did you know?</div><div class="q">' + esc(f[1]) + '</div><div class="a">' + esc(f[2]) + '</div><div>' + esc(f[3]) + '</div><div class="src">Source: ' + esc(f[4]) + '</div></div>' +
       '<div class="row"><button class="btn solid" data-a="new" data-focus>New deal</button><button class="btn" data-a="restart">Replay this deal</button><button class="btn" data-a="title">Change game</button></div>';
   },
@@ -2383,7 +2921,7 @@ const BIND = {
   backs() {
     BIND._common();
     const cap = $('#bkCap'); const show = (id) => { const b = BACKS.find((x) => x.id === id); cap.textContent = b.name + ': ' + b.cap; };
-    loadArt([...BACKS.map((b) => 'back-' + b.id), ...TABLES.map((t) => 'table-' + t.id)]);
+    loadArt([...BACKS.map((b) => 'back-' + b.id), ...TABLES.flatMap((t) => tableArt(t.id, true)), ...courtSet('deco'), ...courtSet('painted'), ...LATE_ART]);
     paintPickers();
     sheet.querySelectorAll('[data-back]').forEach((b) => {
       b.onclick = () => { setSetting('back', b.dataset.back); sheet.querySelectorAll('[data-back]').forEach((x) => x.setAttribute('aria-pressed', x === b)); show(b.dataset.back); };
@@ -2391,7 +2929,7 @@ const BIND = {
     });
     show(settings.back);
     sheet.querySelectorAll('[data-table]').forEach((b) => {
-      b.onclick = () => { setSetting('table', b.dataset.table); sheet.querySelectorAll('[data-table]').forEach((x) => x.setAttribute('aria-pressed', x === b)); };
+      b.onclick = () => { setSetting('table', b.dataset.table); sheet.querySelectorAll('[data-table]').forEach((x) => x.setAttribute('aria-pressed', x === b)); $('#tblCap').textContent = tableInfo().cap || ''; };
     });
   },
   stats(d) {
@@ -2423,13 +2961,13 @@ function paintPickers() {
   });
 }
 function saveSettings() { save('settings', settings); }
-function applyLook() { loadArt(essentialArt()); sprites.clear(); tableDirty = true; relayout(true); markDirty(); updateHUD(); }
+function applyLook() { steam = []; fx = []; landFx = []; loadArt(essentialArt()); sprites.clear(); tableDirty = true; relayout(true); markDirty(); updateHUD(); }
 function setSetting(k, v) {
   if (k === 'sound') { settings.sound = !!v; if (v) initAudio(); }
   else if (k === 'volume') { settings.volume = clamp(+v, 0, 1); if (master) master.gain.value = settings.volume; }
   else if (k in DEFAULT_SETTINGS) settings[k] = typeof DEFAULT_SETTINGS[k] === 'boolean' ? !!v : v;
   saveSettings();
-  if (['leftHanded', 'cardSize', 'fourColor', 'back', 'table', 'showTimer', 'deckSeed'].includes(k)) applyLook();
+  if (['leftHanded', 'cardSize', 'fourColor', 'back', 'table', 'showTimer', 'deckSeed', 'courts'].includes(k)) applyLook();
 }
 
 // ============================================================================================
@@ -2438,9 +2976,9 @@ function setSetting(k, v) {
 function resize() {
   const r = stage.getBoundingClientRect(); W = Math.round(r.width); H = Math.round(r.height); DPR = Math.min(3, window.devicePixelRatio || 1);
   for (const c of [cv, tcv]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
-  sprites.clear(); tableDirty = true;
+  sprites.clear(); tableDirty = true; loadArt(essentialArt()); // a rotated phone may need the other table cut
   if (S) { relayout(true); markDirty(); }
-  if (titleOn) drawSky(now());
+  if (titleOn) { drawSky(now()); paintHands(); }
 }
 window.addEventListener('resize', resize);
 if (reduceQuery && reduceQuery.addEventListener) reduceQuery.addEventListener('change', () => markDirty());
@@ -2454,6 +2992,7 @@ function sceneName() { return modalKind || (titleOn ? 'title' : S ? 'game' : 'ti
 window.__game = {
   seed(n) { nextDeal = Math.max(1, Math.floor(n)); return true; },
   getState() {
+    tickClock(); // elapsedMs is otherwise only as fresh as the last half-second tick
     if (!S) return { scene: sceneName(), settings: Object.assign({}, settings) };
     return { scene: sceneName(), modal: modalKind, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, piles: notePiles(),
       score: S.score, moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, started: S.started, canAutoComplete: canAutoComplete(),
@@ -2461,6 +3000,7 @@ window.__game = {
       settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, storageOK };
   },
   setState(s) {
+    fitHold = 1;
     const mode = MODES[s.mode] ? s.mode : 'klondike';
     const st = newState(mode, s.opts || {}, s.deal || 1, s.daily || null);
     st.cards = []; st.up = []; for (const id in st.piles) st.piles[id] = [];
@@ -2471,7 +3011,13 @@ window.__game = {
     closeModal(); showTitle(false); relayout(true); updateHUD(); markDirty();
     return true;
   },
-  isIdle() { return !artPending && !artTick && !tweensActive(now()) && !drag && !cascade && !winTimer; },
+  fxLevel() { return lowFx ? 'low' : 'full'; },
+  frameStats(reset) {
+    const xs = fstat.xs.slice().sort((a, b) => a - b), q = (f) => xs.length ? +xs[Math.min(xs.length - 1, Math.floor(xs.length * f))].toFixed(2) : 0;
+    const r = { frames: fstat.n, avgMs: fstat.n ? +(fstat.sum / fstat.n).toFixed(2) : 0, p50Ms: q(.5), p95Ms: q(.95), maxMs: +fstat.max.toFixed(2) };
+    if (reset) { fstat.n = 0; fstat.sum = 0; fstat.max = 0; fstat.xs = []; } return r;
+  },
+  isIdle() { if (frozenAt !== null) return !artPending && !artTick && !fontsPending; return !artPending && !artTick && !fontsPending && !tweensActive(now()) && !drag && !cascade && !winTimer && now() > modalAnimUntil; },
   scene(name) {
     if (name === 'title') { closeModal(); showTitle(true); }
     else if (name === 'game') { closeModal(); if (!S) newGame({ mode: 'klondike' }); showTitle(false); }
@@ -2489,6 +3035,14 @@ window.__game = {
       case 'autoComplete': return autoComplete();
       case 'tap': return tapAt(a[0], a[1]);
       case 'key': { const r = gameKey({ key: a[0], ctrlKey: !!a[1], metaKey: false, altKey: false, shiftKey: false }); return { ok: r }; }
+      case 'ceremonyAt': { // render the win ceremony exactly `ms` in, then hold that frame
+        if (winTimer) { clearTimeout(winTimer); winTimer = 0; }
+        if (!cascade) startCascade(); if (!cascade) return { ok: false };
+        frozenAt = null; const t0 = cascade.t0, end = t0 + (+a[0] || 0);
+        for (let tt = t0; tt < end; tt += 16) frame(tt);
+        frame(end); frozenAt = end; return { ok: true };
+      }
+      case 'unfreeze': frozenAt = null; markDirty(); return { ok: true };
       case 'skip': { const t = now(); if (S) for (let u = 0; u < S.cards.length; u++) if (D[u]) { D[u].t0 = Math.min(D[u].t0, t - 1e5); D[u].f0 = Math.min(D[u].f0, t - 1e5); } if (winTimer) { clearTimeout(winTimer); winTimer = 0; startCascade(); } if (cascade) endCascade(); markDirty(); return { ok: true }; }
       default: return { ok: false, reason: 'unknown action' };
     }
@@ -2496,7 +3050,7 @@ window.__game = {
   getLayout() {
     if (!L) return null; const r = cv.getBoundingClientRect(); const o = {};
     for (const id in L.piles) { const b = L.piles[id]; o[id] = { x: b.x + r.left, y: b.y + r.top, w: L.cw, h: b.zoneH || L.ch, cards: b.cards.map((c) => ({ x: c.x + r.left, y: c.y + r.top, w: c.w, h: c.h, up: c.up })) }; }
-    return { cardW: L.cw, cardH: L.ch, indexPx: Math.round(L.cw * (L.largeIdx ? .40 : .30) * 10) / 10, piles: o };
+    return { cardW: L.cw, cardH: L.ch, indexPx: Math.round(L.cw * idxScale(L.cw, L.largeIdx).rs * 10) / 10, idxFull: L.idxFull, idxCap: L.idxCap, fanUp: L.fanUp, bottom: L.bottom + r.top, fit: L.fit, fitFloor: FIT_FLOOR(), piles: o };
   },
   legalMoves() { return legalMoves(); },
   setSettings(o) { for (const k in o) setSetting(k, o[k]); return Object.assign({}, settings); },

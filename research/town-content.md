@@ -13,7 +13,7 @@ and *Architecture by building*. The caption shown in the back picker is in quote
 
 | # | Back id | Name in game | What it draws | Colors (est.) | Source |
 |---|---|---|---|---|---|
-| 1 | `skylight` | Fordyce Skylight | Seeded Voronoi leaded glass in a "sea of blue and green", amber ring, frame of small squares (Motif 4). The seed is the player's deck seed, so every player's deck is unique. Caption: "Inspired by the Fordyce men's bath hall skylight (Condi-Neal Glass, 1914–15)" | `#1F5F6B → #2A9D8F → #7FC8B8 → #2B4C9B`, lead `#2A2A2A`, amber `#D9A23A` | visual-style-guide → Fordyce; Motif 4; trivia hs-0065 |
+| 1 | `skylight` | Fordyce Skylight | Seeded Voronoi leaded glass in a "sea of blue and green", amber ring, frame of small squares (Motif 4). The seed is the player's deck seed, so every player's deck is unique. Caption (in game): "Inspired by the Fordyce men's bath hall skylight, glass in 'a sea of blue and green' (1914–15)". **v3 correction:** an earlier version of this table credited Condi-Neal Glass with the skylight. A 1917 trade journal credits Condie-Bray Glass & Paint Co., St. Louis, and the NPS names Condi-Neal only for the assembly-room glass (`interiors-1920s.md` §1), so no maker is named. The 1984 HABS colour photo shows the skylight is mostly amber and honey glass around a blue-green centre; the back uses the blue-green centre only | `#1F5F6B → #2A9D8F → #7FC8B8 → #2B4C9B`, lead `#2A2A2A`, amber `#D9A23A` | visual-style-guide → Fordyce; Motif 4; trivia hs-0065 |
 | 2 | `lozenge` | Fordyce Lozenge | Cream running-bond brick with a diagonal diamond grid (Motif 1). Caption: "Lozenge-patterned brick of the Fordyce's upper stories" | brick `#E6D7B5`, mortar `#CDBF9F`, lozenge `#B89A6A`, terra cotta `#C46A3E` | visual-style-guide → Fordyce; Motif 1 |
 | 3 | `quapaw` | Quapaw Dome | Chevron-mosaic dome medallion with a copper cupola over red tile (Motif 2). Caption: "The Quapaw's chevron-mosaic dome (1922). Tile colors are a guess" | cobalt `#2B4C9B`, gold `#D9A23A`, terra cotta `#C46A3E`, green `#4E7D5B`, cream `#E6D7B5`, copper `#B87333`, red tile `#A9432C` | visual-style-guide → Quapaw; Motif 2 |
 | 4 | `ironwork` | Row Ironwork | Mirrored wrought-iron C- and S-scrolls with pickets and spear finials on marble (Motif 5). Caption: "Wrought-iron grilles of the Hale and the Administration Building" | iron `#1F2A24`, marble `#F2EFE8`, brass `#C9A23F` | visual-style-guide → Hale, Administration Building; Motif 5 |
@@ -80,7 +80,7 @@ visual-style-guide → Undocumented ephemera). The ticket shows "Course progress
 wins completes a "course", after the 21-bath course of 1920 (NPS 1920 brochure, via
 `bathhouse-row-and-springs.md`; trivia hs-0022).
 
-## 7. Win animation
+## 7. Win animation (v1–v2; replaced in v3, see §11)
 
 The **tufa cascade**: cards slide off the foundations and tumble down three tufa terraces drawn across the
 table, trailing steam curls. It recalls the 1901 diversion of spring water into a cascade and the NPS's 1982
@@ -119,9 +119,52 @@ source text, such as "about" and "usually said to have 47", are kept word for wo
 
 ## 10. Gaps and how the game handles them
 
-- The real Quapaw dome tile colors and Maurice inset colors are unknown, so the back captions say "inspired
-  by" and "tile colors are a guess".
+- The Maurice inset colours are unknown. The real Quapaw dome colours are now documented (v3, below), but the
+  v2 Quapaw back keeps its cobalt and terra cotta, so its caption says so.
 - Club neon colors, period dress and historical playing cards or bath tickets are undocumented. Their designs
   are invented and labelled as such in Help → About the art.
 - Sources disagree on which Fordyce room has the mermaid glass. The skylight back does not name a room for
   the figural glass.
+
+## 11. v3 visual campaign additions (2026-10)
+
+New sources: `research/interiors-1920s.md` (NPS Fordyce Historic Structure Report and Historic Furnishings
+Report, the Bathhouse Row and Central Avenue National Register nominations, HABS AR-28 captions) and
+`research/ref-photos/` (13 public-domain photos, mostly HABS colour and black-and-white views by Jack Boucher, 1984).
+
+### Tables (six, all lit in code from frameless painted textures)
+
+| Id | Name | What it draws | Basis |
+|---|---|---|---|
+| `felt` | Card-Room Felt | Green baize under a warm hanging lamp | Felt card tables are a period convention. No club's own table is documented (`interiors-1920s.md` §4), so the caption says so |
+| `marble` | Fordyce Bath Hall | Gray-veined white marble with coloured daylight: amber and honey around a blue-green centre | Fordyce men's bath hall: "veined Vermont marble" and the skylight's colour balance from the HABS colour photo (`ref-photos/fordyce-mens-bath-skylight-detail-color-1984.jpg`) |
+| `quapaw` | Quapaw Mosaic | Buff, tan and brown chevron tile | HABS colour photo of the Quapaw dome (`ref-photos/quapaw-dome-mosaic-lantern-color-1984.jpg`) |
+| `pool` | Thermal Pool | Looking down into a soaking pool | Spring water at about 143°F (existing corpus) |
+| `midnight` | Midnight Club | Dark walnut | Invented, and labelled so: club furnishings are undocumented |
+| `linen` | Linen Postcard | The airbrushed sky of a linen-finish postcard | Linen postcards: existing corpus (visual-style-guide → linen-postcard recipe) |
+
+Brass hardware (corner fans, slot inlays, the recycle token and the dialog frame) is original Art Deco
+ornament rendered in Blender, not a copy of any Row fixture. The research notes that the Fordyce used oxidised
+silver and nickel, while brass appears at the Buckstaff and Superior (`interiors-1920s.md`, design takeaways).
+
+### Court cards v3: "Art Deco" set (default; the v2 painted portraits remain as an option)
+
+Twelve fictional characters from 1920s Hot Springs life. Each is drawn as an invented archetype, with no real
+person and no business name.
+
+| Suit | Theme | King | Queen | Jack |
+|---|---|---|---|---|
+| ♠ | Bathhouse Row | Bathhouse proprietor (homburg, cane) | Society lady (cloche, pearls, fur collar) | Bath attendant (white jacket, towel, water jug) |
+| ♥ | Ballroom and music | Bandleader (white dinner jacket, baton) | Ballroom dancer (bandeau, feather, fan) | Saxophonist |
+| ♦ | Racing (horses have raced here since the 1890s) | Racehorse owner (bowler, binoculars) | Lady at the races (wide hat, parasol) | Jockey in generic harlequin silks |
+| ♣ | Card rooms and nightlife | Card-room host (fedora, fanned hand of card backs) | Nightclub singer (finger waves, rose) | Grand-hotel bellhop (pillbox cap, valise) |
+
+Bath attendants are documented from 1875 (`bathhouse-row-and-springs.md`). Hotels, bands, racing and card rooms
+are all in the corpus (`culture-events-food.md`, `oaklawn-and-racing.md`, `gangster-era-and-gambling.md`). The
+costumes are generic period dress, not sourced.
+
+### Win ceremony (v3)
+
+The cards gather into a rosette under a glow coloured like the Fordyce skylight (amber ring, blue-green heart),
+then spray out like a thermal fountain, with steam and brass confetti. The bath ticket then rises and the next
+of the 21 baths is punched. The sequence is invented; the 21-bath course is sourced (§6).

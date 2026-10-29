@@ -1,5 +1,17 @@
 # Spa City Solitaire: report
 
+> **v3 visual campaign (2026-10).** See **`VISUAL-REPORT.md`**: lit tables, Blender brass hardware, the Art Deco
+> court set, card motion, the skylight-rosette ceremony, a lacquer and brass shell, and bundled fonts. It also
+> covers the review scores, performance and the new research.
+>
+> - **Tests:** the suite is now 88 runs (`visual.test.mjs` is new) and passes 88/88 at both viewports with
+>   milestone `visual-final`.
+> - **file://:** `tools/check-file-url.mjs` checks that the game works opened straight from disk.
+> - **Single file?** The game is no longer one file. `index.html` (223 KB) loads `assets/fonts.css` and
+>   `assets/*.webp` (about 4.3 MB in all, 1.4 MB at first load). Everything is still local, and the vector art
+>   remains as a fallback (`?art=0`).
+> - **Below:** the text after this note describes v1, and the v2 painted-art pass is in git history.
+
 ## What was built
 
 `games/solitaire/index.html` is one hand-written, self-contained file. It is 2,358 lines and 162 KB, with no
