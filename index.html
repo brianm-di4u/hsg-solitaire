@@ -1,0 +1,2358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Spa City Solitaire</title>
+<meta name="description" content="Klondike, FreeCell, Spider and Yukon patience with card backs drawn from Hot Springs, Arkansas. Part of the open-source Hot Springs Games collection (MIT).">
+<!--
+  Spa City Solitaire — Hot Springs Games collection. MIT License.
+  Single self-contained file: all art is drawn in Canvas, all sound is WebAudio, no network requests.
+  Rules and algorithms written fresh for this project; see SAMPLES.md for the ideas surveyed.
+-->
+<style>
+  /* Tokens copied from shared/design/tokens.css (values unchanged). */
+  :root{
+    --color-bg:#F2EFE8; --color-surface:#E6D7B5; --color-text:#1F2A24; --color-muted:#574A37;
+    --color-primary:#8E3622; --color-on-primary:#FFFFFF; --color-accent:#355E41; --color-on-accent:#FFFFFF;
+    --color-success:#2E6A3C; --color-danger:#9A2A1C; --color-highlight:#D9A23A; --color-border:#CDBF9F;
+    --font-serif-victorian:"Palatino Linotype","Book Antiqua",Palatino,Georgia,"Times New Roman",serif;
+    --font-deco:"Century Gothic",Futura,"Avenir Next","Trebuchet MS","Gill Sans",sans-serif;
+    --font-sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --font-mono:"Courier New",Courier,ui-monospace,Menlo,Consolas,monospace;
+    --radius-sm:3px; --radius-md:6px; --radius-lg:12px; --radius-pill:999px;
+    --sheet:#FBF8F1; /* derived: card-stock cream for dialogs */
+    --chip:#F2EFE8;
+    --bar-h:52px; --tools-h:64px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --color-bg:#14121F; --color-surface:#1F1C2E; --color-text:#D8CFBD; --color-muted:#9A95A0;
+      --color-primary:#D4AF37; --color-on-primary:#14121F; --color-accent:#FF5A5A; --color-on-accent:#14121F;
+      --color-success:#5FD38A; --color-danger:#FF6B6B; --color-highlight:#4FC3FF; --color-border:#3A3550;
+      --sheet:#1F1C2E; --chip:#2A2640; /* derived */
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--color-bg);color:var(--color-text);
+    font-family:var(--font-sans);font-size:16px;-webkit-tap-highlight-color:transparent}
+  button{font:inherit;color:inherit}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  #app{position:fixed;inset:0;display:flex;flex-direction:column;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+  #bar{height:var(--bar-h);flex:none;display:flex;align-items:center;gap:8px;padding:0 8px;
+    background:var(--color-surface);border-bottom:1px solid var(--color-border)}
+  #ttl{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15}
+  #modeName{font-family:var(--font-deco);font-weight:700;font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #modeSub{font-size:.75rem;color:var(--color-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #status{display:flex;gap:12px;font-size:.8rem;color:var(--color-muted);white-space:nowrap}
+  #status b{display:block;font-family:var(--font-mono);font-size:1rem;color:var(--color-text);text-align:right}
+  #stage{flex:1;position:relative;min-height:0;overflow:hidden}
+  #stage canvas{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
+  #cv{touch-action:none;outline:none}
+  #cv.kb:focus{box-shadow:inset 0 0 0 3px var(--color-highlight)}
+  #tools{height:var(--tools-h);flex:none;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 6px;
+    background:var(--color-surface);border-top:1px solid var(--color-border)}
+  .tb{flex:1;max-width:120px;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:1px;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--chip);cursor:pointer;
+    font-size:.78rem;padding:2px 4px}
+  .tb svg{width:22px;height:22px}
+  .tb:disabled{opacity:.42;cursor:default}
+  .tb.glow:not(:disabled){border-color:var(--color-primary);box-shadow:0 0 0 2px var(--color-primary) inset}
+  .ib{width:44px;height:44px;flex:none;border:1px solid var(--color-border);border-radius:var(--radius-lg);
+    background:var(--chip);display:grid;place-items:center;cursor:pointer}
+  .ib svg{width:22px;height:22px}
+  button:focus-visible,.chip:focus-visible{outline:3px solid var(--color-highlight);outline-offset:2px}
+  #toast{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:92%;
+    background:rgba(20,18,31,.88);color:#F4F2EC;padding:10px 16px;border-radius:var(--radius-pill);font-size:.9rem;
+    text-align:center;pointer-events:none;opacity:0;transition:opacity .2s}
+  #toast.on{opacity:1}
+  /* Title screen */
+  #title{position:fixed;inset:0;z-index:20;overflow-y:auto;overflow-x:hidden;background:var(--color-bg);display:none}
+  #title.on{display:block}
+  #title .wrap{max-width:980px;margin:0 auto;padding:0 16px 32px}
+  #sky{display:block;width:100%;height:190px}
+  #title h1{font-family:var(--font-deco);font-size:clamp(2rem,6vw,3.2rem);letter-spacing:.06em;margin:4px 0 0;text-align:center;
+    color:var(--color-primary);font-weight:700}
+  #title .tag{text-align:center;color:var(--color-muted);margin:4px 0 18px;font-family:var(--font-serif-victorian);font-style:italic}
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  @media (max-width:760px){.tiles{grid-template-columns:1fr 1fr}}
+  .tile{background:var(--sheet);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:12px;
+    display:flex;flex-direction:column;gap:8px}
+  .tile h2{margin:0;font-family:var(--font-deco);font-size:1.15rem}
+  .tile p{margin:0;font-size:.82rem;color:var(--color-muted);flex:1}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{min-height:44px;min-width:44px;padding:0 12px;border-radius:var(--radius-pill);border:1px solid var(--color-primary);
+    background:transparent;color:var(--color-primary);font-weight:600;cursor:pointer;flex:1 0 auto;white-space:nowrap}
+  .chip.solid,.btn.solid{background:var(--color-primary);color:var(--color-on-primary)}
+  .row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:18px}
+  .btn{min-height:48px;padding:0 18px;border-radius:var(--radius-lg);border:1px solid var(--color-border);background:var(--chip);
+    cursor:pointer;font-weight:600}
+  .credit{margin-top:22px;text-align:center;font-size:.78rem;color:var(--color-muted)}
+  /* Modal */
+  #modal{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;background:rgba(10,9,16,.55);padding:12px}
+  #modal.on{display:flex}
+  .sheet{background:var(--sheet);color:var(--color-text);border:1px solid var(--color-border);border-radius:var(--radius-lg);
+    width:min(640px,100%);max-height:100%;overflow-y:auto;overflow-x:hidden;padding:16px 18px 18px;box-shadow:0 18px 50px rgba(0,0,0,.35)}
+  .sheet.wide{width:min(900px,100%)}
+  .sheet h2{font-family:var(--font-deco);margin:0 0 10px;font-size:1.35rem;display:flex;align-items:center;gap:8px}
+  .sheet h2 .x{margin-left:auto}
+  .sheet h3{margin:16px 0 6px;font-size:1rem;font-family:var(--font-deco)}
+  .sheet p,.sheet li{line-height:1.45;font-size:.92rem}
+  .menu{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  @media (max-width:480px){.menu{grid-template-columns:1fr}}
+  .menu .btn{text-align:left}
+  .set{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--color-border);min-height:52px}
+  .set label{font-weight:600}
+  .set small{display:block;font-weight:400;color:var(--color-muted)}
+  .seg{display:flex;border:1px solid var(--color-border);border-radius:var(--radius-pill);overflow:hidden;flex:none}
+  .seg button{min-height:44px;min-width:44px;padding:0 10px;border:0;background:transparent;cursor:pointer;font-size:.85rem}
+  .seg button[aria-pressed=true]{background:var(--color-primary);color:var(--color-on-primary)}
+  input[type=range]{width:140px;height:44px;accent-color:var(--color-primary)}
+  .tog{width:60px;height:44px;border:0;background:transparent;cursor:pointer;flex:none;position:relative}
+  .tog::before{content:"";position:absolute;left:6px;top:10px;width:48px;height:24px;border-radius:12px;background:var(--color-border)}
+  .tog::after{content:"";position:absolute;left:9px;top:13px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}
+  .tog[aria-pressed=true]::before{background:var(--color-primary)}
+  .tog[aria-pressed=true]::after{left:33px}
+  .backs{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px}
+  .bk{border:2px solid transparent;border-radius:var(--radius-lg);background:transparent;padding:6px;cursor:pointer;text-align:center;
+    display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.8rem}
+  .bk canvas{width:84px;height:118px;display:block}
+  .bk.tbl canvas{width:120px;height:72px}
+  .bk[aria-pressed=true]{border-color:var(--color-primary);background:var(--chip)}
+  .bk b{font-size:.85rem}
+  .cap{color:var(--color-muted);min-height:2.6em;margin:6px 0 0;font-size:.85rem}
+  .tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+  .tabs .chip{flex:none}
+  table.st{width:100%;border-collapse:collapse;font-size:.92rem}
+  table.st td{padding:8px 4px;border-bottom:1px solid var(--color-border)}
+  table.st td:last-child{text-align:right;font-family:var(--font-mono);font-weight:700}
+  table.keys td{padding:4px 6px;vertical-align:top;font-size:.88rem}
+  kbd{font-family:var(--font-mono);border:1px solid var(--color-border);border-radius:4px;padding:1px 5px;background:var(--chip)}
+  /* Win: bath ticket + fact card */
+  .ticket{position:relative;margin:4px auto 14px;max-width:420px;background:#F3E9D2;color:#1F2F5C;padding:14px 22px;
+    font-family:var(--font-mono);border-radius:4px;
+    -webkit-mask:radial-gradient(circle 7px at 0 50%,#0000 98%,#000) left/51% 100% no-repeat,
+                 radial-gradient(circle 7px at 100% 50%,#0000 98%,#000) right/51% 100% no-repeat;
+            mask:radial-gradient(circle 7px at 0 50%,#0000 98%,#000) left/51% 100% no-repeat,
+                 radial-gradient(circle 7px at 100% 50%,#0000 98%,#000) right/51% 100% no-repeat}
+  .ticket::before{content:"";position:absolute;inset:6px;border:1.5px dashed #8E3622;border-radius:3px;pointer-events:none}
+  .ticket .hd{font-family:var(--font-deco);font-weight:700;letter-spacing:.18em;text-align:center;font-size:.85rem;color:#8E3622}
+  .ticket .big{font-size:2.2rem;font-weight:700;text-align:center;color:#9A2A1C;letter-spacing:.04em;margin:2px 0}
+  .ticket .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;text-align:center;font-size:.8rem}
+  .ticket .grid b{display:block;font-size:1.05rem;color:#1F2F5C}
+  .ticket .best{color:#2E6A3C;font-weight:700;font-size:.75rem}
+  .course{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin-top:8px}
+  .course i{width:10px;height:10px;border-radius:50%;border:1.5px solid #8E3622;display:block}
+  .course i.f{background:#8E3622}
+  .fact{background:var(--chip);border-left:5px solid var(--color-accent);border-radius:var(--radius-md);padding:10px 14px;margin:0 0 12px}
+  .fact .k{font-family:var(--font-deco);font-weight:700;color:var(--color-accent);font-size:.82rem;letter-spacing:.08em;text-transform:uppercase}
+  .fact .q{font-weight:600;margin:4px 0 2px}
+  .fact .a{font-family:var(--font-serif-victorian);font-size:1.15rem;color:var(--color-primary);font-weight:700}
+  .fact .src{font-size:.78rem;color:var(--color-muted);margin-top:4px}
+  .numin{font:inherit;font-family:var(--font-mono);font-size:1.2rem;padding:8px 10px;width:100%;min-height:48px;border-radius:var(--radius-md);
+    border:1px solid var(--color-border);background:var(--color-bg);color:var(--color-text)}
+  .dl{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+  @media (max-width:520px){
+    :root{--bar-h:56px}
+    #status{gap:8px;font-size:.7rem}
+    #status b{font-size:.9rem}
+    .tb{font-size:.72rem}
+    .sheet{padding:14px 14px 16px}
+  }
+  @media (prefers-reduced-motion: reduce){ #toast{transition:none} .tog::after{transition:none} }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="bar">
+    <button class="ib" id="bMenu" aria-label="Menu" title="Menu (Esc)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <div id="ttl"><span id="modeName">Spa City Solitaire</span><span id="modeSub"></span></div>
+    <div id="status" aria-label="Game status">
+      <span>Score<b id="sScore">0</b></span><span>Moves<b id="sMoves">0</b></span><span id="sTimeW">Time<b id="sTime">0:00</b></span>
+    </div>
+  </header>
+  <main id="stage">
+    <canvas id="tbl" aria-hidden="true"></canvas>
+    <canvas id="cv" tabindex="0" role="application" aria-roledescription="card table"
+      aria-label="Card table. Arrow keys move the cursor, Enter picks up or drops cards, H for a hint, U to undo. Press question mark for help."></canvas>
+    <div id="toast" aria-hidden="true"></div>
+  </main>
+  <nav id="tools" aria-label="Game actions">
+    <button class="tb" id="bNew" title="New deal (N)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="5" y="3" width="11" height="15" rx="2"/><path d="M9 21h9a2 2 0 0 0 2-2V8"/></svg>New</button>
+    <button class="tb" id="bUndo" title="Undo (U or Ctrl+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>Undo</button>
+    <button class="tb" id="bRedo" title="Redo (Y or Ctrl+Y)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg>Redo</button>
+    <button class="tb" id="bHint" title="Hint (H)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>Hint</button>
+    <button class="tb" id="bAuto" title="Auto-complete (A)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/><path d="M5 18l2 2M12 19l1 1"/></svg>Finish</button>
+  </nav>
+</div>
+
+<section id="title" aria-labelledby="tH">
+  <canvas id="sky" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <h1 id="tH">Spa City Solitaire</h1>
+    <p class="tag">Patience, the Spa City way: four classic games, twelve Hot Springs card backs.</p>
+    <div class="tiles" id="tiles"></div>
+    <div class="row" id="tRow">
+      <button class="btn solid" id="tCont" hidden>Continue game</button>
+      <button class="btn" id="tDaily">Daily deals</button>
+      <button class="btn" id="tBacks">Backs &amp; tables</button>
+      <button class="btn" id="tStats">Statistics</button>
+      <button class="btn" id="tSet">Settings</button>
+      <button class="btn" id="tHelp">How to play</button>
+    </div>
+    <p class="credit">Part of the open-source Hot Springs Games collection (MIT). All art is drawn in code and "inspired by" real places; no logos, no real people.</p>
+  </div>
+</section>
+
+<div id="modal"><div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="mT"></div></div>
+<div id="sr" class="sr-only" role="status" aria-live="polite"></div>
+<script>
+'use strict';
+(() => {
+// ============================================================================================
+// 1. Utilities and RNG
+// ============================================================================================
+const $ = (s, r = document) => r.querySelector(s);
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const now = () => performance.now();
+const TEST = !!window.__TEST__;
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function fnv1a(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return h >>> 0;
+}
+function shuffle(arr, rng) {
+  for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t = arr[i]; arr[i] = arr[j]; arr[j] = t; }
+  return arr;
+}
+// Classic numbered FreeCell deal, written from the published description of the algorithm
+// (LCG 214013/2531011 mod 2^31, output >> 16; deck AC AD AH AS 2C ...; swap-with-last-and-pop).
+// Returns the 52 card codes (rank-major, suit order C D H S) in dealing order.
+function freecellOrder(dealNo) {
+  let seed = dealNo >>> 0;
+  const rand = () => { seed = (Math.imul(214013, seed) + 2531011) & 0x7fffffff; return seed >> 16; };
+  const deck = []; for (let i = 0; i < 52; i++) deck.push(i);
+  const out = [];
+  while (deck.length) {
+    const i = rand() % deck.length;
+    const last = deck.length - 1; const t = deck[i]; deck[i] = deck[last]; deck[last] = t;
+    out.push(deck.pop());
+  }
+  return out; // code c → rank = (c>>2)+1, suit = c&3
+}
+function todayStr(d = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function fmtTime(ms) {
+  const s = Math.floor(ms / 1000); const m = Math.floor(s / 60);
+  return m >= 60 ? Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0')
+    : m + ':' + String(s % 60).padStart(2, '0');
+}
+
+// ============================================================================================
+// 2. Storage (always wrapped: the game must run when localStorage is unavailable)
+// ============================================================================================
+const KEY = 'spa-solitaire:v1:';
+let storageOK = true;
+function load(name, fallback) {
+  try { const v = localStorage.getItem(KEY + name); return v ? JSON.parse(v) : fallback; }
+  catch (e) { storageOK = false; return fallback; }
+}
+function save(name, value) {
+  try { if (value == null) localStorage.removeItem(KEY + name); else localStorage.setItem(KEY + name, JSON.stringify(value)); }
+  catch (e) { storageOK = false; }
+}
+
+const DEFAULT_SETTINGS = {
+  sound: true, volume: 0.6, motion: 'auto', leftHanded: false, cardSize: 'standard', fourColor: false,
+  autoFoundation: 'safe', back: 'skylight', table: 'felt', showTimer: true, deckSeed: 1914,
+};
+const settings = Object.assign({}, DEFAULT_SETTINGS, load('settings', {}));
+let stats = load('stats', {});
+let meta = Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 0, daily: {} }, load('meta', {}));
+const reduceQuery = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+const reducedMotion = () => settings.motion === 'reduced' || (settings.motion === 'auto' && reduceQuery && reduceQuery.matches);
+
+// ============================================================================================
+// 3. Cards and notation
+// ============================================================================================
+// Suits: 0 ♣ clubs, 1 ♦ diamonds, 2 ♥ hearts, 3 ♠ spades. Ranks 1..13.
+const RANKS = 'A23456789TJQK';
+const SUITS = 'CDHS';
+const SUIT_GLYPH = ['♣', '♦', '♥', '♠'];
+const SUIT_NAME = ['clubs', 'diamonds', 'hearts', 'spades'];
+const RANK_NAME = ['', 'Ace', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Jack', 'Queen', 'King'];
+const RANK_LABEL = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+const isRed = (s) => s === 1 || s === 2;
+
+function parseNote(n) {
+  let up = true; if (n[0] === '#') { up = false; n = n.slice(1); }
+  const r = RANKS.indexOf(n[0].toUpperCase()) + 1; const s = SUITS.indexOf(n[1].toUpperCase());
+  if (r < 1 || s < 0) throw new Error('bad card ' + n);
+  return { r, s, up };
+}
+
+// ============================================================================================
+// 4. Game definitions (rules engine)
+// ============================================================================================
+const MODES = {
+  klondike: { name: 'Klondike', cols: 7, found: 4, cells: 0, build: 'alt', lift: 'alt', empty: 'king', stock: 'draw', foundBack: true },
+  freecell: { name: 'FreeCell', cols: 8, found: 4, cells: 4, build: 'alt', lift: 'alt', empty: 'any', stock: null, foundBack: true, capacity: true },
+  spider:   { name: 'Spider', cols: 10, found: 8, cells: 0, build: 'any', lift: 'suit', empty: 'any', stock: 'spider', foundBack: false, runs: true },
+  yukon:    { name: 'Yukon', cols: 7, found: 4, cells: 0, build: 'alt', lift: 'any', empty: 'king', stock: null, foundBack: true },
+};
+const modeKey = (mode, opts) => mode === 'klondike' ? 'klondike' + (opts.draw === 3 ? 3 : 1)
+  : mode === 'spider' ? 'spider' + (opts.suits || 1) : mode;
+const MODE_KEYS = ['klondike1', 'klondike3', 'freecell', 'spider1', 'spider2', 'spider4', 'yukon'];
+const modeKeyLabel = (k) => ({ klondike1: 'Klondike · Draw 1', klondike3: 'Klondike · Draw 3', freecell: 'FreeCell',
+  spider1: 'Spider · 1 suit', spider2: 'Spider · 2 suits', spider4: 'Spider · 4 suits', yukon: 'Yukon' })[k];
+const variantLabel = (mode, opts) => mode === 'klondike' ? 'Draw ' + (opts.draw === 3 ? 3 : 1)
+  : mode === 'spider' ? (opts.suits || 1) + (opts.suits > 1 ? ' suits' : ' suit') : '';
+
+function pileIds(mode) {
+  const d = MODES[mode]; const ids = [];
+  if (d.stock) ids.push('stock');
+  if (d.stock === 'draw') ids.push('waste');
+  for (let i = 0; i < d.found; i++) ids.push('f' + i);
+  for (let i = 0; i < d.cells; i++) ids.push('c' + i);
+  for (let i = 0; i < d.cols; i++) ids.push('t' + i);
+  return ids;
+}
+const kindOf = (id) => id === 'stock' ? 'stock' : id === 'waste' ? 'waste' : id[0] === 'f' ? 'found' : id[0] === 'c' ? 'cell' : 'tab';
+
+// The live game state (one serializable object; see MECHANICS §2).
+let S = null;
+const card = (u) => S.cards[u];
+const top = (id) => { const p = S.piles[id]; return p.length ? p[p.length - 1] : -1; };
+const def = () => MODES[S.mode];
+
+function makeDeck(mode, opts) {
+  const cards = [];
+  if (mode === 'spider') {
+    const suits = opts.suits === 4 ? [0, 1, 2, 3] : opts.suits === 2 ? [3, 2] : [3];
+    for (let set = 0; set < 8; set++) { const s = suits[set % suits.length]; for (let r = 1; r <= 13; r++) cards.push({ s, r }); }
+  } else {
+    for (let s = 0; s < 4; s++) for (let r = 1; r <= 13; r++) cards.push({ s, r });
+  }
+  return cards;
+}
+
+function newState(mode, opts, deal, daily) {
+  const st = { v: 1, mode, opts: { draw: opts.draw === 3 ? 3 : 1, suits: [1, 2, 4].includes(opts.suits) ? opts.suits : 1 }, deal, daily: daily || null,
+    cards: makeDeck(mode, opts), up: [], piles: {}, score: mode === 'spider' ? 500 : 0, moves: 0, elapsedMs: 0, recycles: 0, runs: 0,
+    started: false, won: false, usedUndo: false, assisted: false };
+  for (const id of pileIds(mode)) st.piles[id] = [];
+  st.up = st.cards.map(() => false);
+  const P = st.piles; const d = MODES[mode];
+  let order;
+  if (mode === 'freecell') {
+    // map MS card code (rank-major C D H S) to our uid (suit*13 + rank-1)
+    order = freecellOrder(deal).map((c) => (c & 3) * 13 + (c >> 2));
+    order.forEach((u, i) => { P['t' + (i % 8)].push(u); st.up[u] = true; });
+    return st;
+  }
+  const rng = mulberry32(deal);
+  order = shuffle(st.cards.map((_, i) => i), rng);
+  let k = 0;
+  if (mode === 'klondike') {
+    for (let row = 0; row < 7; row++) for (let c = row; c < 7; c++) { const u = order[k++]; P['t' + c].push(u); st.up[u] = c === row; }
+    while (k < order.length) P.stock.push(order[k++]);
+  } else if (mode === 'yukon') {
+    for (let c = 0; c < 7; c++) {
+      const down = c, upN = c === 0 ? 1 : 5;
+      for (let i = 0; i < down + upN; i++) { const u = order[k++]; P['t' + c].push(u); st.up[u] = i >= down; }
+    }
+  } else if (mode === 'spider') {
+    for (let i = 0; i < 54; i++) { const u = order[k++]; P['t' + (i % 10)].push(u); }
+    for (let c = 0; c < 10; c++) st.up[P['t' + c][P['t' + c].length - 1]] = true;
+    while (k < order.length) P.stock.push(order[k++]);
+  }
+  void d;
+  return st;
+}
+
+// --- Rule primitives ---
+function altDesc(a, b) { const A = card(a), B = card(b); return B.r === A.r - 1 && isRed(A.s) !== isRed(B.s); }
+function suitDesc(a, b) { const A = card(a), B = card(b); return B.r === A.r - 1 && A.s === B.s; }
+function buildsOn(lower, upper) { // can `upper` sit on `lower` in the tableau?
+  const L = card(lower), U = card(upper);
+  if (U.r !== L.r - 1) return false;
+  return def().build === 'any' ? true : isRed(L.s) !== isRed(U.s);
+}
+function capacity(to) {
+  if (!def().capacity) return Infinity;
+  let cells = 0, empty = 0;
+  for (let i = 0; i < 4; i++) if (!S.piles['c' + i].length) cells++;
+  for (let i = 0; i < def().cols; i++) if (!S.piles['t' + i].length && 't' + i !== to) empty++;
+  return (cells + 1) * Math.pow(2, empty);
+}
+function canPick(id, idx) {
+  const p = S.piles[id]; if (!p || idx < 0 || idx >= p.length) return false;
+  const k = kindOf(id);
+  if (k === 'stock') return false;
+  if (k === 'waste' || k === 'cell') return idx === p.length - 1;
+  if (k === 'found') return def().foundBack && idx === p.length - 1;
+  for (let i = idx; i < p.length; i++) if (!S.up[p[i]]) return false;
+  const lift = def().lift;
+  if (lift !== 'any') for (let i = idx; i < p.length - 1; i++) if (!(lift === 'suit' ? suitDesc(p[i], p[i + 1]) : altDesc(p[i], p[i + 1]))) return false;
+  if (def().capacity && p.length - idx > capacity(null)) return false;
+  return true;
+}
+function foundationFits(u, id) {
+  const p = S.piles[id]; const c = card(u);
+  if (!p.length) return c.r === 1;
+  const t = card(p[p.length - 1]); return t.s === c.s && c.r === t.r + 1;
+}
+function canDrop(run, to, from) {
+  if (to === from || !run.length) return false;
+  const k = kindOf(to); const p = S.piles[to];
+  if (k === 'stock' || k === 'waste') return false;
+  if (k === 'found') return !def().runs && run.length === 1 && foundationFits(run[0], to);
+  if (k === 'cell') return run.length === 1 && !p.length;
+  if (!p.length) {
+    if (def().empty === 'king' && card(run[0]).r !== 13) return false;
+  } else {
+    const t = p[p.length - 1]; if (!S.up[t] || !buildsOn(t, run[0])) return false;
+  }
+  if (def().capacity && run.length > capacity(to)) return false;
+  return true;
+}
+function foundationFor(u) {
+  const d = def(); if (d.runs) return null;
+  let empty = null;
+  for (let i = 0; i < d.found; i++) {
+    const id = 'f' + i; const p = S.piles[id];
+    if (p.length && foundationFits(u, id)) return id;
+    if (!p.length && empty === null) empty = id;
+  }
+  return card(u).r === 1 ? empty : null;
+}
+const totalFound = () => { let n = 0; for (let i = 0; i < def().found; i++) n += S.piles['f' + i].length; return n; };
+const isWon = () => totalFound() === S.cards.length;
+
+function canAutoComplete() {
+  if (!S || S.won) return false;
+  const d = def();
+  if (S.mode === 'spider') return false;
+  if (S.mode === 'freecell') {
+    for (let i = 0; i < d.cols; i++) { const p = S.piles['t' + i]; for (let j = 0; j < p.length - 1; j++) if (card(p[j]).r < card(p[j + 1]).r) return false; }
+    return true;
+  }
+  for (let i = 0; i < d.cols; i++) for (const u of S.piles['t' + i]) if (!S.up[u]) return false;
+  return true;
+}
+
+// ============================================================================================
+// 5. Game controller: moves, undo/redo, scoring, autoplay, hints, auto-complete
+// ============================================================================================
+let undoStack = [], redoStack = [];
+let animDelay = {};          // uid → ms delay before its next tween starts (staggered autoplay)
+let flipQueue = [];          // uids that just turned face up (for flip animation + sound)
+let hintState = null;        // {list, i, until}
+let nextDeal = null;         // set by __game.seed(n)
+
+function snapshot() {
+  const piles = {}; for (const k in S.piles) piles[k] = S.piles[k].slice();
+  return { piles, up: S.up.slice(), score: S.score, moves: S.moves, recycles: S.recycles, runs: S.runs, won: S.won };
+}
+function restore(sn) {
+  S.piles = sn.piles; S.up = sn.up; S.score = sn.score; S.moves = sn.moves; S.recycles = sn.recycles; S.runs = sn.runs; S.won = sn.won;
+}
+function pushUndo() { undoStack.push(snapshot()); redoStack.length = 0; }
+
+const addScore = (n) => { S.score = Math.max(0, S.score + n); };
+
+function scoreMove(from, to, n) {
+  const fk = kindOf(from), tk = kindOf(to);
+  if (S.mode === 'spider') return;
+  if (S.mode === 'freecell') {
+    if (tk === 'found') addScore(10 * n); else if (fk === 'found') addScore(-10 * n);
+    return;
+  }
+  if (tk === 'found') addScore(10);
+  else if (fk === 'waste' && tk === 'tab') addScore(5);
+  else if (fk === 'found' && tk === 'tab') addScore(-15);
+}
+
+function rawMove(from, idx, to, delay) {
+  const run = S.piles[from].splice(idx);
+  S.piles[to].push(...run);
+  for (const u of run) { S.up[u] = true; if (delay) animDelay[u] = delay; }
+  scoreMove(from, to, run.length);
+  return run;
+}
+
+// Flip exposed tableau tops; Spider: lift completed K→A suit runs to the foundations.
+function settleTableau(delayBase) {
+  let changed = true, d = delayBase || 0;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < def().cols; i++) {
+      const id = 't' + i; const p = S.piles[id];
+      if (p.length && !S.up[p[p.length - 1]]) {
+        const u = p[p.length - 1]; S.up[u] = true; flipQueue.push(u);
+        if (S.mode === 'klondike' || S.mode === 'yukon') addScore(5);
+        changed = true;
+      }
+      if (def().runs && p.length >= 13) {
+        const seg = p.slice(-13); let ok = card(seg[0]).r === 13;
+        for (let j = 0; ok && j < 12; j++) ok = S.up[seg[j]] && suitDesc(seg[j], seg[j + 1]);
+        if (ok && S.up[seg[12]]) {
+          let f = 0; while (S.piles['f' + f].length) f++;
+          // move K..A as one run; the King ends on top so the completed foundation shows it
+          const run = p.splice(p.length - 13); run.reverse();
+          S.piles['f' + f].push(...run);
+          run.forEach((u, j) => { animDelay[u] = d + j * 28; });
+          d += 400; S.runs++; addScore(100); changed = true; sfx('run');
+          announce('Completed a run of ' + SUIT_NAME[card(run[0]).s]);
+        }
+      }
+    }
+  }
+  return d;
+}
+
+function safeToAutoplay(u) {
+  const c = card(u); if (c.r <= 2) return true;
+  // both opposite-colour foundations already reach rank-1
+  let need = 0;
+  for (let i = 0; i < 4; i++) {
+    const p = S.piles['f' + i]; if (!p.length) continue;
+    const t = card(p[p.length - 1]); if (isRed(t.s) !== isRed(c.s) && t.r >= c.r - 1) need++;
+  }
+  return need >= 2;
+}
+
+function autoplay(delayBase) {
+  const mode = settings.autoFoundation; if (mode === 'off' || def().runs) return delayBase;
+  let d = delayBase, guard = 0, moved = true;
+  while (moved && guard++ < 80) {
+    moved = false;
+    for (const id of sourcePiles()) {
+      const u = top(id); if (u < 0 || !S.up[u]) continue;
+      if (kindOf(id) === 'found') continue;
+      const f = foundationFor(u);
+      if (f && (mode === 'all' || safeToAutoplay(u))) { rawMove(id, S.piles[id].length - 1, f, d + 1); d += 90; moved = true; settleTableau(d); break; }
+    }
+  }
+  return d;
+}
+function sourcePiles() {
+  const ids = []; const d = def();
+  if (d.stock === 'draw') ids.push('waste');
+  for (let i = 0; i < d.cells; i++) ids.push('c' + i);
+  for (let i = 0; i < d.cols; i++) ids.push('t' + i);
+  for (let i = 0; i < d.found; i++) ids.push('f' + i);
+  return ids;
+}
+
+function startClock() {
+  if (!S.started) {
+    S.started = true; clockMark = now();
+    const k = modeKey(S.mode, S.opts); const st = statFor(k); st.played++; saveStats();
+    if (S.daily) { meta.daily[S.daily + '|' + k] = meta.daily[S.daily + '|' + k] || 'played'; save('meta', meta); }
+  }
+}
+
+function afterAction(opts = {}) {
+  let d = settleTableau(opts.delay || 0);
+  d = autoplay(d + (opts.delay ? 0 : 120));
+  hintState = null;
+  if (!S.won && isWon()) { S.won = true; onWin(d); }
+  if (flipQueue.length) { sfx('flip'); flipQueue.length = 0; }
+  relayout(); updateHUD(); scheduleSave();
+}
+
+function tryMove(from, idx, to, why = 'player') {
+  if (!S || S.won) return { ok: false, reason: 'no game' };
+  if (!canPick(from, idx)) return { ok: false, reason: 'cannot pick' };
+  const run = S.piles[from].slice(idx);
+  if (!canDrop(run, to, from)) return { ok: false, reason: 'illegal drop' };
+  pushUndo(); startClock();
+  rawMove(from, idx, to);
+  S.moves++; if (S.mode === 'spider') addScore(-1);
+  sfx(kindOf(to) === 'found' ? 'found' : 'place', card(run[0]).r);
+  announce(describeRun(run) + ' to ' + pileName(to));
+  afterAction();
+  void why;
+  return { ok: true };
+}
+
+function stockAction() {
+  if (!S || S.won) return { ok: false };
+  const d = def();
+  if (d.stock === 'draw') {
+    const st = S.piles.stock, w = S.piles.waste;
+    if (!st.length && !w.length) return { ok: false, reason: 'empty' };
+    pushUndo(); startClock();
+    if (st.length) {
+      const n = Math.min(S.opts.draw, st.length);
+      for (let i = 0; i < n; i++) { const u = st.pop(); w.push(u); S.up[u] = true; animDelay[u] = i * 70; }
+      sfx('flip'); announce('Drew ' + describeCard(top('waste')));
+    } else {
+      S.recycles++;
+      if (S.recycles > 1) addScore(S.opts.draw === 3 ? -20 : -50);
+      while (w.length) { const u = w.pop(); st.push(u); S.up[u] = false; }
+      sfx('deal'); announce('Waste turned back to the stock');
+    }
+    S.moves++; afterAction({ delay: 1 });
+    return { ok: true };
+  }
+  if (d.stock === 'spider') {
+    const st = S.piles.stock; if (!st.length) return { ok: false, reason: 'empty' };
+    for (let i = 0; i < 10; i++) if (!S.piles['t' + i].length) { toast('Fill every column before dealing a new row'); sfx('nope'); return { ok: false, reason: 'empty column' }; }
+    pushUndo(); startClock();
+    for (let i = 0; i < 10; i++) { const u = st.pop(); S.piles['t' + i].push(u); S.up[u] = true; animDelay[u] = i * 45; }
+    S.moves++; addScore(-1); sfx('deal'); announce('Dealt a new row');
+    afterAction({ delay: 460 });
+    return { ok: true };
+  }
+  return { ok: false, reason: 'no stock' };
+}
+
+function undo() {
+  if (!undoStack.length || !S || S.won) return { ok: false };
+  redoStack.push(snapshot()); restore(undoStack.pop());
+  S.usedUndo = true; S.assisted = true; hintState = null;
+  sfx('undo'); announce('Undone'); relayout(); updateHUD(); scheduleSave();
+  return { ok: true };
+}
+function redo() {
+  if (!redoStack.length || !S) return { ok: false };
+  undoStack.push(snapshot()); restore(redoStack.pop());
+  sfx('place'); announce('Redone'); relayout(); updateHUD(); scheduleSave();
+  if (!S.won && isWon()) { S.won = true; onWin(0); }
+  return { ok: true };
+}
+
+// --- Legal moves and hints ---
+function legalMoves() {
+  if (!S || S.won) return [];
+  const out = []; const d = def();
+  const dests = pileIds(S.mode).filter((id) => { const k = kindOf(id); return k === 'tab' || k === 'cell' || (k === 'found' && !d.runs); });
+  for (const from of sourcePiles()) {
+    const p = S.piles[from]; if (!p.length) continue;
+    const fk = kindOf(from);
+    const starts = fk === 'tab' ? p.map((_, i) => i).filter((i) => S.up[p[i]]) : [p.length - 1];
+    for (const idx of starts) {
+      if (!canPick(from, idx)) continue;
+      const run = p.slice(idx);
+      let emptyTried = false, cellTried = false, foundTried = false;
+      for (const to of dests) {
+        const tk = kindOf(to);
+        if (!canDrop(run, to, from)) continue;
+        const destEmpty = !S.piles[to].length;
+        if (destEmpty && tk === 'tab' && emptyTried) continue;
+        if (tk === 'cell') { if (cellTried) continue; cellTried = true; }
+        if (tk === 'found' && destEmpty) { if (foundTried) continue; foundTried = true; }
+        let sc = 0;
+        const reveals = fk === 'tab' && idx > 0 && !S.up[p[idx - 1]];
+        const under = fk === 'tab' && idx > 0 && S.up[p[idx - 1]] ? p[idx - 1] : -1;
+        if (tk === 'found') sc = fk === 'found' ? -100 : 60;
+        else if (fk === 'found') sc = -40;
+        else {
+          if (reveals) sc += 45;
+          if (fk === 'waste') sc += 22;
+          if (fk === 'cell') sc += 25;
+          if (tk === 'cell') sc += 1;
+          if (tk === 'tab' && !destEmpty) { sc += 8; if (d.lift === 'suit' && card(top(to)).s === card(run[0]).s) sc += 30; }
+          if (tk === 'tab' && destEmpty) {
+            if (fk === 'tab' && idx === 0) continue;               // shuttling a whole column into another empty one
+            sc += fk === 'tab' && reveals ? 4 : 2;
+          }
+          if (fk === 'tab' && idx === 0 && !destEmpty) sc += 12;  // empties a column
+          // pointless shuttle: the run already sits on a card it builds on, and nothing is revealed
+          if (under >= 0 && !reveals && buildsOn(under, run[0])) {
+            const improves = d.lift === 'suit' && tk === 'tab' && !destEmpty && card(top(to)).s === card(run[0]).s && card(under).s !== card(run[0]).s;
+            if (!improves) continue;
+          }
+        }
+        if (destEmpty && tk === 'tab') emptyTried = true;
+        out.push({ from, index: idx, to, count: run.length, score: sc });
+      }
+    }
+  }
+  out.sort((a, b) => b.score - a.score);
+  return out.filter((m) => m.score > -50);
+}
+
+function hint() {
+  if (!S || S.won) return { ok: false };
+  if (!hintState || hintState.until < now()) {
+    const list = legalMoves();
+    hintState = { list, i: 0, until: 0 };
+  } else hintState.i++;
+  const L = hintState.list;
+  if (!L.length || hintState.i >= L.length) {
+    hintState.i = L.length ? -1 : 0;
+    const d = def();
+    if (d.stock === 'draw' && (S.piles.stock.length || S.piles.waste.length)) { hintState.stockHint = true; toast(S.piles.stock.length ? 'Hint: draw from the stock' : 'Hint: turn the waste back over'); }
+    else if (d.stock === 'spider' && S.piles.stock.length) { hintState.stockHint = true; toast('Hint: deal a new row from the stock'); }
+    else { hintState.stockHint = false; toast('No moves left. Try Undo or a new deal'); sfx('nope'); }
+    hintState.until = now() + 2200; hintState.cur = null; startLoop();
+    return { ok: true, move: null, stock: !!hintState.stockHint };
+  }
+  const m = L[hintState.i]; hintState.cur = m; hintState.stockHint = false; hintState.until = now() + 2200;
+  toast('Hint: ' + describeRun(S.piles[m.from].slice(m.index)) + ' to ' + pileName(m.to));
+  sfx('hint'); startLoop();
+  return { ok: true, move: m };
+}
+
+function autoComplete() {
+  if (!canAutoComplete()) return { ok: false };
+  pushUndo(); startClock();
+  let d = 0, guard = 0, stall = 0;
+  while (!isWon() && guard++ < 400) {
+    let moved = false;
+    let best = null;
+    for (const id of sourcePiles()) {
+      if (kindOf(id) === 'found') continue;
+      const u = top(id); if (u < 0 || !S.up[u]) continue;
+      const f = foundationFor(u); if (f && (!best || card(u).r < card(best.u).r)) best = { id, u, f };
+    }
+    if (best) { rawMove(best.id, S.piles[best.id].length - 1, best.f, d + 1); d += 70; moved = true; stall = 0; settleTableau(d); }
+    if (!moved && def().stock === 'draw') {
+      const st = S.piles.stock, w = S.piles.waste;
+      if (stall > st.length + w.length + 2) break;
+      if (st.length) { const n = Math.min(S.opts.draw, st.length); for (let i = 0; i < n; i++) { const u = st.pop(); w.push(u); S.up[u] = true; animDelay[u] = d + 1; } }
+      else if (w.length) { while (w.length) { const u = w.pop(); st.push(u); S.up[u] = false; } }
+      else break;
+      stall++; d += 40;
+    } else if (!moved) break;
+  }
+  S.moves++;
+  sfx('deal');
+  if (!S.won && isWon()) { S.won = true; onWin(d); }
+  relayout(); updateHUD(); scheduleSave();
+  return { ok: true };
+}
+
+// Tap / click / Enter-less keyboard auto-move: best destination for the run at (from, idx)
+function bestDestination(from, idx) {
+  if (!canPick(from, idx)) return null;
+  const p = S.piles[from]; const run = p.slice(idx); const d = def();
+  if (run.length === 1 && kindOf(from) !== 'found') { const f = foundationFor(run[0]); if (f) return f; }
+  let best = null, bestSc = -1e9;
+  for (let i = 0; i < d.cols; i++) {
+    const to = 't' + i; if (!canDrop(run, to, from)) continue;
+    const empty = !S.piles[to].length;
+    if (empty && kindOf(from) === 'tab' && idx === 0) continue;
+    let sc = empty ? 0 : 20;
+    if (kindOf(from) === 'tab' && idx > 0 && !S.up[p[idx - 1]]) sc += 10;
+    if (!empty && d.lift === 'suit' && card(top(to)).s === card(run[0]).s) sc += 15;
+    sc -= i * 0.01; // stable: leftmost wins ties
+    if (sc > bestSc) { bestSc = sc; best = to; }
+  }
+  if (best) return best;
+  if (run.length === 1) for (let i = 0; i < d.cells; i++) if (canDrop(run, 'c' + i, from)) return 'c' + i;
+  return null;
+}
+function tapAt(from, idx) {
+  if (!S || S.won) return { ok: false };
+  if (from === 'stock') return stockAction();
+  const p = S.piles[from];
+  if (idx == null) idx = p.length - 1;
+  if (idx < 0) return { ok: false, reason: 'empty' };
+  const to = bestDestination(from, idx);
+  if (!to) { sfx('nope'); shake(from, idx); return { ok: false, reason: 'no destination' }; }
+  return tryMove(from, idx, to, 'tap');
+}
+
+// --- Naming for announcements ---
+function describeCard(u) { if (u < 0) return 'nothing'; const c = card(u); return RANK_NAME[c.r] + ' of ' + SUIT_NAME[c.s]; }
+function describeRun(run) { return run.length === 1 ? describeCard(run[0]) : run.length + ' cards from ' + describeCard(run[0]); }
+function pileName(id) {
+  const k = kindOf(id); const n = +id.slice(1) + 1;
+  return k === 'tab' ? 'column ' + n : k === 'found' ? 'foundation ' + n : k === 'cell' ? 'free cell ' + n : id;
+}
+
+// ============================================================================================
+// 6. New game, stats, win
+// ============================================================================================
+function statFor(k) {
+  return stats[k] || (stats[k] = { played: 0, won: 0, streak: 0, bestStreak: 0, bestTimeMs: 0, fewestMoves: 0, bestScore: 0, totalMs: 0 });
+}
+function saveStats() { save('stats', stats); }
+let clockMark = 0;
+function tickClock() {
+  if (!S || !S.started || S.won) return;
+  const t = now();
+  if (!paused()) S.elapsedMs += t - clockMark;
+  clockMark = t;
+}
+const paused = () => document.hidden || modalKind !== null || titleOn;
+
+function abandonCurrent() {
+  if (S && S.started && !S.won) { const st = statFor(modeKey(S.mode, S.opts)); st.streak = 0; saveStats(); }
+}
+
+function dailyDeal(mode, opts, date) {
+  const h = fnv1a(date + '|' + modeKey(mode, opts));
+  return mode === 'freecell' ? 1 + (h % 32000) : 1 + (h % 2000000000);
+}
+
+function newGame(o = {}) {
+  abandonCurrent();
+  const mode = MODES[o.mode] ? o.mode : (S ? S.mode : meta.lastMode || 'klondike');
+  const opts = { draw: o.draw || (S && S.mode === mode ? S.opts.draw : meta.lastOpts.draw) || 1,
+    suits: o.suits || (S && S.mode === mode ? S.opts.suits : meta.lastOpts.suits) || 1 };
+  let deal = o.deal, daily = null;
+  if (o.daily) { daily = typeof o.daily === 'string' ? o.daily : todayStr(); deal = dailyDeal(mode, opts, daily); }
+  if (!deal) {
+    if (nextDeal != null) { deal = nextDeal; nextDeal = null; }
+    else deal = mode === 'freecell' ? 1 + Math.floor(Math.random() * 32000) : 1 + Math.floor(Math.random() * 2000000000);
+  }
+  deal = mode === 'freecell' ? clamp(Math.floor(deal), 1, 1000000) : clamp(Math.floor(deal), 1, 2147483646);
+  clearTimeout(winTimer); winTimer = 0;
+  S = newState(mode, opts, deal, daily);
+  undoStack = []; redoStack = []; hintState = null; held = null; drag = null; cascade = null; cursor = { pile: null, depth: 0 };
+  meta.lastMode = mode; meta.lastOpts = { draw: S.opts.draw, suits: S.opts.suits }; save('meta', meta);
+  closeModal(); showTitle(false);
+  dealAnimation(); updateHUD(); scheduleSave();
+  sfx('deal'); steamBurst();
+  announce(MODES[mode].name + ' ' + variantLabel(mode, S.opts) + ', deal ' + deal);
+  return { ok: true, deal };
+}
+function restartDeal() { if (!S) return; newGame({ mode: S.mode, draw: S.opts.draw, suits: S.opts.suits, deal: S.deal, daily: S.daily }); }
+
+let lastWin = null;
+function onWin(delay) {
+  tickClock();
+  const k = modeKey(S.mode, S.opts); const st = statFor(k);
+  let bonus = 0;
+  if (S.mode !== 'spider') { bonus = Math.max(0, Math.round(1000 - 2 * S.elapsedMs / 1000)); addScore(bonus); }
+  const best = { time: !st.bestTimeMs || S.elapsedMs < st.bestTimeMs, moves: !st.fewestMoves || S.moves < st.fewestMoves, score: S.score > st.bestScore };
+  st.won++; st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak); st.totalMs += S.elapsedMs;
+  if (best.time) st.bestTimeMs = Math.max(1, Math.round(S.elapsedMs));
+  if (best.moves) st.fewestMoves = S.moves;
+  if (best.score) st.bestScore = S.score;
+  saveStats();
+  meta.totalWins = (meta.totalWins || 0) + 1;
+  if (S.daily) meta.daily[S.daily + '|' + k] = 'won';
+  save('meta', meta); save('current', null);
+  lastWin = { mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, bonus, moves: S.moves, ms: S.elapsedMs,
+    best, totalWins: meta.totalWins, assisted: S.assisted, fact: FACTS[fnv1a(S.mode + ':' + S.deal) % FACTS.length] };
+  announce('You won! Score ' + S.score);
+  winTimer = setTimeout(() => { winTimer = 0; sfx('win'); startCascade(); }, Math.max(250, delay + 260));
+}
+let winTimer = 0;
+
+// --- Save current game ---
+let saveTimer = 0;
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    if (!S || S.won || !S.started) return;
+    tickClock();
+    save('current', { state: S, undo: undoStack.slice(-400) });
+  }, 300);
+}
+function loadSaved() {
+  const c = load('current', null);
+  if (!c || !c.state || !MODES[c.state.mode] || c.state.won) return null;
+  return c;
+}
+function resumeSaved() {
+  const c = loadSaved(); if (!c) return false;
+  clearTimeout(winTimer); winTimer = 0;
+  S = c.state; undoStack = c.undo || []; redoStack = []; hintState = null; held = null; drag = null; cascade = null;
+  clockMark = now(); closeModal(); showTitle(false); relayout(true); dealAnimation(); updateHUD();
+  return true;
+}
+
+// ============================================================================================
+// 7. Art: suits, faces, court archetypes, card backs, tables, skyline (all procedural)
+//    Colours are the corpus estimates from research/visual-style-guide.md (see town-content.md).
+// ============================================================================================
+const INK = { black: '#1F2A24', red: '#B3261E', blue: '#1F5BA8', green: '#2E6A3C' };
+const suitColor = (s) => settings.fourColor ? [INK.green, INK.blue, INK.red, INK.black][s] : (isRed(s) ? INK.red : INK.black);
+const SERIF = '"Palatino Linotype","Book Antiqua",Palatino,Georgia,"Times New Roman",serif';
+const DECO = '"Century Gothic",Futura,"Avenir Next","Trebuchet MS","Gill Sans",sans-serif';
+
+function rrect(ctx, x, y, w, h, r) {
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+// Suit glyphs as vector paths in a w×h box (never font glyphs, so they look the same everywhere).
+function suitPath(ctx, s, x, y, w, h) {
+  const X = (u) => x + u * w, Y = (v) => y + v * h;
+  ctx.beginPath();
+  if (s === 2) {
+    ctx.moveTo(X(.5), Y(.97));
+    ctx.bezierCurveTo(X(.38), Y(.82), X(0), Y(.62), X(0), Y(.32));
+    ctx.bezierCurveTo(X(0), Y(.13), X(.14), Y(0), X(.29), Y(0));
+    ctx.bezierCurveTo(X(.4), Y(0), X(.47), Y(.07), X(.5), Y(.18));
+    ctx.bezierCurveTo(X(.53), Y(.07), X(.6), Y(0), X(.71), Y(0));
+    ctx.bezierCurveTo(X(.86), Y(0), X(1), Y(.13), X(1), Y(.32));
+    ctx.bezierCurveTo(X(1), Y(.62), X(.62), Y(.82), X(.5), Y(.97));
+  } else if (s === 1) {
+    ctx.moveTo(X(.5), Y(0)); ctx.quadraticCurveTo(X(.68), Y(.28), X(.94), Y(.5)); ctx.quadraticCurveTo(X(.68), Y(.72), X(.5), Y(1));
+    ctx.quadraticCurveTo(X(.32), Y(.72), X(.06), Y(.5)); ctx.quadraticCurveTo(X(.32), Y(.28), X(.5), Y(0));
+  } else if (s === 3) {
+    ctx.moveTo(X(.5), Y(0));
+    ctx.bezierCurveTo(X(.62), Y(.16), X(1), Y(.34), X(1), Y(.6));
+    ctx.bezierCurveTo(X(1), Y(.76), X(.88), Y(.86), X(.74), Y(.86));
+    ctx.bezierCurveTo(X(.64), Y(.86), X(.57), Y(.82), X(.53), Y(.75));
+    ctx.bezierCurveTo(X(.55), Y(.86), X(.6), Y(.94), X(.7), Y(1));
+    ctx.lineTo(X(.3), Y(1));
+    ctx.bezierCurveTo(X(.4), Y(.94), X(.45), Y(.86), X(.47), Y(.75));
+    ctx.bezierCurveTo(X(.43), Y(.82), X(.36), Y(.86), X(.26), Y(.86));
+    ctx.bezierCurveTo(X(.12), Y(.86), X(0), Y(.76), X(0), Y(.6));
+    ctx.bezierCurveTo(X(0), Y(.34), X(.38), Y(.16), X(.5), Y(0));
+  } else {
+    const r = .235 * w;
+    ctx.moveTo(X(.5) + r, Y(.25)); ctx.arc(X(.5), Y(.25), r, 0, Math.PI * 2);
+    ctx.moveTo(X(.25) + r, Y(.56)); ctx.arc(X(.25), Y(.56), r, 0, Math.PI * 2);
+    ctx.moveTo(X(.75) + r, Y(.56)); ctx.arc(X(.75), Y(.56), r, 0, Math.PI * 2);
+    ctx.moveTo(X(.42), Y(.42)); ctx.lineTo(X(.58), Y(.42)); ctx.lineTo(X(.58), Y(.62)); ctx.lineTo(X(.42), Y(.62)); ctx.closePath();
+    ctx.moveTo(X(.47), Y(.58)); ctx.bezierCurveTo(X(.46), Y(.8), X(.4), Y(.92), X(.29), Y(1)); ctx.lineTo(X(.71), Y(1));
+    ctx.bezierCurveTo(X(.6), Y(.92), X(.54), Y(.8), X(.53), Y(.58)); ctx.closePath();
+  }
+}
+function drawSuit(ctx, s, cx, cy, size, color, flip) {
+  ctx.save(); ctx.translate(cx, cy); if (flip) ctx.rotate(Math.PI);
+  ctx.fillStyle = color; suitPath(ctx, s, -size * .45, -size / 2, size * .9, size); ctx.fill(); ctx.restore();
+}
+
+const PIPS = { // [column, f] with column L/C/R and f in 0..1 down the pip area
+  2: [['C', 0], ['C', 1]], 3: [['C', 0], ['C', .5], ['C', 1]], 4: [['L', 0], ['R', 0], ['L', 1], ['R', 1]],
+  5: [['L', 0], ['R', 0], ['C', .5], ['L', 1], ['R', 1]], 6: [['L', 0], ['R', 0], ['L', .5], ['R', .5], ['L', 1], ['R', 1]],
+  7: [['L', 0], ['R', 0], ['C', .25], ['L', .5], ['R', .5], ['L', 1], ['R', 1]],
+  8: [['L', 0], ['R', 0], ['C', .25], ['L', .5], ['R', .5], ['C', .75], ['L', 1], ['R', 1]],
+  9: [['L', 0], ['R', 0], ['L', 1 / 3], ['R', 1 / 3], ['C', .5], ['L', 2 / 3], ['R', 2 / 3], ['L', 1], ['R', 1]],
+  10: [['L', 0], ['R', 0], ['C', 1 / 6], ['L', 1 / 3], ['R', 1 / 3], ['L', 2 / 3], ['R', 2 / 3], ['C', 5 / 6], ['L', 1], ['R', 1]],
+};
+
+function drawFace(ctx, c, w, h, large) {
+  const col = suitColor(c.s);
+  rrect(ctx, .5, .5, w - 1, h - 1, w * .075); ctx.fillStyle = '#FBF8F1'; ctx.fill();
+  ctx.lineWidth = Math.max(1, w * .012); ctx.strokeStyle = '#A99D82'; ctx.stroke();
+  const small = w < 58;
+  // Corner index: rank top-left, suit top-right. Sized so it stays readable in a 28%-of-height fan strip.
+  const big = large || small;
+  const rs = w * (big ? .40 : .30);
+  ctx.fillStyle = col; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  ctx.font = '700 ' + rs + 'px ' + SERIF;
+  const lab = RANK_LABEL[c.r];
+  ctx.save(); ctx.translate(w * .06, h * .02 + rs * .86);
+  if (lab === '10') ctx.scale(.78, 1);
+  ctx.fillText(lab, 0, 0); ctx.restore();
+  const ss = w * (big ? .29 : .22);
+  drawSuit(ctx, c.s, w - w * .07 - ss * .45, h * .03 + ss / 2 + rs * .1, ss, col);
+  if (!small) {
+    // bottom-right mirrored index on roomy cards
+    ctx.save(); ctx.translate(w, h); ctx.rotate(Math.PI);
+    const bs = w * .19; ctx.font = '700 ' + bs + 'px ' + SERIF; ctx.fillStyle = col;
+    ctx.save(); ctx.translate(w * .06, bs * .9 + h * .015); if (lab === '10') ctx.scale(.78, 1); ctx.fillText(lab, 0, 0); ctx.restore();
+    ctx.restore();
+  }
+  if (c.r > 10) { drawCourtPanel(ctx, c, w, h, small); return; }
+  if (c.r === 1) { drawAce(ctx, c, w, h, small); return; }
+  if (small) { drawSuit(ctx, c.s, w * .5, h * .64, w * .52, col); return; }
+  const ps = w * (c.r >= 9 ? .17 : .19);
+  const xs = { L: w * .3, C: w * .5, R: w * .7 };
+  for (const [cl, f] of PIPS[c.r]) {
+    const y = h * (.33 + f * .5) + ps * .1;
+    drawSuit(ctx, c.s, xs[cl], y, ps, col, f > .5);
+  }
+}
+
+function drawAce(ctx, c, w, h, small) {
+  const col = suitColor(c.s);
+  const size = w * (small ? .56 : .5); const cx = w / 2, cy = h * (small ? .64 : .6);
+  drawSuit(ctx, c.s, cx, cy, size, col);
+  if (c.s === 3) {
+    // a stepped-setback tower inside the spade: a nod to the Medical Arts Building (1929–30)
+    ctx.fillStyle = '#E8DFC9'; const u = size / 12; const bx = cx, by = cy + size * .2;
+    ctx.fillRect(bx - 2.2 * u, by - 3 * u, 4.4 * u, 3 * u); ctx.fillRect(bx - 1.6 * u, by - 5.2 * u, 3.2 * u, 2.3 * u);
+    ctx.fillRect(bx - 1 * u, by - 7 * u, 2 * u, 1.9 * u); ctx.fillRect(bx - .25 * u, by - 8.2 * u, .5 * u, 1.3 * u);
+    ctx.fillStyle = col; for (let i = -1; i <= 1; i++) ctx.fillRect(bx + i * 1.2 * u - .2 * u, by - 2.6 * u, .4 * u, 2.2 * u);
+  } else if (c.s === 2) {
+    // magnolia blossom inside the heart: a nod to the 1890s Magnolia Promenade
+    const mx = cx, my = cy - size * .06, pr = size * .2;
+    ctx.fillStyle = '#FBF8F1';
+    for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3 - Math.PI / 2; ctx.beginPath(); ctx.ellipse(mx + Math.cos(a) * pr * .55, my + Math.sin(a) * pr * .55, pr * .5, pr * .26, a, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = '#D9A23A'; ctx.beginPath(); ctx.arc(mx, my, pr * .22, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+// Court cards: original era-costume archetypes (bath attendant / jockey jacks, promenade queens,
+// card-room kings). Flat geometric figures; no real person is depicted.
+function drawCourtPanel(ctx, c, w, h, small) {
+  const col = suitColor(c.s);
+  const x = w * (small ? .1 : .14), y = h * (small ? .33 : .25), pw = w - 2 * x, ph = h * (small ? .62 : .615);
+  ctx.save(); rrect(ctx, x, y, pw, ph, w * .04); ctx.clip();
+  ctx.fillStyle = isRed(c.s) ? '#F5E4DA' : '#E4E9E1'; ctx.fillRect(x, y, pw, ph);
+  // faint deco rays behind the figure
+  ctx.strokeStyle = 'rgba(217,162,58,.35)'; ctx.lineWidth = Math.max(.6, w * .006);
+  for (let i = 0; i < 9; i++) { const a = Math.PI + (i + .5) * Math.PI / 9; ctx.beginPath(); ctx.moveTo(x + pw / 2, y + ph * .62); ctx.lineTo(x + pw / 2 + Math.cos(a) * pw, y + ph * .62 + Math.sin(a) * pw); ctx.stroke(); }
+  drawCourt(ctx, c, x, y, pw, ph, col);
+  ctx.restore();
+  rrect(ctx, x, y, pw, ph, w * .04); ctx.strokeStyle = '#D9A23A'; ctx.lineWidth = Math.max(1, w * .02); ctx.stroke();
+  if (!small) { const ss = w * .13; drawSuit(ctx, c.s, x + ss * .75, y + ss * .75, ss, col); }
+}
+function drawCourt(ctx, c, x, y, w, h, col) {
+  const cx = x + w / 2, hy = y + h * .44, hr = w * .15;
+  const dark = c.s === 3 || c.s === 0;
+  const skin = '#E2BE97', line = '#2A2420';
+  ctx.lineWidth = Math.max(.8, w * .018); ctx.strokeStyle = line; ctx.lineJoin = 'round';
+  const shoulders = (fill) => {
+    ctx.beginPath(); ctx.moveTo(x + w * .06, y + h);
+    ctx.bezierCurveTo(x + w * .08, y + h * .7, x + w * .3, y + h * .64, cx, y + h * .64);
+    ctx.bezierCurveTo(x + w * .7, y + h * .64, x + w * .92, y + h * .7, x + w * .94, y + h);
+    ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); ctx.stroke();
+  };
+  const head = () => {
+    ctx.fillStyle = skin; ctx.beginPath(); ctx.rect(cx - hr * .35, hy + hr * .7, hr * .7, hr * .6); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx, hy, hr * .86, hr, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = line; ctx.beginPath(); ctx.arc(cx - hr * .33, hy - hr * .05, hr * .09, 0, 7); ctx.arc(cx + hr * .33, hy - hr * .05, hr * .09, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, hy + hr * .35, hr * .25, .2 * Math.PI, .8 * Math.PI); ctx.stroke();
+  };
+  if (c.r === 13) {
+    // King: 1920s card-room gentleman in a fedora and bow tie
+    shoulders(dark ? '#2B2F3A' : '#5A1E1A');
+    ctx.fillStyle = '#F4F1EA'; ctx.beginPath(); ctx.moveTo(cx - w * .12, y + h * .645); ctx.lineTo(cx + w * .12, y + h * .645); ctx.lineTo(cx, y + h * .92); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.moveTo(cx - w * .12, y + h * .65); ctx.lineTo(cx - w * .05, y + h * .95); ctx.moveTo(cx + w * .12, y + h * .65); ctx.lineTo(cx + w * .05, y + h * .95); ctx.stroke();
+    ctx.strokeStyle = line;
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(cx, y + h * .69); ctx.lineTo(cx - w * .09, y + h * .65); ctx.lineTo(cx - w * .09, y + h * .74); ctx.closePath();
+    ctx.moveTo(cx, y + h * .69); ctx.lineTo(cx + w * .09, y + h * .65); ctx.lineTo(cx + w * .09, y + h * .74); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#F4F1EA'; ctx.fillRect(x + w * .66, y + h * .76, w * .1, h * .03);
+    head();
+    ctx.fillStyle = line; ctx.beginPath(); ctx.ellipse(cx, hy + hr * .2, hr * .32, hr * .08, 0, 0, 7); ctx.fill();
+    // fedora
+    ctx.fillStyle = dark ? '#3A3A44' : '#6B4A2E';
+    ctx.beginPath(); ctx.ellipse(cx, hy - hr * .62, hr * 1.55, hr * .3, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - hr * .85, hy - hr * .6); ctx.lineTo(cx - hr * .7, hy - hr * 1.5); ctx.quadraticCurveTo(cx, hy - hr * 1.25, cx + hr * .7, hy - hr * 1.5);
+    ctx.lineTo(cx + hr * .85, hy - hr * .6); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = col; ctx.fillRect(cx - hr * .82, hy - hr * .92, hr * 1.64, hr * .26);
+  } else if (c.r === 12) {
+    // Queen: promenade lady with a parasol and a wide hat
+    ctx.fillStyle = isRed(c.s) ? '#F7D6CF' : '#DCE6E0';
+    ctx.beginPath(); ctx.moveTo(x + w * .02, y + h * .3); ctx.arc(x + w * .3, y + h * .3, w * .3, Math.PI, 2 * Math.PI); ctx.closePath(); ctx.fill(); ctx.stroke();
+    for (let i = 1; i < 6; i++) { const a = Math.PI + i * Math.PI / 6; ctx.beginPath(); ctx.moveTo(x + w * .3, y + h * .3); ctx.lineTo(x + w * .3 + Math.cos(a) * w * .3, y + h * .3 + Math.sin(a) * w * .3); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(x + w * .3, y + h * .3); ctx.lineTo(x + w * .3, y + h * .7); ctx.stroke();
+    shoulders(col);
+    ctx.fillStyle = '#FBF8F1'; ctx.beginPath(); ctx.ellipse(cx, y + h * .66, w * .13, h * .04, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.55)'; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(cx, y + h * (.74 + i * .06), w * .025, 0, 7); ctx.fill(); }
+    head();
+    ctx.fillStyle = '#6B4A2E'; ctx.beginPath(); ctx.ellipse(cx, hy - hr * .55, hr * 1.25, hr * .45, 0, Math.PI, 2 * Math.PI); ctx.fill();
+    ctx.fillStyle = dark ? '#2F4A2C' : '#7E2F1F';
+    ctx.beginPath(); ctx.ellipse(cx, hy - hr * .8, hr * 2, hr * .36, -.08, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(cx, hy - hr * 1.05, hr * .9, hr * .42, 0, Math.PI, 2 * Math.PI); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#FBF8F1'; ctx.beginPath(); ctx.arc(cx + hr * .8, hy - hr * 1.05, hr * .28, 0, 7); ctx.fill();
+    ctx.fillStyle = '#D9A23A'; ctx.beginPath(); ctx.arc(cx + hr * .8, hy - hr * 1.05, hr * .1, 0, 7); ctx.fill();
+  } else if (dark) {
+    // Jack (clubs, spades): bath attendant in a white jacket with a towel over the shoulder
+    shoulders('#F4F1EA');
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(cx - w * .06, y + h * .64); ctx.lineTo(cx + w * .06, y + h * .64); ctx.lineTo(cx, y + h * .72); ctx.closePath(); ctx.fill();
+    for (let i = 0; i < 3; i++) { ctx.fillStyle = line; ctx.beginPath(); ctx.arc(cx, y + h * (.78 + i * .07), w * .018, 0, 7); ctx.fill(); }
+    ctx.fillStyle = '#E6D7B5'; ctx.beginPath(); ctx.moveTo(x + w * .14, y + h * .74); ctx.lineTo(x + w * .3, y + h * .64); ctx.lineTo(x + w * .4, y + h * .66);
+    ctx.lineTo(x + w * .26, y + h); ctx.lineTo(x + w * .12, y + h); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#4E7D5B'; ctx.beginPath(); ctx.moveTo(x + w * .2, y + h * .72); ctx.lineTo(x + w * .34, y + h * .66); ctx.stroke(); ctx.strokeStyle = line;
+    head();
+    ctx.fillStyle = '#4A3424'; ctx.beginPath(); ctx.ellipse(cx, hy - hr * .55, hr * .95, hr * .55, 0, Math.PI, 2 * Math.PI); ctx.fill();
+    ctx.fillStyle = '#F4F1EA'; ctx.fillRect(cx - hr * .7, hy - hr * 1.35, hr * 1.4, hr * .55); ctx.strokeRect(cx - hr * .7, hy - hr * 1.35, hr * 1.4, hr * .55);
+    ctx.fillStyle = col; ctx.fillRect(cx - hr * .7, hy - hr * .95, hr * 1.4, hr * .15);
+  } else {
+    // Jack (hearts, diamonds): jockey in generic diamond-pattern silks and cap
+    ctx.save(); ctx.beginPath(); ctx.moveTo(x + w * .06, y + h);
+    ctx.bezierCurveTo(x + w * .08, y + h * .7, x + w * .3, y + h * .64, cx, y + h * .64);
+    ctx.bezierCurveTo(x + w * .7, y + h * .64, x + w * .92, y + h * .7, x + w * .94, y + h); ctx.closePath();
+    ctx.fillStyle = '#F4F1EA'; ctx.fill(); ctx.clip();
+    ctx.fillStyle = col; const dw = w * .16;
+    for (let i = -1; i < 8; i++) for (let j = 0; j < 4; j++) { const px = x + i * dw + (j % 2) * dw / 2, py = y + h * .64 + j * dw * .6; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + dw / 4, py + dw * .3); ctx.lineTo(px, py + dw * .6); ctx.lineTo(px - dw / 4, py + dw * .3); ctx.closePath(); ctx.fill(); }
+    ctx.restore(); ctx.beginPath(); ctx.moveTo(x + w * .06, y + h);
+    ctx.bezierCurveTo(x + w * .08, y + h * .7, x + w * .3, y + h * .64, cx, y + h * .64);
+    ctx.bezierCurveTo(x + w * .7, y + h * .64, x + w * .92, y + h * .7, x + w * .94, y + h); ctx.stroke();
+    head();
+    ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(cx, hy - hr * .35, hr * .98, hr * .9, 0, Math.PI, 2 * Math.PI); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#FBF8F1'; ctx.fillRect(cx - hr * .1, hy - hr * 1.22, hr * .2, hr * .87);
+    ctx.fillStyle = line; ctx.beginPath(); ctx.ellipse(cx + hr * .55, hy - hr * .33, hr * .75, hr * .14, 0, 0, 7); ctx.fill();
+  }
+}
+
+// --- Card backs (12) -------------------------------------------------------------------------
+const BACKS = [
+  { id: 'skylight', name: 'Fordyce Skylight', cap: 'Inspired by the Fordyce men\'s bath hall skylight, glass in "a sea of blue and green" (1914–15). Seeded, so your deck is one of a kind.' },
+  { id: 'lozenge', name: 'Fordyce Lozenge', cap: 'Lozenge-patterned brick of the Fordyce Bathhouse\'s upper stories.' },
+  { id: 'quapaw', name: 'Quapaw Dome', cap: 'The Quapaw\'s chevron-mosaic dome over red clay tile (1922). The tile colors are a guess.' },
+  { id: 'ironwork', name: 'Row Ironwork', cap: 'Wrought-iron scrolls like the grilles of the Hale and the Administration Building.' },
+  { id: 'paterae', name: 'Superior Medallions', cap: 'The Superior\'s green tile medallions above brick pilasters (1916).' },
+  { id: 'sculpin', name: 'Scallop & Sculpin', cap: 'Quapaw parapet scallops framing sculpin fish: gold as built, white today.' },
+  { id: 'neon', name: 'Neon Night', cap: 'Roaring-era nightlife on card-table felt. The neon colors are invented; club neon is not documented.' },
+  { id: 'deco', name: 'Medical Arts Deco', cap: 'Bronze sunbursts and stepped setbacks of the Art Deco Medical Arts Building (1929–30).' },
+  { id: 'pines', name: 'Ouachita Pines', cap: 'Shortleaf pine ridges, novaculite outcrops and creek steam in the Ouachita Mountains.' },
+  { id: 'steam', name: 'Thermal Steam', cap: 'Spring water at about 143°F: gray tufa terraces, blue-green algae and rising steam.' },
+  { id: 'lake', name: 'Lake Ouachita Dusk', cap: 'Lake Ouachita at dusk. Its roughly 200 islands are numbered for boaters.' },
+  { id: 'silks', name: 'Racing Silks', cap: 'Generic racing silks; horses have raced in Hot Springs since the 1890s. No real stable colors.' },
+];
+const TABLES = [
+  { id: 'felt', name: 'Card-Table Felt', ink: 'rgba(244,242,236,.34)', text: '#F4F2EC' },
+  { id: 'linen', name: 'Linen Postcard', ink: 'rgba(31,47,92,.5)', text: '#1F2F5C' },
+  { id: 'pool', name: 'Thermal Pool', ink: 'rgba(244,242,236,.38)', text: '#F4F2EC' },
+  { id: 'marble', name: 'Bathhall Marble', ink: 'rgba(31,42,36,.4)', text: '#1F2A24' },
+  { id: 'midnight', name: 'Midnight Club', ink: 'rgba(212,175,55,.45)', text: '#D8CFBD' },
+];
+
+function spiral(ctx, cx, cy, r, turns, dir, a0) {
+  const n = 28; ctx.moveTo(cx + Math.cos(a0) * r, cy + Math.sin(a0) * r);
+  for (let i = 1; i <= n; i++) { const t = i / n; const a = a0 + dir * t * turns * Math.PI * 2; const rr = r * (1 - t * .85); ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); }
+}
+function clipPoly(poly, px, py, nx, ny) { // keep side where (x-p)·n <= 0
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    const da = (a[0] - px) * nx + (a[1] - py) * ny, db = (b[0] - px) * nx + (b[1] - py) * ny;
+    if (da <= 0) out.push(a);
+    if ((da <= 0) !== (db <= 0)) { const t = da / (da - db); out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
+  }
+  return out;
+}
+function scallop(ctx, cx, cy, r, ang, fill, stroke) {
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(ang);
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, r, Math.PI * 1.1, Math.PI * 1.9); ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
+  ctx.strokeStyle = stroke; ctx.lineWidth = r * .09;
+  for (let i = 0; i < 7; i++) { const a = Math.PI * (1.12 + i * .76 / 6); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); ctx.stroke(); }
+  ctx.restore();
+}
+function fish(ctx, cx, cy, len, dir, fill, stroke) {
+  ctx.save(); ctx.translate(cx, cy); ctx.scale(dir, 1); ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = len * .05;
+  ctx.beginPath(); ctx.ellipse(0, 0, len * .36, len * .17, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-len * .3, 0); ctx.lineTo(-len * .52, -len * .16); ctx.lineTo(-len * .52, len * .16); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-len * .05, -len * .15); ctx.quadraticCurveTo(len * .02, -len * .32, len * .14, -len * .14); ctx.fill();
+  ctx.fillStyle = stroke; ctx.beginPath(); ctx.arc(len * .22, -len * .03, len * .035, 0, 7); ctx.fill();
+  ctx.restore();
+}
+function neonStroke(ctx, color, width, draw) {
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = color; ctx.globalAlpha = .3; ctx.lineWidth = width * 3.2; ctx.shadowColor = color; ctx.shadowBlur = width * 3; draw(); ctx.stroke();
+  ctx.globalAlpha = 1; ctx.shadowBlur = width * 1.5; ctx.lineWidth = width; draw(); ctx.stroke();
+  ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,250,240,.9)'; ctx.lineWidth = width * .35; draw(); ctx.stroke();
+  ctx.restore();
+}
+
+function drawBack(ctx, id, w, h, seed) {
+  const rnd = mulberry32(seed || 7);
+  const r = w * .075, m = w * .055;
+  rrect(ctx, .5, .5, w - 1, h - 1, r);
+  const frame = { neon: '#14121F', pines: '#EDEAE2', lake: '#F6F3EC', steam: '#F4F2EC', deco: '#2B2420', silks: '#F3E9D2' }[id] || '#F3EFE6';
+  ctx.fillStyle = frame; ctx.fill(); ctx.lineWidth = Math.max(1, w * .012); ctx.strokeStyle = '#8E8169'; ctx.stroke();
+  const x0 = m, y0 = m, iw = w - 2 * m, ih = h - 2 * m;
+  ctx.save(); rrect(ctx, x0, y0, iw, ih, r * .6); ctx.clip();
+  const lw = Math.max(.7, w * .012);
+  const cx = w / 2, cy = h / 2;
+  switch (id) {
+    case 'skylight': {
+      ctx.fillStyle = '#2A2A2A'; ctx.fillRect(x0, y0, iw, ih);
+      const pts = []; const n = 34;
+      for (let i = 0; i < n; i++) pts.push([x0 + rnd() * iw, y0 + rnd() * ih]);
+      const ramp = ['#1F5F6B', '#2A9D8F', '#7FC8B8', '#2B4C9B', '#2A9D8F', '#1F5F6B'];
+      for (let i = 0; i < n; i++) {
+        let poly = [[x0, y0], [x0 + iw, y0], [x0 + iw, y0 + ih], [x0, y0 + ih]]; const p = pts[i];
+        for (let j = 0; j < n && poly.length; j++) { if (j === i) continue; const q = pts[j]; poly = clipPoly(poly, (p[0] + q[0]) / 2, (p[1] + q[1]) / 2, q[0] - p[0], q[1] - p[1]); }
+        if (poly.length < 3) continue;
+        const wave = Math.sin((p[0] - x0) / iw * 5 + (p[1] - y0) / ih * 3) * .5 + .5;
+        ctx.fillStyle = ramp[Math.floor((wave * .8 + rnd() * .35) * (ramp.length - 1)) % ramp.length];
+        ctx.beginPath(); ctx.moveTo(poly[0][0], poly[0][1]); for (const v of poly) ctx.lineTo(v[0], v[1]); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#2A2A2A'; ctx.lineWidth = w * .022; ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.beginPath(); ctx.arc(p[0] - w * .015, p[1] - w * .015, w * .02, 0, 7); ctx.fill();
+      }
+      ctx.strokeStyle = '#D9A23A'; ctx.lineWidth = w * .035; ctx.beginPath(); ctx.ellipse(cx, cy, iw * .3, ih * .22, 0, 0, 7); ctx.stroke();
+      ctx.strokeStyle = '#2A2A2A'; ctx.lineWidth = w * .012; ctx.stroke();
+      const sq = iw / 10; ctx.fillStyle = '#D9A23A';
+      for (let i = 0; i < 10; i++) { ctx.fillRect(x0 + i * sq + sq * .3, y0 + sq * .3, sq * .4, sq * .4); ctx.fillRect(x0 + i * sq + sq * .3, y0 + ih - sq * .7, sq * .4, sq * .4); }
+      break;
+    }
+    case 'lozenge': {
+      ctx.fillStyle = '#E6D7B5'; ctx.fillRect(x0, y0, iw, ih);
+      const bh = ih / 26, bw = bh * 2; ctx.strokeStyle = '#CDBF9F'; ctx.lineWidth = Math.max(.5, bh * .16);
+      for (let row = 0; row * bh < ih; row++) {
+        const yy = y0 + row * bh; ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x0 + iw, yy); ctx.stroke();
+        for (let xx = x0 - (row % 2) * bw / 2; xx < x0 + iw; xx += bw) { ctx.beginPath(); ctx.moveTo(xx, yy); ctx.lineTo(xx, yy + bh); ctx.stroke(); }
+      }
+      const s = bw * 1.6; ctx.strokeStyle = '#B89A6A'; ctx.lineWidth = bh * .45;
+      for (let k = -20; k < 20; k++) {
+        ctx.beginPath(); ctx.moveTo(cx + k * s - ih, cy - ih); ctx.lineTo(cx + k * s + ih, cy + ih); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx + k * s + ih, cy - ih); ctx.lineTo(cx + k * s - ih, cy + ih); ctx.stroke();
+      }
+      ctx.fillStyle = '#C46A3E';
+      for (let k = -6; k <= 6; k++) for (let j = -9; j <= 9; j++) { const px = cx + k * s, py = cy + j * s; if ((k + j) % 2) continue; ctx.beginPath(); ctx.moveTo(px, py - bh * .8); ctx.lineTo(px + bh * .8, py); ctx.lineTo(px, py + bh * .8); ctx.lineTo(px - bh * .8, py); ctx.closePath(); ctx.fill(); }
+      ctx.fillStyle = '#C46A3E'; ctx.fillRect(x0, y0, iw, ih * .045); ctx.fillRect(x0, y0 + ih * .955, iw, ih * .045);
+      break;
+    }
+    case 'quapaw': {
+      ctx.fillStyle = '#A9432C'; ctx.fillRect(x0, y0, iw, ih);
+      const tr = iw / 14;
+      for (let row = 0; row * tr * .8 < ih + tr; row++) for (let i = -1; i * tr < iw + tr; i++) {
+        const px = x0 + i * tr + (row % 2) * tr / 2, py = y0 + row * tr * .8;
+        ctx.fillStyle = row % 2 ? '#7E2F1F' : '#A9432C'; ctx.beginPath(); ctx.arc(px, py, tr * .55, 0, Math.PI); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,220,190,.25)'; ctx.lineWidth = lw * .6; ctx.beginPath(); ctx.arc(px, py, tr * .45, .2, Math.PI - .2); ctx.stroke();
+      }
+      const R = iw * .43; const cols = ['#2B4C9B', '#D9A23A', '#C46A3E', '#4E7D5B', '#E6D7B5'];
+      ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.clip();
+      for (let k = 12; k >= 0; k--) {
+        const rr = R * (k + 1) / 13; ctx.fillStyle = cols[k % 5]; ctx.beginPath();
+        const teeth = 10 + k * 2;
+        for (let i = 0; i <= teeth * 2; i++) { const a = i / (teeth * 2) * Math.PI * 2; const r2 = i % 2 ? rr : rr - R / 13 * .7; ctx.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2); }
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+      ctx.strokeStyle = '#B87333'; ctx.lineWidth = w * .03; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.stroke();
+      ctx.strokeStyle = '#5E9C8C'; ctx.lineWidth = w * .01; ctx.beginPath(); ctx.arc(cx, cy, R + w * .02, 0, 7); ctx.stroke();
+      ctx.fillStyle = '#B87333'; ctx.fillRect(cx - R * .14, cy - R * .14, R * .28, R * .28);
+      ctx.fillStyle = '#5E9C8C'; ctx.beginPath(); ctx.arc(cx, cy, R * .07, 0, 7); ctx.fill();
+      break;
+    }
+    case 'ironwork': {
+      ctx.fillStyle = '#F2EFE8'; ctx.fillRect(x0, y0, iw, ih);
+      ctx.strokeStyle = 'rgba(185,180,170,.6)'; ctx.lineWidth = lw * .7;
+      for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.moveTo(x0 + rnd() * iw, y0); ctx.bezierCurveTo(x0 + rnd() * iw, y0 + ih * .3, x0 + rnd() * iw, y0 + ih * .7, x0 + rnd() * iw, y0 + ih); ctx.stroke(); }
+      ctx.strokeStyle = '#1F2A24'; ctx.lineWidth = w * .02; ctx.lineCap = 'round';
+      const cw2 = iw / 2, ch2 = ih / 3;
+      for (let gx = 0; gx < 2; gx++) for (let gy = 0; gy < 3; gy++) {
+        const ox = x0 + gx * cw2 + cw2 / 2, oy = y0 + gy * ch2 + ch2 / 2, s = Math.min(cw2, ch2) * .42;
+        for (const sx of [-1, 1]) {
+          ctx.beginPath(); ctx.moveTo(ox, oy - s);
+          ctx.bezierCurveTo(ox + sx * s * 1.1, oy - s, ox + sx * s * 1.1, oy, ox + sx * s * .5, oy);
+          spiral(ctx, ox + sx * s * .5, oy - s * .32, s * .32, 1.4, -sx, Math.PI / 2);
+          ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(ox, oy + s);
+          ctx.bezierCurveTo(ox + sx * s * 1.1, oy + s, ox + sx * s * 1.1, oy, ox + sx * s * .5, oy);
+          spiral(ctx, ox + sx * s * .5, oy + s * .32, s * .32, 1.4, sx, -Math.PI / 2);
+          ctx.stroke();
+        }
+        ctx.beginPath(); ctx.moveTo(ox, oy - s); ctx.lineTo(ox, oy + s); ctx.stroke();
+        ctx.fillStyle = '#C9A23F'; ctx.beginPath(); ctx.arc(ox, oy, s * .14, 0, 7); ctx.fill();
+      }
+      ctx.fillStyle = '#1F2A24';
+      for (let i = 0; i <= 8; i++) { const px = x0 + i * iw / 8; ctx.beginPath(); ctx.moveTo(px, y0 + ih * .005); ctx.lineTo(px + w * .02, y0 + ih * .03); ctx.lineTo(px, y0 + ih * .055); ctx.lineTo(px - w * .02, y0 + ih * .03); ctx.fill(); ctx.beginPath(); ctx.moveTo(px, y0 + ih * .995); ctx.lineTo(px + w * .02, y0 + ih * .97); ctx.lineTo(px, y0 + ih * .945); ctx.lineTo(px - w * .02, y0 + ih * .97); ctx.fill(); }
+      break;
+    }
+    case 'paterae': {
+      ctx.fillStyle = '#E6D7B5'; ctx.fillRect(x0, y0, iw, ih);
+      const pc = 3, pwid = iw * .07;
+      ctx.fillStyle = '#B5654A';
+      for (let i = 0; i <= pc; i++) { const px = x0 + i * iw / pc - pwid / 2; ctx.fillRect(px, y0, pwid, ih); }
+      ctx.fillStyle = '#E6D7B5';
+      for (let i = 0; i <= pc; i++) for (let j = 0; j < 9; j++) { const px = x0 + i * iw / pc, py = y0 + (j + .5) * ih / 9; ctx.beginPath(); ctx.moveTo(px, py - pwid * .35); ctx.lineTo(px + pwid * .25, py); ctx.lineTo(px, py + pwid * .35); ctx.lineTo(px - pwid * .25, py); ctx.fill(); }
+      const rr = iw / pc * .3;
+      for (let i = 0; i < pc; i++) for (let j = 0; j < 4; j++) {
+        const px = x0 + (i + .5) * iw / pc, py = y0 + (j + .5) * ih / 4;
+        ctx.fillStyle = '#4E7D5B';
+        for (let k = 0; k < 10; k++) { const a = k * Math.PI / 5; ctx.beginPath(); ctx.ellipse(px + Math.cos(a) * rr * .55, py + Math.sin(a) * rr * .55, rr * .42, rr * .17, a, 0, 7); ctx.fill(); }
+        ctx.fillStyle = '#E6D7B5'; ctx.beginPath(); ctx.arc(px, py, rr * .3, 0, 7); ctx.fill();
+        ctx.fillStyle = '#355E41'; ctx.beginPath(); ctx.arc(px, py, rr * .17, 0, 7); ctx.fill();
+      }
+      break;
+    }
+    case 'sculpin': {
+      ctx.fillStyle = '#F3E9D2'; ctx.fillRect(x0, y0, iw, ih);
+      // parapet bands: scallop shells framing gold sculpin ("as built"), mirrored top and bottom
+      const bandH = ih * .24, n = 3, sr = Math.min(iw / n * .48, bandH * .8);
+      for (const flip of [false, true]) {
+        ctx.save(); if (flip) { ctx.translate(cx, cy); ctx.rotate(Math.PI); ctx.translate(-cx, -cy); }
+        ctx.fillStyle = '#A9432C'; ctx.fillRect(x0, y0, iw, bandH);
+        ctx.fillStyle = '#D4AF37'; ctx.fillRect(x0, y0 + bandH, iw, Math.max(1, ih * .012));
+        for (let i = 0; i < n; i++) scallop(ctx, x0 + (i + .5) * iw / n, y0 + bandH * .92, sr, 0, '#F3E9D2', '#A9432C');
+        for (let i = 0; i < n - 1; i++) fish(ctx, x0 + (i + 1) * iw / n, y0 + bandH * .3, iw / n * .55, i % 2 ? -1 : 1, '#D4AF37', '#5A3A1A');
+        ctx.restore();
+      }
+      ctx.fillStyle = '#1F5F6B'; ctx.beginPath(); ctx.ellipse(cx, cy, iw * .42, ih * .22, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#D4AF37'; ctx.lineWidth = w * .02; ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.3)'; ctx.lineWidth = lw;
+      for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(cx - iw * .32, cy + ih * (.12 - i * .1)); ctx.quadraticCurveTo(cx, cy + ih * (.08 - i * .1), cx + iw * .32, cy + ih * (.12 - i * .1)); ctx.stroke(); }
+      fish(ctx, cx - iw * .12, cy - ih * .06, iw * .34, 1, '#FBF8F1', '#174A54'); fish(ctx, cx + iw * .12, cy + ih * .07, iw * .34, -1, '#FBF8F1', '#174A54');
+      break;
+    }
+    case 'neon': {
+      ctx.fillStyle = '#14121F'; ctx.fillRect(x0, y0, iw, ih);
+      ctx.fillStyle = '#1E5B3A'; rrect(ctx, x0 + iw * .1, y0 + ih * .08, iw * .8, ih * .84, w * .05); ctx.globalAlpha = .45; ctx.fill(); ctx.globalAlpha = 1;
+      const nw = Math.max(1, w * .02);
+      for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8; neonStroke(ctx, '#D4AF37', nw * .6, () => { ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * iw * .2, cy + Math.sin(a) * iw * .2); ctx.lineTo(cx + Math.cos(a) * iw * (i % 2 ? .3 : .38), cy + Math.sin(a) * iw * (i % 2 ? .3 : .38)); }); }
+      neonStroke(ctx, '#FF3B3B', nw, () => { ctx.beginPath(); ctx.moveTo(cx, y0 + ih * .1); ctx.lineTo(x0 + iw * .9, cy); ctx.lineTo(cx, y0 + ih * .9); ctx.lineTo(x0 + iw * .1, cy); ctx.closePath(); });
+      neonStroke(ctx, '#4FC3FF', nw, () => { ctx.beginPath(); ctx.arc(cx, cy, iw * .16, 0, 7); });
+      neonStroke(ctx, '#FF3B3B', nw * .8, () => { ctx.beginPath(); suitPath(ctx, 2, cx - iw * .08, cy - iw * .07, iw * .16, iw * .15); });
+      for (let i = 0; i < 14; i++) { ctx.fillStyle = 'rgba(255,246,224,' + (.3 + rnd() * .6) + ')'; ctx.beginPath(); ctx.arc(x0 + rnd() * iw, y0 + rnd() * ih, w * .008, 0, 7); ctx.fill(); }
+      break;
+    }
+    case 'deco': {
+      ctx.fillStyle = '#D8CFBD'; ctx.fillRect(x0, y0, iw, ih);
+      const fan = (oy, dir) => {
+        for (let i = 0; i < 17; i++) {
+          const a0 = Math.PI * (i / 17), a1 = Math.PI * ((i + 1) / 17);
+          ctx.fillStyle = i % 2 ? '#7C5A2E' : '#B08A4E';
+          ctx.beginPath(); ctx.moveTo(cx, oy); ctx.lineTo(cx + Math.cos(a0) * iw * .7, oy + dir * Math.sin(a0) * iw * .7); ctx.lineTo(cx + Math.cos(a1) * iw * .7, oy + dir * Math.sin(a1) * iw * .7); ctx.closePath();
+          if (i % 2) ctx.fill();
+        }
+        ctx.strokeStyle = '#D4AF37'; ctx.lineWidth = lw * 1.2;
+        for (let k = 1; k <= 3; k++) { ctx.beginPath(); ctx.arc(cx, oy, iw * .14 * k, dir > 0 ? 0 : Math.PI, dir > 0 ? Math.PI : 2 * Math.PI); ctx.stroke(); }
+      };
+      fan(y0, 1); fan(y0 + ih, -1);
+      ctx.fillStyle = '#2B2420'; const tw = iw * .34; let by = cy + ih * .2;
+      const tiers = [[1, .16], [.76, .12], [.54, .1], [.32, .08]];
+      for (const [f, th] of tiers) { ctx.fillRect(cx - tw * f / 2, by - ih * th, tw * f, ih * th); by -= ih * th; }
+      ctx.fillStyle = '#D4AF37'; ctx.fillRect(cx - w * .006, by - ih * .05, w * .012, ih * .05);
+      ctx.fillStyle = '#D8CFBD'; by = cy + ih * .2;
+      for (const [f, th] of tiers) { for (let k = -2; k <= 2; k++) ctx.fillRect(cx + k * tw * f / 6 - w * .004, by - ih * th * .85, w * .008, ih * th * .7); by -= ih * th; }
+      ctx.strokeStyle = '#7C5A2E'; ctx.lineWidth = w * .02; const st = iw * .1;
+      ctx.beginPath(); ctx.moveTo(x0 + st, y0 + w * .01); ctx.lineTo(x0 + st, y0 + st); ctx.lineTo(x0 + w * .01, y0 + st);
+      ctx.moveTo(x0 + iw - st, y0 + w * .01); ctx.lineTo(x0 + iw - st, y0 + st); ctx.lineTo(x0 + iw - w * .01, y0 + st);
+      ctx.moveTo(x0 + st, y0 + ih - w * .01); ctx.lineTo(x0 + st, y0 + ih - st); ctx.lineTo(x0 + w * .01, y0 + ih - st);
+      ctx.moveTo(x0 + iw - st, y0 + ih - w * .01); ctx.lineTo(x0 + iw - st, y0 + ih - st); ctx.lineTo(x0 + iw - w * .01, y0 + ih - st); ctx.stroke();
+      break;
+    }
+    case 'pines': {
+      const g = ctx.createLinearGradient(0, y0, 0, y0 + ih); g.addColorStop(0, '#C9D3D6'); g.addColorStop(.45, '#8FA88A'); g.addColorStop(1, '#1F3324');
+      ctx.fillStyle = g; ctx.fillRect(x0, y0, iw, ih);
+      const ridge = (base, amp, col, trees) => {
+        const ph = rnd() * 6; ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x0, y0 + ih);
+        for (let i = 0; i <= 20; i++) { const xx = x0 + i * iw / 20; ctx.lineTo(xx, base + Math.sin(i * .7 + ph) * amp + Math.sin(i * 1.9 + ph) * amp * .4); }
+        ctx.lineTo(x0 + iw, y0 + ih); ctx.closePath(); ctx.fill();
+        for (let t = 0; t < trees; t++) {
+          const xx = x0 + rnd() * iw, i = (xx - x0) / iw * 20; const yy = base + Math.sin(i * .7 + ph) * amp + Math.sin(i * 1.9 + ph) * amp * .4;
+          const th = ih * (.05 + rnd() * .04);
+          for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.moveTo(xx, yy - th * (1 - k * .28) - th * .2); ctx.lineTo(xx + th * (.18 + k * .07), yy - th * (.55 - k * .25)); ctx.lineTo(xx - th * (.18 + k * .07), yy - th * (.55 - k * .25)); ctx.fill(); }
+        }
+      };
+      ridge(y0 + ih * .36, ih * .04, '#7E9A72', 0);
+      ridge(y0 + ih * .5, ih * .05, '#5C7A3A', 14);
+      ctx.fillStyle = '#EDEAE2'; for (let i = 0; i < 3; i++) { const px = x0 + iw * (.2 + i * .3), py = y0 + ih * (.56 + rnd() * .04); ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + iw * .06, py - ih * .03); ctx.lineTo(px + iw * .12, py + ih * .01); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#C99A92'; }
+      ridge(y0 + ih * .66, ih * .05, '#2F4A2C', 16);
+      ridge(y0 + ih * .82, ih * .04, '#1F3324', 12);
+      ctx.strokeStyle = 'rgba(244,246,245,.4)'; ctx.lineWidth = w * .03; ctx.lineCap = 'round';
+      for (let i = 0; i < 3; i++) { const px = x0 + iw * (.3 + i * .2); ctx.beginPath(); for (let k = 0; k <= 10; k++) { const yy = y0 + ih * (.98 - k * .03); ctx.lineTo(px + Math.sin(k * .9 + i) * iw * .04, yy); } ctx.stroke(); }
+      break;
+    }
+    case 'steam': {
+      const g = ctx.createLinearGradient(0, y0, 0, y0 + ih); g.addColorStop(0, '#174A54'); g.addColorStop(1, '#2A9D8F');
+      ctx.fillStyle = g; ctx.fillRect(x0, y0, iw, ih);
+      for (let row = 0; row < 4; row++) {
+        const yy = y0 + ih * (.62 + row * .1), lob = iw / (3 + row % 2);
+        for (let i = -1; i * lob < iw + lob; i++) {
+          const px = x0 + i * lob + (row % 2) * lob / 2;
+          const lg = ctx.createLinearGradient(0, yy - lob * .3, 0, yy + lob * .25); lg.addColorStop(0, '#C8C3B6'); lg.addColorStop(1, '#9A968C');
+          ctx.fillStyle = lg; ctx.beginPath(); ctx.ellipse(px, yy, lob * .55, lob * .3, 0, Math.PI, 2 * Math.PI); ctx.lineTo(px + lob * .55, yy + lob * .3); ctx.lineTo(px - lob * .55, yy + lob * .3); ctx.fill();
+          ctx.strokeStyle = 'rgba(127,200,184,.7)'; ctx.lineWidth = lw; ctx.beginPath(); ctx.ellipse(px, yy, lob * .55, lob * .3, 0, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+          ctx.fillStyle = '#2F8F5B'; for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.arc(px - lob * .45 + k * lob * .3, yy + lob * .02, w * .012, 0, 7); ctx.fill(); }
+        }
+      }
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 6; i++) {
+        const px = x0 + iw * (.1 + i * .16); ctx.strokeStyle = 'rgba(255,255,255,' + (.18 + rnd() * .14) + ')'; ctx.lineWidth = w * (.04 + rnd() * .03);
+        ctx.beginPath(); for (let k = 0; k <= 16; k++) { const t = k / 16; ctx.lineTo(px + Math.sin(t * 9 + i * 2) * iw * .05 * (1 - t), y0 + ih * (.66 - t * .62)); } ctx.stroke();
+      }
+      break;
+    }
+    case 'lake': {
+      const g = ctx.createLinearGradient(0, y0, 0, y0 + ih * .5); g.addColorStop(0, '#1E4E79'); g.addColorStop(.55, '#B5568F'); g.addColorStop(1, '#F2A541');
+      ctx.fillStyle = g; ctx.fillRect(x0, y0, iw, ih * .5);
+      ctx.fillStyle = '#F6E3B0'; ctx.beginPath(); ctx.arc(cx, y0 + ih * .5, iw * .16, Math.PI, 2 * Math.PI); ctx.fill();
+      ctx.fillStyle = '#183F63'; ctx.beginPath(); ctx.moveTo(x0, y0 + ih * .5);
+      for (let i = 0; i <= 12; i++) ctx.lineTo(x0 + i * iw / 12, y0 + ih * (.44 - Math.abs(Math.sin(i * 1.3)) * .06 - (i % 3 === 0 ? .02 : 0)));
+      ctx.lineTo(x0 + iw, y0 + ih * .5); ctx.fill();
+      const lg = ctx.createLinearGradient(0, y0 + ih * .5, 0, y0 + ih); lg.addColorStop(0, '#4C8FA8'); lg.addColorStop(1, '#183F63');
+      ctx.fillStyle = lg; ctx.fillRect(x0, y0 + ih * .5, iw, ih * .5);
+      for (let i = 0; i < 14; i++) { const yy = y0 + ih * (.53 + i * .033), ww = iw * (.3 - i * .016); ctx.strokeStyle = 'rgba(242,165,65,' + (.75 - i * .045) + ')'; ctx.lineWidth = lw * 1.2; ctx.beginPath(); ctx.moveTo(cx - ww / 2 + (rnd() - .5) * iw * .05, yy); ctx.lineTo(cx + ww / 2, yy); ctx.stroke(); }
+      ctx.fillStyle = '#16304A';
+      for (let i = 0; i < 4; i++) { const px = x0 + iw * [.15, .78, .32, .62][i], py = y0 + ih * [.62, .7, .84, .9][i], s = iw * [.1, .08, .12, .07][i]; ctx.beginPath(); ctx.ellipse(px, py, s, s * .22, 0, Math.PI, 2 * Math.PI); ctx.fill(); for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.moveTo(px - s * .5 + k * s * .45, py - s * .5); ctx.lineTo(px - s * .32 + k * s * .45, py - s * .05); ctx.lineTo(px - s * .68 + k * s * .45, py - s * .05); ctx.fill(); } }
+      break;
+    }
+    case 'silks': {
+      const dw = iw / 4, dh = ih / 6;
+      for (let j = -1; j < 7; j++) for (let i = -1; i < 5; i++) {
+        const px = x0 + i * dw + (j % 2 ? dw / 2 : 0), py = y0 + j * dh;
+        ctx.fillStyle = (i + j) % 2 ? '#1F4E9C' : '#D4A017';
+        ctx.beginPath(); ctx.moveTo(px, py - dh / 2); ctx.lineTo(px + dw / 2, py); ctx.lineTo(px, py + dh / 2); ctx.lineTo(px - dw / 2, py); ctx.closePath(); ctx.fill();
+      }
+      ctx.fillStyle = '#1F4E9C'; ctx.fillRect(x0, y0, iw, ih);
+      ctx.fillStyle = '#D4A017';
+      for (let j = 0; j <= 6; j++) for (let i = 0; i <= 4; i++) { const px = x0 + i * dw + (j % 2 ? dw / 2 : 0), py = y0 + j * dh; ctx.beginPath(); ctx.moveTo(px, py - dh / 2); ctx.lineTo(px + dw / 2, py); ctx.lineTo(px, py + dh / 2); ctx.lineTo(px - dw / 2, py); ctx.closePath(); ctx.fill(); }
+      for (const yy of [cy - ih * .09, cy + ih * .09]) { ctx.fillStyle = '#A9432C'; ctx.fillRect(x0, yy - ih * .05, iw, ih * .1); ctx.fillStyle = '#F3E9D2'; ctx.fillRect(x0, yy - ih * .006, iw, ih * .012); }
+      ctx.fillStyle = '#F3E9D2'; ctx.beginPath(); ctx.arc(cx, cy, iw * .17, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#A9432C'; ctx.lineWidth = w * .02; ctx.stroke();
+      ctx.fillStyle = '#A9432C'; ctx.beginPath(); ctx.ellipse(cx, cy + iw * .03, iw * .1, iw * .085, 0, Math.PI, 2 * Math.PI); ctx.fill();
+      ctx.fillStyle = '#1F4E9C'; ctx.beginPath(); ctx.ellipse(cx + iw * .07, cy + iw * .035, iw * .07, iw * .018, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#D4A017'; ctx.fillRect(cx - iw * .012, cy - iw * .055, iw * .024, iw * .085);
+      break;
+    }
+  }
+  ctx.restore();
+  rrect(ctx, x0, y0, iw, ih, r * .6); ctx.lineWidth = Math.max(.8, w * .014);
+  ctx.strokeStyle = id === 'neon' || id === 'deco' ? 'rgba(212,175,55,.7)' : 'rgba(31,42,36,.55)'; ctx.stroke();
+}
+
+// --- Tables (5) -----------------------------------------------------------------------------
+function drawTable(ctx, id, W, H) {
+  const rnd = mulberry32(77);
+  if (id === 'felt') {
+    const g = ctx.createRadialGradient(W / 2, H * .45, 10, W / 2, H * .45, Math.max(W, H) * .75); g.addColorStop(0, '#27744B'); g.addColorStop(1, '#123A27');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(0,0,0,.05)'; for (let i = 0; i < W * H / 260; i++) ctx.fillRect(rnd() * W, rnd() * H, 1, 1);
+    ctx.strokeStyle = 'rgba(212,175,55,.07)'; ctx.lineWidth = 3; const s = Math.min(W, H) * .07;
+    for (let k = 0; k < 7; k++) { ctx.beginPath(); ctx.moveTo(W / 2 - s * 4, H * .62 - k * s * .6); ctx.lineTo(W / 2, H * .62 - k * s * .6 - s * 1.6); ctx.lineTo(W / 2 + s * 4, H * .62 - k * s * .6); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(W / 2 - s * 4, H * .62 + s); ctx.lineTo(W / 2 - s * 4, H * .62 - s * 4); ctx.moveTo(W / 2 + s * 4, H * .62 + s); ctx.lineTo(W / 2 + s * 4, H * .62 - s * 4); ctx.stroke();
+  } else if (id === 'linen') {
+    const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#2F7FC6'); g.addColorStop(1, '#A7DDF2');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(31,47,92,.07)'; for (let x = 0; x < W; x += 4) ctx.fillRect(x, 0, 1, H); for (let y = 0; y < H; y += 4) ctx.fillRect(0, y, W, 1);
+    ctx.strokeStyle = '#F3E9D2'; ctx.lineWidth = 10; ctx.strokeRect(5, 5, W - 10, H - 10);
+  } else if (id === 'pool') {
+    const g = ctx.createRadialGradient(W / 2, H * .4, 10, W / 2, H * .4, Math.max(W, H) * .7); g.addColorStop(0, '#2A9D8F'); g.addColorStop(1, '#1F5F6B');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(255,255,255,.07)'; ctx.lineWidth = 1.5;
+    for (let i = 0; i < 40; i++) { const x = rnd() * W, y = rnd() * H, r = 20 + rnd() * 80; ctx.beginPath(); ctx.arc(x, y, r, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke(); }
+    const lob = 60; for (let i = -1; i * lob < W + lob; i++) { ctx.fillStyle = i % 2 ? '#9A968C' : '#AAA69B'; ctx.beginPath(); ctx.ellipse(i * lob, H + 8, lob * .62, 26, 0, Math.PI, 2 * Math.PI); ctx.fill(); ctx.fillStyle = 'rgba(47,143,91,.6)'; ctx.fillRect(i * lob - 20, H - 16, 40, 2); }
+  } else if (id === 'marble') {
+    ctx.fillStyle = '#EDE9E0'; ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 26; i++) {
+      ctx.strokeStyle = 'rgba(160,154,142,' + (.12 + rnd() * .25) + ')'; ctx.lineWidth = .6 + rnd() * 1.8;
+      let x = rnd() * W, y = rnd() * H; ctx.beginPath(); ctx.moveTo(x, y);
+      for (let k = 0; k < 6; k++) { const nx = x + (rnd() - .3) * W * .25, ny = y + (rnd() - .5) * H * .2; ctx.quadraticCurveTo((x + nx) / 2 + (rnd() - .5) * 40, (y + ny) / 2 + (rnd() - .5) * 40, nx, ny); x = nx; y = ny; }
+      ctx.stroke();
+    }
+    ctx.strokeStyle = '#C46A3E'; ctx.lineWidth = 8; ctx.strokeRect(4, 4, W - 8, H - 8);
+    ctx.strokeStyle = '#4E7D5B'; ctx.lineWidth = 2; ctx.strokeRect(12, 12, W - 24, H - 24);
+  } else {
+    ctx.fillStyle = '#14121F'; ctx.fillRect(0, 0, W, H);
+    const g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, 'rgba(79,195,255,.05)'); g.addColorStop(.5, 'rgba(255,255,255,0)'); g.addColorStop(.52, 'rgba(255,255,255,.04)'); g.addColorStop(1, 'rgba(255,59,59,.04)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(212,175,55,.12)'; ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += 90) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    ctx.strokeStyle = 'rgba(212,175,55,.22)'; ctx.lineWidth = 2; ctx.strokeRect(8, 8, W - 16, H - 16);
+  }
+}
+
+// --- Title skyline: Bathhouse Row, north (left) to south (right) ------------------------------
+function drawSkyline(ctx, W, H, t, dark) {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  if (dark) { g.addColorStop(0, '#14121F'); g.addColorStop(1, '#2A2640'); } else { g.addColorStop(0, '#E9F1F2'); g.addColorStop(1, '#F2EFE8'); }
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const ground = H - 22;
+  // Hot Springs Mountain behind the Row
+  ctx.fillStyle = dark ? '#1F3324' : '#7E9A72'; ctx.beginPath(); ctx.moveTo(0, ground);
+  for (let i = 0; i <= 30; i++) { const x = i * W / 30; ctx.lineTo(x, ground - H * (.42 + .22 * Math.sin(i / 30 * Math.PI) + .03 * Math.sin(i * 1.7))); }
+  ctx.lineTo(W, ground); ctx.fill();
+  ctx.fillStyle = dark ? '#2F4A2C' : '#5C7A3A'; ctx.beginPath(); ctx.moveTo(0, ground);
+  for (let i = 0; i <= 30; i++) { const x = i * W / 30; ctx.lineTo(x, ground - H * (.3 + .12 * Math.sin(i / 30 * Math.PI + .6) + .03 * Math.sin(i * 2.3))); }
+  ctx.lineTo(W, ground); ctx.fill();
+  // steam behind the buildings
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 9; i++) {
+    const px = W * (.06 + i * .11), a = dark ? .14 : .45;
+    ctx.strokeStyle = 'rgba(255,255,255,' + a + ')'; ctx.lineWidth = 6 + (i % 3) * 3;
+    ctx.beginPath();
+    for (let k = 0; k <= 14; k++) { const f = k / 14; ctx.lineTo(px + Math.sin(f * 7 + t * 1.2 + i) * 12 * f, ground - H * .3 - f * H * .45); }
+    ctx.stroke();
+  }
+  const B = [['Superior', 1], ['Hale', .9], ['Maurice', 1.05], ['Fordyce', 1.25], ['Quapaw', 1.25], ['Ozark', 1.1], ['Buckstaff', 1.05], ['Lamar', .85]];
+  const tot = B.reduce((a, b) => a + b[1], 0); const gap = W * .008; const unit = (W - gap * 9) / tot;
+  let x = gap; const hh = H * .5;
+  const stucco = '#F3EFE6', cream = '#E6D7B5', red = '#A9432C', green = '#4E7D5B', line = 'rgba(31,42,36,.45)';
+  for (const [name, f] of B) {
+    const bw = unit * f; const bx = x;
+    ctx.lineWidth = 1; ctx.strokeStyle = line;
+    const box = (y, h, col) => { ctx.fillStyle = col; ctx.fillRect(bx, y, bw, h); ctx.strokeRect(bx + .5, y + .5, bw - 1, h - 1); };
+    const windows = (y, h, n, arch) => { ctx.fillStyle = dark ? '#D9A23A' : '#2B4C9B'; for (let i = 0; i < n; i++) { const wx = bx + bw * (i + .5) / n - bw * .03; if (arch) { ctx.beginPath(); ctx.moveTo(wx, y + h); ctx.lineTo(wx, y + h * .4); ctx.arc(wx + bw * .03, y + h * .4, bw * .03, Math.PI, 0); ctx.lineTo(wx + bw * .06, y + h); ctx.fill(); } else ctx.fillRect(wx, y, bw * .06, h); } };
+    if (name === 'Superior') { const bh = hh * .62; box(ground - bh, bh, cream); ctx.fillStyle = '#B5654A'; for (let i = 0; i < 7; i++) ctx.fillRect(bx + bw * (i / 6) - bw * .025 + (i === 0 ? bw * .025 : 0) - (i === 6 ? bw * .025 : 0), ground - bh, bw * .05, bh); ctx.fillStyle = green; for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.arc(bx + bw * (i + .5) / 6, ground - bh * .86, bw * .025, 0, 7); ctx.fill(); } windows(ground - bh * .6, bh * .3, 6, false); }
+    else if (name === 'Hale') { const bh = hh * .56; box(ground - bh, bh, stucco); ctx.fillStyle = red; ctx.beginPath(); ctx.moveTo(bx - 3, ground - bh); ctx.lineTo(bx + bw * .2, ground - bh - hh * .2); ctx.lineTo(bx + bw * .8, ground - bh - hh * .2); ctx.lineTo(bx + bw + 3, ground - bh); ctx.fill(); ctx.fillStyle = stucco; ctx.beginPath(); ctx.moveTo(bx + bw * .3, ground - bh); const gh = Math.min(hh * .3, bw * .32); ctx.bezierCurveTo(bx + bw * .32, ground - bh - gh, bx + bw * .68, ground - bh - gh, bx + bw * .7, ground - bh); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#1F2A24'; ctx.beginPath(); ctx.arc(bx + bw / 2, ground - bh - gh * .4, Math.min(bw * .035, gh * .2), Math.PI, 0); ctx.fill(); windows(ground - bh * .7, bh * .35, 4, true); }
+    else if (name === 'Maurice') { const bh = hh * .7; box(ground - bh, bh, stucco); ctx.fillStyle = green; ctx.beginPath(); ctx.moveTo(bx - 2, ground - bh); ctx.lineTo(bx + bw * .1, ground - bh - hh * .1); ctx.lineTo(bx + bw * .9, ground - bh - hh * .1); ctx.lineTo(bx + bw + 2, ground - bh); ctx.fill(); ctx.fillStyle = '#C46A3E'; for (let i = 0; i < 4; i++) ctx.fillRect(bx + bw * (i + .5) / 4 - 3, ground - bh * .9, 6, 6); windows(ground - bh * .55, bh * .4, 5, true); }
+    else if (name === 'Fordyce') { const bh = hh * .74; box(ground - bh, bh, cream); ctx.save(); ctx.beginPath(); ctx.rect(bx, ground - bh, bw, bh * .4); ctx.clip(); ctx.strokeStyle = '#B89A6A'; const s = 9; for (let k = -10; k < 40; k++) { ctx.beginPath(); ctx.moveTo(bx + k * s, ground - bh); ctx.lineTo(bx + k * s + bh, ground); ctx.moveTo(bx + k * s, ground - bh); ctx.lineTo(bx + k * s - bh, ground); ctx.stroke(); } ctx.restore(); ctx.fillStyle = red; ctx.beginPath(); ctx.moveTo(bx + bw * .08, ground - bh); ctx.lineTo(bx + bw * .25, ground - bh - hh * .12); ctx.lineTo(bx + bw * .75, ground - bh - hh * .12); ctx.lineTo(bx + bw * .92, ground - bh); ctx.fill(); ctx.fillStyle = '#5E9C8C'; ctx.fillRect(bx + bw * .3, ground - bh * .22, bw * .4, bh * .05); windows(ground - bh * .55, bh * .25, 6, false); }
+    else if (name === 'Quapaw') { const bh = hh * .55; box(ground - bh, bh, stucco); const dr = bw * .3; const dh = Math.min(hh * .42, dr * 1.05); ctx.save(); ctx.beginPath(); ctx.ellipse(bx + bw / 2, ground - bh, dr, dh, 0, Math.PI, 2 * Math.PI); ctx.clip(); const cols = ['#2B4C9B', '#D9A23A', '#C46A3E', green, cream]; for (let k = 0; k < 8; k++) { ctx.fillStyle = cols[k % 5]; ctx.beginPath(); const yy = ground - bh - k * hh * .055; ctx.moveTo(bx, yy); for (let i = 0; i <= 12; i++) ctx.lineTo(bx + bw * i / 12, yy - (i % 2) * hh * .03); ctx.lineTo(bx + bw, yy - hh * .1); ctx.lineTo(bx, yy - hh * .1); ctx.fill(); } ctx.restore(); ctx.fillStyle = '#B87333'; ctx.fillRect(bx + bw / 2 - bw * .03, ground - bh - dh - hh * .08, bw * .06, hh * .09); ctx.fillStyle = red; ctx.fillRect(bx, ground - bh - 4, bw * .2, 4); ctx.fillRect(bx + bw * .8, ground - bh - 4, bw * .2, 4); windows(ground - bh * .6, bh * .35, 7, true); }
+    else if (name === 'Ozark') { const bh = hh * .44; box(ground - bh, bh, stucco); for (const tx of [bx + bw * .04, bx + bw * .7]) { let tw = bw * .26, ty = ground - bh; for (let k = 0; k < 3; k++) { const th = hh * .14; const ox = tx + (bw * .26 - tw) / 2; ctx.fillStyle = stucco; ctx.fillRect(ox, ty - th, tw, th); ctx.strokeRect(ox + .5, ty - th + .5, tw - 1, th - 1); ty -= th; tw *= .85; } const ox = tx + (bw * .26 - tw) / 2; ctx.fillStyle = red; ctx.beginPath(); ctx.moveTo(ox - 2, ty); ctx.lineTo(ox + tw / 2, ty - hh * .12); ctx.lineTo(ox + tw + 2, ty); ctx.fill(); } windows(ground - bh * .6, bh * .3, 3, true); }
+    else if (name === 'Buckstaff') { const bh = hh * .66; box(ground - bh, bh, cream); ctx.fillStyle = stucco; ctx.fillRect(bx, ground - bh, bw, bh * .16); ctx.fillStyle = '#C9A23F'; for (let i = 0; i < 9; i++) { ctx.beginPath(); ctx.arc(bx + bw * (i + .5) / 9, ground - bh * .08, bw * .018, 0, 7); ctx.fill(); } ctx.fillStyle = stucco; for (let i = 0; i <= 6; i++) ctx.fillRect(bx + bw * i / 7 + bw * .055, ground - bh * .84, bw * .035, bh * .84); windows(ground - bh * .65, bh * .4, 7, false); }
+    else { const bh = hh * .56; box(ground - bh, bh, stucco); ctx.fillStyle = red; ctx.fillRect(bx, ground - bh - 3, bw, 4); windows(ground - bh * .7, bh * .4, 5, false); }
+    if (bw > 64) { ctx.fillStyle = dark ? '#D8CFBD' : '#1F2A24'; ctx.font = '600 10px ' + DECO; ctx.textAlign = 'center'; ctx.fillText(name.toUpperCase(), bx + bw / 2, ground + 14); }
+    x += bw + gap;
+  }
+  ctx.fillStyle = dark ? '#2F4A2C' : '#4E7D5B'; ctx.fillRect(0, ground, W, 3);
+}
+
+// ============================================================================================
+// Win-screen facts: a filtered subset of research/trivia-bank.json (confirmed items only).
+// [id, question, answer, explanation, source] — see research/town-content.md section 8.
+// ============================================================================================
+const FACTS = [
+  ["hs-0002","How many years older is the 1832 Hot Springs Reservation than Yellowstone National Park?","40 years","NPS calls Hot Springs the oldest current park unit, reserved 40 years before Yellowstone (1872).","NPS: History & Culture"],
+  ["hs-0003","Which president sent William Dunbar and George Hunter to explore the Ouachita country and its hot springs?","Thomas Jefferson","It was one of four Jefferson-commissioned expeditions into the Louisiana Purchase.","Encyclopedia of Arkansas: Hunter-Dunbar Expedition"],
+  ["hs-0018","An 1877 Iron Mountain railroad booklet promoted Hot Springs by comparing it to which German spa?","Baden-Baden","\"The Hot Springs of Arkansas, America's Baden-Baden\" was the first booklet advertising the town.","NPS: Getting to the American Spa"],
+  ["hs-0022","How many baths made up a standard prescribed \"course\" at Hot Springs in 1920?","21","A 21-bath course cost $9–$15 in 1920.","NPS 1920 brochure"],
+  ["hs-0026","What started Hot Springs' Great Fire of Sept. 5, 1913?","Ironing that set a curtain alight","It began in Ulma Madlock's Church Street home; ADG blames a stove heating irons.","Encyclopedia of Arkansas: Fire of 1913"],
+  ["hs-0030","Which kind of roof did Hot Springs outlaw after the 1913 fire?","Wood-shingle roofs","The town also doubled its fire department.","Encyclopedia of Arkansas: Fire of 1913"],
+  ["hs-0033","On what date did the Hot Springs Reservation become Hot Springs National Park?","March 4, 1921","The reservation became a national park on March 4, 1921, five years after the NPS was created.","NPS: History & Culture"],
+  ["hs-0034","When Hot Springs became a national park in 1921, it was the nation's national park number what?","18th","It was designated the 18th national park on March 4, 1921.","NPS: History & Culture"],
+  ["hs-0053","Which national park appeared on the first quarter in the America the Beautiful series, released in 2010?","Hot Springs National Park","The Hot Springs quarter was released April 19, 2010.","Encyclopedia of Arkansas: Hot Springs National Park"],
+  ["hs-0056","How many known archeological sites does Hot Springs National Park contain?","92","They include prehistoric novaculite quarries, campsites and cemeteries.","NPS: History & Culture"],
+  ["hs-0057","Whose life-size statue stands in the men's bath hall of the Fordyce Bathhouse?","Hernando de Soto","Despite the discredited legend, a de Soto statue stands under the Fordyce's stained-glass skylight.","Encyclopedia of Arkansas: Bathhouse Row"],
+  ["hs-0058","In what year did the first Arlington Hotel open in Hot Springs?","1875","The first Arlington, financed by Samuel Fordyce and partners, was the state's largest hotel.","Arlington Hotel: History"],
+  ["hs-0061","Which is the oldest surviving bathhouse on Hot Springs' Bathhouse Row?","The Hale","The Hale dates to 1892–93; the others date from 1911–1923.","Encyclopedia of Arkansas: Bathhouse Row"],
+  ["hs-0062","Which Bathhouse Row bathhouse has offered baths continuously since 1912?","The Buckstaff","The Buckstaff was the only Row bathhouse still operating after 1985.","Encyclopedia of Arkansas: Bathhouse Row"],
+  ["hs-0064","What did the Fordyce Bathhouse cost to build in 1914–15, including fixtures?","$212,749.55","The Fordyce was the Row's most luxurious house.","Wikipedia: Bathhouse Row"],
+  ["hs-0065","Which fountain sits beneath the Fordyce Bathhouse's stained-glass skylight?","The DeSoto Fountain","Condi-Neal Glass of St. Louis installed the skylight's sea-themed glass in 1914–15.","Wikipedia: Bathhouse Row"],
+  ["hs-0066","What color are the tile medallions on the Superior Bathhouse facade?","Green","Concrete on the facade is painted to imitate ornamental tile.","Wikipedia: Bathhouse Row"],
+  ["hs-0070","What bronze figures guard Bathhouse Row's 1890s main entrance?","Two federal eagles","Army engineer Robert Stevens designed the entrance and balustrade.","Wikipedia: Bathhouse Row"],
+  ["hs-0076","How long did it take to build the current (third) Arlington Hotel after the 1923 fire?","11 months and 3 days","Begun Oct. 25, 1923, it was completed Nov. 28, 1924.","Arlington Hotel: History"],
+  ["hs-0077","Which bathhouse's 1923 opening completed Hot Springs' Bathhouse Row?","The Lamar","The Lamar opened in 1923 and stopped bathing in November 1985.","NPS: History & Culture"],
+  ["hs-0082","Which Bathhouse Row bathhouse is crowned by a large tiled dome?","The Quapaw","Its chevron-mosaic dome is topped by a small copper cupola.","Wikipedia: Bathhouse Row"],
+  ["hs-0084","Which fish decorates the parapets of Hot Springs' Quapaw Bathhouse?","Sculpin","Scalloped shells frame the sculpin, originally gold and now white.","Wikipedia: Bathhouse Row"],
+  ["hs-0085","Which Bathhouse Row bathhouse has twin towers with three-tiered setbacks?","The Ozark","The 1922 Spanish Colonial Revival design has a vague Art Deco look.","Wikipedia: Bathhouse Row"],
+  ["hs-0088","What material did William Jacobs add to the Southern Club's front in 1927, helping hide the gambling?","Dark Pittsburgh glass","Capone reportedly played poker there at an elevated table.","Encyclopedia of Arkansas: Southern Club"],
+  ["hs-0093","Which Bathhouse Row building houses Hot Springs National Park's visitor center and museum?","The Fordyce","The Fordyce reopened as the visitor center on May 13, 1989.","Encyclopedia of Arkansas: Hot Springs National Park"],
+  ["hs-0094","How tall is the Hot Springs Mountain Tower?","216 feet","The steel lattice tower opened June 3, 1983, replacing a 165-ft tower.","Wikipedia: Hot Springs Mountain Tower"],
+  ["hs-0102","Which Bathhouse Row bathhouse now houses a brewery and distillery?","The Superior","Superior Bathhouse Brewery opened in the 1916 building in 2012.","Wikipedia: Hot Springs, Arkansas"],
+  ["hs-0109","How many historic bathhouses stand on Hot Springs' Bathhouse Row?","Eight","Superior, Hale, Maurice, Fordyce, Quapaw, Ozark, Buckstaff and Lamar line Central Avenue.","Wikipedia: Bathhouse Row"],
+  ["hs-0112","How many Arlington Hotels have stood on the same Hot Springs site?","Three","They date from 1875, 1892–93 and 1924.","Wikipedia: Arlington Hotel"],
+  ["hs-0117","Which creek flows through a tunnel beneath Hot Springs' Bathhouse Row?","Hot Springs Creek","It was enclosed in an underground arch in 1882–83.","Wikipedia: Hot Springs, Arkansas"],
+  ["hs-0121","Which dam formed Lake Hamilton, and when was it completed?","Carpenter Dam, 1931","Arkansas Power & Light built the concrete gravity dam; the lake formed in 1932.","Wikipedia: Lake Hamilton"],
+  ["hs-0127","About how many islands does Lake Ouachita have?","About 200","Numbered island markers help boaters navigate.","Wikipedia: Lake Ouachita"],
+  ["hs-0143","What does the name of novaculite, the Ouachita whetstone rock, mean in Latin?","Razor stone","Novaculite takes its name from the Latin for \"razor stone.\"","Encyclopedia of Arkansas: Novaculite"],
+  ["hs-0144","What two industry grades are Garland County novaculite whetstones sold as?","Washita and Arkansas","\"Washita\" is duller and porous; \"Arkansas\" is finer-grained, waxy and denser.","Encyclopedia of Arkansas: Novaculite"],
+  ["hs-0145","About how old is most Hot Springs thermal water, per USGS tritium and carbon-14 dating?","About 4,400 years","Rain falls, sinks deep, heats and returns as spring water about 4,400 years later.","USGS Professional Paper 1044-C (NPS History)"],
+  ["hs-0146","Per the National Park Service, about how much water do the Hot Springs thermal springs produce per day?","Over 700,000 gallons","NPS says over 700,000 gallons; other sources give up to about 1 million.","NPS: Maurice Historic Display Spring"],
+  ["hs-0147","What is the average temperature of Hot Springs' thermal spring water?","About 143°F","NPS calls them the hottest springs east of the Rocky Mountains.","NPS: Maurice Historic Display Spring"],
+  ["hs-0148","How many thermal springs is Hot Springs National Park usually said to have?","47","Wikipedia's park article says 43 are presumed still flowing.","Britannica: Hot Springs National Park"],
+  ["hs-0154","NPS calls the Hot Springs thermal springs the hottest east of what landmark?","The Rocky Mountains","The springs average about 143°F (62°C).","NPS: Maurice Historic Display Spring"],
+  ["hs-0156","What is the white-to-tan rock deposited around Hot Springs' spring openings called?","Tufa (travertine)","Tufa forms as minerals precipitate from evaporating thermal water.","Wikipedia: Hot Springs National Park"],
+  ["hs-0168","What is unusual about the direction of the Ouachita Mountains around Hot Springs?","They run east–west","Most U.S. ranges trend north–south.","Wikipedia: Ouachita Mountains"],
+  ["hs-0170","Which oak grows naturally at only four sites in the world, all in the Ouachita Mountains?","Maple-leaf oak","It is one of several Ouachita endemic plants.","Wikipedia: Ouachita Mountains"],
+  ["hs-0171","In what city is the Ouachita National Forest headquartered?","Hot Springs","The forest covers about 1.78 million acres.","Wikipedia: Ouachita National Forest"],
+  ["hs-0348","Which Hot Springs bottled water brand dates to 1871?","Mountain Valley Spring Water","Mountain Valley's headquarters and museum are on Central Avenue.","Mountain Valley Spring Co.: History"],
+  ["hs-0352","Which famous Hot Springs barbecue restaurant was founded in 1928?","McClard's Bar-B-Q","It began at Alex and Gladys McClard's Westside Tourist Court.","Encyclopedia of Arkansas: McClard's Bar-B-Q"],
+  ["hs-0363","What special water does Hot Springs' Superior Bathhouse Brewery brew its beer with?","Thermal hot-spring water","NPS pipes the water to the brewery.","Arkansas Tourism: Superior Bathhouse Brewery"],
+  ["hs-0378","What do teams push in a race down Hot Springs' Central Avenue each year?","Bathtubs","Spectators throw water balloons at the Running of the Tubs.","Visit Hot Springs: Running of the Tubs"],
+  ["hs-0399","In what year was the Arkansas Alligator Farm in Hot Springs founded?","1902","EOA calls it Hot Springs' oldest still-operating attraction.","Wikipedia: Hot Springs, Arkansas"],
+  ["hs-0401","Which radio comedy team got its start on Hot Springs station KTHS?","Lum and Abner","KTHS mostly aired live big-band music from hotel ballrooms.","Encyclopedia of Arkansas: KTHS Radio Station"],
+  ["hs-0402","Which Hot Springs radio station's call letters stood for \"Kum (or Kome) To Hot Springs\"?","KTHS","Sources disagree on the spelling of \"come\" in the slogan.","Encyclopedia of Arkansas: KTHS Radio Station"],
+  ["hs-0474","How did railroad builder Joseph \"Diamond Jo\" Reynolds get his nickname?","He marked shipments \"Jo\" inside a diamond","His diamond mark became the name of the Diamond Jo Line.","Encyclopedia of Arkansas: Hot Springs Railroad"],
+  ["hs-0490","Which organization named Hot Springs' Bridge Street the shortest street in everyday use in the 1940s?","Ripley's Believe It or Not","Ripley's gave the title in the 1940s.","AP via Las Vegas Sun (2025)"]
+];
+
+// ============================================================================================
+// 8. Layout
+// ============================================================================================
+const stage = $('#stage'), cv = $('#cv'), tcv = $('#tbl');
+const ctx = cv.getContext('2d'), tctx = tcv.getContext('2d');
+let W = 0, H = 0, DPR = 1, L = null, tableDirty = true;
+let held = null, drag = null, cascade = null, cursor = { pile: null, depth: 0 }, kbMode = false;
+let modalKind = null, titleOn = false;
+const D = [];  // per-uid display state {x,y,sx,sy,tx,ty,t0,dur,up,f0}
+
+function topSlots() {
+  const lh = settings.leftHanded; const n = (k, p) => Array.from({ length: k }, (_, i) => p + i);
+  switch (S.mode) {
+    case 'klondike': return lh ? ['stock', 'waste', null, ...n(4, 'f')] : [...n(4, 'f'), 'waste', null, 'stock'];
+    case 'freecell': return lh ? [...n(4, 'f'), ...n(4, 'c')] : [...n(4, 'c'), ...n(4, 'f')];
+    case 'spider': return lh ? ['stock', null, ...n(8, 'f')] : [...n(8, 'f'), null, 'stock'];
+    default: return lh ? [...n(4, 'f'), null, null, null] : [null, null, null, ...n(4, 'f')];
+  }
+}
+function computeLayout() {
+  const d = def(), cols = d.cols, mobile = W < 560;
+  const margin = mobile ? 6 : Math.max(12, Math.round(W * .018));
+  const size = settings.cardSize;
+  const gr = size === 'large' ? (mobile ? .05 : .08) : size === 'compact' ? .18 : (mobile ? .09 : .14);
+  const widthFit = (W - 2 * margin) / (cols + (cols - 1) * gr);
+  const hFit = (H - 2 * margin) / (1.4 * 4.3);
+  const base = Math.min(widthFit, hFit, 140);
+  let cw = size === 'compact' ? base * .84 : size === 'large' ? Math.min(widthFit, base * 1.14) : base;
+  cw = Math.max(24, Math.floor(cw));
+  const ch = Math.round(cw * 1.4);
+  const gap = cols > 1 ? Math.min((W - 2 * margin - cols * cw) / (cols - 1), cw * .3) : 0;
+  const rowW = cols * cw + (cols - 1) * gap, x0 = Math.round((W - rowW) / 2);
+  const slotX = (i) => Math.round(x0 + i * (cw + gap));
+  const topY = margin, tabY = Math.round(margin + ch + Math.max(8, ch * .14));
+  const piles = {};
+  topSlots().forEach((id, i) => { if (id) piles[id] = { x: slotX(i), y: topY }; });
+  for (let i = 0; i < cols; i++) piles['t' + i] = { x: slotX(i), y: tabY };
+  const largeIdx = size === 'large' || cw < 58;
+  return { cw, ch, gap, margin, piles, bottom: H - margin, largeIdx, fanUp: ch * (largeIdx ? .31 : .25), fanDown: ch * .14 };
+}
+// Target position for every card in the current state.
+function computeTargets() {
+  const T = []; const { cw, ch } = L;
+  for (const id in S.piles) {
+    const p = S.piles[id], b = L.piles[id]; if (!b) continue;
+    const k = kindOf(id); const bm = b; bm.cards = [];
+    if (k === 'tab') {
+      let nd = 0, nu = 0; for (let i = 0; i < p.length - 1; i++) S.up[p[i]] ? nu++ : nd++;
+      let dd = L.fanDown, fu = L.fanUp; const avail = L.bottom - b.y - ch;
+      if (nd * dd + nu * fu > avail) {
+        dd = Math.max(ch * .05, Math.min(dd, dd * avail / (nd * dd + nu * fu)));
+        if (nd * dd + nu * fu > avail && nu) fu = Math.max(ch * .1, (avail - nd * dd) / nu);
+      }
+      let y = b.y;
+      p.forEach((u, i) => { T[u] = { x: b.x, y }; bm.cards.push({ x: b.x, y, w: cw, h: ch, up: S.up[u] }); y += S.up[u] ? fu : dd; });
+      b.zoneH = (p.length ? bm.cards[bm.cards.length - 1].y - b.y : 0) + ch;
+    } else if (k === 'waste') {
+      const fanN = S.opts.draw === 3 ? 3 : 1; const start = Math.max(0, p.length - fanN);
+      p.forEach((u, i) => { const off = i >= start ? (i - start) * cw * .27 : 0; T[u] = { x: b.x + off, y: b.y }; bm.cards.push({ x: b.x + off, y: b.y, w: cw, h: ch, up: true }); });
+      b.zoneH = ch;
+    } else if (k === 'stock' && S.mode === 'spider') {
+      const dir = settings.leftHanded ? 1 : -1;
+      p.forEach((u, i) => { const g = Math.floor(i / 10); const x = b.x + dir * g * cw * .14; T[u] = { x, y: b.y }; bm.cards.push({ x, y: b.y, w: cw, h: ch, up: false }); });
+      b.zoneH = ch;
+    } else {
+      p.forEach((u) => { T[u] = { x: b.x, y: b.y }; bm.cards.push({ x: b.x, y: b.y, w: cw, h: ch, up: S.up[u] }); });
+      b.zoneH = ch;
+    }
+  }
+  return T;
+}
+let targets = [];
+const ease = (t) => 1 - Math.pow(1 - t, 3);
+function dispPos(u, t) {
+  const d = D[u]; if (!d) return null;
+  if (t < d.t0) return { x: d.sx, y: d.sy };
+  if (t >= d.t0 + d.dur) return { x: d.tx, y: d.ty };
+  const e = ease((t - d.t0) / d.dur); return { x: d.sx + (d.tx - d.sx) * e, y: d.sy + (d.ty - d.sy) * e };
+}
+function relayout(instant) {
+  if (!S || !W) return;
+  L = computeLayout(); targets = computeTargets();
+  const t = now(), rm = reducedMotion();
+  for (let u = 0; u < S.cards.length; u++) {
+    const T = targets[u]; if (!T) continue;
+    let d = D[u];
+    if (!d || instant) { D[u] = { x: T.x, y: T.y, sx: T.x, sy: T.y, tx: T.x, ty: T.y, t0: 0, dur: 0, up: S.up[u], f0: -1e9 }; continue; }
+    const delay = animDelay[u] || 0;
+    if (Math.abs(d.tx - T.x) > .5 || Math.abs(d.ty - T.y) > .5) {
+      const p = dispPos(u, t); const dist = Math.hypot(T.x - p.x, T.y - p.y);
+      d.sx = p.x; d.sy = p.y; d.tx = T.x; d.ty = T.y; d.t0 = t + (rm ? 0 : delay); d.dur = rm ? 0 : clamp(140 + dist * .25, 160, 340);
+    }
+    if (d.up !== S.up[u]) { d.up = S.up[u]; d.f0 = rm ? -1e9 : t + delay; }
+  }
+  animDelay = {};
+  startLoop();
+}
+function dealAnimation() {
+  relayout(true);
+  if (reducedMotion()) { markDirty(); return; }
+  const t = now(); const src = L.piles.stock || { x: W / 2 - L.cw / 2, y: -L.ch * 1.4 };
+  const order = [];
+  const tabs = []; for (let i = 0; i < def().cols; i++) tabs.push(S.piles['t' + i]);
+  const maxLen = Math.max(...tabs.map((p) => p.length));
+  for (let r = 0; r < maxLen; r++) for (const p of tabs) if (p[r] != null) order.push(p[r]);
+  const step = order.length > 60 ? 13 : 20;
+  order.forEach((u, i) => { const d = D[u]; d.sx = src.x; d.sy = src.y; d.t0 = t + i * step; d.dur = 200; if (S.up[u]) d.f0 = d.t0 + 120; });
+  startLoop();
+}
+
+// ============================================================================================
+// 9. Rendering
+// ============================================================================================
+const sprites = new Map();
+function sprite(key, draw) {
+  let c = sprites.get(key);
+  if (!c) {
+    c = document.createElement('canvas'); c.width = Math.ceil(L.cw * DPR); c.height = Math.ceil(L.ch * DPR);
+    const g = c.getContext('2d'); g.scale(DPR, DPR); draw(g, L.cw, L.ch); sprites.set(key, c);
+  }
+  return c;
+}
+const faceSprite = (u) => { const c = card(u); return sprite('f' + c.s + c.r + (settings.fourColor ? 'q' : '') + (L.largeIdx ? 'L' : ''), (g, w, h) => drawFace(g, c, w, h, L.largeIdx)); };
+const backSprite = () => sprite('b' + settings.back + settings.deckSeed, (g, w, h) => drawBack(g, settings.back, w, h, settings.deckSeed));
+const tableInfo = () => TABLES.find((t) => t.id === settings.table) || TABLES[0];
+
+let rafId = 0, steam = [], shakes = {};
+function startLoop() { if (!rafId) rafId = requestAnimationFrame(loop); }
+const markDirty = startLoop;
+function tweensActive(t) {
+  if (!S) return false;
+  for (let u = 0; u < S.cards.length; u++) { const d = D[u]; if (d && (t < d.t0 + d.dur || t < d.f0 + 170)) return true; }
+  return false;
+}
+function loop() {
+  rafId = 0; const t = now();
+  frame(t);
+  if (tweensActive(t) || drag || cascade || steam.length || Object.keys(shakes).length || (hintState && hintState.until > t)) rafId = requestAnimationFrame(loop);
+}
+function drawTableLayer() {
+  tctx.setTransform(DPR, 0, 0, DPR, 0, 0); drawTable(tctx, settings.table, W, H); tableDirty = false;
+}
+function placeholder(id, b) {
+  const { cw, ch } = L; const ti = tableInfo(); const k = kindOf(id);
+  rrect(ctx, b.x + 1, b.y + 1, cw - 2, ch - 2, cw * .075);
+  ctx.lineWidth = Math.max(1.2, cw * .02); ctx.strokeStyle = ti.ink; ctx.setLineDash(k === 'cell' ? [cw * .08, cw * .06] : []); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = ti.ink; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (k === 'found' && !def().runs) { ctx.font = '700 ' + cw * .36 + 'px ' + SERIF; ctx.fillText('A', b.x + cw / 2, b.y + ch / 2); }
+  else if (k === 'found') { drawSuit(ctx, 3, b.x + cw / 2, b.y + ch / 2, cw * .32, ti.ink); }
+  else if (k === 'tab' && def().empty === 'king') { ctx.font = '700 ' + cw * .36 + 'px ' + SERIF; ctx.fillText('K', b.x + cw / 2, b.y + ch / 2); }
+  else if (k === 'stock' && S.mode === 'klondike' && S.piles.waste.length) {
+    ctx.lineWidth = cw * .05; ctx.beginPath(); ctx.arc(b.x + cw / 2, b.y + ch / 2, cw * .2, -Math.PI * .4, Math.PI * 1.35); ctx.stroke();
+    ctx.beginPath(); const ax = b.x + cw / 2 + Math.cos(-Math.PI * .4) * cw * .2, ay = b.y + ch / 2 + Math.sin(-Math.PI * .4) * cw * .2;
+    ctx.moveTo(ax + cw * .1, ay - cw * .02); ctx.lineTo(ax - cw * .02, ay - cw * .1); ctx.lineTo(ax - cw * .01, ay + cw * .08); ctx.closePath(); ctx.fill();
+  }
+}
+function drawCardAt(u, x, y, t, lifted) {
+  const { cw, ch } = L; const d = D[u];
+  let showUp = S.up[u], sx = 1;
+  if (d && t < d.f0 + 170 && t >= d.f0) { const p = (t - d.f0) / 170; sx = Math.abs(Math.cos(p * Math.PI)); showUp = p >= .5 ? S.up[u] : !S.up[u]; }
+  else if (d && t < d.f0) showUp = !S.up[u];
+  const sh = shakes[u]; if (sh) { const p = (t - sh) / 260; if (p >= 1) delete shakes[u]; else x += Math.sin(p * Math.PI * 6) * (1 - p) * cw * .06; }
+  const img = showUp ? faceSprite(u) : backSprite();
+  x = Math.round(x * DPR) / DPR; y = Math.round(y * DPR) / DPR;
+  if (lifted) { ctx.fillStyle = 'rgba(0,0,0,.28)'; rrect(ctx, x + cw * .04, y + cw * .06, cw, ch, cw * .075); ctx.fill(); }
+  if (sx < .999) ctx.drawImage(img, x + cw * (1 - sx) / 2, y, cw * Math.max(.02, sx), ch);
+  else ctx.drawImage(img, x, y, cw, ch);
+}
+function glowRect(x, y, w, h, color, alpha, width) {
+  ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = width; ctx.shadowColor = color; ctx.shadowBlur = 10;
+  rrect(ctx, x - 2, y - 2, w + 4, h + 4, L.cw * .09); ctx.stroke(); ctx.restore();
+}
+function frame(t) {
+  if (!S || !L) return;
+  if (tableDirty) drawTableLayer();
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
+  const { cw, ch } = L;
+  for (const id in L.piles) placeholder(id, L.piles[id]);
+  const skip = new Set();
+  if (drag) for (const u of drag.run) skip.add(u);
+  if (cascade) for (const u of cascade.gone) skip.add(u);
+  const moving = [];
+  for (const id of pileIds(S.mode)) {
+    for (const u of S.piles[id]) {
+      if (skip.has(u)) continue;
+      const d = D[u]; if (!d) continue;
+      if (t < d.t0 + d.dur && (d.sx !== d.tx || d.sy !== d.ty)) { moving.push(u); continue; }
+      drawCardAt(u, d.tx, d.ty, t);
+    }
+  }
+  moving.sort((a, b) => D[a].t0 - D[b].t0);
+  for (const u of moving) { const p = dispPos(u, t); drawCardAt(u, p.x, p.y, t, t >= D[u].t0); }
+  if (S.mode === 'spider' && L.piles.stock && S.piles.stock.length) {
+    const b = L.piles.stock, n = S.piles.stock.length / 10;
+    ctx.fillStyle = 'rgba(20,18,31,.82)'; const bw = cw * .42, bh = cw * .3; rrect(ctx, b.x + cw - bw - 3, b.y + ch - bh - 3, bw, bh, bh / 2); ctx.fill();
+    ctx.fillStyle = '#F4F2EC'; ctx.font = '700 ' + bh * .66 + 'px ' + DECO; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(n), b.x + cw - bw / 2 - 3, b.y + ch - bh / 2 - 2);
+  }
+  // hint glow
+  if (hintState && hintState.until > t) {
+    const a = .55 + .45 * Math.sin(t / 140);
+    if (hintState.cur) {
+      const m = hintState.cur; const src = L.piles[m.from].cards; const first = src[m.index]; const last = src[src.length - 1];
+      if (first) glowRect(first.x, first.y, cw, last.y + ch - first.y, '#F6C933', a, 3);
+      const dst = L.piles[m.to]; const dl = dst.cards.length ? dst.cards[dst.cards.length - 1] : { x: dst.x, y: dst.y };
+      glowRect(dl.x, dl.y, cw, ch, '#4FC3FF', a, 3);
+    } else if (hintState.stockHint && L.piles.stock) glowRect(L.piles.stock.x, L.piles.stock.y, cw, ch, '#F6C933', a, 3);
+  }
+  // keyboard: held cards lift, cursor ring
+  if (held) {
+    const cs = L.piles[held.from].cards;
+    for (let i = held.index; i < cs.length; i++) { /* drawn lifted below */ }
+    const first = cs[held.index]; if (first) glowRect(first.x, first.y, cw, cs[cs.length - 1].y + ch - first.y, '#F6C933', 1, 3);
+  }
+  if (kbMode && cursor.pile && L.piles[cursor.pile]) {
+    const b = L.piles[cursor.pile]; const c = b.cards[cursor.depth] || b.cards[b.cards.length - 1] || { x: b.x, y: b.y };
+    const hgt = b.cards.length && kindOf(cursor.pile) === 'tab' ? b.cards[b.cards.length - 1].y + ch - c.y : ch;
+    ctx.save(); ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 3; ctx.setLineDash([6, 4]); rrect(ctx, c.x - 4, c.y - 4, cw + 8, hgt + 8, cw * .1); ctx.stroke();
+    ctx.strokeStyle = '#1F2A24'; ctx.lineDashOffset = 5; ctx.stroke(); ctx.restore();
+  }
+  if (drag) drag.run.forEach((u, i) => drawCardAt(u, drag.x, drag.y + i * (drag.fan || 0), t, true));
+  drawSteam(t);
+  if (cascade) drawCascade(t);
+}
+function shake(id, idx) {
+  if (reducedMotion() || !S.piles[id]) return; const t = now();
+  for (const u of S.piles[id].slice(Math.max(0, idx))) shakes[u] = t;
+  startLoop();
+}
+function steamBurst() {
+  if (reducedMotion() || !L) return; const t = now(); const src = L.piles.stock || { x: W / 2, y: L.margin };
+  for (let i = 0; i < 14; i++) steam.push({ x: src.x + L.cw * (.2 + Math.random() * .6), y: src.y + L.ch * .6, r: L.cw * (.08 + Math.random() * .1), t0: t + i * 40, life: 900 + Math.random() * 500, vx: (Math.random() - .5) * 30 });
+  startLoop();
+}
+function drawSteam(t) {
+  if (!steam.length) return;
+  steam = steam.filter((p) => t < p.t0 + p.life);
+  for (const p of steam) {
+    if (t < p.t0) continue; const k = (t - p.t0) / p.life;
+    ctx.fillStyle = 'rgba(255,255,255,' + (.16 * (1 - k)) + ')'; ctx.beginPath();
+    ctx.arc(p.x + p.vx * k + Math.sin(k * 6 + p.r) * 6, p.y - k * L.ch * 1.1, p.r * (1 + k * 1.6), 0, 7); ctx.fill();
+  }
+}
+
+// ============================================================================================
+// 10. Win cascade: cards tumble down tufa terraces (an original take on the thermal cascade)
+// ============================================================================================
+function startCascade() {
+  if (!S) return;
+  if (reducedMotion()) { openModal('win'); return; }
+  const order = [];
+  const f = []; for (let i = 0; i < def().found; i++) f.push(S.piles['f' + i].slice());
+  let any = true; while (any) { any = false; for (const p of f) if (p.length) { order.push(p.pop()); any = true; } }
+  cascade = { t0: now(), last: now(), order, launched: 0, parts: [], gone: new Set(), puffs: [], levels: [H * .5, H * .68, H * .86] };
+  startLoop();
+}
+function drawTerraces(alpha) {
+  const lob = Math.max(46, L.cw * .9);
+  cascade.levels.forEach((ly, li) => {
+    for (let i = -1; i * lob < W + lob; i++) {
+      const x = i * lob + (li % 2) * lob / 2;
+      const g = ctx.createLinearGradient(0, ly - 6, 0, ly + 30); g.addColorStop(0, 'rgba(200,195,182,' + alpha + ')'); g.addColorStop(1, 'rgba(154,150,140,' + alpha * .9 + ')');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, ly + 22, lob * .6, 26, 0, Math.PI, 2 * Math.PI); ctx.fill();
+      ctx.strokeStyle = 'rgba(127,200,184,' + alpha + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, ly + 22, lob * .6, 26, 0, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+      ctx.fillStyle = 'rgba(47,143,91,' + alpha + ')'; ctx.fillRect(x - lob * .5, ly + 21, lob, 2);
+    }
+  });
+}
+function drawCascade(t) {
+  const c = cascade; const dt = Math.min(.05, (t - c.last) / 1000); c.last = t;
+  const el = t - c.t0; const sc = H / 800; const { cw, ch } = L;
+  drawTerraces(Math.min(1, el / 350) * .92);
+  while (c.launched < c.order.length && el > c.launched * 48) {
+    const u = c.order[c.launched++]; const p = D[u] ? { x: D[u].tx, y: D[u].ty } : { x: W / 2, y: 0 };
+    const dir = p.x + cw / 2 < W / 2 ? 1 : -1;
+    c.parts.push({ u, x: p.x, y: p.y, vx: dir * (90 + Math.random() * 260) * sc * (Math.random() < .25 ? -1 : 1), vy: -(160 + Math.random() * 320) * sc, rot: 0, vr: (Math.random() - .5) * 4, level: 0 });
+    c.gone.add(u);
+  }
+  const g = 2100 * sc;
+  for (const p of c.parts) {
+    p.vy += g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+    if (p.x < -cw * .3) { p.x = -cw * .3; p.vx = Math.abs(p.vx); } if (p.x > W - cw * .7) { p.x = W - cw * .7; p.vx = -Math.abs(p.vx); }
+    if (p.level < 3 && p.vy > 0 && p.y + ch > c.levels[p.level] + 8) {
+      p.y = c.levels[p.level] + 8 - ch; p.vy = -p.vy * .42; p.vx *= .85; p.level++;
+      if (c.puffs.length < 60) c.puffs.push({ x: p.x + cw / 2, y: c.levels[p.level - 1] + 6, t0: t });
+    }
+  }
+  c.parts = c.parts.filter((p) => p.y < H + ch * 1.5);
+  for (const p of c.parts) {
+    ctx.save(); ctx.translate(p.x + cw / 2, p.y + ch / 2); ctx.rotate(p.rot * .25);
+    ctx.drawImage(faceSprite(p.u), -cw / 2, -ch / 2, cw, ch); ctx.restore();
+  }
+  c.puffs = c.puffs.filter((q) => t - q.t0 < 900);
+  for (const q of c.puffs) { const k = (t - q.t0) / 900; ctx.fillStyle = 'rgba(255,255,255,' + .35 * (1 - k) + ')'; ctx.beginPath(); ctx.arc(q.x + Math.sin(k * 5) * 8, q.y - k * 60 * sc, 10 + k * 26, 0, 7); ctx.fill(); }
+  if ((c.launched >= c.order.length && !c.parts.length) || el > 3400) endCascade();
+}
+function endCascade() {
+  if (!cascade) return; cascade = null; markDirty(); openModal('win');
+}
+
+// ============================================================================================
+// 11. Input: pointer (mouse, pen, touch) and keyboard
+// ============================================================================================
+function ptr(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+function hitTest(x, y) {
+  if (!L) return null;
+  const order = pileIds(S.mode);
+  for (const id of order) {
+    const b = L.piles[id]; if (!b) continue; const cs = b.cards;
+    for (let i = cs.length - 1; i >= 0; i--) { const c = cs[i]; if (x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.h) return { pile: id, index: i }; }
+    if (x >= b.x && x <= b.x + L.cw && y >= b.y && y <= b.y + L.ch) return { pile: id, index: -1 };
+  }
+  return null;
+}
+let pd = null;
+cv.addEventListener('pointerdown', (e) => {
+  initAudio(); kbMode = false; kbClass(); cv.focus({ preventScroll: true });
+  if (cascade) { endCascade(); return; }
+  if (!S || S.won || e.button > 0) return;
+  const p = ptr(e); const hit = hitTest(p.x, p.y);
+  held = null;
+  pd = { x: p.x, y: p.y, hit, id: e.pointerId, touch: e.pointerType !== 'mouse' };
+  try { cv.setPointerCapture(e.pointerId); } catch (_) { /* capture is optional */ }
+  e.preventDefault();
+});
+cv.addEventListener('pointermove', (e) => {
+  if (!pd || pd.id !== e.pointerId) return;
+  const p = ptr(e);
+  if (!drag) {
+    const dist = Math.hypot(p.x - pd.x, p.y - pd.y);
+    if (dist < (pd.touch ? 10 : 6) || !pd.hit || pd.hit.index < 0) return;
+    const { pile, index } = pd.hit;
+    if (!canPick(pile, index)) { pd.hit = null; return; }
+    const c = L.piles[pile].cards[index]; const cs = L.piles[pile].cards;
+    drag = { from: pile, index, run: S.piles[pile].slice(index), ox: pd.x - c.x, oy: pd.y - c.y, x: c.x, y: c.y,
+      fan: cs.length > index + 1 ? cs[index + 1].y - c.y : 0 };
+    sfx('pick');
+  }
+  drag.x = p.x - drag.ox; drag.y = p.y - drag.oy; markDirty();
+});
+function finishDrag() {
+  const dr = drag; drag = null;
+  const { cw, ch } = L; let best = null, bestA = 0;
+  for (const id in L.piles) {
+    if (id === dr.from || !canDrop(dr.run, id, dr.from)) continue;
+    const b = L.piles[id]; const zx = b.x, zy = b.y, zh = b.zoneH || ch;
+    const ix = Math.max(0, Math.min(dr.x + cw, zx + cw) - Math.max(dr.x, zx)), iy = Math.max(0, Math.min(dr.y + ch, zy + zh) - Math.max(dr.y, zy));
+    if (ix * iy > bestA) { bestA = ix * iy; best = id; }
+  }
+  dr.run.forEach((u, i) => { const d = D[u]; d.sx = d.x = dr.x; d.sy = d.y = dr.y + i * dr.fan; d.tx = d.sx; d.ty = d.sy; });
+  const t = now();
+  if (best) { tryMove(dr.from, dr.index, best); }
+  else { sfx('nope'); }
+  // tween every dragged card from where it was dropped to its (new or old) home
+  dr.run.forEach((u) => { const d = D[u], T = targets[u]; if (!T) return; d.tx = T.x; d.ty = T.y; d.t0 = t; d.dur = reducedMotion() ? 0 : 170; });
+  startLoop();
+}
+cv.addEventListener('pointerup', (e) => {
+  if (!pd || pd.id !== e.pointerId) return;
+  const hit = pd.hit; pd = null;
+  if (drag) { finishDrag(); return; }
+  if (!hit) return;
+  if (hit.pile === 'stock') { stockAction(); return; }
+  if (hit.index < 0) return;
+  tapAt(hit.pile, hit.index);
+});
+cv.addEventListener('pointercancel', () => { pd = null; if (drag) { const dr = drag; drag = null; dr.run.forEach((u) => { D[u].t0 = 0; }); relayout(); } });
+cv.addEventListener('contextmenu', (e) => e.preventDefault());
+
+function rows() {
+  const top = topSlots().filter(Boolean); const tab = []; for (let i = 0; i < def().cols; i++) tab.push('t' + i);
+  return { top, tab };
+}
+function setCursor(pile) {
+  cursor.pile = pile; const p = S.piles[pile];
+  cursor.depth = p.length ? p.length - 1 : 0;
+  announcePile(pile);
+}
+function announcePile(pile) {
+  const p = S.piles[pile]; const u = p.length ? p[cursor.depth] : -1;
+  announce(pileName(pile).replace(/^./, (c) => c.toUpperCase()) + ': ' + (u < 0 ? 'empty' : S.up[u] ? describeCard(u) + (kindOf(pile) === 'tab' && cursor.depth < p.length - 1 ? ', ' + (p.length - cursor.depth) + ' cards' : '') : p.length + ' cards face down'));
+}
+function gameKey(e) {
+  const k = e.key; const ctrl = e.ctrlKey || e.metaKey;
+  if (!S) return false;
+  if (cascade) { if (k === 'Enter' || k === ' ' || k === 'Escape') { endCascade(); return true; } return false; }
+  if (ctrl && (k === 'z' || k === 'Z')) { undo(); return true; }
+  if (ctrl && (k === 'y' || k === 'Y')) { redo(); return true; }
+  if (ctrl || e.altKey) return false;
+  const R = rows();
+  if (!cursor.pile || !S.piles[cursor.pile]) setCursor(R.tab[0]);
+  const inTop = R.top.includes(cursor.pile);
+  const row = inTop ? R.top : R.tab; const i = row.indexOf(cursor.pile);
+  const P = S.piles[cursor.pile];
+  switch (k) {
+    case 'ArrowLeft': kbMode = true; setCursor(row[(i - 1 + row.length) % row.length]); break;
+    case 'ArrowRight': kbMode = true; setCursor(row[(i + 1) % row.length]); break;
+    case 'ArrowUp':
+      kbMode = true;
+      if (!inTop && !held && P.length && cursor.depth > 0 && S.up[P[cursor.depth - 1]] && canPick(cursor.pile, cursor.depth - 1)) { cursor.depth--; announcePile(cursor.pile); }
+      else if (!inTop) { const x = L.piles[cursor.pile].x; let best = R.top[0], bd = 1e9; for (const id of R.top) { const dd = Math.abs(L.piles[id].x - x); if (dd < bd) { bd = dd; best = id; } } setCursor(best); }
+      break;
+    case 'ArrowDown':
+      kbMode = true;
+      if (inTop) { const x = L.piles[cursor.pile].x; let best = R.tab[0], bd = 1e9; for (const id of R.tab) { const dd = Math.abs(L.piles[id].x - x); if (dd < bd) { bd = dd; best = id; } } setCursor(best); }
+      else if (P.length && cursor.depth < P.length - 1) { cursor.depth++; announcePile(cursor.pile); }
+      break;
+    case 'Enter': case ' ': {
+      kbMode = true; initAudio();
+      if (held) {
+        if (held.from === cursor.pile) { held = null; announce('Put back'); break; }
+        const r = tryMove(held.from, held.index, cursor.pile);
+        if (r.ok) { held = null; setCursorAfterMove(); } else { sfx('nope'); announce('Can\'t place there'); }
+      } else if (cursor.pile === 'stock') stockAction();
+      else if (P.length && canPick(cursor.pile, cursor.depth)) { held = { from: cursor.pile, index: cursor.depth }; sfx('pick'); announce('Picked up ' + describeRun(P.slice(cursor.depth)) + '. Move to a pile and press Enter.'); }
+      else { sfx('nope'); announce('Can\'t pick that up'); }
+      break;
+    }
+    case 'Escape': if (held) { held = null; announce('Put back'); break; } openModal('menu'); break;
+    case 't': case 'T': kbMode = true; held = null; tapAt(cursor.pile, P.length ? cursor.depth : -1); setCursorAfterMove(); break;
+    case 'f': case 'F': {
+      kbMode = true; held = null; const u = top(cursor.pile); const f = u >= 0 ? foundationFor(u) : null;
+      if (f) tryMove(cursor.pile, P.length - 1, f); else { sfx('nope'); announce('No foundation move'); }
+      setCursorAfterMove(); break;
+    }
+    case 'd': case 'D': stockAction(); break;
+    case 'u': case 'U': case 'z': case 'Z': case 'Backspace': undo(); break;
+    case 'y': case 'Y': redo(); break;
+    case 'h': case 'H': hint(); break;
+    case 'a': case 'A': if (!autoComplete().ok) toast('Auto-complete is available once every card is face up and in order'); break;
+    case 'n': case 'N': newGame({ mode: S.mode }); break;
+    case '?': openModal('help'); break;
+    case 'p': case 'P': openModal('menu'); break;
+    default:
+      if (/^[0-9]$/.test(k)) { const n = k === '0' ? 9 : +k - 1; if (n < R.tab.length) { kbMode = true; setCursor(R.tab[n]); } break; }
+      return false;
+  }
+  kbClass(); markDirty(); return true;
+}
+function kbClass() { cv.classList.toggle('kb', kbMode); }
+function setCursorAfterMove() { if (cursor.pile && S.piles[cursor.pile]) { const p = S.piles[cursor.pile]; cursor.depth = Math.max(0, p.length - 1); } }
+window.addEventListener('keydown', (e) => {
+  if (modalKind) { if (e.key === 'Escape') { e.preventDefault(); if (modalKind === 'win') closeModal(); else closeModal(true); } else if (e.key === 'Tab') trapFocus(e); return; }
+  if (titleOn) return;
+  if (document.activeElement && document.activeElement !== cv && document.activeElement !== document.body && e.key !== 'Escape' && !/^[?hHuUzZnNaA]$/.test(e.key)) return;
+  if (gameKey(e)) e.preventDefault();
+});
+
+// ============================================================================================
+// 12. Audio (WebAudio synthesis; the context is created on the first user gesture)
+// ============================================================================================
+let AC = null, master = null, noiseBuf = null;
+function initAudio() {
+  if (AC || !settings.sound) return;
+  const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
+  try {
+    AC = new C(); master = AC.createGain(); master.gain.value = settings.volume; master.connect(AC.destination);
+    noiseBuf = AC.createBuffer(1, AC.sampleRate * .5, AC.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  } catch (e) { AC = null; }
+}
+function noise(t, dur, type, freq, gain, q) {
+  const s = AC.createBufferSource(); s.buffer = noiseBuf; const f = AC.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q || 1;
+  const g = AC.createGain(); g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+  s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + dur + .02); return f;
+}
+function tone(t, freq, dur, type, gain, attack) {
+  const o = AC.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, t);
+  const g = AC.createGain(); g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + (attack || .005)); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + .05); return o;
+}
+const PENTA = [0, 2, 4, 7, 9];
+function sfx(name, arg) {
+  if (!settings.sound || !AC) return;
+  if (AC.state === 'suspended') AC.resume();
+  const t = AC.currentTime;
+  switch (name) {
+    case 'pick': noise(t, .05, 'bandpass', 3200, .35, 1.2); break;
+    case 'place': noise(t, .07, 'lowpass', 1400, .5); tone(t, 170, .09, 'sine', .25); break;
+    case 'flip': noise(t, .03, 'highpass', 4200, .3); break;
+    case 'found': { const r = arg || 1; const semi = 12 * Math.floor((r - 1) / 5) + PENTA[(r - 1) % 5]; const f = 523.25 * Math.pow(2, semi / 12); tone(t, f, .5, 'triangle', .22); tone(t, f * 2, .3, 'sine', .06); noise(t, .05, 'lowpass', 1400, .3); break; }
+    case 'deal': for (let i = 0; i < 8; i++) noise(t + i * .045, .035, 'bandpass', 2600 + i * 120, .22, 1.5); break;
+    case 'nope': tone(t, 140, .14, 'square', .06); tone(t + .07, 110, .14, 'square', .05); break;
+    case 'undo': { const f = noise(t, .22, 'bandpass', 3000, .3, 2); f.frequency.exponentialRampToValueAtTime(500, t + .2); break; }
+    case 'hint': tone(t, 880, .18, 'sine', .08); tone(t + .08, 1320, .2, 'sine', .06); break;
+    case 'run': [523, 659, 784].forEach((f, i) => tone(t + i * .07, f, .4, 'triangle', .16)); break;
+    case 'win': [392, 523.25, 659.25, 783.99].forEach((f, i) => { tone(t + i * .12, f, 1.1, 'sawtooth', .05, .03); tone(t + i * .12, f, 1.2, 'triangle', .12, .02); }); noise(t + .4, 1.4, 'highpass', 2500, .12); break;
+  }
+}
+
+// ============================================================================================
+// 13. UI chrome: HUD, toast, title, dialogs
+// ============================================================================================
+const sr = $('#sr'), toastEl = $('#toast');
+function announce(msg) { sr.textContent = ''; sr.textContent = msg; }
+let toastTimer = 0;
+function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('on'), 2400); announce(msg); }
+function updateHUD() {
+  if (!S) return;
+  $('#modeName').textContent = MODES[S.mode].name + (variantLabel(S.mode, S.opts) ? ' (' + variantLabel(S.mode, S.opts) + ')' : '');
+  $('#modeSub').textContent = (S.daily ? 'Daily deal ' + S.daily : 'Deal #' + S.deal) + (S.assisted ? ' · assisted' : '');
+  $('#sScore').textContent = S.score; $('#sMoves').textContent = S.moves; updateTime();
+  $('#sTimeW').style.display = settings.showTimer ? '' : 'none';
+  $('#bUndo').disabled = !undoStack.length || S.won; $('#bRedo').disabled = !redoStack.length || S.won;
+  const ac = canAutoComplete(); const b = $('#bAuto'); b.disabled = !ac; b.classList.toggle('glow', ac);
+  $('#bHint').disabled = S.won;
+}
+function updateTime() { if (S) $('#sTime').textContent = fmtTime(S.elapsedMs); }
+setInterval(() => { tickClock(); updateTime(); }, 500);
+document.addEventListener('visibilitychange', () => { tickClock(); });
+
+$('#bNew').onclick = () => { initAudio(); newGame({ mode: S ? S.mode : 'klondike' }); };
+$('#bUndo').onclick = () => { initAudio(); undo(); };
+$('#bRedo').onclick = () => { initAudio(); redo(); };
+$('#bHint').onclick = () => { initAudio(); hint(); };
+$('#bAuto').onclick = () => { initAudio(); autoComplete(); };
+$('#bMenu').onclick = () => { initAudio(); openModal('menu'); };
+
+// --- Title screen ---
+const TILES = [
+  { mode: 'klondike', desc: 'The classic. Build down in alternating colors; draw from the stock.', chips: [['Draw 1', { draw: 1 }], ['Draw 3', { draw: 3 }]] },
+  { mode: 'freecell', desc: 'Every card face up and four free cells. Nearly every deal can be won.', chips: [['Play', {}], ['Deal #', { pick: true }]] },
+  { mode: 'spider', desc: 'Two decks. Build same-suit runs from King down to Ace.', chips: [['1 suit', { suits: 1 }], ['2 suits', { suits: 2 }], ['4 suits', { suits: 4 }]] },
+  { mode: 'yukon', desc: 'No stock: move any face-up card along with everything on top of it.', chips: [['Play', {}]] },
+];
+function buildTitle() {
+  const el = $('#tiles'); el.innerHTML = '';
+  for (const tl of TILES) {
+    const d = document.createElement('div'); d.className = 'tile';
+    d.innerHTML = '<h2>' + MODES[tl.mode].name + '</h2><p>' + tl.desc + '</p><div class="chips"></div>';
+    for (const [label, o] of tl.chips) {
+      const b = document.createElement('button'); b.className = 'chip' + (label === 'Play' || label === 'Draw 1' || label === '1 suit' ? ' solid' : '');
+      b.textContent = label; b.setAttribute('aria-label', MODES[tl.mode].name + ': ' + (o.suits ? o.suits + (o.suits > 1 ? ' suits' : ' suit') : label));
+      b.onclick = () => { initAudio(); if (o.pick) openModal('deal', { mode: tl.mode }); else newGame(Object.assign({ mode: tl.mode }, o)); };
+      d.querySelector('.chips').appendChild(b);
+    }
+    el.appendChild(d);
+  }
+  $('#tCont').onclick = () => { initAudio(); resumeSaved(); };
+  $('#tDaily').onclick = () => openModal('daily');
+  $('#tBacks').onclick = () => openModal('backs');
+  $('#tStats').onclick = () => openModal('stats');
+  $('#tSet').onclick = () => openModal('settings');
+  $('#tHelp').onclick = () => openModal('help');
+}
+let skyRaf = 0;
+const darkScheme = () => window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
+function drawSky(t) {
+  const c = $('#sky'); const w = c.clientWidth, h = c.clientHeight; if (!w) return;
+  if (c.width !== Math.round(w * DPR)) { c.width = Math.round(w * DPR); c.height = Math.round(h * DPR); }
+  const g = c.getContext('2d'); g.setTransform(DPR, 0, 0, DPR, 0, 0); drawSkyline(g, w, h, t / 1000, darkScheme());
+}
+function skyLoop(t) { skyRaf = 0; if (!titleOn) return; drawSky(t); if (!reducedMotion()) skyRaf = requestAnimationFrame(skyLoop); }
+function showTitle(on) {
+  titleOn = on; $('#title').classList.toggle('on', on);
+  if (on) {
+    $('#tCont').hidden = !loadSaved();
+    { const day = todayStr(); const n = Object.keys(meta.daily).filter((k) => k.startsWith(day + '|') && meta.daily[k] === 'won').length; $('#tDaily').textContent = 'Daily deals' + (n ? ' (' + n + '/7 ✓)' : ''); }
+    DPR = Math.min(3, window.devicePixelRatio || 1);
+    drawSky(now()); if (!skyRaf && !reducedMotion()) skyRaf = requestAnimationFrame(skyLoop);
+    setTimeout(() => { const b = $('#tCont').hidden ? $('#tiles .chip') : $('#tCont'); if (b && !modalKind) b.focus({ preventScroll: true }); }, 0);
+  } else if (!modalKind) setTimeout(() => cv.focus({ preventScroll: true }), 0);
+}
+
+// --- Dialogs ---
+const sheet = $('#sheet'), modalEl = $('#modal');
+let modalReturn = null;
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
+function closeModal(back) {
+  if (!modalKind) return;
+  const was = modalKind; modalKind = null; modalEl.classList.remove('on'); sheet.innerHTML = '';
+  clockMark = now();
+  if (back && modalReturn && modalReturn !== was) { const r = modalReturn; modalReturn = null; openModal(r); return; }
+  modalReturn = null;
+  if (titleOn) { const b = $('#tiles .chip'); if (b) b.focus({ preventScroll: true }); } else cv.focus({ preventScroll: true });
+}
+function trapFocus(e) {
+  const f = [...sheet.querySelectorAll('button, input, [tabindex="0"]')].filter((x) => !x.disabled && x.offsetParent !== null);
+  if (!f.length) return; const first = f[0], last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
+const head = (title) => '<h2 id="mT">' + title + '<button class="ib x" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></h2>';
+function openModal(kind, data) {
+  tickClock();
+  if (modalKind && kind !== modalKind && ['settings', 'backs', 'stats', 'help', 'deal', 'daily'].includes(kind) && modalKind === 'menu') modalReturn = 'menu';
+  modalKind = kind; sheet.className = 'sheet' + (kind === 'backs' || kind === 'help' ? ' wide' : '');
+  sheet.innerHTML = (MODALS[kind] || (() => ''))(data || {});
+  modalEl.classList.add('on');
+  sheet.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => closeModal(true)));
+  const binder = BIND[kind]; if (binder) binder(data || {});
+  const f = sheet.querySelector('[data-focus]') || sheet.querySelector('button:not([data-close])') || sheet.querySelector('button');
+  if (f) f.focus({ preventScroll: true });
+  sheet.scrollTop = 0;
+}
+modalEl.addEventListener('pointerdown', (e) => { if (e.target === modalEl && modalKind !== 'win') closeModal(true); });
+
+const seg = (key, opts) => '<div class="seg" role="group">' + opts.map(([v, l]) => '<button data-set="' + key + '" data-val="' + v + '" aria-pressed="' + (String(settings[key]) === String(v)) + '">' + l + '</button>').join('') + '</div>';
+const tog = (key, label) => '<button class="tog" data-tog="' + key + '" aria-pressed="' + !!settings[key] + '" aria-label="' + label + '"></button>';
+const MODALS = {
+  menu: () => head('Menu') + '<div class="menu">' +
+    '<button class="btn solid" data-a="resume" data-focus>Resume</button><button class="btn" data-a="new">New deal</button>' +
+    '<button class="btn" data-a="restart">Restart this deal</button><button class="btn" data-a="deal">Choose deal number…</button>' +
+    '<button class="btn" data-a="daily">Daily deals</button><button class="btn" data-a="title">Change game</button>' +
+    '<button class="btn" data-a="backs">Backs &amp; tables</button><button class="btn" data-a="settings">Settings</button>' +
+    '<button class="btn" data-a="stats">Statistics</button><button class="btn" data-a="help">How to play</button></div>',
+  settings: () => head('Settings') +
+    '<div class="set"><label>Sound<small>Card clicks, chimes and the win fanfare</small></label>' + tog('sound', 'Sound') + '</div>' +
+    '<div class="set"><label for="vol">Volume</label><input type="range" id="vol" min="0" max="1" step="0.05" value="' + settings.volume + '"></div>' +
+    '<div class="set"><label>Motion<small>Auto follows your system setting</small></label>' + seg('motion', [['auto', 'Auto'], ['full', 'Full'], ['reduced', 'Reduced']]) + '</div>' +
+    '<div class="set"><label>Left-handed layout<small>Stock and free cells on the left</small></label>' + tog('leftHanded', 'Left-handed layout') + '</div>' +
+    '<div class="set"><label>Card size<small>Large also enlarges the corner index</small></label>' + seg('cardSize', [['compact', 'Compact'], ['standard', 'Standard'], ['large', 'Large']]) + '</div>' +
+    '<div class="set"><label>Four-color suits<small>Blue diamonds, green clubs</small></label>' + tog('fourColor', 'Four-color suits') + '</div>' +
+    '<div class="set"><label>Auto-move to foundations<small>Safe moves only cards nothing else needs</small></label>' + seg('autoFoundation', [['off', 'Off'], ['safe', 'Safe'], ['all', 'All']]) + '</div>' +
+    '<div class="set"><label>Show timer</label>' + tog('showTimer', 'Show timer') + '</div>' +
+    '<div class="row"><button class="btn" data-a="backs">Card backs &amp; tables…</button></div>' +
+    (storageOK ? '' : '<p class="cap">Settings and stats can\'t be saved in this browser.</p>'),
+  backs: () => head('Card backs &amp; tables') + '<div class="backs" id="bkGrid">' +
+    BACKS.map((b) => '<button class="bk" data-back="' + b.id + '" aria-pressed="' + (settings.back === b.id) + '"><canvas width="168" height="236"></canvas><b>' + b.name + '</b></button>').join('') +
+    '</div><p class="cap" id="bkCap"></p><div class="row" style="margin-top:6px"><button class="btn" data-a="reseed">Reshuffle the skylight glass</button></div>' +
+    '<h3>Tables</h3><div class="backs">' + TABLES.map((t) => '<button class="bk tbl" data-table="' + t.id + '" aria-pressed="' + (settings.table === t.id) + '"><canvas width="240" height="144"></canvas><b>' + t.name + '</b></button>').join('') + '</div>' +
+    '<p class="cap">All designs are drawn in code and "inspired by" the real buildings and places; every color is an estimate.</p>',
+  stats: (d) => {
+    const k = d.key || (S ? modeKey(S.mode, S.opts) : 'klondike1'); const st = statFor(k);
+    const rowS = (a, b) => '<tr><td>' + a + '</td><td>' + b + '</td></tr>';
+    return head('Statistics') + '<div class="tabs" role="tablist">' + MODE_KEYS.map((m) => '<button class="chip' + (m === k ? ' solid" data-focus="1' : '') + '" data-key="' + m + '" role="tab" aria-selected="' + (m === k) + '">' + modeKeyLabel(m) + '</button>').join('') + '</div>' +
+      '<table class="st">' + rowS('Played', st.played) + rowS('Won', st.won) + rowS('Win rate', st.played ? Math.round(100 * st.won / st.played) + '%' : 'n/a') +
+      rowS('Current streak', st.streak) + rowS('Best streak', st.bestStreak) + rowS('Best time', st.bestTimeMs ? fmtTime(st.bestTimeMs) : 'n/a') +
+      rowS('Fewest moves', st.fewestMoves || 'n/a') + rowS('Best score', st.bestScore || 'n/a') + rowS('Wins, all games', meta.totalWins || 0) + '</table>' +
+      (storageOK ? '' : '<p class="cap">Stats can\'t be saved in this browser.</p>') +
+      '<div class="row"><button class="btn" data-a="resetStats" data-key="' + k + '">Reset ' + modeKeyLabel(k) + ' stats</button></div>';
+  },
+  deal: (d) => head('Choose a deal') + '<p>' + (d.mode === 'freecell' || (!d.mode && S && S.mode === 'freecell') ? 'FreeCell deals 1–32,000 match the classic numbered set (1–1,000,000 allowed).' : 'Any number from 1 to 2,147,483,646 gives the same layout every time.') + '</p>' +
+    '<div class="dl"><input class="numin" id="dealIn" inputmode="numeric" aria-label="Deal number" value="' + (S ? S.deal : 1) + '"><button class="btn solid" data-a="goDeal" data-focus>Deal</button></div>',
+  daily: () => {
+    const day = todayStr();
+    const list = [['klondike', { draw: 1 }], ['klondike', { draw: 3 }], ['freecell', {}], ['spider', { suits: 1 }], ['spider', { suits: 2 }], ['spider', { suits: 4 }], ['yukon', {}]];
+    return head('Daily deals') + '<p>Everyone gets the same deals today (' + day + '). A new set arrives at midnight.</p><div class="menu">' +
+      list.map(([m, o], i) => { const k = modeKey(m, Object.assign({ draw: 1, suits: 1 }, o)); const st = meta.daily[day + '|' + k]; return '<button class="btn' + (i === 0 ? '" data-focus' : '"') + ' data-daily="' + i + '">' + (st === 'won' ? '✓ ' : '') + modeKeyLabel(k) + (st === 'won' ? ' (won)' : st ? ' (in progress)' : '') + '</button>'; }).join('') + '</div>';
+  },
+  help: () => head('How to play') +
+    '<p><b>Goal:</b> move every card to the foundations, building each up by suit from Ace to King (Spider: complete eight King-to-Ace runs).</p>' +
+    '<h3>Klondike</h3><p>Build down in alternating colors. Move any face-up run. Only a King may fill an empty column. Tap the stock to draw one card (or three); when it runs out, tap it again to turn the waste over. Unlimited passes.</p>' +
+    '<h3>FreeCell</h3><p>All cards are dealt face up. Four free cells each hold one card. Build down in alternating colors; any card may fill an empty column. You can move as many cards at once as your free cells and empty columns allow: (free cells + 1) × 2<sup>empty columns</sup>.</p>' +
+    '<h3>Spider</h3><p>Build down regardless of suit, but only a same-suit run moves together. A full King-to-Ace run of one suit leaves the table by itself. Tap the stock to deal ten more cards, one per column, once every column has at least one card.</p>' +
+    '<h3>Yukon</h3><p>No stock. Build down in alternating colors. Any face-up card can move together with every card on top of it, even if they aren\'t in order. Only a King may fill an empty column.</p>' +
+    '<h3>Controls</h3><table class="keys">' +
+    '<tr><td>Drag</td><td>Move cards. Drop anywhere over the target pile.</td></tr>' +
+    '<tr><td>Tap / click</td><td>Send a card or run to its best spot (foundation first).</td></tr>' +
+    '<tr><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td>Move the cursor. In a column, ↑/↓ choose how many cards.</td></tr>' +
+    '<tr><td><kbd>Enter</kbd> / <kbd>Space</kbd></td><td>Pick up, then drop on the cursor pile. On the stock: draw.</td></tr>' +
+    '<tr><td><kbd>1</kbd>–<kbd>0</kbd></td><td>Jump to a column</td></tr>' +
+    '<tr><td><kbd>T</kbd> / <kbd>F</kbd></td><td>Auto-move the cursor card / send it to a foundation</td></tr>' +
+    '<tr><td><kbd>D</kbd></td><td>Draw or deal from the stock</td></tr>' +
+    '<tr><td><kbd>U</kbd> <kbd>Ctrl</kbd>+<kbd>Z</kbd> · <kbd>Y</kbd></td><td>Undo · Redo (unlimited)</td></tr>' +
+    '<tr><td><kbd>H</kbd> · <kbd>A</kbd> · <kbd>N</kbd></td><td>Hint (press again for the next) · Auto-complete · New deal</td></tr>' +
+    '<tr><td><kbd>Esc</kbd> · <kbd>?</kbd></td><td>Menu (or put cards back) · This help</td></tr></table>' +
+    '<h3>Scoring</h3><p>Klondike and Yukon: +10 to a foundation, +5 waste to column, +5 for turning a card, −15 back from a foundation, and a recycle penalty in Klondike after the first pass. FreeCell: +10 per card home. Klondike, Yukon and FreeCell add a time bonus on a win (1000 − 2 × seconds). Spider starts at 500, −1 a move, +100 per completed run. Undo is unlimited and free; the game is marked "assisted".</p>' +
+    '<h3>About the art &amp; facts</h3><p>Every card back and table is drawn in code from the Hot Springs research files: the Fordyce skylight and lozenge brick, the Quapaw dome and sculpin, Row ironwork, the Superior\'s medallions, Medical Arts Deco, the Ouachitas, thermal water and Lake Ouachita. Colors are estimates, so the designs are "inspired by". Court cards are invented archetypes (bath attendant, jockey, promenade lady, card-room gentleman), not real people. The bath ticket and neon colors are invented designs. Win-screen facts come from the project\'s sourced trivia bank. In the Valley of Vapors, patience is a virtue.</p>',
+  win: () => {
+    const w = lastWin; if (!w) return head('You won!');
+    const k = modeKey(w.mode, w.opts); const filled = ((w.totalWins - 1) % 21) + 1; const courses = Math.floor((w.totalWins - 1) / 21);
+    const f = w.fact;
+    return head('You won!') +
+      '<div class="ticket" role="group" aria-label="Bath ticket"><div class="hd">SPA CITY BATH TICKET</div>' +
+      '<div class="big">' + w.score + '</div>' +
+      '<div class="grid"><div>Time<b>' + fmtTime(w.ms) + '</b>' + (w.best.time ? '<span class="best">best</span>' : '') + '</div><div>Moves<b>' + w.moves + '</b>' + (w.best.moves ? '<span class="best">best</span>' : '') + '</div><div>Score<b>' + w.score + '</b>' + (w.best.score ? '<span class="best">best</span>' : '') + '</div></div>' +
+      '<div style="text-align:center;font-size:.78rem;margin-top:6px">' + esc(modeKeyLabel(k)) + ' · ' + (w.daily ? 'Daily ' + w.daily : 'Deal #' + w.deal) + (w.bonus ? ' · time bonus +' + w.bonus : '') + '</div>' +
+      '<div class="course" aria-label="Course progress ' + filled + ' of 21">' + Array.from({ length: 21 }, (_, i) => '<i class="' + (i < filled ? 'f' : '') + '"></i>').join('') + '</div>' +
+      '<div style="text-align:center;font-size:.75rem;margin-top:4px">Course of 21 baths: ' + filled + ' of 21' + (courses ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : '') + '</div></div>' +
+      '<div class="fact"><div class="k">Did you know?</div><div class="q">' + esc(f[1]) + '</div><div class="a">' + esc(f[2]) + '</div><div>' + esc(f[3]) + '</div><div class="src">Source: ' + esc(f[4]) + '</div></div>' +
+      '<div class="row"><button class="btn solid" data-a="new" data-focus>New deal</button><button class="btn" data-a="restart">Replay this deal</button><button class="btn" data-a="title">Change game</button></div>';
+  },
+  confirm: (d) => head(d.title) + '<p>' + d.text + '</p><div class="row"><button class="btn solid" data-a="yes">' + d.yes + '</button><button class="btn" data-close data-focus>Cancel</button></div>',
+};
+const ACTIONS = {
+  resume: () => closeModal(), new: () => newGame({ mode: S ? S.mode : meta.lastMode }), restart: () => restartDeal(),
+  deal: () => openModal('deal'), daily: () => openModal('daily'), title: () => { closeModal(); showTitle(true); },
+  backs: () => openModal('backs'), settings: () => openModal('settings'), stats: () => openModal('stats'), help: () => openModal('help'),
+  reseed: () => { settings.deckSeed = 1 + Math.floor(Math.random() * 1e6); saveSettings(); if (settings.back !== 'skylight') settings.back = 'skylight'; applyLook(); openModal('backs'); },
+};
+const BIND = {
+  _common() {
+    sheet.querySelectorAll('[data-a]').forEach((b) => { const a = b.dataset.a; if (ACTIONS[a]) b.onclick = () => ACTIONS[a](); });
+  },
+  menu() { BIND._common(); },
+  win() { BIND._common(); },
+  settings() {
+    BIND._common();
+    sheet.querySelectorAll('[data-set]').forEach((b) => (b.onclick = () => { setSetting(b.dataset.set, b.dataset.val); sheet.querySelectorAll('[data-set="' + b.dataset.set + '"]').forEach((x) => x.setAttribute('aria-pressed', x === b)); }));
+    sheet.querySelectorAll('[data-tog]').forEach((b) => (b.onclick = () => { const k = b.dataset.tog; setSetting(k, !settings[k]); b.setAttribute('aria-pressed', !!settings[k]); }));
+    $('#vol').oninput = (e) => setSetting('volume', +e.target.value);
+  },
+  backs() {
+    BIND._common();
+    const cap = $('#bkCap'); const show = (id) => { const b = BACKS.find((x) => x.id === id); cap.textContent = b.name + ': ' + b.cap; };
+    sheet.querySelectorAll('[data-back]').forEach((b) => {
+      const c = b.querySelector('canvas'); const g = c.getContext('2d'); g.scale(c.width / 84, c.height / 118); drawBack(g, b.dataset.back, 84, 118, settings.deckSeed);
+      b.onclick = () => { setSetting('back', b.dataset.back); sheet.querySelectorAll('[data-back]').forEach((x) => x.setAttribute('aria-pressed', x === b)); show(b.dataset.back); };
+      b.onfocus = () => show(b.dataset.back);
+    });
+    show(settings.back);
+    sheet.querySelectorAll('[data-table]').forEach((b) => {
+      const c = b.querySelector('canvas'); const g = c.getContext('2d'); g.scale(c.width / 120, c.height / 72); drawTable(g, b.dataset.table, 120, 72);
+      b.onclick = () => { setSetting('table', b.dataset.table); sheet.querySelectorAll('[data-table]').forEach((x) => x.setAttribute('aria-pressed', x === b)); };
+    });
+  },
+  stats(d) {
+    sheet.querySelectorAll('[data-key]').forEach((b) => {
+      if (b.dataset.a === 'resetStats') b.onclick = () => openModal('confirm', { title: 'Reset statistics?', text: 'This clears every ' + modeKeyLabel(b.dataset.key) + ' statistic.', yes: 'Reset', onYes: () => { delete stats[b.dataset.key]; saveStats(); openModal('stats', { key: b.dataset.key }); } });
+      else b.onclick = () => openModal('stats', { key: b.dataset.key });
+    });
+    void d;
+  },
+  deal(d) {
+    const go = () => { const v = parseInt($('#dealIn').value.replace(/[^0-9]/g, ''), 10); if (!v) { $('#dealIn').focus(); return; } const mode = d.mode || (S ? S.mode : 'klondike'); newGame({ mode, deal: v }); };
+    sheet.querySelector('[data-a="goDeal"]').onclick = go;
+    $('#dealIn').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+  },
+  daily() {
+    const list = [['klondike', { draw: 1 }], ['klondike', { draw: 3 }], ['freecell', {}], ['spider', { suits: 1 }], ['spider', { suits: 2 }], ['spider', { suits: 4 }], ['yukon', {}]];
+    sheet.querySelectorAll('[data-daily]').forEach((b) => (b.onclick = () => { const [m, o] = list[+b.dataset.daily]; newGame(Object.assign({ mode: m, daily: true }, o)); }));
+  },
+  confirm(d) { sheet.querySelector('[data-a="yes"]').onclick = () => d.onYes(); },
+};
+
+function saveSettings() { save('settings', settings); }
+function applyLook() { sprites.clear(); tableDirty = true; relayout(true); markDirty(); updateHUD(); }
+function setSetting(k, v) {
+  if (k === 'sound') { settings.sound = !!v; if (v) initAudio(); }
+  else if (k === 'volume') { settings.volume = clamp(+v, 0, 1); if (master) master.gain.value = settings.volume; }
+  else if (k in DEFAULT_SETTINGS) settings[k] = typeof DEFAULT_SETTINGS[k] === 'boolean' ? !!v : v;
+  saveSettings();
+  if (['leftHanded', 'cardSize', 'fourColor', 'back', 'table', 'showTimer', 'deckSeed'].includes(k)) applyLook();
+}
+
+// ============================================================================================
+// 14. Resize and boot
+// ============================================================================================
+function resize() {
+  const r = stage.getBoundingClientRect(); W = Math.round(r.width); H = Math.round(r.height); DPR = Math.min(3, window.devicePixelRatio || 1);
+  for (const c of [cv, tcv]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
+  sprites.clear(); tableDirty = true;
+  if (S) { relayout(true); markDirty(); }
+  if (titleOn) drawSky(now());
+}
+window.addEventListener('resize', resize);
+if (reduceQuery && reduceQuery.addEventListener) reduceQuery.addEventListener('change', () => markDirty());
+
+// ============================================================================================
+// 15. Test hooks (window.__game; see MECHANICS §9)
+// ============================================================================================
+const noteOf = (u) => (S.up[u] ? '' : '#') + RANKS[card(u).r - 1] + SUITS[card(u).s];
+function notePiles() { const o = {}; for (const id in S.piles) o[id] = S.piles[id].map(noteOf); return o; }
+function sceneName() { return modalKind || (titleOn ? 'title' : S ? 'game' : 'title'); }
+window.__game = {
+  seed(n) { nextDeal = Math.max(1, Math.floor(n)); return true; },
+  getState() {
+    if (!S) return { scene: sceneName(), settings: Object.assign({}, settings) };
+    return { scene: sceneName(), modal: modalKind, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, piles: notePiles(),
+      score: S.score, moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, started: S.started, canAutoComplete: canAutoComplete(),
+      undoDepth: undoStack.length, redoDepth: redoStack.length, held: held ? Object.assign({}, held) : null, cursor: Object.assign({}, cursor),
+      settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, storageOK };
+  },
+  setState(s) {
+    const mode = MODES[s.mode] ? s.mode : 'klondike';
+    const st = newState(mode, s.opts || {}, s.deal || 1, s.daily || null);
+    st.cards = []; st.up = []; for (const id in st.piles) st.piles[id] = [];
+    for (const id in s.piles || {}) { if (!st.piles[id]) continue; for (const n of s.piles[id]) { const c = parseNote(n); st.piles[id].push(st.cards.length); st.cards.push({ s: c.s, r: c.r }); st.up.push(c.up); } }
+    if (s.score != null) st.score = s.score; if (s.moves != null) st.moves = s.moves;
+    S = st; undoStack = []; redoStack = []; held = null; drag = null; cascade = null; hintState = null; lastWin = null;
+    clearTimeout(winTimer); winTimer = 0;
+    closeModal(); showTitle(false); relayout(true); updateHUD(); markDirty();
+    return true;
+  },
+  isIdle() { return !tweensActive(now()) && !drag && !cascade && !winTimer; },
+  scene(name) {
+    if (name === 'title') { closeModal(); showTitle(true); }
+    else if (name === 'game') { closeModal(); if (!S) newGame({ mode: 'klondike' }); showTitle(false); }
+    else { if (name === 'win' && !lastWin && S) lastWin = { mode: S.mode, opts: S.opts, deal: S.deal, daily: S.daily, score: S.score, bonus: 0, moves: S.moves, ms: S.elapsedMs, best: {}, totalWins: Math.max(1, meta.totalWins || 0), fact: FACTS[fnv1a(S.mode + ':' + S.deal) % FACTS.length] }; openModal(name); }
+    return sceneName();
+  },
+  newGame(o) { return newGame(o || {}); },
+  act(name, ...a) {
+    switch (name) {
+      case 'move': { const from = a[0], to = a[1]; const p = S.piles[from]; const idx = a[2] != null ? p.length - a[2] : p.length - 1; return tryMove(from, idx, to); }
+      case 'draw': return stockAction();
+      case 'undo': return undo();
+      case 'redo': return redo();
+      case 'hint': return hint();
+      case 'autoComplete': return autoComplete();
+      case 'tap': return tapAt(a[0], a[1]);
+      case 'key': { const r = gameKey({ key: a[0], ctrlKey: !!a[1], metaKey: false, altKey: false, shiftKey: false }); return { ok: r }; }
+      case 'skip': { const t = now(); if (S) for (let u = 0; u < S.cards.length; u++) if (D[u]) { D[u].t0 = Math.min(D[u].t0, t - 1e5); D[u].f0 = Math.min(D[u].f0, t - 1e5); } if (winTimer) { clearTimeout(winTimer); winTimer = 0; startCascade(); } if (cascade) endCascade(); markDirty(); return { ok: true }; }
+      default: return { ok: false, reason: 'unknown action' };
+    }
+  },
+  getLayout() {
+    if (!L) return null; const r = cv.getBoundingClientRect(); const o = {};
+    for (const id in L.piles) { const b = L.piles[id]; o[id] = { x: b.x + r.left, y: b.y + r.top, w: L.cw, h: b.zoneH || L.ch, cards: b.cards.map((c) => ({ x: c.x + r.left, y: c.y + r.top, w: c.w, h: c.h, up: c.up })) }; }
+    return { cardW: L.cw, cardH: L.ch, indexPx: Math.round(L.cw * (L.largeIdx ? .40 : .30) * 10) / 10, piles: o };
+  },
+  legalMoves() { return legalMoves(); },
+  setSettings(o) { for (const k in o) setSetting(k, o[k]); return Object.assign({}, settings); },
+  freecellDeal(n) { const cols = [[], [], [], [], [], [], [], []]; freecellOrder(n).forEach((c, i) => cols[i % 8].push(RANKS[c >> 2] + SUITS[c & 3])); return cols; },
+  stats() { return JSON.parse(JSON.stringify(stats)); },
+};
+
+// Boot
+buildTitle();
+resize();
+{
+  const q = new URLSearchParams(location.search);
+  if (q.get('mode') && MODES[q.get('mode')]) newGame({ mode: q.get('mode'), draw: +q.get('draw') || 1, suits: +q.get('suits') || 1, deal: +q.get('deal') || undefined });
+  else showTitle(true);
+}
+})();
+</script>
+</body>
+</html>
