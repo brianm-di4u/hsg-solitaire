@@ -8,7 +8,7 @@
 <meta name="description" content="Klondike, FreeCell, Spider and Yukon patience with card backs drawn from Hot Springs, Arkansas. Part of the open-source Hot Springs Games collection (MIT).">
 <!--
   Spa City Solitaire — Hot Springs Games collection. MIT License.
-  Single self-contained file: all art is drawn in Canvas, all sound is WebAudio, no network requests.
+  One HTML file plus painted art in assets/ (vector fallbacks built in); all sound is WebAudio, nothing loads from other origins.
   Rules and algorithms written fresh for this project; see SAMPLES.md for the ideas surveyed.
 -->
 <style>
@@ -42,7 +42,7 @@
   #app{position:fixed;inset:0;display:flex;flex-direction:column;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
   #bar{height:var(--bar-h);flex:none;display:flex;align-items:center;gap:8px;padding:0 8px;
-    background:var(--color-surface);border-bottom:1px solid var(--color-border)}
+    background:var(--color-surface);border-bottom:2px solid #B8862C;border-image:linear-gradient(90deg,#9C6E1E,#E9C873 25%,#B8862C 50%,#E9C873 75%,#9C6E1E) 1}
   #ttl{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15}
   #modeName{font-family:var(--font-deco);font-weight:700;font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #modeSub{font-size:.75rem;color:var(--color-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -53,7 +53,7 @@
   #cv{touch-action:none;outline:none}
   #cv.kb:focus{box-shadow:inset 0 0 0 3px var(--color-highlight)}
   #tools{height:var(--tools-h);flex:none;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 6px;
-    background:var(--color-surface);border-top:1px solid var(--color-border)}
+    background:var(--color-surface);border-top:2px solid #B8862C;border-image:linear-gradient(90deg,#9C6E1E,#E9C873 25%,#B8862C 50%,#E9C873 75%,#9C6E1E) 1}
   .tb{flex:1;max-width:120px;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:1px;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--chip);cursor:pointer;
     font-size:.78rem;padding:2px 4px}
@@ -72,7 +72,7 @@
   #title{position:fixed;inset:0;z-index:20;overflow-y:auto;overflow-x:hidden;background:var(--color-bg);display:none}
   #title.on{display:block}
   #title .wrap{max-width:980px;margin:0 auto;padding:0 16px 32px}
-  #sky{display:block;width:100%;height:190px}
+  #sky{display:block;width:100%;height:clamp(190px,28vw,290px)}
   #title h1{font-family:var(--font-deco);font-size:clamp(2rem,6vw,3.2rem);letter-spacing:.06em;margin:4px 0 0;text-align:center;
     color:var(--color-primary);font-weight:700}
   #title .tag{text-align:center;color:var(--color-muted);margin:4px 0 18px;font-family:var(--font-serif-victorian);font-style:italic}
@@ -202,7 +202,7 @@
       <button class="btn" id="tSet">Settings</button>
       <button class="btn" id="tHelp">How to play</button>
     </div>
-    <p class="credit">Part of the open-source Hot Springs Games collection (MIT). All art is drawn in code and "inspired by" real places; no logos, no real people.</p>
+    <p class="credit">Part of the open-source Hot Springs Games collection (MIT). Original art, painted and drawn for this game and "inspired by" real places; no logos, no real people.</p>
   </div>
 </section>
 
@@ -876,6 +876,46 @@ function resumeSaved() {
 // 7. Art: suits, faces, court archetypes, card backs, tables, skyline (all procedural)
 //    Colours are the corpus estimates from research/visual-style-guide.md (see town-content.md).
 // ============================================================================================
+// --- Painted art: assets/*.webp (generated, packed by shared/test-harness/art-pack.mjs) ---------
+// Images load with <img> decoding, so the game also works from file://. Every painted layer has a
+// vector fallback below, so a missing folder (or ?art=0) still gives a complete game.
+const ART_ON = !/[?&]art=0\b/.test(location.search);
+const art = {}, artWant = new Set();
+let artTick = 0, artPending = 0;
+const artImg = (name) => art[name] || null;
+const COURT_ART = []; for (const s of 'cdhs') for (const r of 'jqk') COURT_ART.push('court-' + r + s);
+const essentialArt = () => [...COURT_ART, 'ace-medallion', 'back-' + settings.back, 'table-' + settings.table, 'title-hero'];
+function loadArt(names) {
+  if (!ART_ON) return Promise.resolve();
+  return Promise.all(names.filter((n) => !artWant.has(n)).map((n) => {
+    artWant.add(n); artPending++; const im = new Image(); im.decoding = 'async'; im.src = 'assets/' + n + '.webp';
+    return im.decode().then(() => { art[n] = im; artChanged(); }, () => {}).finally(() => { artPending--; });
+  }));
+}
+// New art arrived: rebake sprites once per frame at most.
+function artChanged() {
+  if (artTick) return;
+  artTick = requestAnimationFrame(() => {
+    artTick = 0; sprites.clear(); tableDirty = true; markDirty();
+    if (titleOn) drawSky(now());
+    if (modalKind === 'backs') paintPickers();
+  });
+}
+// Draw img to cover (x,y,w,h); ax/ay pick which part survives the crop (0 = left/top, 1 = right/bottom).
+function coverImg(ctx, img, x, y, w, h, ax = .5, ay = .5, zoom = 1) {
+  const k = Math.max(w / img.naturalWidth, h / img.naturalHeight) * zoom, dw = img.naturalWidth * k, dh = img.naturalHeight * k;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, x + (w - dw) * ax, y + (h - dh) * ay, dw, dh);
+}
+// Faint paper grain for card stock, tiled as a pattern.
+let grainCanvas = null;
+function grain() {
+  if (grainCanvas) return grainCanvas;
+  const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext('2d'); const rnd = mulberry32(31);
+  for (let i = 0; i < 900; i++) { g.fillStyle = rnd() < .5 ? 'rgba(120,100,60,.10)' : 'rgba(255,255,255,.5)'; g.fillRect(rnd() * 96, rnd() * 96, 1, 1); }
+  return (grainCanvas = c);
+}
+
 const INK = { black: '#1F2A24', red: '#B3261E', blue: '#1F5BA8', green: '#2E6A3C' };
 const suitColor = (s) => settings.fourColor ? [INK.green, INK.blue, INK.red, INK.black][s] : (isRed(s) ? INK.red : INK.black);
 const SERIF = '"Palatino Linotype","Book Antiqua",Palatino,Georgia,"Times New Roman",serif';
@@ -923,7 +963,12 @@ function suitPath(ctx, s, x, y, w, h) {
 }
 function drawSuit(ctx, s, cx, cy, size, color, flip) {
   ctx.save(); ctx.translate(cx, cy); if (flip) ctx.rotate(Math.PI);
-  ctx.fillStyle = color; suitPath(ctx, s, -size * .45, -size / 2, size * .9, size); ctx.fill(); ctx.restore();
+  ctx.fillStyle = color; suitPath(ctx, s, -size * .45, -size / 2, size * .9, size); ctx.fill();
+  if (color[0] === '#') { // printed-ink sheen: a soft highlight across the upper half
+    const g = ctx.createLinearGradient(0, -size / 2, 0, size * .2); g.addColorStop(0, 'rgba(255,255,255,.26)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.fill();
+  }
+  ctx.restore();
 }
 
 const PIPS = { // [column, f] with column L/C/R and f in 0..1 down the pip area
@@ -937,8 +982,7 @@ const PIPS = { // [column, f] with column L/C/R and f in 0..1 down the pip area
 
 function drawFace(ctx, c, w, h, large) {
   const col = suitColor(c.s);
-  rrect(ctx, .5, .5, w - 1, h - 1, w * .075); ctx.fillStyle = '#FBF8F1'; ctx.fill();
-  ctx.lineWidth = Math.max(1, w * .012); ctx.strokeStyle = '#A99D82'; ctx.stroke();
+  cardStock(ctx, w, h);
   const small = w < 58;
   // Corner index: rank top-left, suit top-right. Sized so it stays readable in a 28%-of-height fan strip.
   const big = large || small;
@@ -951,7 +995,8 @@ function drawFace(ctx, c, w, h, large) {
   ctx.fillText(lab, 0, 0); ctx.restore();
   const ss = w * (big ? .29 : .22);
   drawSuit(ctx, c.s, w - w * .07 - ss * .45, h * .03 + ss / 2 + rs * .1, ss, col);
-  if (!small) {
+  const tallCourt = c.r > 10 && !small && artImg(courtArt(c)); // painted courts fill the card instead
+  if (!small && !tallCourt) {
     // bottom-right mirrored index on roomy cards
     ctx.save(); ctx.translate(w, h); ctx.rotate(Math.PI);
     const bs = w * .19; ctx.font = '700 ' + bs + 'px ' + SERIF; ctx.fillStyle = col;
@@ -969,9 +1014,22 @@ function drawFace(ctx, c, w, h, large) {
   }
 }
 
+// Card stock: warm ivory with a faint grain, a soft inner edge and a fine border.
+function cardStock(ctx, w, h) {
+  rrect(ctx, .5, .5, w - 1, h - 1, w * .075);
+  const g = ctx.createLinearGradient(0, 0, w * .4, h); g.addColorStop(0, '#FFFDF7'); g.addColorStop(1, '#F5EFE2');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.save(); ctx.clip(); ctx.fillStyle = ctx.createPattern(grain(), 'repeat'); ctx.fillRect(0, 0, w, h); ctx.restore();
+  ctx.lineWidth = Math.max(1, w * .012); ctx.strokeStyle = '#A99D82'; ctx.stroke();
+  rrect(ctx, w * .018 + .5, w * .018 + .5, w - w * .036 - 1, h - w * .036 - 1, w * .06);
+  ctx.lineWidth = Math.max(.6, w * .006); ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.stroke();
+}
+
 function drawAce(ctx, c, w, h, small) {
   const col = suitColor(c.s);
   const size = w * (small ? .56 : .5); const cx = w / 2, cy = h * (small ? .64 : .6);
+  const med = artImg('ace-medallion');
+  if (med) { const ms = size * (small ? 1.5 : 1.75); ctx.save(); ctx.globalAlpha = .92; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(med, cx - ms / 2, cy - ms / 2 - size * .02, ms, ms); ctx.restore(); }
   drawSuit(ctx, c.s, cx, cy, size, col);
   if (c.s === 3) {
     // a stepped-setback tower inside the spade: a nod to the Medical Arts Building (1929–30)
@@ -990,18 +1048,52 @@ function drawAce(ctx, c, w, h, small) {
 
 // Court cards: original era-costume archetypes (bath attendant / jockey jacks, promenade queens,
 // card-room kings). Flat geometric figures; no real person is depicted.
+const courtArt = (c) => 'court-' + 'jqk'[c.r - 11] + 'cdhs'[c.s];
 function drawCourtPanel(ctx, c, w, h, small) {
   const col = suitColor(c.s);
-  const x = w * (small ? .1 : .14), y = h * (small ? .33 : .25), pw = w - 2 * x, ph = h * (small ? .62 : .615);
+  const img = artImg(courtArt(c)), tall = img && !small;
+  const x = w * (small ? .1 : tall ? .075 : .14), y = h * (small ? .33 : tall ? .235 : .25), pw = w - 2 * x, ph = h * (small ? .62 : tall ? .72 : .615);
   ctx.save(); rrect(ctx, x, y, pw, ph, w * .04); ctx.clip();
-  ctx.fillStyle = isRed(c.s) ? '#F5E4DA' : '#E4E9E1'; ctx.fillRect(x, y, pw, ph);
-  // faint deco rays behind the figure
-  ctx.strokeStyle = 'rgba(217,162,58,.35)'; ctx.lineWidth = Math.max(.6, w * .006);
-  for (let i = 0; i < 9; i++) { const a = Math.PI + (i + .5) * Math.PI / 9; ctx.beginPath(); ctx.moveTo(x + pw / 2, y + ph * .62); ctx.lineTo(x + pw / 2 + Math.cos(a) * pw, y + ph * .62 + Math.sin(a) * pw); ctx.stroke(); }
-  drawCourt(ctx, c, x, y, pw, ph, col);
+  if (img) {
+    // Painted waist-up portrait, mirrored through the centre like a real double-ended court card.
+    const hh = ph / 2;
+    ctx.fillStyle = '#F4EDE0'; ctx.fillRect(x, y, pw, ph);
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, pw, hh); ctx.clip(); coverImg(ctx, img, x, y, pw, hh, .5, .1, 1.3); ctx.restore();
+    ctx.save(); ctx.translate(x + pw, y + ph); ctx.rotate(Math.PI); ctx.beginPath(); ctx.rect(0, 0, pw, hh); ctx.clip(); coverImg(ctx, img, 0, 0, pw, hh, .5, .1, 1.3); ctx.restore();
+    courtBand(ctx, x, y + hh, pw, w, col);
+  } else {
+    ctx.fillStyle = isRed(c.s) ? '#F5E4DA' : '#E4E9E1'; ctx.fillRect(x, y, pw, ph);
+    // faint deco rays behind the figure
+    ctx.strokeStyle = 'rgba(217,162,58,.35)'; ctx.lineWidth = Math.max(.6, w * .006);
+    for (let i = 0; i < 9; i++) { const a = Math.PI + (i + .5) * Math.PI / 9; ctx.beginPath(); ctx.moveTo(x + pw / 2, y + ph * .62); ctx.lineTo(x + pw / 2 + Math.cos(a) * pw, y + ph * .62 + Math.sin(a) * pw); ctx.stroke(); }
+    drawCourt(ctx, c, x, y, pw, ph, col);
+  }
   ctx.restore();
-  rrect(ctx, x, y, pw, ph, w * .04); ctx.strokeStyle = '#D9A23A'; ctx.lineWidth = Math.max(1, w * .02); ctx.stroke();
-  if (!small) { const ss = w * .13; drawSuit(ctx, c.s, x + ss * .75, y + ss * .75, ss, col); }
+  gildFrame(ctx, x, y, pw, ph, w);
+  if (!small) {
+    const ss = w * .13; drawSuit(ctx, c.s, x + ss * .75, y + ss * .75, ss, col);
+    if (img) drawSuit(ctx, c.s, x + pw - ss * .75, y + ph - ss * .75, ss, col, true);
+  }
+}
+// Gilt double rule around a panel: a gold line with a fine dark keyline inside.
+function gildFrame(ctx, x, y, pw, ph, w) {
+  const g = ctx.createLinearGradient(x, y, x + pw, y + ph);
+  g.addColorStop(0, '#E9C873'); g.addColorStop(.45, '#B8862C'); g.addColorStop(.55, '#D9B256'); g.addColorStop(1, '#9C6E1E');
+  rrect(ctx, x, y, pw, ph, w * .04); ctx.strokeStyle = g; ctx.lineWidth = Math.max(1, w * .022); ctx.stroke();
+  const k = Math.max(1.2, w * .02);
+  rrect(ctx, x + k, y + k, pw - 2 * k, ph - 2 * k, w * .03); ctx.strokeStyle = 'rgba(31,42,36,.55)'; ctx.lineWidth = Math.max(.5, w * .005); ctx.stroke();
+}
+// The ornamental band where the two halves of a court portrait meet.
+function courtBand(ctx, x, my, pw, w, col) {
+  const bh = Math.max(2, w * .035);
+  const g = ctx.createLinearGradient(0, my - bh / 2, 0, my + bh / 2); g.addColorStop(0, '#F3DA92'); g.addColorStop(.5, '#B8862C'); g.addColorStop(1, '#E2BE66');
+  ctx.fillStyle = g; ctx.fillRect(x, my - bh / 2, pw, bh);
+  ctx.fillStyle = 'rgba(31,42,36,.7)'; ctx.fillRect(x, my - bh / 2, pw, Math.max(.5, w * .004)); ctx.fillRect(x, my + bh / 2 - Math.max(.5, w * .004), pw, Math.max(.5, w * .004));
+  const d = w * .07, cx = x + pw / 2;
+  ctx.beginPath(); ctx.moveTo(cx, my - d); ctx.lineTo(cx + d * .8, my); ctx.lineTo(cx, my + d); ctx.lineTo(cx - d * .8, my); ctx.closePath();
+  ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = 'rgba(31,42,36,.7)'; ctx.lineWidth = Math.max(.5, w * .006); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, my - d * .55); ctx.lineTo(cx + d * .44, my); ctx.lineTo(cx, my + d * .55); ctx.lineTo(cx - d * .44, my); ctx.closePath();
+  ctx.fillStyle = col; ctx.fill();
 }
 function drawCourt(ctx, c, x, y, w, h, col) {
   const cx = x + w / 2, hy = y + h * .44, hr = w * .15;
@@ -1144,8 +1236,24 @@ function neonStroke(ctx, color, width, draw) {
 }
 
 function drawBack(ctx, id, w, h, seed) {
-  const rnd = mulberry32(seed || 7);
   const r = w * .075, m = w * .055;
+  const img = artImg('back-' + id);
+  if (img) {
+    // Painted back on ivory stock with a gilt rule. The skylight glass is re-cut per deck seed by
+    // mirroring and a small hue shift, so "Reshuffle the skylight glass" still gives a new deck.
+    cardStock(ctx, w, h);
+    const x0 = m, y0 = m, iw = w - 2 * m, ih = h - 2 * m;
+    ctx.save(); rrect(ctx, x0, y0, iw, ih, r * .6); ctx.clip();
+    if (id === 'skylight' && seed) {
+      const s = seed >>> 0; ctx.translate(w / 2, h / 2); ctx.scale(s & 1 ? -1 : 1, s & 2 ? -1 : 1); ctx.translate(-w / 2, -h / 2);
+      ctx.filter = 'hue-rotate(' + ((s * 37) % 50 - 25) + 'deg) saturate(' + (1 + ((s >> 3) % 20) / 100) + ')';
+    }
+    coverImg(ctx, img, x0, y0, iw, ih);
+    ctx.restore();
+    gildFrame(ctx, x0, y0, iw, ih, w);
+    return;
+  }
+  const rnd = mulberry32(seed || 7);
   rrect(ctx, .5, .5, w - 1, h - 1, r);
   const frame = { neon: '#14121F', pines: '#EDEAE2', lake: '#F6F3EC', steam: '#F4F2EC', deco: '#2B2420', silks: '#F3E9D2' }[id] || '#F3EFE6';
   ctx.fillStyle = frame; ctx.fill(); ctx.lineWidth = Math.max(1, w * .012); ctx.strokeStyle = '#8E8169'; ctx.stroke();
@@ -1395,6 +1503,13 @@ function drawBack(ctx, id, w, h, seed) {
 
 // --- Tables (5) -----------------------------------------------------------------------------
 function drawTable(ctx, id, W, H) {
+  const img = artImg('table-' + id);
+  if (img) {
+    coverImg(ctx, img, 0, 0, W, H);
+    const v = ctx.createRadialGradient(W / 2, H * .45, Math.min(W, H) * .35, W / 2, H * .45, Math.max(W, H) * .8);
+    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.28)'); ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+    return;
+  }
   const rnd = mulberry32(77);
   if (id === 'felt') {
     const g = ctx.createRadialGradient(W / 2, H * .45, 10, W / 2, H * .45, Math.max(W, H) * .75); g.addColorStop(0, '#27744B'); g.addColorStop(1, '#123A27');
@@ -1436,6 +1551,20 @@ function drawTable(ctx, id, W, H) {
 
 // --- Title skyline: Bathhouse Row, north (left) to south (right) ------------------------------
 function drawSkyline(ctx, W, H, t, dark) {
+  const hero = artImg('title-hero');
+  if (hero) {
+    coverImg(ctx, hero, 0, 0, W, H, .5, .62);
+    if (dark) { ctx.fillStyle = 'rgba(20,18,31,.38)'; ctx.fillRect(0, 0, W, H); }
+    // drifting steam over the painting, then a soft fade into the page
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 7; i++) {
+      const px = W * (.08 + i * .14); ctx.strokeStyle = 'rgba(255,255,255,' + (dark ? .08 : .16) + ')'; ctx.lineWidth = 10 + (i % 3) * 5;
+      ctx.beginPath(); for (let k = 0; k <= 14; k++) { const f = k / 14; ctx.lineTo(px + Math.sin(f * 6 + t * 1.1 + i) * 14 * f, H * .78 - f * H * .6); } ctx.stroke();
+    }
+    const f = ctx.createLinearGradient(0, H * .82, 0, H); f.addColorStop(0, 'rgba(0,0,0,0)'); f.addColorStop(1, getComputedStyle(document.getElementById('title')).backgroundColor || '#F2EFE8');
+    ctx.fillStyle = f; ctx.fillRect(0, H * .82, W, H * .18);
+    return;
+  }
   const g = ctx.createLinearGradient(0, 0, 0, H);
   if (dark) { g.addColorStop(0, '#14121F'); g.addColorStop(1, '#2A2640'); } else { g.addColorStop(0, '#E9F1F2'); g.addColorStop(1, '#F2EFE8'); }
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
@@ -1702,9 +1831,30 @@ function drawCardAt(u, x, y, t, lifted) {
   const sh = shakes[u]; if (sh) { const p = (t - sh) / 260; if (p >= 1) delete shakes[u]; else x += Math.sin(p * Math.PI * 6) * (1 - p) * cw * .06; }
   const img = showUp ? faceSprite(u) : backSprite();
   x = Math.round(x * DPR) / DPR; y = Math.round(y * DPR) / DPR;
-  if (lifted) { ctx.fillStyle = 'rgba(0,0,0,.28)'; rrect(ctx, x + cw * .04, y + cw * .06, cw, ch, cw * .075); ctx.fill(); }
-  if (sx < .999) ctx.drawImage(img, x + cw * (1 - sx) / 2, y, cw * Math.max(.02, sx), ch);
-  else ctx.drawImage(img, x, y, cw, ch);
+  const shd = shadowSprite(!!lifted), p = shd.pad;
+  if (sx < .999) {
+    const dx = x + cw * (1 - sx) / 2, dw = cw * Math.max(.02, sx);
+    ctx.drawImage(shd, dx - p, y - p + cw * .03, dw + 2 * p, ch + 2 * p);
+    ctx.drawImage(img, dx, y, dw, ch);
+    // the card turns away from the light mid-flip
+    ctx.fillStyle = 'rgba(20,16,10,' + ((1 - sx) * .22).toFixed(3) + ')'; rrect(ctx, dx, y, dw, ch, Math.min(dw / 2, cw * .075)); ctx.fill();
+  } else {
+    ctx.drawImage(shd, x - p + (lifted ? cw * .05 : 0), y - p + (lifted ? cw * .08 : cw * .015), cw + 2 * p, ch + 2 * p);
+    ctx.drawImage(img, x, y, cw, ch);
+  }
+}
+// Soft card shadow, baked once per card size (resting and lifted variants).
+function shadowSprite(lifted) {
+  const key = 'sh' + (lifted ? 1 : 0); let c = sprites.get(key);
+  if (!c) {
+    const { cw, ch } = L, pad = Math.ceil(cw * (lifted ? .18 : .08));
+    c = document.createElement('canvas'); c.width = Math.ceil((cw + 2 * pad) * DPR); c.height = Math.ceil((ch + 2 * pad) * DPR);
+    const g = c.getContext('2d'); g.scale(DPR, DPR);
+    g.shadowColor = 'rgba(0,0,0,' + (lifted ? .42 : .30) + ')'; g.shadowBlur = cw * (lifted ? .14 : .05) * DPR;
+    g.shadowOffsetX = 4000 * DPR; g.fillStyle = '#000'; rrect(g, pad - 4000, pad, cw, ch, cw * .075); g.fill();
+    c.pad = pad; sprites.set(key, c);
+  }
+  return c;
 }
 function glowRect(x, y, w, h, color, alpha, width) {
   ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = width; ctx.shadowColor = color; ctx.shadowBlur = 10;
@@ -1827,6 +1977,7 @@ function drawCascade(t) {
   c.parts = c.parts.filter((p) => p.y < H + ch * 1.5);
   for (const p of c.parts) {
     ctx.save(); ctx.translate(p.x + cw / 2, p.y + ch / 2); ctx.rotate(p.rot * .25);
+    const shd = shadowSprite(true); ctx.drawImage(shd, -cw / 2 - shd.pad + cw * .05, -ch / 2 - shd.pad + cw * .08, cw + 2 * shd.pad, ch + 2 * shd.pad);
     ctx.drawImage(faceSprite(p.u), -cw / 2, -ch / 2, cw, ch); ctx.restore();
   }
   c.puffs = c.puffs.filter((q) => t - q.t0 < 900);
@@ -2157,7 +2308,7 @@ const MODALS = {
     BACKS.map((b) => '<button class="bk" data-back="' + b.id + '" aria-pressed="' + (settings.back === b.id) + '"><canvas width="168" height="236"></canvas><b>' + b.name + '</b></button>').join('') +
     '</div><p class="cap" id="bkCap"></p><div class="row" style="margin-top:6px"><button class="btn" data-a="reseed">Reshuffle the skylight glass</button></div>' +
     '<h3>Tables</h3><div class="backs">' + TABLES.map((t) => '<button class="bk tbl" data-table="' + t.id + '" aria-pressed="' + (settings.table === t.id) + '"><canvas width="240" height="144"></canvas><b>' + t.name + '</b></button>').join('') + '</div>' +
-    '<p class="cap">All designs are drawn in code and "inspired by" the real buildings and places; every color is an estimate.</p>',
+    '<p class="cap">Original painted designs, "inspired by" the real buildings and places; every color is an estimate.</p>',
   stats: (d) => {
     const k = d.key || (S ? modeKey(S.mode, S.opts) : 'klondike1'); const st = statFor(k);
     const rowS = (a, b) => '<tr><td>' + a + '</td><td>' + b + '</td></tr>';
@@ -2194,7 +2345,7 @@ const MODALS = {
     '<tr><td><kbd>H</kbd> · <kbd>A</kbd> · <kbd>N</kbd></td><td>Hint (press again for the next) · Auto-complete · New deal</td></tr>' +
     '<tr><td><kbd>Esc</kbd> · <kbd>?</kbd></td><td>Menu (or put cards back) · This help</td></tr></table>' +
     '<h3>Scoring</h3><p>Klondike and Yukon: +10 to a foundation, +5 waste to column, +5 for turning a card, −15 back from a foundation, and a recycle penalty in Klondike after the first pass. FreeCell: +10 per card home. Klondike, Yukon and FreeCell add a time bonus on a win (1000 − 2 × seconds). Spider starts at 500, −1 a move, +100 per completed run. Undo is unlimited and free; the game is marked "assisted".</p>' +
-    '<h3>About the art &amp; facts</h3><p>Every card back and table is drawn in code from the Hot Springs research files: the Fordyce skylight and lozenge brick, the Quapaw dome and sculpin, Row ironwork, the Superior\'s medallions, Medical Arts Deco, the Ouachitas, thermal water and Lake Ouachita. Colors are estimates, so the designs are "inspired by". Court cards are invented archetypes (bath attendant, jockey, promenade lady, card-room gentleman), not real people. The bath ticket and neon colors are invented designs. Win-screen facts come from the project\'s sourced trivia bank. In the Valley of Vapors, patience is a virtue.</p>',
+    '<h3>About the art &amp; facts</h3><p>Every card back and table is an original Art Deco painting based on the Hot Springs research files: the Fordyce skylight and lozenge brick, the Quapaw dome and sculpin, Row ironwork, the Superior\'s medallions, Medical Arts Deco, the Ouachitas, thermal water and Lake Ouachita. Colors are estimates, so the designs are "inspired by". Court cards are invented 1920s archetypes (bath attendant, jockey, bellhop, saxophonist, promenade and evening ladies, card-room and racing gentlemen), not real people. The bath ticket and neon colors are invented designs. Win-screen facts come from the project\'s sourced trivia bank. In the Valley of Vapors, patience is a virtue.</p>',
   win: () => {
     const w = lastWin; if (!w) return head('You won!');
     const k = modeKey(w.mode, w.opts); const filled = ((w.totalWins - 1) % 21) + 1; const courses = Math.floor((w.totalWins - 1) / 21);
@@ -2232,14 +2383,14 @@ const BIND = {
   backs() {
     BIND._common();
     const cap = $('#bkCap'); const show = (id) => { const b = BACKS.find((x) => x.id === id); cap.textContent = b.name + ': ' + b.cap; };
+    loadArt([...BACKS.map((b) => 'back-' + b.id), ...TABLES.map((t) => 'table-' + t.id)]);
+    paintPickers();
     sheet.querySelectorAll('[data-back]').forEach((b) => {
-      const c = b.querySelector('canvas'); const g = c.getContext('2d'); g.scale(c.width / 84, c.height / 118); drawBack(g, b.dataset.back, 84, 118, settings.deckSeed);
       b.onclick = () => { setSetting('back', b.dataset.back); sheet.querySelectorAll('[data-back]').forEach((x) => x.setAttribute('aria-pressed', x === b)); show(b.dataset.back); };
       b.onfocus = () => show(b.dataset.back);
     });
     show(settings.back);
     sheet.querySelectorAll('[data-table]').forEach((b) => {
-      const c = b.querySelector('canvas'); const g = c.getContext('2d'); g.scale(c.width / 120, c.height / 72); drawTable(g, b.dataset.table, 120, 72);
       b.onclick = () => { setSetting('table', b.dataset.table); sheet.querySelectorAll('[data-table]').forEach((x) => x.setAttribute('aria-pressed', x === b)); };
     });
   },
@@ -2262,8 +2413,17 @@ const BIND = {
   confirm(d) { sheet.querySelector('[data-a="yes"]').onclick = () => d.onYes(); },
 };
 
+// Back and table previews in the picker (repainted when their art arrives).
+function paintPickers() {
+  sheet.querySelectorAll('[data-back]').forEach((b) => {
+    const c = b.querySelector('canvas'); const g = c.getContext('2d'); g.setTransform(c.width / 84, 0, 0, c.height / 118, 0, 0); g.clearRect(0, 0, 84, 118); drawBack(g, b.dataset.back, 84, 118, settings.deckSeed);
+  });
+  sheet.querySelectorAll('[data-table]').forEach((b) => {
+    const c = b.querySelector('canvas'); const g = c.getContext('2d'); g.setTransform(c.width / 120, 0, 0, c.height / 72, 0, 0); drawTable(g, b.dataset.table, 120, 72);
+  });
+}
 function saveSettings() { save('settings', settings); }
-function applyLook() { sprites.clear(); tableDirty = true; relayout(true); markDirty(); updateHUD(); }
+function applyLook() { loadArt(essentialArt()); sprites.clear(); tableDirty = true; relayout(true); markDirty(); updateHUD(); }
 function setSetting(k, v) {
   if (k === 'sound') { settings.sound = !!v; if (v) initAudio(); }
   else if (k === 'volume') { settings.volume = clamp(+v, 0, 1); if (master) master.gain.value = settings.volume; }
@@ -2311,7 +2471,7 @@ window.__game = {
     closeModal(); showTitle(false); relayout(true); updateHUD(); markDirty();
     return true;
   },
-  isIdle() { return !tweensActive(now()) && !drag && !cascade && !winTimer; },
+  isIdle() { return !artPending && !artTick && !tweensActive(now()) && !drag && !cascade && !winTimer; },
   scene(name) {
     if (name === 'title') { closeModal(); showTitle(true); }
     else if (name === 'game') { closeModal(); if (!S) newGame({ mode: 'klondike' }); showTitle(false); }
@@ -2342,11 +2502,13 @@ window.__game = {
   setSettings(o) { for (const k in o) setSetting(k, o[k]); return Object.assign({}, settings); },
   freecellDeal(n) { const cols = [[], [], [], [], [], [], [], []]; freecellOrder(n).forEach((c, i) => cols[i % 8].push(RANKS[c >> 2] + SUITS[c & 3])); return cols; },
   stats() { return JSON.parse(JSON.stringify(stats)); },
+  art() { return { on: ART_ON, wanted: [...artWant], loaded: Object.keys(art) }; },
 };
 
 // Boot
 buildTitle();
 resize();
+loadArt(essentialArt());
 {
   const q = new URLSearchParams(location.search);
   if (q.get('mode') && MODES[q.get('mode')]) newGame({ mode: q.get('mode'), draw: +q.get('draw') || 1, suits: +q.get('suits') || 1, deal: +q.get('deal') || undefined });

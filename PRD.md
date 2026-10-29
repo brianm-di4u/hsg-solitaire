@@ -152,11 +152,19 @@ Title ──► Game ──► Win dialog ──► (New deal | Replay | Title)
   - UI chrome uses the default theme: light is gilded-spa, dark is deco-neon.
   - Each back uses its motif palette (town-content §1). Tables use P5 felt, P6 linen, P2 thermal, the
     marble swatch, and P5 midnight.
-- **Faces:** cream `#FBF8F1` card stock, a thin border `#CDBF9F`, red `#B3261E`, black `#1F2A24`. In the
+- **Painted art (v2):** the deck follows the reference photos in `Sample Images/` (an Art Deco deck with
+  illustrated courts and painted backs). Original illustrations were generated with Codex image generation and
+  packed to `assets/*.webp` (`art-src/art.json`, `node shared/test-harness/art-pack.mjs games/solitaire`).
+  They are composited into the cached card sprites, so frame cost is unchanged. Every painted layer keeps its
+  vector drawing as a fallback, used when an image is missing or with `?art=0`.
+- **Faces:** ivory card stock with a faint grain and an inner highlight, a thin border `#A99D82`, red `#B3261E`, black `#1F2A24`. In the
   four-color option ♦ is blue `#1F5BA8` and ♣ is green `#2E6A3C`. Indices use a bold system serif
   (`--font-serif-victorian` stack); UI text uses `--font-sans`; titles use `--font-deco`.
-- **Courts:** flat geometric figures in a gilt-ruled frame (P4 brass `#D9A23A` frame), with the rank letter
-  large in the corner.
+- **Courts:** painted waist-up 1920s portraits (bath attendant, jockey, bellhop and saxophonist jacks; promenade
+  and evening queens; card-room, proprietor and racing kings), mirrored through a gilt band into a
+  double-ended card, inside a gilt double rule. The rank letter stays large in the corner.
+- **Aces** sit on a gilt Deco sunburst medallion. **Backs** are painted Deco scenes on the same 12 themes in a
+  gilt-ruled ivory border. **Tables** are painted surfaces with a soft vignette.
 - **Motion:** quick ease-out moves, a squash-flip for turning cards, steam curls on shuffle, the tufa cascade
   on a win, and a gold glow pulse for hints.
 
@@ -195,7 +203,7 @@ Master volume and mute are in settings. The AudioContext is created on the first
 
 - A steady 60 fps while dragging and during the cascade on a mid-range laptop, measured with `t.fps`. The
   aim is ≥ 50 in headless Chromium during the cascade.
-- `index.html` stays ≤ 2 MB (expected under 250 KB), with zero network requests.
+- `index.html` stays ≤ 2 MB, and `assets/` stays ≤ 3.5 MB. No requests leave the page's own origin.
 - Interactive in ≤ 2 s (`t.loadMs` < 2000), and the JS heap stays under 40 MB.
 
 ## 12. Save and load
@@ -253,7 +261,7 @@ resumes the exact position with its undo history. The game works when storage th
 37. All interactive controls are at least 44 px tall on mobile, and nothing overflows horizontally at either viewport.
 38. Text contrast in the UI chrome is at least 4.5:1 in light and dark color schemes.
 39. A help screen documents the rules for every mode and the controls.
-40. Zero console errors and zero external requests in every test.
+40. Zero console errors and zero external requests in every test. (Same-origin `assets/` loads are allowed.)
 
 **Performance**
 41. Load to interactive in under 2 s; at least 50 fps during the win cascade in the test browser; the file is ≤ 2 MB.

@@ -143,8 +143,20 @@ counts as one undo step.
 - **Sprite cache.** Each card face and back is drawn once into an offscreen canvas at `cardW × dpr`, keyed by
   `(face or back, size, fourColor, largeIndex)`. Each frame then only blits sprites, so 104 cards cost 104
   `drawImage` calls.
+- **Painted art.** `assets/*.webp` (listed in `assets/manifest.json`) are loaded with `new Image()` and
+  `decode()`, so they work from `file://` too, and are baked into the sprites:
+  - 12 court portraits, waist-up, drawn twice (the second copy rotated 180°) for a double-ended card;
+  - an ace medallion, 12 backs, 5 tables and the title painting.
+
+  The courts, the ace medallion, the current back and table, and the title painting load at boot; the other
+  backs and tables load when the picker opens. When an image arrives, the sprites are cleared and redrawn.
+  `isIdle()` stays false while art is loading. With `?art=0`, or for any image that is missing, the vector
+  drawing below is used instead.
+- **Shadows.** A blurred shadow sprite is baked once per card size, in a resting and a lifted version. It is
+  drawn under every card, so each card in a fan shades the one below. Dragged and cascading cards use the
+  lifted shadow, and a flipping card darkens as it turns edge-on.
 - **Card art**
-  - Rounded rectangles with a cream face `#FBF8F1`. The large corner index is about 34% of card width for the
+  - Rounded rectangles on ivory card stock with a faint grain. The large corner index is about 34% of card width for the
     rank and 28% for the suit, so it stays readable at 36 px wide.
   - Standard pip layouts for ranks 2–10. Suit glyphs are vector paths, not font glyphs.
   - Court cards are framed geometric archetypes (town-content §4).

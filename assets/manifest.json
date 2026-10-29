@@ -1,0 +1,188 @@
+{
+ "back-skylight": {
+  "file": "back-skylight.webp",
+  "w": 400,
+  "h": 560,
+  "bytes": 92722
+ },
+ "back-lozenge": {
+  "file": "back-lozenge.webp",
+  "w": 400,
+  "h": 560,
+  "bytes": 63134
+ },
+ "back-quapaw": {
+  "file": "back-quapaw.webp",
+  "w": 400,
+  "h": 560,
+  "bytes": 83658
+ },
+ "back-ironwork": {
+  "file": "back-ironwork.webp",
+  "w": 400,
+  "h": 560,
+  "bytes": 81626
+ },
+ "back-paterae": {
+  "file": "back-paterae.webp",
+  "w": 400,
+  "h": 560,
+  "bytes": 70016
+ },
+ "back-sculpin": {
+  "file": "back-sculpin.webp",
+  "w": 400,
+  "h": 560,
+  "bytes": 90414
+ },
+ "back-neon": {
+  "file": "back-neon.webp",
+  "w": 400,
+  "h": 560,
+  "bytes": 88894
+ },
+ "back-deco": {
+  "file": "back-deco.webp",
+  "w": 400,
+  "h": 560,
+  "bytes": 81628
+ },
+ "back-pines": {
+  "file": "back-pines.webp",
+  "w": 400,
+  "h": 560,
+  "bytes": 79314
+ },
+ "back-steam": {
+  "file": "back-steam.webp",
+  "w": 400,
+  "h": 560,
+  "bytes": 89496
+ },
+ "back-lake": {
+  "file": "back-lake.webp",
+  "w": 400,
+  "h": 560,
+  "bytes": 75312
+ },
+ "table-felt": {
+  "file": "table-felt.webp",
+  "w": 1600,
+  "h": 1000,
+  "bytes": 206064
+ },
+ "table-linen": {
+  "file": "table-linen.webp",
+  "w": 1600,
+  "h": 1000,
+  "bytes": 428956
+ },
+ "table-pool": {
+  "file": "table-pool.webp",
+  "w": 1600,
+  "h": 1000,
+  "bytes": 130610
+ },
+ "table-marble": {
+  "file": "table-marble.webp",
+  "w": 1600,
+  "h": 1000,
+  "bytes": 118484
+ },
+ "table-midnight": {
+  "file": "table-midnight.webp",
+  "w": 1600,
+  "h": 1000,
+  "bytes": 63960
+ },
+ "court-ks": {
+  "file": "court-ks.webp",
+  "w": 480,
+  "h": 320,
+  "bytes": 35114
+ },
+ "court-kh": {
+  "file": "court-kh.webp",
+  "w": 480,
+  "h": 320,
+  "bytes": 33788
+ },
+ "court-kd": {
+  "file": "court-kd.webp",
+  "w": 480,
+  "h": 320,
+  "bytes": 33030
+ },
+ "court-kc": {
+  "file": "court-kc.webp",
+  "w": 480,
+  "h": 320,
+  "bytes": 34364
+ },
+ "court-qs": {
+  "file": "court-qs.webp",
+  "w": 480,
+  "h": 320,
+  "bytes": 37796
+ },
+ "court-qh": {
+  "file": "court-qh.webp",
+  "w": 480,
+  "h": 320,
+  "bytes": 34350
+ },
+ "court-qd": {
+  "file": "court-qd.webp",
+  "w": 480,
+  "h": 320,
+  "bytes": 37416
+ },
+ "court-qc": {
+  "file": "court-qc.webp",
+  "w": 480,
+  "h": 320,
+  "bytes": 42878
+ },
+ "court-js": {
+  "file": "court-js.webp",
+  "w": 480,
+  "h": 320,
+  "bytes": 30456
+ },
+ "court-jh": {
+  "file": "court-jh.webp",
+  "w": 480,
+  "h": 320,
+  "bytes": 38056
+ },
+ "court-jd": {
+  "file": "court-jd.webp",
+  "w": 480,
+  "h": 320,
+  "bytes": 29246
+ },
+ "court-jc": {
+  "file": "court-jc.webp",
+  "w": 480,
+  "h": 320,
+  "bytes": 34540
+ },
+ "back-silks": {
+  "file": "back-silks.webp",
+  "w": 400,
+  "h": 560,
+  "bytes": 74276
+ },
+ "ace-medallion": {
+  "file": "ace-medallion.webp",
+  "w": 384,
+  "h": 384,
+  "bytes": 51248
+ },
+ "title-hero": {
+  "file": "title-hero.webp",
+  "w": 1600,
+  "h": 900,
+  "bytes": 313404
+ }
+}
