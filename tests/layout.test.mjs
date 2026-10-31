@@ -81,4 +81,25 @@ export const tests = [
       await sizeTo(t, t.vp.width, t.vp.height);
     },
   },
+  {
+    name: 'layout-03 Classic table layout keeps the top row',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { sound: false, motion: 'reduced', layout: 'fit' });
+      for (const [w, h] of [[844, 390], [1920, 1080]]) {
+        await sizeTo(t, w, h);
+        await t.game('newGame', { mode: 'klondike', deal: 3 });
+        const fit = await t.game('getLayout');
+        await t.game('setSettings', { layout: 'classic' }); await t.waitForStable();
+        const classic = await t.game('getLayout');
+        t.expect(fit.arr === 'side' && classic.arr === 'top', `${w}×${h}: Fit screen uses rails, Classic the top row`);
+        t.expect(classic.piles.stock.y === classic.piles.f0.y && classic.piles.t0.y > classic.piles.f0.y, `${w}×${h}: Classic piles sit in a row above the columns`);
+        t.expect(Math.abs(classic.piles.stock.x - classic.piles.waste.x) <= classic.cardW + classic.gap + 1, `${w}×${h}: Classic keeps the waste beside the stock`);
+        t.log(`${w}×${h}: fit ${fit.cardW}px, classic ${classic.cardW}px`);
+        if (w === 844) await t.shot('layout-03-classic-phone-landscape');
+        await t.game('setSettings', { layout: 'fit' });
+      }
+      await sizeTo(t, t.vp.width, t.vp.height);
+    },
+  },
 ];

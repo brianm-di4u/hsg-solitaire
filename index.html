@@ -379,7 +379,7 @@ function save(name, value) {
 }
 
 const DEFAULT_SETTINGS = {
-  sound: true, volume: 0.6, motion: 'auto', leftHanded: false, cardSize: 'standard', fourColor: false,
+  sound: true, volume: 0.6, motion: 'auto', leftHanded: false, cardSize: 'standard', layout: 'fit', fourColor: false,
   autoFoundation: 'safe', back: 'skylight', table: 'felt', showTimer: true, deckSeed: 1914, courts: 'deco',
 };
 const settings = Object.assign({}, DEFAULT_SETTINGS, load('settings', {}));
@@ -2234,7 +2234,7 @@ function computeLayout(fit = 1) {
   const fitW = (units, s) => (W - 2 * margin) / (units + (units - 1 + s * .6) * gr);
   const topBase = Math.min(fitW(cols, 0), (H - 2 * margin) / (1.4 * 4.3));
   const sideBase = rails ? Math.min(fitW(cols + nl + nr, seams), (H - 2 * margin) / (1.4 * 3.2)) : 0;
-  const side = sideBase > topBase * 1.08;
+  const side = settings.layout !== 'classic' && sideBase > topBase * 1.08; // Classic keeps the top row on every screen
   const units = side ? cols + nl + nr : cols, s = side ? seams : 0, widthFit = fitW(units, s);
   const base = Math.min(side ? sideBase : topBase, CARD_CAP);
   let cw = size === 'compact' ? base * .84 : size === 'large' ? Math.min(widthFit, base * 1.14) : base;
@@ -3110,6 +3110,7 @@ const MODALS = {
     '<div class="set"><label>Motion<small>Auto follows your system setting</small></label>' + seg('motion', [['auto', 'Auto'], ['full', 'Full'], ['reduced', 'Reduced']]) + '</div>' +
     '<div class="set"><label>Left-handed layout<small>Stock and free cells on the left</small></label>' + tog('leftHanded', 'Left-handed layout') + '</div>' +
     '<div class="set"><label>Card size<small>Large also enlarges the corner index</small></label>' + seg('cardSize', [['compact', 'Compact'], ['standard', 'Standard'], ['large', 'Large']]) + '</div>' +
+    '<div class="set"><label>Table layout<small>Fit screen moves piles beside the columns on wide screens for bigger cards</small></label>' + seg('layout', [['fit', 'Fit screen'], ['classic', 'Classic']]) + '</div>' +
     '<div class="set"><label>Court cards<small>Art Deco line art, or the painted portraits</small></label>' + seg('courts', [['deco', 'Art Deco'], ['painted', 'Painted']]) + '</div>' +
     '<div class="set"><label>Four-color suits<small>Blue diamonds, green clubs</small></label>' + tog('fourColor', 'Four-color suits') + '</div>' +
     '<div class="set"><label>Auto-move to foundations<small>Safe moves only cards nothing else needs</small></label>' + seg('autoFoundation', [['off', 'Off'], ['safe', 'Safe'], ['all', 'All']]) + '</div>' +
@@ -3257,7 +3258,7 @@ function setSetting(k, v) {
   else if (k === 'volume') { settings.volume = clamp(+v, 0, 1); if (master) master.gain.value = settings.volume; }
   else if (k in DEFAULT_SETTINGS) settings[k] = typeof DEFAULT_SETTINGS[k] === 'boolean' ? !!v : v;
   saveSettings();
-  if (['leftHanded', 'cardSize', 'fourColor', 'back', 'table', 'showTimer', 'deckSeed', 'courts'].includes(k)) applyLook();
+  if (['leftHanded', 'cardSize', 'layout', 'fourColor', 'back', 'table', 'showTimer', 'deckSeed', 'courts'].includes(k)) applyLook();
 }
 
 // ============================================================================================
