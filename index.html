@@ -1376,27 +1376,11 @@ function drawFace(ctx, c, w, h, large) {
   if (small) { drawSuit(ctx, c.s, w * .5, h * .64, w * .52, col); return; }
   const ps = w * (c.r >= 9 ? .17 : .19);
   const xs = { L: w * .3, C: w * .5, R: w * .7 };
-  decoBrackets(ctx, w * .2, h * .245, w * .6, h * .51, w);
   for (const [cl, f] of PIPS[c.r]) {
     const y = h * (.37 + f * .44) + ps * .1;
     drawSuit(ctx, c.s, xs[cl], y, ps, col, f > .5);
   }
 }
-// Stepped Art Deco brackets in fine brass at the corners of a pip field.
-function decoBrackets(ctx, x, y, bw, bh, w) {
-  ctx.save(); ctx.strokeStyle = 'rgba(156,110,30,.55)'; ctx.lineWidth = Math.max(.6, w * .008); ctx.lineCap = 'square';
-  const a = w * .07, st = w * .022;
-  for (const [cx, cy, sx, sy] of [[x, y, 1, 1], [x + bw, y, -1, 1], [x, y + bh, 1, -1], [x + bw, y + bh, -1, -1]]) {
-    ctx.beginPath();
-    for (let k = 0; k < 2; k++) {
-      const o = k * st, L = a - k * st * 1.3;
-      ctx.moveTo(cx + sx * o, cy + sy * (o + L)); ctx.lineTo(cx + sx * o, cy + sy * o); ctx.lineTo(cx + sx * (o + L), cy + sy * o);
-    }
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
 // Card stock: warm ivory with a faint grain, a soft inner edge and a fine border.
 function cardStock(ctx, w, h) {
   rrect(ctx, .5, .5, w - 1, h - 1, w * .075);
