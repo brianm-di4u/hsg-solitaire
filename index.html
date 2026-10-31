@@ -247,6 +247,23 @@
     .tb{font-size:.64rem;letter-spacing:.06em}
     .sheet{padding:14px 14px 16px}
   }
+  /* Short landscape screens (phones on their side): a slim status bar and the actions in a rail beside the table,
+     so the cards get the height. Left-handed puts the rail on the left. */
+  @media (orientation:landscape) and (max-height:500px){
+    :root{--bar-h:40px;--tools-h:0px}
+    #app{display:grid;grid-template-columns:1fr auto;grid-template-rows:var(--bar-h) minmax(0,1fr)}
+    #bar{grid-column:1/-1;gap:8px;padding:0 8px}
+    #stage{grid-row:2;grid-column:1}
+    #tools{grid-row:2;grid-column:2;height:auto;width:66px;flex-direction:column;gap:6px;padding:6px;
+      border-top:0;border-left:2px solid var(--brass);border-image:linear-gradient(180deg,#6E4C16,#E9C873 22%,#9C6E1E 50%,#E9C873 78%,#6E4C16) 1;
+      box-shadow:-3px 0 10px rgba(0,0,0,.45)}
+    .lh #app{grid-template-columns:auto 1fr} .lh #stage{grid-column:2} .lh #tools{grid-column:1;border-left:0;border-right:2px solid var(--brass);box-shadow:3px 0 10px rgba(0,0,0,.45)}
+    .tb{width:100%;max-width:none;min-height:0;max-height:64px;font-size:.6rem;letter-spacing:.06em;border-radius:12px}
+    .tb svg{width:19px;height:19px}
+    .ib{width:34px;height:34px} .ib svg{width:19px;height:19px}
+    #modeName{font-size:.98rem} #modeSub{font-size:.66rem}
+    #status{gap:14px;font-size:.58rem} #status b{font-size:1.02rem;margin-top:0}
+  }
   @media (prefers-reduced-motion: reduce){ #toast{transition:none} .tog::after{transition:none} }
 </style>
 </head>
@@ -2184,36 +2201,66 @@ const D = [];  // per-uid display state {x,y,sx,sy,tx,ty,t0,dur,up,f0}
 function topSlots() {
   const lh = settings.leftHanded; const n = (k, p) => Array.from({ length: k }, (_, i) => p + i);
   switch (S.mode) {
-    case 'klondike': return lh ? ['stock', 'waste', null, ...n(4, 'f')] : [...n(4, 'f'), 'waste', null, 'stock'];
+    // the waste sits right beside the stock: drawing and playing from it is the most repeated reach in the game
+    case 'klondike': return lh ? ['stock', 'waste', null, ...n(4, 'f')] : [...n(4, 'f'), null, 'waste', 'stock'];
     case 'freecell': return lh ? [...n(4, 'f'), ...n(4, 'c')] : [...n(4, 'c'), ...n(4, 'f')];
     case 'spider': return lh ? ['stock', null, ...n(8, 'f')] : [...n(8, 'f'), null, 'stock'];
     default: return lh ? [...n(4, 'f'), null, null, null] : [null, null, null, ...n(4, 'f')];
   }
 }
+// Short, wide screens can seat the top-row piles in rails beside the tableau instead, so the columns get the whole
+// height. A rail is a list of columns, each a list of pile ids stacked downward. Spider's ten columns leave no room.
+function sideRails() {
+  const quad = (p) => [[p + 0, p + 2], [p + 1, p + 3]]; // a 2×2 block: x0 x1 over x2 x3
+  let a, b; // a sits where the top row starts, b where the stock (or the foundations) end it
+  switch (S.mode) {
+    case 'klondike': a = quad('f'); b = [['stock', 'waste']]; break;
+    case 'freecell': a = quad('c'); b = quad('f'); break;
+    case 'spider': return null;
+    default: a = []; b = quad('f');
+  }
+  return settings.leftHanded ? { left: b, right: a } : { left: a, right: b };
+}
+// Card width cap: big enough that a large monitor is used, small enough that a 4K screen does not get poster-sized cards.
+const CARD_CAP = 200;
 function computeLayout(fit = 1) {
-  const d = def(), cols = d.cols, mobile = W < 560;
-  const margin = mobile ? 6 : Math.max(12, Math.round(W * .018));
+  const d = def(), cols = d.cols, compact = Math.min(W, H) < 560; // phones, either way up
+  const margin = compact ? 6 : Math.max(12, Math.round(W * .018));
   const size = settings.cardSize;
-  const gr = size === 'large' ? (mobile ? .05 : .08) : size === 'compact' ? .18 : (mobile ? .09 : .14);
-  const widthFit = (W - 2 * margin) / (cols + (cols - 1) * gr);
-  const hFit = (H - 2 * margin) / (1.4 * 4.3);
-  const base = Math.min(widthFit, hFit, 140);
+  const gr = size === 'large' ? (compact ? .05 : .08) : size === 'compact' ? .18 : (compact ? .07 : .14);
+  // Two arrangements: the classic top row over the tableau, or rails beside it. Whichever gives bigger cards wins, the
+  // rails by at least 8% so a board near the boundary does not flip between them. A rail sits a little apart (a seam).
+  const rails = sideRails(), nl = rails ? rails.left.length : 0, nr = rails ? rails.right.length : 0, seams = (nl ? 1 : 0) + (nr ? 1 : 0);
+  const fitW = (units, s) => (W - 2 * margin) / (units + (units - 1 + s * .6) * gr);
+  const topBase = Math.min(fitW(cols, 0), (H - 2 * margin) / (1.4 * 4.3));
+  const sideBase = rails ? Math.min(fitW(cols + nl + nr, seams), (H - 2 * margin) / (1.4 * 3.2)) : 0;
+  const side = sideBase > topBase * 1.08;
+  const units = side ? cols + nl + nr : cols, s = side ? seams : 0, widthFit = fitW(units, s);
+  const base = Math.min(side ? sideBase : topBase, CARD_CAP);
   let cw = size === 'compact' ? base * .84 : size === 'large' ? Math.min(widthFit, base * 1.14) : base;
   cw = Math.max(24, Math.floor(cw * fit)); // fit < 1 when a long column would not otherwise show every rank
   const ch = Math.round(cw * 1.4);
-  const gap = cols > 1 ? Math.min((W - 2 * margin - cols * cw) / (cols - 1), cw * .3) : 0;
-  const rowW = cols * cw + (cols - 1) * gap, x0 = Math.round((W - rowW) / 2);
+  const gap = units > 1 ? Math.min((W - 2 * margin - units * cw) / (units - 1 + s * .6), cw * .3) : 0, seam = gap * .6;
+  const rowW = units * cw + (units - 1) * gap + s * seam, x0 = Math.round((W - rowW) / 2);
   const slotX = (i) => Math.round(x0 + i * (cw + gap));
   // Portrait phones are width-bound and tall: lower the board a little toward the thumb and give the spare height to the fans.
-  const portrait = H > W * 1.25, lower = portrait ? Math.round(clamp((H / W - 1.4) * W * .22, 0, H * .07)) : 0;
-  const topY = margin + lower, tabY = Math.round(topY + ch + Math.max(8, ch * .14));
+  const portrait = H > W * 1.25, lower = portrait && !side ? Math.round(clamp((H / W - 1.4) * W * .22, 0, H * .07)) : 0;
+  const vgap = Math.max(8, ch * .14), topY = margin + lower, tabY = side ? topY : Math.round(topY + ch + vgap);
   const piles = {};
-  topSlots().forEach((id, i) => { if (id) piles[id] = { x: slotX(i), y: topY }; });
-  for (let i = 0; i < cols; i++) piles['t' + i] = { x: slotX(i), y: tabY };
+  if (side) {
+    let x = x0;
+    const rail = (rc) => rc.forEach((col) => { col.forEach((id, r) => { piles[id] = { x: Math.round(x), y: Math.round(topY + r * (ch + vgap)) }; }); x += cw + gap; });
+    rail(rails.left); if (nl) x += seam;
+    for (let i = 0; i < cols; i++) { piles['t' + i] = { x: Math.round(x), y: tabY }; x += cw + gap; }
+    if (nr) x += seam; rail(rails.right);
+  } else {
+    topSlots().forEach((id, i) => { if (id) piles[id] = { x: slotX(i), y: topY }; });
+    for (let i = 0; i < cols; i++) piles['t' + i] = { x: slotX(i), y: tabY };
+  }
   const largeIdx = size === 'large' || cw < 58;
   const ib = indexBottom(cw, ch, largeIdx);
   // columns stop clear of the brass inlay on the table edge
-  return { cw, ch, gap, margin, piles, bottom: H - margin - (mobile ? 2 : 8), largeIdx, portrait, fit,
+  return { cw, ch, gap, margin, piles, arr: side ? 'side' : 'top', bottom: H - margin - (compact ? 2 : 8), largeIdx, portrait, fit,
     // the face-up step always shows the whole rank glyph (J and Q descenders included) plus a little air
     fanUp: Math.max(ch * (portrait ? .46 : largeIdx ? .31 : .25), ch * .28, ib.full + 3), fanMin: ib.full + 1,
     idxFull: ib.full, idxCap: ib.cap, fanDown: ch * (portrait ? .27 : .14), downMin: ch * .06 };
@@ -2236,9 +2283,16 @@ function computeTargets() {
       p.forEach((u, i) => { T[u] = { x: b.x, y, pile: id }; bm.cards.push({ x: b.x, y, w: cw, h: ch, up: S.up[u] }); y += S.up[u] ? fu : dd; });
       b.zoneH = (p.length ? bm.cards[bm.cards.length - 1].y - b.y : 0) + ch;
     } else if (k === 'waste') {
-      const fanN = S.opts.draw === 3 ? 3 : 1; const start = Math.max(0, p.length - fanN);
-      p.forEach((u, i) => { const off = i >= start ? (i - start) * cw * .27 : 0; T[u] = { x: b.x + off, y: b.y, pile: id }; bm.cards.push({ x: b.x + off, y: b.y, w: cw, h: ch, up: true }); });
-      b.zoneH = ch;
+      // The playable card stays on the waste slot, beside the stock; the rest of a draw-3 fan steps away from the stock
+      // (down the rail in the side arrangement). Left-handed, the stock is on the slot's left, so the fan opens rightward.
+      const fanN = S.opts.draw === 3 ? 3 : 1; const start = Math.max(0, p.length - fanN), n = Math.max(0, p.length - 1 - start);
+      const down = L.arr === 'side', back = !down && L.piles.stock && L.piles.stock.x > b.x;
+      const step = cw * .27, vstep = Math.max(L.idxFull + 3, ch * .17);
+      p.forEach((u, i) => {
+        const j = Math.max(0, i - start), x = b.x + (down ? 0 : back ? (j - n) * step : j * step), y = b.y + (down ? j * vstep : 0);
+        T[u] = { x, y, pile: id }; bm.cards.push({ x, y, w: cw, h: ch, up: true });
+      });
+      b.zoneH = ch + (down ? n * vstep : 0);
     } else if (k === 'stock' && S.mode === 'spider') {
       const dir = settings.leftHanded ? 1 : -1;
       p.forEach((u, i) => { const g = Math.floor(i / 10); const x = b.x + dir * g * cw * .14; T[u] = { x, y: b.y, pile: id }; bm.cards.push({ x, y: b.y, w: cw, h: ch, up: false }); });
@@ -3191,7 +3245,13 @@ function paintPickers() {
   });
 }
 function saveSettings() { save('settings', settings); }
-function applyLook() { steam = []; fx = []; landFx = []; loadArt(essentialArt()); sprites.clear(); tableDirty = true; relayout(true); markDirty(); updateHUD(); }
+function applyLook() {
+  steam = []; fx = []; landFx = [];
+  // left-handed moves the short-landscape tool rail to the left, which can change the table's size
+  document.documentElement.classList.toggle('lh', !!settings.leftHanded); const r = stage.getBoundingClientRect();
+  if (Math.round(r.width) !== W || Math.round(r.height) !== H) { resize(); updateHUD(); return; }
+  loadArt(essentialArt()); sprites.clear(); tableDirty = true; relayout(true); markDirty(); updateHUD();
+}
 function setSetting(k, v) {
   if (k === 'sound') { settings.sound = !!v; if (v) initAudio(); }
   else if (k === 'volume') { settings.volume = clamp(+v, 0, 1); if (master) master.gain.value = settings.volume; }
@@ -3211,6 +3271,8 @@ function resize() {
   if (titleOn) { drawSky(now()); paintHands(); }
 }
 window.addEventListener('resize', resize);
+// iOS can resize the visible area (toolbars collapsing, rotation settling) without a window resize event
+if (window.visualViewport) visualViewport.addEventListener('resize', () => { const r = stage.getBoundingClientRect(); if (Math.round(r.width) !== W || Math.round(r.height) !== H) resize(); });
 if (reduceQuery && reduceQuery.addEventListener) reduceQuery.addEventListener('change', () => markDirty());
 
 // ============================================================================================
@@ -3281,7 +3343,7 @@ window.__game = {
   getLayout() {
     if (!L) return null; const r = cv.getBoundingClientRect(); const o = {};
     for (const id in L.piles) { const b = L.piles[id]; o[id] = { x: b.x + r.left, y: b.y + r.top, w: L.cw, h: b.zoneH || L.ch, cards: b.cards.map((c) => ({ x: c.x + r.left, y: c.y + r.top, w: c.w, h: c.h, up: c.up })) }; }
-    return { cardW: L.cw, cardH: L.ch, indexPx: Math.round(L.cw * idxScale(L.cw, L.largeIdx).rs * 10) / 10, idxFull: L.idxFull, idxCap: L.idxCap, fanUp: L.fanUp, bottom: L.bottom + r.top, fit: L.fit, fitFloor: FIT_FLOOR(), piles: o };
+    return { arr: L.arr, gap: L.gap, stageW: W, stageH: H, cardW: L.cw, cardH: L.ch, indexPx: Math.round(L.cw * idxScale(L.cw, L.largeIdx).rs * 10) / 10, idxFull: L.idxFull, idxCap: L.idxCap, fanUp: L.fanUp, bottom: L.bottom + r.top, fit: L.fit, fitFloor: FIT_FLOOR(), piles: o };
   },
   legalMoves() { return legalMoves(); },
   setSettings(o) { for (const k in o) setSetting(k, o[k]); return Object.assign({}, settings); },
@@ -3292,6 +3354,7 @@ window.__game = {
 
 // Boot
 buildTitle();
+document.documentElement.classList.toggle('lh', !!settings.leftHanded);
 resize();
 loadArt(essentialArt());
 {
