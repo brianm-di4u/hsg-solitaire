@@ -175,3 +175,12 @@ Docs:
    `page.reload()` followed by `waitForFunction`.
 4. **A per-test `initScript` option** that runs before the first navigation. The storage-failure test has
    to `addInitScript` and then reload.
+
+## Update: repainted backgrounds (v2.3.0, 2026-11-02)
+
+The title painting was repainted. It packs at WebP quality 0.7 (was 0.8) to keep the first load under the 1.5 MB
+budget. The new source PNGs replace the `art-src/art.json` sources (git-ignored; the workspace keeps copies of the old
+and new paintings in `reference/backgrounds/`) and were packed with the usual tools. Older descriptions of these
+paintings in VISUAL-REPORT.md refer to the previous art.
+
+`npm test`: 93/93 passed.
