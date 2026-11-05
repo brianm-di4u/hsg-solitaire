@@ -1187,7 +1187,7 @@ let saveTimer = 0;
 function scheduleSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    if (!S || S.won || !S.started) return;
+    if (!S || S.won) return;
     tickClock();
     save('current', { state: S, undo: undoStack.slice(-400) });
   }, 300);
