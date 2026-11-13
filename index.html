@@ -371,8 +371,11 @@ const KEY = 'spa-solitaire:v1:';
 let storageOK = true;
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 function load(name, fallback) {
-  try { const v = localStorage.getItem(KEY + name); return v ? JSON.parse(v) : fallback; }
-  catch (e) { storageOK = false; return fallback; }
+  let raw;
+  try { raw = localStorage.getItem(KEY + name); } catch (e) { storageOK = false; return fallback; }
+  if (!raw) return fallback;
+  // Unreadable JSON is a bad value, not a broken store: drop just that key.
+  try { return JSON.parse(raw); } catch (e) { try { localStorage.removeItem(KEY + name); } catch (e2) { /* storage is read-only */ } return fallback; }
 }
 function save(name, value) {
   try { if (value == null) localStorage.removeItem(KEY + name); else localStorage.setItem(KEY + name, JSON.stringify(value)); }
@@ -383,9 +386,10 @@ const DEFAULT_SETTINGS = {
   sound: true, volume: 0.6, motion: 'auto', leftHanded: false, cardSize: 'standard', layout: 'fit', fourColor: false,
   autoFoundation: 'safe', back: 'skylight', table: 'felt', showTimer: true, deckSeed: 1914, courts: 'deco',
 };
-const settings = Object.assign({}, DEFAULT_SETTINGS, load('settings', {}));
-let stats = load('stats', {});
-let meta = Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 0, daily: {} }, load('meta', {}));
+const loadObj = (name) => { const v = load(name, null); return isObj(v) ? v : {}; };
+const settings = Object.assign({}, DEFAULT_SETTINGS, loadObj('settings'));
+let stats = loadObj('stats');
+let meta = Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 0, daily: {} }, loadObj('meta'));
 const reduceQuery = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
 const reducedMotion = () => settings.motion === 'reduced' || (settings.motion === 'auto' && reduceQuery && reduceQuery.matches);
 
@@ -1115,7 +1119,10 @@ function pileName(id) {
 // 6. New game, stats, win
 // ============================================================================================
 function statFor(k) {
-  return stats[k] || (stats[k] = { played: 0, won: 0, streak: 0, bestStreak: 0, bestTimeMs: 0, fewestMoves: 0, bestScore: 0, totalMs: 0 });
+  const d = { played: 0, won: 0, streak: 0, bestStreak: 0, bestTimeMs: 0, fewestMoves: 0, bestScore: 0, totalMs: 0 };
+  if (!isObj(stats[k])) return (stats[k] = d);
+  for (const f in d) if (typeof stats[k][f] !== 'number' || !isFinite(stats[k][f])) stats[k][f] = d[f];
+  return stats[k];
 }
 function saveStats() { save('stats', stats); }
 let clockMark = 0;
@@ -1667,6 +1674,20 @@ const TABLES = [
   { id: 'linen', name: 'Linen Postcard', ink: 'rgba(31,47,92,.5)', text: '#1F2F5C',
     cap: 'The airbrushed blue sky of a linen-finish souvenir postcard, the kind sold all over the Spa City.' },
 ];
+
+// Stored settings and meta come from outside the game, so fall back per key to a known-good value.
+const SETTING_ENUMS = { motion: ['auto', 'full', 'reduced'], cardSize: ['compact', 'standard', 'large'], layout: ['fit', 'classic'], autoFoundation: ['off', 'safe', 'all'],
+  courts: ['deco', 'painted'], back: BACKS.map((b) => b.id), table: TABLES.map((x) => x.id) };
+for (const k in DEFAULT_SETTINGS) {
+  const v = settings[k], d = DEFAULT_SETTINGS[k];
+  if (typeof v !== typeof d || (typeof v === 'number' && !isFinite(v)) || (SETTING_ENUMS[k] && !SETTING_ENUMS[k].includes(v))) settings[k] = d;
+}
+settings.volume = clamp(settings.volume, 0, 1);
+if (!MODES[meta.lastMode]) meta.lastMode = 'klondike';
+if (!isObj(meta.lastOpts)) meta.lastOpts = {};
+meta.lastOpts = { draw: meta.lastOpts.draw === 3 ? 3 : 1, suits: [1, 2, 4].includes(meta.lastOpts.suits) ? meta.lastOpts.suits : 1 };
+if (typeof meta.totalWins !== 'number' || !isFinite(meta.totalWins)) meta.totalWins = 0;
+if (!isObj(meta.daily)) meta.daily = {};
 
 function spiral(ctx, cx, cy, r, turns, dir, a0) {
   const n = 28; ctx.moveTo(cx + Math.cos(a0) * r, cy + Math.sin(a0) * r);

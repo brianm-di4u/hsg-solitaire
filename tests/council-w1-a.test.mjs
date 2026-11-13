@@ -122,4 +122,37 @@ export const tests = [
       t.equal(viaHidden, 2, 'a hidden tab flushed the move that was still inside the debounce');
     },
   },
+  // ---- S6-04 ----
+  {
+    name: 'w1a S6-04 stats, meta and settings of the wrong shape fall back to defaults',
+    async run(t) {
+      const P = 'spa-solitaire:v1:';
+      const cases = [
+        ['stats null', { stats: 'null' }], ['stats number', { stats: '7' }], ['stats array', { stats: '[1]' }],
+        ['stats entry null', { stats: '{"klondike1":null,"spider2":5}' }], ['stats entry partial', { stats: '{"klondike1":{"played":"x"}}' }],
+        ['meta daily null', { meta: '{"daily":null}' }], ['meta number', { meta: '3' }],
+        ['meta bad lastMode', { meta: '{"lastMode":"zzz","lastOpts":null,"totalWins":"many"}' }],
+        ['settings bad values', { settings: '{"table":"zzz","back":"zzz","cardSize":"huge","motion":5,"volume":"loud","courts":"x","sound":"yes"}' }],
+        ['settings string', { settings: '"abc"' }],
+        ['truncated json', { stats: '{"klondike1":{"played":', meta: '{"lastMode":', settings: '{"table":"fe' }],
+      ];
+      for (const [name, kv] of cases) {
+        await t.page.evaluate(([pre, o]) => { for (const k of ['stats', 'meta', 'settings', 'current']) localStorage.removeItem(pre + k); for (const k in o) localStorage.setItem(pre + k, o[k]); }, [P, kv]);
+        await reloadGame(t);
+        await t.page.click('#tiles .chip >> nth=0'); await t.waitForStable();
+        const s = await t.state();
+        t.expect(s.storageOK === true, name + ': storage is not reported broken');
+        t.expect(['felt', 'marble', 'quapaw', 'pool', 'midnight', 'linen'].includes(s.settings.table), name + ': table valid: ' + s.settings.table);
+        t.expect(s.settings.back === 'skylight' || s.settings.back.length > 0, name + ': back valid');
+        t.expect(['compact', 'standard', 'large'].includes(s.settings.cardSize), name + ': cardSize valid');
+        t.expect(['auto', 'full', 'reduced'].includes(s.settings.motion), name + ': motion valid');
+        t.expect(typeof s.settings.volume === 'number' && s.settings.volume >= 0 && s.settings.volume <= 1, name + ': volume valid');
+        await t.game('scene', 'stats'); await t.game('scene', 'title');
+        await t.page.waitForSelector('#tDaily');
+        { const k1 = (await t.game('stats')).klondike1; t.expect(k1 && typeof k1.played === 'number', name + ': stats entry usable'); }
+        if (name === 'truncated json') for (const k of ['stats', 'meta', 'settings']) t.expect((await stored(t, P + k)) !== kv[k], name + ': bad ' + k + ' no longer kept as is');
+        await settle(t);
+      }
+    },
+  },
 ];
