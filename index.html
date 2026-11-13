@@ -675,6 +675,7 @@ function sourcePiles() {
 
 function startClock() {
   if (!S.started) {
+    syncShared();
     S.started = true; clockMark = now();
     const k = modeKey(S.mode, S.opts); const st = statFor(k); st.played++; saveStats();
     if (S.daily) { meta.daily[S.daily + '|' + k] = meta.daily[S.daily + '|' + k] || 'played'; save('meta', meta); }
@@ -1135,7 +1136,7 @@ function tickClock() {
 const paused = () => document.hidden || modalKind !== null || titleOn;
 
 function abandonCurrent() {
-  if (S && S.started && !S.won) { const st = statFor(modeKey(S.mode, S.opts)); st.streak = 0; saveStats(); }
+  if (S && S.started && !S.won) { syncShared(); const st = statFor(modeKey(S.mode, S.opts)); st.streak = 0; saveStats(); }
 }
 
 function dailyDeal(mode, opts, date) {
@@ -1158,7 +1159,7 @@ function newGame(o = {}) {
   clearTimeout(winTimer); winTimer = 0;
   S = newState(mode, opts, deal, daily);
   undoStack = []; redoStack = []; hintState = null; held = null; drag = null; cascade = null; cursor = { pile: null, depth: 0 }; clearStuck();
-  meta.lastMode = mode; meta.lastOpts = { draw: S.opts.draw, suits: S.opts.suits }; save('meta', meta);
+  syncShared(); meta.lastMode = mode; meta.lastOpts = { draw: S.opts.draw, suits: S.opts.suits }; save('meta', meta);
   closeModal(); showTitle(false);
   dealAnimation(); updateHUD(); scheduleSave();
   sfx('deal'); steamBurst();
@@ -1184,7 +1185,7 @@ function restartDeal() { if (!S) return; newGame({ mode: S.mode, draw: S.opts.dr
 let lastWin = null;
 function onWin(delay) {
   loadArt(LATE_ART); // the ticket stock, ready long before the ceremony ends
-  tickClock();
+  tickClock(); syncShared();
   const k = modeKey(S.mode, S.opts); const st = statFor(k);
   let bonus = 0;
   if (S.mode !== 'spider') { bonus = Math.max(0, Math.round(1000 - 2 * S.elapsedMs / 1000)); addScore(bonus); }
@@ -1683,11 +1684,21 @@ for (const k in DEFAULT_SETTINGS) {
   if (typeof v !== typeof d || (typeof v === 'number' && !isFinite(v)) || (SETTING_ENUMS[k] && !SETTING_ENUMS[k].includes(v))) settings[k] = d;
 }
 settings.volume = clamp(settings.volume, 0, 1);
-if (!MODES[meta.lastMode]) meta.lastMode = 'klondike';
-if (!isObj(meta.lastOpts)) meta.lastOpts = {};
-meta.lastOpts = { draw: meta.lastOpts.draw === 3 ? 3 : 1, suits: [1, 2, 4].includes(meta.lastOpts.suits) ? meta.lastOpts.suits : 1 };
-if (typeof meta.totalWins !== 'number' || !isFinite(meta.totalWins)) meta.totalWins = 0;
-if (!isObj(meta.daily)) meta.daily = {};
+function normalizeMeta() {
+  if (!MODES[meta.lastMode]) meta.lastMode = 'klondike';
+  if (!isObj(meta.lastOpts)) meta.lastOpts = {};
+  meta.lastOpts = { draw: meta.lastOpts.draw === 3 ? 3 : 1, suits: [1, 2, 4].includes(meta.lastOpts.suits) ? meta.lastOpts.suits : 1 };
+  if (typeof meta.totalWins !== 'number' || !isFinite(meta.totalWins)) meta.totalWins = 0;
+  if (!isObj(meta.daily)) meta.daily = {};
+}
+normalizeMeta();
+// Stats and meta are written whole, so another tab's changes would be overwritten. Adopt the stored copy
+// before every change (and whenever another tab writes) so each write builds on the latest numbers.
+function syncShared() {
+  const s = load('stats', null); if (isObj(s)) stats = s;
+  const m = load('meta', null); if (isObj(m)) { meta = Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 0, daily: {} }, m); normalizeMeta(); }
+}
+window.addEventListener('storage', (e) => { if (e.key === null || e.key === KEY + 'stats' || e.key === KEY + 'meta') syncShared(); });
 
 function spiral(ctx, cx, cy, r, turns, dir, a0) {
   const n = 28; ctx.moveTo(cx + Math.cos(a0) * r, cy + Math.sin(a0) * r);
@@ -3278,7 +3289,7 @@ const BIND = {
   },
   stats(d) {
     sheet.querySelectorAll('[data-key]').forEach((b) => {
-      if (b.dataset.a === 'resetStats') b.onclick = () => openModal('confirm', { title: 'Reset statistics?', text: 'This clears every ' + modeKeyLabel(b.dataset.key) + ' statistic.', yes: 'Reset', onYes: () => { delete stats[b.dataset.key]; saveStats(); openModal('stats', { key: b.dataset.key }); } });
+      if (b.dataset.a === 'resetStats') b.onclick = () => openModal('confirm', { title: 'Reset statistics?', text: 'This clears every ' + modeKeyLabel(b.dataset.key) + ' statistic.', yes: 'Reset', onYes: () => { syncShared(); delete stats[b.dataset.key]; saveStats(); openModal('stats', { key: b.dataset.key }); } });
       else b.onclick = () => openModal('stats', { key: b.dataset.key });
     });
     void d;

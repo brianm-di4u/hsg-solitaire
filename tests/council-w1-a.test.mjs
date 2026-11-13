@@ -209,4 +209,29 @@ export const tests = [
       t.expect((await ac()).resume > a.resume, 'showing the tab resumes the audio context');
     },
   },
+  // ---- S6-03 ----
+  {
+    name: 'w1a S6-03 two tabs add to each other stats instead of overwriting them',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced' });
+      const other = await t.page.context().newPage();
+      try {
+        await other.goto(t.page.url()); await other.waitForFunction(() => !!window.__game);
+        await other.evaluate(() => window.__game.setSettings({ sound: false, motion: 'reduced' }));
+        // Tab A starts a game (played 1). Tab B, loaded before that, starts another.
+        await t.game('newGame', { mode: 'klondike', draw: 1, deal: 61 });
+        await t.game('act', 'draw');
+        await other.evaluate(() => { window.__game.newGame({ mode: 'klondike', draw: 1, deal: 62 }); window.__game.act('draw'); });
+        const played = (pg) => pg.evaluate(() => (window.__game.stats().klondike1 || {}).played);
+        const raw = await t.page.evaluate(() => JSON.parse(localStorage.getItem('spa-solitaire:v1:stats')).klondike1.played);
+        t.equal(raw, 2, 'storage counts both tab games');
+        await t.page.waitForTimeout(300);
+        t.equal(await played(t.page), 2, 'tab A noticed the other tab write');
+        // And back: A plays another deal; the total must keep growing from the shared value.
+        await t.game('newGame', { mode: 'klondike', draw: 1, deal: 63 }); await t.game('act', 'draw');
+        t.equal(await t.page.evaluate(() => JSON.parse(localStorage.getItem('spa-solitaire:v1:stats')).klondike1.played), 3, 'third game adds to the shared total');
+      } finally { await other.close(); }
+    },
+  },
 ];
