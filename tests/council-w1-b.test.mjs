@@ -53,4 +53,15 @@ export const tests = [
       t.equal(a[2], `${months} months and ${days} days`, 'hs-0076 duration matches its dates');
     },
   },
+  {
+    name: 'w1b S4-02 fact cards are unique and do not repeat or contradict themselves',
+    async run(t) {
+      const F = readFacts(); const byId = Object.fromEntries(F.map((f) => [f[0], f]));
+      t.equal(new Set(F.map((f) => f[0])).size, F.length, 'card ids are unique');
+      t.expect(!byId['hs-0034'], 'national park number card folded into hs-0033');
+      t.expect(/18th/.test(byId['hs-0033'][3]), 'hs-0033 keeps the 18th national park fact');
+      t.expect(!byId['hs-0154'], 'hottest-springs card appears once (hs-0147)');
+      t.expect(!/\b4[0-9]\b/.test(byId['hs-0148'][3].replace(/47/g, '')), 'hs-0148 explanation gives no second spring count');
+    },
+  },
 ];
