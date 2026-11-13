@@ -234,4 +234,44 @@ export const tests = [
       } finally { await other.close(); }
     },
   },
+  // ---- S6-09 (cases the earlier persist tests did not cover) ----
+  {
+    name: 'w1a S6-09 a quota error on every write is survived and reported',
+    initScript: () => {
+      const real = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) { if (window.__quota) throw new DOMException('quota', 'QuotaExceededError'); return real.call(this, k, v); };
+    },
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced' });
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 71 });
+      await t.page.evaluate(() => { window.__quota = true; });
+      await t.game('act', 'draw'); await t.game('act', 'draw');
+      await settle(t);
+      await t.page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+      const s = await t.state();
+      t.equal(s.moves, 2, 'the game keeps playing'); t.equal(s.storageOK, false, 'the failed write is noticed');
+      await t.game('scene', 'stats');
+      t.expect(/can't be saved/.test(await t.page.textContent('#sheet')), 'the stats sheet explains');
+    },
+  },
+  {
+    name: 'w1a S6-09 drag frames stay cheap with the CPU throttled 4x',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t);
+      await t.game('newGame', { mode: 'spider', suits: 4, deal: 41 });
+      await t.waitForStable();
+      const lay = await t.game('getLayout'); const c = lay.piles.t0.cards[lay.piles.t0.cards.length - 1];
+      await t.cpuThrottle(4);
+      try {
+        await t.page.mouse.move(c.x + 10, c.y + 10); await t.page.mouse.down();
+        await t.game('frameStats', true);
+        for (let i = 0; i < 40; i++) { await t.page.mouse.move(c.x + 10 + i * 6, c.y + 10 + Math.sin(i / 4) * 60); await t.page.waitForTimeout(16); }
+        const cost = await t.game('frameStats', true); await t.page.mouse.up();
+        t.log('drag frame cost at 4x throttle: median', cost.p50Ms, 'p95', cost.p95Ms);
+        t.expect(cost.frames > 10, 'frames were drawn (' + cost.frames + ')');
+        t.expect(cost.p50Ms < 24, 'median drag frame under 24 ms (the 6 ms budget x 4) at 4x throttle (' + cost.p50Ms + ')');
+      } finally { await t.cpuThrottle(1); }
+    },
+  },
 ];
