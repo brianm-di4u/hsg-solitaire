@@ -98,4 +98,28 @@ export const tests = [
       t.equal((await t.state()).moves, 1, 'a good save still resumes');
     },
   },
+  // ---- S6-02 ----
+  {
+    name: 'w1a S6-02 pagehide and a hidden tab write the save at once',
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced' });
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 31 });
+      await settle(t);
+      const read = () => { const c = localStorage.getItem('spa-solitaire:v1:current'); return c ? JSON.parse(c).state.moves : -1; };
+      const viaPagehide = await t.page.evaluate((fn) => {
+        window.__game.act('draw'); window.dispatchEvent(new Event('pagehide')); return eval('(' + fn + ')')();
+      }, read.toString());
+      t.equal(viaPagehide, 1, 'pagehide flushed the move that was still inside the debounce');
+      await settle(t);
+      const viaHidden = await t.page.evaluate((fn) => {
+        window.__game.act('draw');
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+        document.dispatchEvent(new Event('visibilitychange'));
+        const n = eval('(' + fn + ')')();
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+        return n;
+      }, read.toString());
+      t.equal(viaHidden, 2, 'a hidden tab flushed the move that was still inside the debounce');
+    },
+  },
 ];

@@ -1199,14 +1199,17 @@ let winTimer = 0;
 
 // --- Save current game ---
 let saveTimer = 0;
+function writeCurrent() {
+  if (!S || S.won) return;
+  tickClock();
+  save('current', { state: S, undo: undoStack.slice(-400) });
+}
 function scheduleSave() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    if (!S || S.won) return;
-    tickClock();
-    save('current', { state: S, undo: undoStack.slice(-400) });
-  }, 300);
+  saveTimer = setTimeout(() => { saveTimer = 0; writeCurrent(); }, 300);
 }
+// A hidden or closing tab may never run the debounce timer (phones freeze or kill it), so write now.
+function flushSave() { clearTimeout(saveTimer); saveTimer = 0; writeCurrent(); }
 // A save is only trusted when it has exactly the shape the game writes: a hand-edited, truncated or older-format
 // save is dropped (never assigned to S) so Continue and new games keep working.
 function validSave(c) {
@@ -3019,7 +3022,8 @@ function updateHUD() {
 }
 function updateTime() { if (S) $('#sTime').textContent = fmtTime(S.elapsedMs); }
 setInterval(() => { tickClock(); updateTime(); }, 500);
-document.addEventListener('visibilitychange', () => { tickClock(); });
+document.addEventListener('visibilitychange', () => { tickClock(); if (document.hidden) flushSave(); });
+window.addEventListener('pagehide', flushSave);
 
 $('#bNew').onclick = () => { initAudio(); confirmAbandon({ mode: S ? S.mode : 'klondike' }); };
 $('#bUndo').onclick = () => { initAudio(); undo(); };
