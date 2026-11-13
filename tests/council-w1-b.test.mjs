@@ -39,4 +39,18 @@ export const tests = [
       t.equal((await t.state()).moves, before + 1, 'the first finger completed its drag onto the target pile');
     },
   },
+  {
+    name: 'w1b P-N03 the Arlington card duration matches its dates',
+    async run(t) {
+      const a = readFacts().find((f) => f[0] === 'hs-0076'); const m = /Begun (\w+)\. (\d+), (\d+), it was completed (\w+)\. (\d+), (\d+)/.exec(a[3]);
+      t.expect(!!m, 'hs-0076 explanation has parseable dates');
+      const mon = { Oct: 9, Nov: 10 };
+      const d0 = new Date(Date.UTC(+m[3], mon[m[1]], +m[2])), d1 = new Date(Date.UTC(+m[6], mon[m[4]], +m[5]));
+      let months = (d1.getUTCFullYear() - d0.getUTCFullYear()) * 12 + d1.getUTCMonth() - d0.getUTCMonth();
+      if (d1.getUTCDate() < d0.getUTCDate()) months--;
+      const anchor = new Date(Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + months, d0.getUTCDate()));
+      const days = Math.round((d1 - anchor) / 864e5);
+      t.equal(a[2], `${months} months and ${days} days`, 'hs-0076 duration matches its dates');
+    },
+  },
 ];
