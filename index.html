@@ -369,6 +369,7 @@ function fmtTime(ms) {
 // ============================================================================================
 const KEY = 'spa-solitaire:v1:';
 let storageOK = true;
+const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 function load(name, fallback) {
   try { const v = localStorage.getItem(KEY + name); return v ? JSON.parse(v) : fallback; }
   catch (e) { storageOK = false; return fallback; }
@@ -1206,16 +1207,47 @@ function scheduleSave() {
     save('current', { state: S, undo: undoStack.slice(-400) });
   }, 300);
 }
+// A save is only trusted when it has exactly the shape the game writes: a hand-edited, truncated or older-format
+// save is dropped (never assigned to S) so Continue and new games keep working.
+function validSave(c) {
+  const isArr = Array.isArray; const num = (v) => typeof v === 'number' && isFinite(v);
+  const s = c.state;
+  if (!isObj(s) || s.v !== 1 || !MODES[s.mode] || !isObj(s.opts) || ![1, 3].includes(s.opts.draw) || ![1, 2, 4].includes(s.opts.suits)) return false;
+  if (!['deal', 'score', 'moves', 'elapsedMs', 'recycles', 'runs'].every((k) => num(s[k])) || (s.daily != null && typeof s.daily !== 'string')) return false;
+  if (!isArr(s.cards) || !isArr(s.up) || s.up.length !== s.cards.length || !isObj(s.piles)) return false;
+  const n = s.cards.length;
+  if (!s.cards.every((k) => isObj(k) && Number.isInteger(k.s) && k.s >= 0 && k.s < 4 && Number.isInteger(k.r) && k.r >= 1 && k.r <= 13)) return false;
+  const seen = new Uint8Array(n); let count = 0;
+  for (const id of pileIds(s.mode)) {
+    if (!isArr(s.piles[id])) return false;
+    for (const u of s.piles[id]) { if (!Number.isInteger(u) || u < 0 || u >= n || seen[u]) return false; seen[u] = 1; count++; }
+  }
+  if (count !== n || Object.keys(s.piles).length !== pileIds(s.mode).length) return false;
+  return true;
+}
+function validSnapshot(sn, c) {
+  if (!isObj(sn) || !isObj(sn.piles) || !Array.isArray(sn.up) || sn.up.length !== c.state.cards.length) return false;
+  return pileIds(c.state.mode).every((id) => Array.isArray(sn.piles[id])) && ['score', 'moves', 'recycles', 'runs'].every((k) => typeof sn[k] === 'number' && isFinite(sn[k]));
+}
 function loadSaved() {
   const c = load('current', null);
-  if (!c || !c.state || !MODES[c.state.mode] || c.state.won) return null;
+  if (c == null) return null;
+  if (isObj(c) && isObj(c.state) && c.state.won) return null;
+  if (!isObj(c) || !validSave(c)) { save('current', null); toast('Your saved game could not be restored.'); return null; }
+  if (!Array.isArray(c.undo) || !c.undo.every((sn) => validSnapshot(sn, c))) c.undo = [];
   return c;
 }
 function resumeSaved() {
   const c = loadSaved(); if (!c) return false;
   clearTimeout(winTimer); winTimer = 0;
-  S = c.state; undoStack = c.undo || []; redoStack = []; hintState = null; held = null; drag = null; cascade = null; fitHold = 1; clearStuck();
-  clockMark = now(); closeModal(); showTitle(false); relayout(true); dealAnimation(); updateHUD();
+  const prev = { S, undoStack };
+  try {
+    S = c.state; undoStack = c.undo; redoStack = []; hintState = null; held = null; drag = null; cascade = null; fitHold = 1; clearStuck();
+    clockMark = now(); closeModal(); showTitle(false); relayout(true); dealAnimation(); updateHUD();
+  } catch (e) {
+    S = prev.S; undoStack = prev.undoStack; save('current', null); showTitle(true); toast('Your saved game could not be restored.');
+    return false;
+  }
   return true;
 }
 

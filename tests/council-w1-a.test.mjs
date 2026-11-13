@@ -65,4 +65,37 @@ export const tests = [
       s = await t.state(); t.equal(s.mode, 'spider', 'confirmed chip starts Spider');
     },
   },
+  // ---- S6-01 ----
+  {
+    name: 'w1a S6-01 a saved game of the wrong shape is dropped, not resumed',
+    async run(t) {
+      await startedKlondike(t, 21);
+      const good = JSON.parse(await stored(t, CUR));
+      const bad = {
+        'empty state': { state: { mode: 'klondike' }, undo: [] },
+        'old version': Object.assign({}, good, { state: Object.assign({}, good.state, { v: 0 }) }),
+        'missing pile': (() => { const c = JSON.parse(JSON.stringify(good)); delete c.state.piles.t3; return c; })(),
+        'duplicate card': (() => { const c = JSON.parse(JSON.stringify(good)); c.state.piles.t0[0] = c.state.piles.t1[0]; return c; })(),
+        'no opts': (() => { const c = JSON.parse(JSON.stringify(good)); delete c.state.opts; return c; })(),
+        'nan score': (() => { const c = JSON.parse(JSON.stringify(good)); c.state.score = 'x'; return c; })(),
+        'array state': { state: [], undo: [] },
+      };
+      for (const [name, val] of Object.entries(bad)) {
+        await t.page.evaluate(([k, v]) => localStorage.setItem(k, JSON.stringify(v)), [CUR, val]);
+        await reloadGame(t);
+        t.expect(!(await t.page.isVisible('#tCont')), name + ': Continue hidden');
+        t.equal(await stored(t, CUR), null, name + ': bad save removed');
+        await t.page.click('#tiles .chip >> nth=0'); await t.waitForStable();
+        const s = await t.state(); t.equal([s.mode, s.moves], ['klondike', 0], name + ': a new Klondike deal starts');
+        await t.game('scene', 'title'); await settle(t);
+      }
+      await t.page.evaluate(([k, v]) => localStorage.setItem(k, v), [CUR, JSON.stringify(good).slice(0, 200)]);
+      await reloadGame(t);
+      t.expect(!(await t.page.isVisible('#tCont')), 'truncated JSON: Continue hidden');
+      await t.page.evaluate(([k, v]) => localStorage.setItem(k, JSON.stringify(v)), [CUR, good]);
+      await reloadGame(t);
+      await t.page.click('#tCont'); await t.waitForStable();
+      t.equal((await t.state()).moves, 1, 'a good save still resumes');
+    },
+  },
 ];
