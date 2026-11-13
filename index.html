@@ -1157,6 +1157,20 @@ function newGame(o = {}) {
   announce(MODES[mode].name + ' ' + variantLabel(mode, S.opts) + ', deal ' + deal);
   return { ok: true, deal };
 }
+// Starting another deal throws away the one in progress (its save, undo history and streak), so ask first.
+// A deal with no moves, a won deal and the "no more moves" sheet have nothing worth protecting.
+function liveDeal() {
+  const g = S ? (S.won ? null : S) : (loadSaved() || {}).state;
+  return g && g.started && !g.won ? g : null;
+}
+function confirmAbandon(o, restart) {
+  const go = () => (restart ? restartDeal() : newGame(o));
+  if (modalKind === 'stuck' || !liveDeal()) return go();
+  const k = S ? modeKey(S.mode, S.opts) : null; const streak = k ? statFor(k).streak : 0;
+  openModal('confirm', { title: restart ? 'Restart this deal?' : 'Abandon this deal?',
+    text: (restart ? 'Your moves so far will be lost.' : 'The game in progress will be lost.') + (streak > 0 ? ' Your ' + modeKeyLabel(k) + ' streak of ' + streak + ' will reset.' : ''),
+    yes: restart ? 'Restart' : 'New deal', onYes: go });
+}
 function restartDeal() { if (!S) return; newGame({ mode: S.mode, draw: S.opts.draw, suits: S.opts.suits, deal: S.deal, daily: S.daily }); }
 
 let lastWin = null;
@@ -2895,7 +2909,7 @@ function gameKey(e) {
     case 'y': case 'Y': redo(); break;
     case 'h': case 'H': hint(); break;
     case 'a': case 'A': if (!autoComplete().ok) toast('Auto-complete is available once every card is face up and in order'); break;
-    case 'n': case 'N': newGame({ mode: S.mode }); break;
+    case 'n': case 'N': confirmAbandon({ mode: S.mode }); break;
     case '?': openModal('help'); break;
     case 'p': case 'P': openModal('menu'); break;
     default:
@@ -2975,7 +2989,7 @@ function updateTime() { if (S) $('#sTime').textContent = fmtTime(S.elapsedMs); }
 setInterval(() => { tickClock(); updateTime(); }, 500);
 document.addEventListener('visibilitychange', () => { tickClock(); });
 
-$('#bNew').onclick = () => { initAudio(); newGame({ mode: S ? S.mode : 'klondike' }); };
+$('#bNew').onclick = () => { initAudio(); confirmAbandon({ mode: S ? S.mode : 'klondike' }); };
 $('#bUndo').onclick = () => { initAudio(); undo(); };
 $('#bRedo').onclick = () => { initAudio(); redo(); };
 $('#bHint').onclick = () => { initAudio(); hint(); };
@@ -3014,7 +3028,7 @@ function buildTitle() {
     for (const [label, o] of tl.chips) {
       const b = document.createElement('button'); b.className = 'chip' + (label === 'Play' || label === 'Draw 1' || label === '1 suit' ? ' solid' : '');
       b.textContent = label; b.setAttribute('aria-label', MODES[tl.mode].name + ': ' + (o.suits ? o.suits + (o.suits > 1 ? ' suits' : ' suit') : label));
-      b.onclick = () => { initAudio(); if (o.pick) openModal('deal', { mode: tl.mode }); else newGame(Object.assign({ mode: tl.mode }, o)); };
+      b.onclick = () => { initAudio(); if (o.pick) openModal('deal', { mode: tl.mode }); else confirmAbandon(Object.assign({ mode: tl.mode }, o)); };
       d.querySelector('.chips').appendChild(b);
     }
     el.appendChild(d);
@@ -3169,7 +3183,7 @@ const MODALS = {
     '<button class="btn' + (undoStack.length ? '' : ' solid" data-focus="1') + '" data-a="restart">Restart this deal</button><button class="btn" data-a="new">New deal</button><button class="btn" data-close>Keep looking</button></div>',
 };
 const ACTIONS = {
-  resume: () => closeModal(), new: () => newGame({ mode: S ? S.mode : meta.lastMode }), restart: () => restartDeal(), undo: () => { closeModal(); undo(); },
+  resume: () => closeModal(), new: () => confirmAbandon({ mode: S ? S.mode : meta.lastMode }), restart: () => confirmAbandon(null, true), undo: () => { closeModal(); undo(); },
   deal: () => openModal('deal'), daily: () => openModal('daily'), title: () => { closeModal(); showTitle(true); },
   backs: () => openModal('backs'), settings: () => openModal('settings'), stats: () => openModal('stats'), help: () => openModal('help'),
   reseed: () => { settings.deckSeed = 1 + Math.floor(Math.random() * 1e6); saveSettings(); if (settings.back !== 'skylight') settings.back = 'skylight'; applyLook(); openModal('backs'); },
@@ -3209,13 +3223,13 @@ const BIND = {
     void d;
   },
   deal(d) {
-    const go = () => { const v = parseInt($('#dealIn').value.replace(/[^0-9]/g, ''), 10); if (!v) { $('#dealIn').focus(); return; } const mode = d.mode || (S ? S.mode : 'klondike'); newGame({ mode, deal: v }); };
+    const go = () => { const v = parseInt($('#dealIn').value.replace(/[^0-9]/g, ''), 10); if (!v) { $('#dealIn').focus(); return; } const mode = d.mode || (S ? S.mode : 'klondike'); confirmAbandon({ mode, deal: v }); };
     sheet.querySelector('[data-a="goDeal"]').onclick = go;
     $('#dealIn').onkeydown = (e) => { if (e.key === 'Enter') go(); };
   },
   daily() {
     const list = [['klondike', { draw: 1 }], ['klondike', { draw: 3 }], ['freecell', {}], ['spider', { suits: 1 }], ['spider', { suits: 2 }], ['spider', { suits: 4 }], ['yukon', {}]];
-    sheet.querySelectorAll('[data-daily]').forEach((b) => (b.onclick = () => { const [m, o] = list[+b.dataset.daily]; newGame(Object.assign({ mode: m, daily: true }, o)); }));
+    sheet.querySelectorAll('[data-daily]').forEach((b) => (b.onclick = () => { const [m, o] = list[+b.dataset.daily]; confirmAbandon(Object.assign({ mode: m, daily: true }, o)); }));
   },
   confirm(d) { sheet.querySelector('[data-a="yes"]').onclick = () => d.onYes(); },
 };
