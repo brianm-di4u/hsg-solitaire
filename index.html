@@ -3043,7 +3043,8 @@ function updateHUD() {
 }
 function updateTime() { if (S) $('#sTime').textContent = fmtTime(S.elapsedMs); }
 setInterval(() => { tickClock(); updateTime(); }, 500);
-document.addEventListener('visibilitychange', () => { tickClock(); if (document.hidden) flushSave(); });
+// Hidden tabs get throttled timers, so the clock mark can be a minute stale when the tab returns: restart it then.
+document.addEventListener('visibilitychange', () => { if (document.hidden) { tickClock(); flushSave(); } else clockMark = now(); });
 window.addEventListener('pagehide', flushSave);
 
 $('#bNew').onclick = () => { initAudio(); confirmAbandon({ mode: S ? S.mode : 'klondike' }); };

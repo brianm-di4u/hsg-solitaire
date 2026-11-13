@@ -10,6 +10,11 @@ async function startedKlondike(t, deal = 11) {
   await t.game('act', 'draw');
   await t.waitForStable(); await settle(t);
 }
+// Put a raw value in storage as the page unloads (after the game's own pagehide and hidden saves), then reload.
+const plant = async (t, key, raw) => {
+  await t.page.evaluate(([k, v]) => { const w = () => localStorage.setItem(k, v); window.addEventListener('pagehide', w); document.addEventListener('visibilitychange', w); }, [key, raw]);
+  await reloadGame(t);
+};
 const stored = (t, key) => t.page.evaluate((k) => localStorage.getItem(k), key);
 
 export const tests = [
@@ -81,19 +86,16 @@ export const tests = [
         'array state': { state: [], undo: [] },
       };
       for (const [name, val] of Object.entries(bad)) {
-        await t.page.evaluate(([k, v]) => localStorage.setItem(k, JSON.stringify(v)), [CUR, val]);
-        await reloadGame(t);
+        await plant(t, CUR, JSON.stringify(val));
         t.expect(!(await t.page.isVisible('#tCont')), name + ': Continue hidden');
         t.equal(await stored(t, CUR), null, name + ': bad save removed');
         await t.page.click('#tiles .chip >> nth=0'); await t.waitForStable();
         const s = await t.state(); t.equal([s.mode, s.moves], ['klondike', 0], name + ': a new Klondike deal starts');
         await t.game('scene', 'title'); await settle(t);
       }
-      await t.page.evaluate(([k, v]) => localStorage.setItem(k, v), [CUR, JSON.stringify(good).slice(0, 200)]);
-      await reloadGame(t);
+      await plant(t, CUR, JSON.stringify(good).slice(0, 200));
       t.expect(!(await t.page.isVisible('#tCont')), 'truncated JSON: Continue hidden');
-      await t.page.evaluate(([k, v]) => localStorage.setItem(k, JSON.stringify(v)), [CUR, good]);
-      await reloadGame(t);
+      await plant(t, CUR, JSON.stringify(good));
       await t.page.click('#tCont'); await t.waitForStable();
       t.equal((await t.state()).moves, 1, 'a good save still resumes');
     },
@@ -153,6 +155,24 @@ export const tests = [
         if (name === 'truncated json') for (const k of ['stats', 'meta', 'settings']) t.expect((await stored(t, P + k)) !== kv[k], name + ': bad ' + k + ' no longer kept as is');
         await settle(t);
       }
+    },
+  },
+  // ---- S6-07 ----
+  {
+    name: 'w1a S6-07 a throttled hidden tab does not add its gap to the game clock',
+    initScript: () => { window.__off = 0; const pn = performance.now.bind(performance); performance.now = () => pn() + window.__off; },
+    async run(t) {
+      await startedKlondike(t, 41);
+      const e0 = (await t.state()).elapsedMs;
+      // Hide the tab, let 60 s pass with no timer firing (as a throttled background tab does), show it again.
+      await t.page.evaluate(() => {
+        const hidden = (v) => Object.defineProperty(document, 'hidden', { configurable: true, get: () => v });
+        hidden(true); document.dispatchEvent(new Event('visibilitychange'));
+        window.__off += 60000;
+        hidden(false); document.dispatchEvent(new Event('visibilitychange'));
+      });
+      const e1 = (await t.state()).elapsedMs;
+      t.expect(e1 - e0 < 5000, 'clock advanced ' + (e1 - e0) + ' ms across a 60 s hidden gap');
     },
   },
 ];
