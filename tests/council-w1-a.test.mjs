@@ -175,4 +175,38 @@ export const tests = [
       t.expect(e1 - e0 < 5000, 'clock advanced ' + (e1 - e0) + ' ms across a 60 s hidden gap');
     },
   },
+  // ---- S6-12 ----
+  {
+    name: 'w1a S6-12 audio resumes from interrupted and follows tab visibility',
+    initScript: () => {
+      const Real = window.AudioContext;
+      window.__ac = { resume: 0, suspend: 0, fake: null };
+      window.AudioContext = class extends Real {
+        resume() { window.__ac.resume++; window.__ac.fake = null; return super.resume(); }
+        suspend() { window.__ac.suspend++; return super.suspend(); }
+        get state() { return window.__ac.fake || super.state; }
+      };
+    },
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced' });
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 51 });
+      await t.game('setSettings', { sound: true });
+      const ac = () => t.page.evaluate(() => ({ resume: window.__ac.resume, suspend: window.__ac.suspend }));
+      const hide = (v) => t.page.evaluate((h) => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => h }); document.dispatchEvent(new Event('visibilitychange')); }, v);
+      // iOS reports 'interrupted' after a call or alarm; the next cue has to wake it.
+      await t.page.evaluate(() => { window.__ac.fake = 'interrupted'; });
+      const r0 = (await ac()).resume;
+      await t.game('act', 'draw');
+      t.expect((await ac()).resume > r0, 'a cue resumes an interrupted context');
+      // Hiding the tab suspends audio and showing it resumes it.
+      let a = await ac();
+      await hide(true);
+      t.expect((await ac()).suspend > a.suspend, 'hiding the tab suspends the audio context');
+      a = await ac();
+      await t.game('act', 'draw');
+      t.equal((await ac()).resume, a.resume, 'no cue wakes the context while the tab is hidden');
+      await hide(false);
+      t.expect((await ac()).resume > a.resume, 'showing the tab resumes the audio context');
+    },
+  },
 ];

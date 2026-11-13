@@ -3007,8 +3007,8 @@ function tone(t, freq, dur, type, gain, attack) {
 }
 const PENTA = [0, 2, 4, 7, 9];
 function sfx(name, arg) {
-  if (!settings.sound || !AC) return;
-  if (AC.state === 'suspended') AC.resume();
+  if (!settings.sound || !AC || document.hidden) return;
+  if (AC.state === 'suspended' || AC.state === 'interrupted') AC.resume(); // Safari reports 'interrupted' after a call or alarm
   const t = AC.currentTime;
   switch (name) {
     case 'pick': noise(t, .05, 'bandpass', 3200, .35, 1.2); break;
@@ -3044,7 +3044,10 @@ function updateHUD() {
 function updateTime() { if (S) $('#sTime').textContent = fmtTime(S.elapsedMs); }
 setInterval(() => { tickClock(); updateTime(); }, 500);
 // Hidden tabs get throttled timers, so the clock mark can be a minute stale when the tab returns: restart it then.
-document.addEventListener('visibilitychange', () => { if (document.hidden) { tickClock(); flushSave(); } else clockMark = now(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { tickClock(); flushSave(); } else clockMark = now();
+  if (AC) { try { (document.hidden ? AC.suspend() : AC.resume()).catch(() => {}); } catch (e) { /* context already closed */ } }
+});
 window.addEventListener('pagehide', flushSave);
 
 $('#bNew').onclick = () => { initAudio(); confirmAbandon({ mode: S ? S.mode : 'klondike' }); };
