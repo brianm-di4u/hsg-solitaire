@@ -225,4 +225,138 @@ export const tests = [
       const m = await meta(t); t.equal(Object.keys(m.daily), [recent + '|klondike1'], 'only the entry inside 400 days is kept');
     },
   },
+  {
+    name: 'w2c S2-01 a new player gets the goal, then the move, hint and stock tips, one at a time, each gone when done',
+    async run(t) {
+      await t.game('newGame', { mode: 'klondike', deal: 5 });
+      await waitCoach(t);
+      t.equal(await coachText(t), 'Build each suit from Ace to King on the foundations.', 'the goal comes first');
+      t.expect(await t.page.locator('#coachSkip').isVisible(), 'a Skip tips control is visible while tips show');
+      t.expect((await t.page.locator('#coachSkip').boundingBox()).height >= 44, 'and is a 44 px target');
+      t.equal(await t.page.evaluate(() => document.getElementById('sr').textContent), 'Build each suit from Ace to King on the foundations.', 'announced through the live region');
+      await shot(t, 'S2-01', 'tip-goal');
+      await t.page.click('#coachTx');
+      await waitText(t, /send it where it fits/);
+      let s = await t.state(); t.equal(s.settings.tipModes, 'klondike', 'the goal is recorded as seen');
+      t.expect(/^(Click|Tap) a card to send it where it fits/.test(await coachText(t)), 'then the move tip: ' + await coachText(t));
+      t.expect((await coachText(t)).split(/\s+/).length <= 12, 'twelve words or fewer');
+      await shot(t, 'S2-01', 'tip-move');
+      await move(t);
+      await waitText(t, /Hint/);
+      t.expect(await t.page.locator('#bHint.pt').count() === 1, 'the Hint button is marked');
+      await shot(t, 'S2-01', 'tip-hint');
+      await t.game('act', 'hint');
+      await waitText(t, /stock/);
+      t.equal(await t.page.locator('#bHint.pt').count(), 0, 'the mark is gone');
+      await shot(t, 'S2-01', 'tip-stock');
+      await t.game('act', 'draw');
+      await waitCoach(t, false);
+      await t.page.waitForTimeout(1200);
+      t.expect(await t.page.evaluate(() => document.getElementById('coach').hidden), 'after the last tip nothing more shows');
+      s = await t.state(); t.equal(s.settings.tipStep, 3, 'all three steps are recorded');
+      await reloadGame(t); await t.game('newGame', { mode: 'klondike', deal: 6 }); await t.page.waitForTimeout(2300);
+      t.expect(await t.page.evaluate(() => document.getElementById('coach').hidden), 'after a reload the tips do not come back');
+    },
+  },
+  {
+    name: 'w2c S2-01 doing the thing before its tip appears skips that tip',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('newGame', { mode: 'klondike', deal: 5 });
+      await waitCoach(t); await t.page.click('#coachTx');
+      await move(t);
+      await waitText(t, /Hint/);
+      t.equal((await t.state()).settings.tipStep, 1, 'the move tip counts as done, the hint tip is next');
+    },
+  },
+  {
+    name: 'w2c S2-01 tips wait: the goal fades by itself, Skip tips turns them off for good, Show tips again brings them back',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('newGame', { mode: 'freecell', deal: 3 });
+      await waitCoach(t);
+      t.equal(await coachText(t), 'Move every card to the foundations, Ace up to King.', 'FreeCell has its own goal');
+      await t.page.click('#coachSkip');
+      t.expect(await t.page.evaluate(() => document.getElementById('coach').hidden), 'Skip hides the tip');
+      t.equal((await t.state()).settings.tips, false, 'and turns tips off');
+      await t.game('newGame', { mode: 'spider', suits: 1, deal: 4 }); await t.page.waitForTimeout(2300);
+      t.expect(await t.page.evaluate(() => document.getElementById('coach').hidden), 'no tip in the next game');
+      await reloadGame(t); t.equal((await t.state()).settings.tips, false, 'the choice survives a reload');
+      await t.game('scene', 'settings');
+      await t.page.click('[data-a="tipsAgain"]'); await t.page.click('#sheet [data-close]');
+      t.equal((await t.state()).settings.tips, true, 'Show tips again turns them on');
+      await t.game('newGame', { mode: 'spider', suits: 1, deal: 4 }); await waitCoach(t);
+      t.equal(await coachText(t), 'Build King-to-Ace runs of one suit; each leaves the table.', 'Spider has its own goal');
+      await t.page.waitForTimeout(7200);
+      t.expect(/Click a card/.test(await coachText(t)), 'the goal gave way to the next tip by waiting: ' + await coachText(t));
+    },
+  },
+  {
+    name: 'w2c S2-01 every tip is twelve words or fewer, and the words follow the input in use',
+    viewports: ['desktop'],
+    async run(t) {
+      const src = fs.readFileSync(path.join(HERE, '..', 'index.html'), 'utf8');
+      const block = src.slice(src.indexOf('const TIP_GOAL'), src.indexOf('function tipHide'));
+      const lines = [...block.matchAll(/'([A-Z][^'\n]{10,})'/g)].map((m) => m[1]);
+      t.expect(lines.length >= 11, 'found the tip strings: ' + lines.length);
+      for (const l of lines) t.expect(l.split(/\s+/).length <= 12, '"' + l + '" is ' + l.split(/\s+/).length + ' words');
+      await t.game('newGame', { mode: 'klondike', deal: 5 }); await waitCoach(t);
+      await t.page.keyboard.press('ArrowRight'); await t.page.click('#coachTx');
+      await waitText(t, /Arrows move/);
+    },
+  },
+  {
+    name: 'w2c S2-01 a touch player is told to tap, and reduced motion gets a still marker',
+    viewports: ['mobile'],
+    reducedMotion: true,
+    async run(t) {
+      await t.page.touchscreen.tap(5, 5);
+      await t.game('newGame', { mode: 'klondike', deal: 5 }); await waitCoach(t);
+      await shot(t, 'S2-01', 'tip-goal-touch');
+      await t.page.locator('#coachTx').tap();
+      await waitText(t, /Tap a card to send it where it fits\./);
+      await move(t);
+      await waitText(t, /Stuck\? Tap Hint to see a move\./);
+      const anim = await t.page.evaluate(() => getComputedStyle(document.getElementById('bHint')).animationName);
+      t.equal(anim, 'none', 'no pulsing under reduced motion; the outline is the static marker');
+      const box = await t.page.locator('#coach').boundingBox(), vp = t.vp;
+      t.expect(box.x >= 0 && box.x + box.width <= vp.width, 'the strip fits the phone width');
+      await shot(t, 'S2-01', 'tip-hint-touch');
+      await t.checkLayout();
+    },
+  },
+  {
+    name: 'w2c S2-01 the tip strip never covers the cards at the first deal, at either size',
+    async run(t) {
+      await t.game('newGame', { mode: 'klondike', deal: 5 }); await waitCoach(t);
+      const c = await t.page.locator('#coach').boundingBox(), lay = await t.game('getLayout');
+      let low = 0; for (const id in lay.piles) for (const k of lay.piles[id].cards) low = Math.max(low, k.y + k.h);
+      t.expect(c.y >= low - 2, 'the strip (top ' + Math.round(c.y) + ') sits below the lowest card (' + Math.round(low) + ')');
+      const bar = await t.page.locator('#tools').boundingBox(); t.expect(c.y + c.height <= bar.y + 1, 'and above the tool bar');
+    },
+  },
+  {
+    name: 'w2c S2-01 a player with a save from before this wave is not a newcomer: tips are off until they ask',
+    viewports: ['desktop'],
+    async run(t) {
+      await put(t, OLD); await reloadGame(t);
+      t.equal((await t.state()).settings.tips, false, 'tips are off for an existing save');
+      await t.game('newGame', { mode: 'klondike' }); await t.page.waitForTimeout(2200);
+      t.expect(await t.page.evaluate(() => document.getElementById('coach').hidden), 'no coach strip appears');
+      await t.game('scene', 'settings');
+      await t.page.click('[data-a="tipsAgain"]'); await t.page.click('#sheet [data-close]');
+      await t.game('newGame', { mode: 'klondike' }); await waitCoach(t);
+      t.expect(true, 'and Show tips again brings them back');
+    },
+  },
+  {
+    name: 'w2c S2-01 saved settings with tip progress round trip, damaged values fall back',
+    viewports: ['desktop'],
+    async run(t) {
+      await put(t, { settings: { sound: false, tips: true, tipStep: 2, tipModes: 'klondike,spider' }, meta: OLD.meta }); await reloadGame(t);
+      let s = (await t.state()).settings; t.equal([s.tips, s.tipStep, s.tipModes], [true, 2, 'klondike,spider'], 'progress round trips');
+      await put(t, { settings: { sound: false, tips: 'yes', tipStep: 'x', tipModes: 5 } }); await reloadGame(t);
+      s = (await t.state()).settings; t.equal([s.tips, s.tipStep, s.tipModes], [false, 0, ''], 'damaged values fall back (the save is an old one, so tips are off)');
+    },
+  },
 ];

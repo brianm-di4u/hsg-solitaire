@@ -265,6 +265,14 @@
     #modeName{font-size:.98rem} #modeSub{font-size:.66rem}
     #status{gap:14px;font-size:.58rem} #status b{font-size:1.02rem;margin-top:0}
   }
+  #coach{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:max-content;max-width:94%;display:flex;align-items:center;gap:8px;z-index:5;
+    background:rgba(16,24,19,.94);color:var(--lac-ink);border:1px solid rgba(233,200,115,.6);border-radius:var(--radius-pill);padding:4px 6px 4px 16px;
+    font-family:var(--font-deco);font-weight:600;font-size:.92rem;box-shadow:0 4px 14px rgba(0,0,0,.45)}
+  #coach[hidden]{display:none} #coach ~ #toast{bottom:74px} #coach[hidden] ~ #toast{bottom:14px}
+  #coach button{min-height:44px;min-width:44px;padding:0 14px;border-radius:var(--radius-pill);border:1px solid rgba(233,200,115,.6);background:transparent;color:inherit;font:inherit;font-size:.8rem;cursor:pointer;white-space:nowrap}
+  #bHint.pt{outline:3px solid var(--color-highlight);outline-offset:2px}
+  @media (prefers-reduced-motion:no-preference){ #bHint.pt:not(.st){animation:pt 1.3s ease-in-out infinite} }
+  @keyframes pt{50%{outline-offset:6px}}
   .bk small{display:block;font-size:.7rem;color:var(--color-muted)} .bk.lk canvas{filter:grayscale(1);opacity:.4} .bk.lk{cursor:default}
   .earn{margin:0 auto 12px;max-width:460px;text-align:center;font-size:.9rem} .earn b{font-family:var(--font-deco)} .earn .pb{color:#2E6A3C;font-weight:700}
   .rec{border-bottom:1px solid var(--color-border);padding:6px 0} .rec b{font-family:var(--font-deco)} .rec small{display:block;color:var(--color-muted)}
@@ -292,6 +300,7 @@
     <canvas id="tbl" aria-hidden="true"></canvas>
     <canvas id="cv" tabindex="0" role="application" aria-roledescription="card table"
       aria-label="Card table. Arrow keys move the cursor, Enter picks up or drops cards, H for a hint, U to undo. Press question mark for help."></canvas>
+    <div id="coach" hidden><span id="coachTx"></span><button id="coachSkip" type="button">Skip tips</button></div>
     <div id="toast" aria-hidden="true"></div>
   </main>
   <nav id="tools" aria-label="Game actions">
@@ -394,10 +403,12 @@ const DEFAULT_SETTINGS = {
   autoFoundation: 'safe', back: 'skylight', table: 'felt', showTimer: true, deckSeed: 1914, courts: 'deco',
   winnable: false, // random deals come from a solver-won sequence; dailies always do
   sfx: true, music: true, ambience: true, musicVol: 0.6, ambVol: 0.6, // sound effects, music and ambience; all three obey the master `sound` switch
+  tips: true, tipStep: 0, tipModes: "", // first-run tips: on for a new player, off for a save that came before them; progress is kept
 };
 const loadObj = (name) => { const v = load(name, null); return isObj(v) ? v : {}; };
 const storedSettings = loadObj('settings');
 const settings = Object.assign({}, DEFAULT_SETTINGS, storedSettings);
+if (!hadSave) save('settings', settings); // a save from here on is a player who has seen the tips
 let stats = loadObj('stats');
 let meta = Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 0, daily: {} }, loadObj('meta'));
 const reduceQuery = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
@@ -694,7 +705,7 @@ function tryMove(from, idx, to, why = 'player') {
   if (!canPick(from, idx)) return { ok: false, reason: 'cannot pick' };
   const run = S.piles[from].slice(idx);
   if (!canDrop(run, to, from)) return { ok: false, reason: 'illegal drop' };
-  pushUndo(); startClock();
+  pushUndo(); startClock(); if (why === 'player') tipEvent('move');
   rawMove(from, idx, to);
   S.moves++; if (S.mode === 'spider') addScore(-1);
   { const b = L && L.piles[to]; sfx(kindOf(to) === 'found' ? 'found' : 'place', kindOf(to) === 'found' ? card(run[0]).r : run.length, b ? (b.x + L.cw / 2) / W * 2 - 1 : 0); }
@@ -706,6 +717,7 @@ function tryMove(from, idx, to, why = 'player') {
 
 function stockAction() {
   if (!S || S.won) return { ok: false };
+  tipEvent('stock');
   const d = def();
   if (d.stock === 'draw') {
     const st = S.piles.stock, w = S.piles.waste;
@@ -1077,7 +1089,7 @@ function stockHintText() {
 
 function hint() {
   if (!S || S.won) return { ok: false };
-  S.usedHint = true;
+  S.usedHint = true; tipEvent('hint');
   const sig = S.moves + '|' + undoStack.length + '|' + (S.piles.stock ? S.piles.stock.length : 0);
   if (!hintState || hintState.sig !== sig) {
     const a = analyze(HINT_BUDGET, false, true);
@@ -1278,7 +1290,7 @@ function startDeal(mode, opts, deal, daily, winnable) {
   if (winnable) S.winnable = true;
   undoStack = []; redoStack = []; hintState = null; held = null; drag = null; cascade = null; cursor = { pile: null, depth: 0 }; clearStuck();
   syncShared(); meta.lastMode = mode; meta.lastOpts = { draw: S.opts.draw, suits: S.opts.suits }; save('meta', meta);
-  closeModal(); showTitle(false);
+  closeModal(); showTitle(false); tipHide(); setTimeout(tipShow, 1400);
   dealAnimation(); updateHUD(); scheduleSave();
   sfx('deal'); steamBurst();
   announce(MODES[mode].name + ' ' + variantLabel(mode, S.opts) + ', deal ' + deal);
@@ -1811,6 +1823,8 @@ for (const k in DEFAULT_SETTINGS) {
   const v = settings[k], d = DEFAULT_SETTINGS[k];
   if (typeof v !== typeof d || (typeof v === 'number' && !isFinite(v)) || (SETTING_ENUMS[k] && !SETTING_ENUMS[k].includes(v))) settings[k] = d;
 }
+if (hadSave && typeof storedSettings.tips !== 'boolean') settings.tips = false;
+settings.tipStep = clamp(Math.floor(settings.tipStep), 0, 3);
 settings.volume = clamp(settings.volume, 0, 1); settings.musicVol = clamp(settings.musicVol, 0, 1); settings.ambVol = clamp(settings.ambVol, 0, 1);
 function normalizeMeta() {
   if (!MODES[meta.lastMode]) meta.lastMode = 'klondike';
@@ -3392,7 +3406,7 @@ function makeCues(ctx, dest) {
   };
 }
 const CUE_NAMES = ['pick', 'place', 'flip', 'found', 'deal', 'nope', 'undo', 'hint', 'run', 'ach', 'win'];
-for (const ev of ['pointerdown', 'click', 'keydown']) document.addEventListener(ev, () => initAudio(), { passive: true, capture: true }); // the first gesture of any kind starts the audio
+for (const ev of ['pointerdown', 'click', 'keydown']) document.addEventListener(ev, (e) => { initAudio(); if (e.pointerType) touchIn = e.pointerType !== 'mouse'; }, { passive: true, capture: true }); // the first gesture of any kind starts the audio
 function initAudio() {
   if (AC || !settings.sound) return;
   const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
@@ -3451,6 +3465,41 @@ let toastTimer = 0;
 function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('on'), 2400); announce(msg); }
 function achToast(names) { sfx('ach'); toast('Achievement: ' + names[0] + (names.length > 1 ? ' and ' + (names.length - 1) + ' more' : '')); }
 
+const TIP_GOAL = { klondike: 'Build each suit from Ace to King on the foundations.', freecell: 'Move every card to the foundations, Ace up to King.',
+  spider: 'Build King-to-Ace runs of one suit; each leaves the table.', yukon: 'Build each suit from Ace to King on the foundations.' };
+const TIP_MS = { goal: 6500, move: 14000, hint: 9000, stock: 9000 };
+const TIP_ORDER = ['move', 'hint', 'stock'];
+let touchIn = false, tip = null, tipTimer = 0;
+const coachEl = $('#coach');
+function tipText(id) {
+  const k = kbMode ? 2 : touchIn ? 1 : 0, t = (...a) => a[k];
+  if (id === 'goal') return TIP_GOAL[S.mode];
+  if (id === 'move') return t('Click a card to send it where it fits, or drag.', 'Tap a card to send it where it fits.', 'Arrows move; Enter picks up and drops cards.');
+  if (id === 'hint') return t('Stuck? Hint shows a move; Undo takes one back.', 'Stuck? Tap Hint to see a move.', 'Stuck? Press H for a hint, U to undo.');
+  return t('Click the stock pile for more cards.', 'Tap the stock pile for more cards.', 'Press D to draw from the stock.');
+}
+function tipHide() { clearTimeout(tipTimer); tip = null; coachEl.hidden = true; $('#bHint').classList.remove('pt'); }
+function tipShow() {
+  if (tip || titleOn || modalKind || cascade || !settings.tips || !S || S.won) return;
+  const id = settings.tipModes.split(',').includes(S.mode) ? TIP_ORDER[settings.tipStep] : 'goal';
+  if (!id || (id === 'stock' && !def().stock)) return;
+  tip = id; const x = tipText(id); $('#coachTx').textContent = x; coachEl.hidden = false;
+  $('#bHint').classList.toggle('pt', id === 'hint'); $('#bHint').classList.toggle('st', reducedMotion());
+  announce(x); tipTimer = setTimeout(() => tipDone(id), TIP_MS[id]);
+}
+function tipDone(id) {
+  if (tip !== id) return; tipHide();
+  if (id === 'goal') settings.tipModes += (settings.tipModes ? ',' : '') + S.mode; else settings.tipStep++;
+  saveSettings(); setTimeout(tipShow, 700);
+}
+function tipEvent(ev) {
+  if (!settings.tips || !S) return;
+  if (tip === ev) tipDone(ev);
+  else if (tip === 'goal' && ev === 'move') { settings.tipStep = Math.max(settings.tipStep, 1); tipDone('goal'); }
+  else if (!tip && TIP_ORDER[settings.tipStep] === ev && settings.tipModes.split(',').includes(S.mode)) { settings.tipStep++; saveSettings(); } // done before its tip came up
+}
+coachEl.onclick = (e) => { if (tip && e.target.id !== 'coachSkip') tipDone(tip); };
+$('#coachSkip').onclick = () => { setSetting('tips', false); toast('Tips off. Settings brings them back.'); };
 function updateHUD() {
   if (!S) return;
   $('#modeName').textContent = MODES[S.mode].name + (variantLabel(S.mode, S.opts) ? ' (' + variantLabel(S.mode, S.opts) + ')' : '');
@@ -3531,7 +3580,7 @@ function drawSky(t) {
 function skyLoop(t) { skyRaf = 0; if (!titleOn) return; drawSky(t); if (!reducedMotion()) skyRaf = requestAnimationFrame(skyLoop); }
 function showTitle(on) {
   titleOn = on; $('#title').classList.toggle('on', on);
-  if (on) musicHush = false;
+  if (on) { musicHush = false; tipHide(); }
   syncAudio();
   if (on) {
     $('#tCont').hidden = !loadSaved();
@@ -3551,7 +3600,7 @@ function closeModal(back) {
   const was = modalKind; modalKind = null; modalEl.classList.remove('on'); sheet.innerHTML = '';
   clockMark = now(); syncAudio();
   if (back && modalReturn && modalReturn !== was) { const r = modalReturn; modalReturn = null; openModal(r); return; }
-  modalReturn = null;
+  modalReturn = null; setTimeout(tipShow, 500);
   if (titleOn) { const b = $('#tiles .chip'); if (b) b.focus({ preventScroll: true }); } else cv.focus({ preventScroll: true });
 }
 function trapFocus(e) {
@@ -3602,6 +3651,8 @@ const MODALS = {
     '<div class="set"><label>Auto-move to foundations<small>Safe moves only cards nothing else needs</small></label>' + seg('autoFoundation', [['off', 'Off'], ['safe', 'Safe'], ['all', 'All']]) + '</div>' +
     '<div class="set"><label>Winnable deals only<small>A solver wins random deals first. Not FreeCell or four-suit Spider</small></label>' + tog('winnable', 'Winnable deals only') + '</div>' +
     '<div class="set"><label>Show timer</label>' + tog('showTimer', 'Show timer') + '</div>' +
+    '<div class="set"><label>Show tips<small>Short hints while you play</small></label>' + tog('tips', 'Show tips') + '</div>' +
+    '<div class="row" style="margin-top:8px"><button class="btn" data-a="tipsAgain">Show tips again</button></div>' +
     '<div class="row"><button class="btn" data-a="backs">Card backs &amp; tables…</button></div>' +
     (storageOK ? '' : '<p class="cap">Settings and stats can\'t be saved in this browser.</p>'),
   backs: () => head('Card backs &amp; tables') + '<div class="backs" id="bkGrid">' +
@@ -3685,6 +3736,7 @@ const ACTIONS = {
   resume: () => closeModal(), new: () => confirmAbandon({ mode: S ? S.mode : meta.lastMode }), restart: () => confirmAbandon(null, true), undo: () => { closeModal(); undo(); },
   deal: () => openModal('deal'), daily: () => openModal('daily'), title: () => { closeModal(); showTitle(true); },
   backs: () => openModal('backs'), settings: () => openModal('settings'), stats: () => openModal('stats'), help: () => openModal('help'),
+  tipsAgain: () => { Object.assign(settings, { tips: true, tipStep: 0, tipModes: '' }); saveSettings(); openModal('settings'); },
   records: () => openModal('records'),
   reseed: () => { settings.deckSeed = 1 + Math.floor(Math.random() * 1e6); saveSettings(); if (settings.back !== 'skylight') settings.back = 'skylight'; applyLook(); openModal('backs'); },
 };
@@ -3777,6 +3829,7 @@ function setSetting(k, v) {
   else if (k === 'musicVol' || k === 'ambVol') settings[k] = clamp(+v, 0, 1);
   else if (k in DEFAULT_SETTINGS) settings[k] = typeof DEFAULT_SETTINGS[k] === 'boolean' ? !!v : v;
   saveSettings();
+  if (k === 'tips' && !settings.tips) tipHide();
   if (['sound', 'music', 'ambience', 'musicVol', 'ambVol'].includes(k)) syncAudio();
   if (['leftHanded', 'cardSize', 'layout', 'fourColor', 'back', 'table', 'showTimer', 'deckSeed', 'courts'].includes(k)) applyLook();
 }
