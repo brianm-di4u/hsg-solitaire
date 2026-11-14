@@ -91,6 +91,10 @@
     font-family:var(--font-deco);font-weight:600;letter-spacing:.02em;border:1px solid rgba(233,200,115,.6);box-shadow:0 4px 14px rgba(0,0,0,.45);
     text-align:center;pointer-events:none;opacity:0;transition:opacity .2s}
   #toast.on{opacity:1}
+  #dealing{position:fixed;left:50%;width:max-content;top:max(64px,calc(env(safe-area-inset-top) + 56px));transform:translateX(-50%);z-index:40;max-width:92%;
+    background:rgba(16,24,19,.94);color:var(--lac-ink);padding:10px 18px;border-radius:var(--radius-pill);font-size:.92rem;font-family:var(--font-deco);font-weight:600;
+    letter-spacing:.02em;border:1px solid rgba(233,200,115,.6);box-shadow:0 4px 14px rgba(0,0,0,.45);text-align:center;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .2s}
+  #dealing.on{opacity:1;visibility:visible}
   /* Title screen */
   /* Title: the painting runs full-bleed behind lacquer-and-brass plaques, in both color schemes */
   #title{position:fixed;inset:0;z-index:20;overflow-y:auto;overflow-x:hidden;background:#0E1411;display:none;
@@ -264,7 +268,7 @@
     #modeName{font-size:.98rem} #modeSub{font-size:.66rem}
     #status{gap:14px;font-size:.58rem} #status b{font-size:1.02rem;margin-top:0}
   }
-  @media (prefers-reduced-motion: reduce){ #toast{transition:none} .tog::after{transition:none} }
+  @media (prefers-reduced-motion: reduce){ #toast,#dealing{transition:none} .tog::after{transition:none} }
 </style>
 </head>
 <body>
@@ -310,6 +314,7 @@
 </section>
 
 <div id="modal"><div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="mT"></div></div>
+<div id="dealing" aria-hidden="true">Finding a winnable deal…</div>
 <div id="sr" class="sr-only" role="status" aria-live="polite"></div>
 <script>
 'use strict';
@@ -385,6 +390,7 @@ function save(name, value) {
 const DEFAULT_SETTINGS = {
   sound: true, volume: 0.6, motion: 'auto', leftHanded: false, cardSize: 'standard', layout: 'fit', fourColor: false,
   autoFoundation: 'safe', back: 'skylight', table: 'felt', showTimer: true, deckSeed: 1914, courts: 'deco',
+  winnable: false, // random deals are only ones a solver has won first (daily deals always are); off = a plain shuffle
   sfx: true, music: true, ambience: true, musicVol: 0.6, ambVol: 0.6, // sound effects, music and ambience; all three obey the master `sound` switch
 };
 const loadObj = (name) => { const v = load(name, null); return isObj(v) ? v : {}; };
@@ -806,6 +812,295 @@ function legalMoves(all) {
   return out.filter((m) => m.score > -50);
 }
 
+// --- Winnable-deal solver (S3-01) ---
+// A dedicated search over compact positions (cards are suit*16 + rank). It runs before a deal is shown,
+// never during play, so it knows every card. It counts positions, never milliseconds: a candidate deal is
+// accepted or refused by the same count on every machine, whatever the speed or the slicing. step(n) can be
+// called again and again, so the page can search in short slices.
+const solCode = (c) => c.s * 16 + c.r;
+const solRed = (c) => (((c >> 4) + 1) >> 1) & 1;
+const solSuit = (c) => c >> 4, solRank = (c) => c & 15;
+const solChars = (a) => { let s = ''; for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i] + 32); return s; };
+// the starting position of a dealt state: face-up cards are always a suffix of a column
+function solverRoot(st) {
+  const tabs = [], dn = [];
+  for (const id in st.piles) {
+    if (id[0] !== 't') continue;
+    const p = st.piles[id]; let d = 0; while (d < p.length && !st.up[p[d]]) d++;
+    tabs.push(p.map((u) => solCode(st.cards[u]))); dn.push(d);
+  }
+  const code = (id) => (st.piles[id] || []).map((u) => solCode(st.cards[u]));
+  return { t: tabs, dn, st: code('stock'), w: [], f: [0, 0, 0, 0], cells: [], done: 0 };
+}
+function solClone(s) {
+  return { t: s.t.map((p) => p.slice()), dn: s.dn.slice(), st: s.st.slice(), w: s.w.slice(), f: s.f.slice(), cells: s.cells.slice(), done: s.done };
+}
+const solFlip = (s) => { for (let i = 0; i < s.t.length; i++) if (s.dn[i] > 0 && s.dn[i] >= s.t[i].length) s.dn[i] = s.t[i].length - 1; };
+// a card may go home unasked when it can no longer help a column: an ace or deuce, or both opposite colours are close
+function solSafe(s, u) {
+  const r = solRank(u); if (r <= 2) return true;
+  return (solRed(u) ? Math.min(s.f[0], s.f[3]) : Math.min(s.f[1], s.f[2])) >= r - 1;
+}
+// Face-down tops turn over and safe cards go home. log, when given, collects the foundation moves.
+function solSettle(s, log) {
+  solFlip(s);
+  let moved = true;
+  while (moved) {
+    moved = false;
+    for (let i = 0; i < s.t.length; i++) {
+      const p = s.t[i]; if (!p.length) continue;
+      const u = p[p.length - 1];
+      if (s.f[solSuit(u)] === solRank(u) - 1 && solSafe(s, u)) {
+        if (log) log.push({ from: 't' + i, to: 'found', n: 1, card: u });
+        s.f[solSuit(u)]++; p.pop(); solFlip(s); moved = true;
+      }
+    }
+    if (s.w.length) {
+      const u = s.w[s.w.length - 1];
+      if (s.f[solSuit(u)] === solRank(u) - 1 && solSafe(s, u)) {
+        if (log) log.push({ from: 'waste', to: 'found', n: 1, card: u });
+        s.f[solSuit(u)]++; s.w.pop(); moved = true;
+      }
+    }
+    for (let i = 0; i < s.cells.length; i++) {
+      const u = s.cells[i];
+      if (s.f[solSuit(u)] === solRank(u) - 1 && solSafe(s, u)) {
+        if (log) log.push({ from: 'cell', to: 'found', n: 1, card: u });
+        s.f[solSuit(u)]++; s.cells.splice(i, 1); moved = true; break;
+      }
+    }
+  }
+}
+function solKey(s) {
+  const cols = [];
+  for (let i = 0; i < s.t.length; i++) cols.push(s.dn[i] + solChars(s.t[i]));
+  cols.sort();
+  return cols.join('|') + '#' + solChars(s.st) + '#' + solChars(s.w) + '#' + s.f.join('') + '#' + s.done + '#' + solChars(s.cells.slice().sort((a, b) => a - b));
+}
+const solFits = (lo, hi) => solRank(lo) === solRank(hi) + 1 && solRed(lo) !== solRed(hi); // hi may sit on lo
+// Klondike and Yukon moves are [kind, from, index, to]; kinds 0 foundation, 1 reveals a card, 2 column to column,
+// 3 waste to column, 4 draw. from -1 is the waste.
+function solTableauMoves(s, ms) {
+  const n = s.t.length;
+  for (let c = 0; c < n; c++) {
+    const p = s.t[c]; if (!p.length) continue;
+    const top = p[p.length - 1];
+    if (s.f[solSuit(top)] === solRank(top) - 1) ms.push([0, c, p.length - 1, -1]);
+    for (let idx = s.dn[c]; idx < p.length; idx++) {
+      const u = p[idx];
+      if (idx > s.dn[c] && solFits(p[idx - 1], u)) continue; // already sitting on a card it builds on
+      let empty = false;
+      for (let i = 0; i < n; i++) {
+        if (i === c) continue;
+        const q = s.t[i];
+        if (!q.length) { if (solRank(u) === 13 && idx > 0 && !empty) { ms.push([idx === s.dn[c] ? 1 : 2, c, idx, i]); empty = true; } }
+        else if (solFits(q[q.length - 1], u)) ms.push([idx === s.dn[c] && idx > 0 ? 1 : 2, c, idx, i]);
+      }
+    }
+  }
+}
+function solKlondikeMoves(s, ms) {
+  if (s.w.length) {
+    const u = s.w[s.w.length - 1];
+    if (s.f[solSuit(u)] === solRank(u) - 1) ms.push([0, -1, 0, 0]);
+    let empty = false;
+    for (let i = 0; i < s.t.length; i++) {
+      const p = s.t[i];
+      if (!p.length) { if (solRank(u) === 13 && !empty) { ms.push([3, -1, 0, i]); empty = true; } }
+      else if (solFits(p[p.length - 1], u)) ms.push([3, -1, 0, i]);
+    }
+  }
+  solTableauMoves(s, ms);
+  if (s.st.length || s.w.length) ms.push([4, 0, 0, 0]);
+}
+function solKlondikeApply(s, m, draw, log) {
+  const o = solClone(s);
+  if (m[0] === 4) {
+    if (log) log.push({ draw: true });
+    if (o.st.length) { const k = Math.min(draw, o.st.length); for (let i = 0; i < k; i++) o.w.push(o.st.pop()); }
+    else while (o.w.length) o.st.push(o.w.pop());
+  } else if (m[1] < 0) {
+    const u = o.w.pop();
+    if (log) log.push({ from: 'waste', to: m[0] === 0 ? 'found' : 't' + m[3], n: 1, card: u });
+    if (m[0] === 0) o.f[solSuit(u)]++; else o.t[m[3]].push(u);
+  } else if (m[0] === 0) {
+    const u = o.t[m[1]].pop();
+    if (log) log.push({ from: 't' + m[1], to: 'found', n: 1, card: u });
+    o.f[solSuit(u)]++;
+  } else {
+    const run = o.t[m[1]].splice(m[2]);
+    if (log) log.push({ from: 't' + m[1], to: 't' + m[3], n: run.length, card: run[0] });
+    o.t[m[3]].push(...run);
+  }
+  solSettle(o, log); return o;
+}
+function solYukonApply(s, m, draw, log) {
+  const o = solClone(s);
+  if (m[0] === 0) {
+    const u = o.t[m[1]].pop();
+    if (log) log.push({ from: 't' + m[1], to: 'found', n: 1, card: u });
+    o.f[solSuit(u)]++;
+  } else {
+    const run = o.t[m[1]].splice(m[2]);
+    if (log) log.push({ from: 't' + m[1], to: 't' + m[3], n: run.length, card: run[0] });
+    o.t[m[3]].push(...run);
+  }
+  solSettle(o, log); return o;
+}
+// Spider: a same-suit run moves together; a finished King-to-Ace run leaves by itself.
+// Moves are [score, from, index, to]; score -1 is dealing a row from the stock.
+function solSpiderClear(o, c) {
+  const p = o.t[c];
+  if (p.length >= 13) {
+    const b = p.length - 13; let ok = o.dn[c] <= b;
+    for (let i = 0; ok && i < 13; i++) if (p[b + i] !== (p[b] & 0x30) + 13 - i) ok = false;
+    if (ok) { p.length = b; o.done++; }
+  }
+  if (o.dn[c] > 0 && o.dn[c] >= p.length) o.dn[c] = p.length - 1;
+}
+function solSpiderMoves(s, ms) {
+  const n = s.t.length; let anyEmpty = false;
+  for (let c = 0; c < n; c++) {
+    const p = s.t[c];
+    if (!p.length) { anyEmpty = true; continue; }
+    let rs = p.length - 1;
+    while (rs > s.dn[c] && p[rs - 1] - p[rs] === 1) rs--; // same suit, one rank higher: the codes differ by one
+    for (let idx = rs; idx < p.length; idx++) {
+      const u = p[idx], under = idx > s.dn[c] ? p[idx - 1] : -1;
+      let empty = false;
+      for (let i = 0; i < n; i++) {
+        if (i === c) continue;
+        const q = s.t[i]; let sc;
+        if (!q.length) { if (empty || idx === 0) continue; empty = true; sc = 2; }
+        else {
+          const t = q[q.length - 1]; if (solRank(t) !== solRank(u) + 1) continue;
+          const same = solSuit(t) === solSuit(u);
+          if (under >= 0 && solRank(under) === solRank(u) + 1 && !(same && solSuit(under) !== solSuit(u))) continue;
+          sc = same ? 30 : 8;
+        }
+        if (idx === s.dn[c] && idx > 0) sc += 45;
+        ms.push([sc, c, idx, i]);
+      }
+    }
+  }
+  if (s.st.length && !anyEmpty) ms.push([-1, 0, 0, 0]);
+}
+function solSpiderApply(s, m, draw, log) {
+  const o = solClone(s);
+  if (m[0] < 0) {
+    if (log) log.push({ draw: true });
+    for (let i = 0; i < 10; i++) o.t[i].push(o.st.pop());
+    for (let i = 0; i < 10; i++) solSpiderClear(o, i);
+  } else {
+    const run = o.t[m[1]].splice(m[2]);
+    if (log) log.push({ from: 't' + m[1], to: 't' + m[3], n: run.length, card: run[0] });
+    o.t[m[3]].push(...run);
+    solSpiderClear(o, m[3]); solSpiderClear(o, m[1]);
+  }
+  return o;
+}
+// FreeCell moves one card at a time: [fromKind, from, toKind, to]; kinds 0 column, 1 cell, 2 foundation.
+function solFreeMoves(s, ms) {
+  const n = s.t.length; let empty = -1;
+  for (let c = 0; c < n; c++) if (!s.t[c].length) { empty = c; break; }
+  for (let k = 0; k < s.cells.length; k++) {
+    const u = s.cells[k];
+    if (s.f[solSuit(u)] === solRank(u) - 1) ms.push([1, k, 2, 0]);
+    for (let i = 0; i < n; i++) { const q = s.t[i]; if (q.length && solFits(q[q.length - 1], u)) ms.push([1, k, 0, i]); }
+    if (empty >= 0) ms.push([1, k, 0, empty]);
+  }
+  for (let c = 0; c < n; c++) {
+    const p = s.t[c]; if (!p.length) continue;
+    const u = p[p.length - 1];
+    if (s.f[solSuit(u)] === solRank(u) - 1) ms.push([0, c, 2, 0]);
+    for (let i = 0; i < n; i++) { if (i === c) continue; const q = s.t[i]; if (q.length && solFits(q[q.length - 1], u)) ms.push([0, c, 0, i]); }
+    if (empty >= 0 && p.length > 1) ms.push([0, c, 0, empty]);
+    if (s.cells.length < 4) ms.push([0, c, 1, 0]);
+  }
+}
+function solFreeApply(s, m, draw, log) {
+  const o = solClone(s);
+  const u = m[0] === 0 ? o.t[m[1]].pop() : o.cells.splice(m[1], 1)[0];
+  if (log) log.push({ from: m[0] === 0 ? 't' + m[1] : 'cell', to: m[2] === 0 ? 't' + m[3] : m[2] === 1 ? 'cell' : 'found', n: 1, card: u });
+  if (m[2] === 0) o.t[m[3]].push(u); else if (m[2] === 1) o.cells.push(u); else o.f[solSuit(u)]++;
+  solSettle(o, log); return o;
+}
+// FreeCell is searched best-first: cards still to send home, cards lying on a lower card, cells in use
+function solFreeScore(s) {
+  let h = 0; for (let i = 0; i < 4; i++) h += 13 - s.f[i];
+  h = h * 8 + s.cells.length;
+  for (const p of s.t) { let low = 99; for (let j = 0; j < p.length; j++) { const r = solRank(p[j]); if (r > low) h++; else low = r; } }
+  return h;
+}
+const solWon = (s, mode) => mode === 'spider' ? s.done === 8 : s.f[0] + s.f[1] + s.f[2] + s.f[3] === 52;
+// makeSolver(state, budget) returns { used, step(n), path() }. step searches up to n more positions (a slice)
+// and answers 'won', 'dead' (no win within these moves), 'budget' (budget positions searched without a win)
+// or 'more'. The budget test never looks at the slice, so the answer is the same however the work is cut up.
+// After 'won', path() lists the moves, in the game's own pile names, that win the deal.
+function makeSolver(st, budget) {
+  const mode = st.mode, draw = st.opts.draw;
+  const root = solverRoot(st);
+  if (mode !== 'spider') solSettle(root);
+  const gen = mode === 'klondike' ? solKlondikeMoves : mode === 'yukon' ? solTableauMoves : mode === 'freecell' ? solFreeMoves : solSpiderMoves;
+  const apply = mode === 'klondike' ? solKlondikeApply : mode === 'yukon' ? solYukonApply : mode === 'freecell' ? solFreeApply : solSpiderApply;
+  const order = mode === 'spider' ? (a, b) => b[0] - a[0] : (a, b) => a[0] - b[0];
+  const seen = new Set([solKey(root)]);
+  let won = null;
+  const me = { used: 0 };
+  me.path = () => {
+    const log = []; let cur = solverRoot(st); if (mode !== 'spider') solSettle(cur, log);
+    for (const m of won) cur = apply(cur, m, draw, log);
+    return log;
+  };
+  if (mode === 'freecell') {
+    // a binary heap of [score * 2^24 + arrival order, node]
+    const heap = [], nodes = [{ s: root, parent: -1, m: null }]; let seq = 0;
+    const push = (key, v) => { let i = heap.push([key, v]) - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; const t = heap[p]; heap[p] = heap[i]; heap[i] = t; i = p; } };
+    const pop = () => {
+      const top = heap[0], last = heap.pop();
+      if (heap.length) { heap[0] = last; let i = 0; for (;;) { let l = 2 * i + 1, r = l + 1, m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; const t = heap[m]; heap[m] = heap[i]; heap[i] = t; i = m; } }
+      return top[1];
+    };
+    push(solFreeScore(root) * 16777216, 0);
+    me.step = (n) => {
+      const end = me.used + n;
+      while (heap.length) {
+        if (me.used >= budget) return 'budget';
+        if (me.used >= end) return 'more';
+        const ni = pop(), node = nodes[ni], ms = []; gen(node.s, ms);
+        for (const m of ms) {
+          const child = apply(node.s, m, draw, null);
+          const k = solKey(child); if (seen.has(k)) continue;
+          seen.add(k); me.used++;
+          nodes.push({ s: child, parent: ni, m });
+          if (solWon(child, mode)) { won = []; for (let j = nodes.length - 1; j > 0; j = nodes[j].parent) won.push(nodes[j].m); won.reverse(); return 'won'; }
+          push(solFreeScore(child) * 16777216 + (++seq), nodes.length - 1);
+        }
+      }
+      return 'dead';
+    };
+    return me;
+  }
+  const frame = (s) => { const ms = []; gen(s, ms); ms.sort(order); return { s, ms, i: 0 }; };
+  const stack = [frame(root)];
+  me.step = (n) => {
+    const end = me.used + n;
+    while (stack.length) {
+      if (me.used >= budget) return 'budget';
+      if (me.used >= end) return 'more';
+      const f = stack[stack.length - 1];
+      if (f.i >= f.ms.length) { stack.pop(); continue; }
+      const child = apply(f.s, f.ms[f.i++], draw, null);
+      const k = solKey(child); if (seen.has(k)) continue;
+      seen.add(k); me.used++;
+      if (solWon(child, mode)) { won = stack.map((fr) => fr.ms[fr.i - 1]); return 'won'; }
+      stack.push(frame(child));
+    }
+    return 'dead';
+  };
+  return me;
+}
+
 // --- Dead-end search (MECHANICS §3) ---
 // Hints and the "no more moves" check look ahead instead of ranking single moves. A breadth-first search
 // plays moves on throwaway copies of the position, looking for a line that raises potential() above where
@@ -1145,26 +1440,90 @@ function dailyDeal(mode, opts, date) {
   return mode === 'freecell' ? 1 + (h % 32000) : 1 + (h % 2000000000);
 }
 
+// --- Winnable deals ---
+// A deal is only shown once a solver has won it. Candidates come from a fixed sequence (the deal itself, then
+// fnv1a(tag|attempt)), and the solver's limit is a count of positions, so the same seed lands on the same deal
+// on every machine. Daily deals keep looking up to WIN_DAILY_TRIES, so every player gets one winnable deal.
+// Spider with four suits is not offered: the solver wins none of those deals inside any limit short enough to wait for.
+const WIN_SEARCH = { // positions the solver may search per candidate deal, and candidates a random deal may try
+  klondike1: { budget: 300, tries: 24 }, klondike3: { budget: 400, tries: 24 }, yukon: { budget: 400, tries: 24 },
+  freecell: { budget: 4000, tries: 24 }, spider1: { budget: 800, tries: 24 }, spider2: { budget: 800, tries: 80 },
+};
+const WIN_DAILY_TRIES = 160;
+const WIN_SLICE_MS = 25, WIN_FIRST_MS = 45; // the page never waits longer than this on the solver at a time
+const winKey = (mode, opts) => { const k = modeKey(mode, opts); return WIN_SEARCH[k] ? k : null; };
+function candidateDeal(mode, base, attempt, tag) {
+  if (!attempt) return base;
+  const h = fnv1a(tag + '|' + attempt);
+  return mode === 'freecell' ? 1 + (h % 32000) : 1 + (h % 2000000000);
+}
+// A search job: slice(ms) works for about ms milliseconds and answers null (keep going) or the result
+// { deal, attempts, positions } (deal is null when every candidate failed).
+function dealJob(mode, opts, base, tag, tries) {
+  const cfg = WIN_SEARCH[winKey(mode, opts)];
+  let attempt = 0, solver = null, cand = base, positions = 0;
+  return { slice(ms) {
+    const end = now() + ms;
+    for (;;) {
+      if (!solver) { cand = candidateDeal(mode, base, attempt, tag); solver = makeSolver(newState(mode, opts, cand, null), cfg.budget); }
+      const r = solver.step(40);
+      if (r === 'won') return { deal: cand, attempts: attempt + 1, positions: positions + solver.used };
+      if (r !== 'more') { positions += solver.used; solver = null; if (++attempt >= tries) return { deal: null, attempts: attempt, positions }; }
+      if (now() >= end) return null;
+    }
+  } };
+}
+let dealPending = null, lastSearch = null;
+const dealingEl = $('#dealing');
+function showDealing(on) { dealingEl.classList.toggle('on', on); if (on) announce('Finding a winnable deal'); }
+
 function newGame(o = {}) {
-  abandonCurrent();
   const mode = MODES[o.mode] ? o.mode : (S ? S.mode : meta.lastMode || 'klondike');
   const opts = { draw: o.draw || (S && S.mode === mode ? S.opts.draw : meta.lastOpts.draw) || 1,
     suits: o.suits || (S && S.mode === mode ? S.opts.suits : meta.lastOpts.suits) || 1 };
   let deal = o.deal, daily = null;
-  if (o.daily) { daily = typeof o.daily === 'string' ? o.daily : todayStr(); deal = dailyDeal(mode, opts, daily); }
+  if (o.daily) { daily = typeof o.daily === 'string' ? o.daily : todayStr(); if (!o.keep) deal = dailyDeal(mode, opts, daily); }
+  const exact = !!deal && !(o.daily && !o.keep); // a number the player chose, or a restart: dealt exactly as it is
   if (!deal) {
     if (nextDeal != null) { deal = nextDeal; nextDeal = null; }
     else deal = mode === 'freecell' ? 1 + Math.floor(Math.random() * 32000) : 1 + Math.floor(Math.random() * 2000000000);
   }
   deal = mode === 'freecell' ? clamp(Math.floor(deal), 1, 1000000) : clamp(Math.floor(deal), 1, 2147483646);
+  dealPending = null; showDealing(false);
+  const key = winKey(mode, opts);
+  if (exact || !key || !(daily || settings.winnable)) return startDeal(mode, opts, deal, daily, !!(exact && o.winnable));
+  const tag = daily ? daily + '|' + modeKey(mode, opts) : String(deal);
+  const job = dealJob(mode, opts, deal, tag, daily ? WIN_DAILY_TRIES : WIN_SEARCH[key].tries);
+  const t0 = now(), finish = (r) => {
+    lastSearch = { key, daily: !!daily, found: r.deal != null, attempts: r.attempts, positions: r.positions, ms: Math.round(now() - t0) };
+    if (r.deal == null) toast("Couldn't find a winnable deal this time. Dealt a plain shuffle.");
+    return startDeal(mode, opts, r.deal == null ? deal : r.deal, daily, r.deal != null);
+  };
+  const first = job.slice(WIN_FIRST_MS);
+  if (first) return finish(first);
+  // slower than one slice: keep the table as it is, say so, and carry on between frames
+  const me = dealPending = {}; showDealing(true);
+  return new Promise((resolve) => {
+    const tick = () => {
+      if (dealPending !== me) return resolve({ ok: false, reason: 'replaced' });
+      const r = job.slice(WIN_SLICE_MS);
+      if (!r) return void setTimeout(tick, 0);
+      dealPending = null; showDealing(false); resolve(finish(r));
+    };
+    setTimeout(tick, 0);
+  });
+}
+function startDeal(mode, opts, deal, daily, winnable) {
+  abandonCurrent();
   clearTimeout(winTimer); winTimer = 0;
   S = newState(mode, opts, deal, daily); musicHush = false;
+  if (winnable) S.winnable = true;
   undoStack = []; redoStack = []; hintState = null; held = null; drag = null; cascade = null; cursor = { pile: null, depth: 0 }; clearStuck();
   syncShared(); meta.lastMode = mode; meta.lastOpts = { draw: S.opts.draw, suits: S.opts.suits }; save('meta', meta);
   closeModal(); showTitle(false);
   dealAnimation(); updateHUD(); scheduleSave();
   sfx('deal'); steamBurst();
-  announce(MODES[mode].name + ' ' + variantLabel(mode, S.opts) + ', deal ' + deal);
+  announce(MODES[mode].name + ' ' + variantLabel(mode, S.opts) + ', deal ' + deal + (winnable ? ', winnable' : ''));
   return { ok: true, deal };
 }
 // Starting another deal throws away the one in progress (its save, undo history and streak), so ask first.
@@ -1181,7 +1540,7 @@ function confirmAbandon(o, restart) {
     text: (restart ? 'Your moves so far will be lost.' : 'The game in progress will be lost.') + (streak > 0 ? ' Your ' + modeKeyLabel(k) + ' streak of ' + streak + ' will reset.' : ''),
     yes: restart ? 'Restart' : 'New deal', onYes: go });
 }
-function restartDeal() { if (!S) return; newGame({ mode: S.mode, draw: S.opts.draw, suits: S.opts.suits, deal: S.deal, daily: S.daily }); }
+function restartDeal() { if (!S) return; newGame({ mode: S.mode, draw: S.opts.draw, suits: S.opts.suits, deal: S.deal, daily: S.daily, keep: true, winnable: S.winnable }); }
 
 let lastWin = null;
 function onWin(delay) {
@@ -3432,7 +3791,7 @@ function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('on'); cl
 function updateHUD() {
   if (!S) return;
   $('#modeName').textContent = MODES[S.mode].name + (variantLabel(S.mode, S.opts) ? ' (' + variantLabel(S.mode, S.opts) + ')' : '');
-  $('#modeSub').textContent = (S.daily ? 'Daily deal ' + S.daily : 'Deal #' + S.deal) + (S.assisted ? ' · assisted' : '');
+  $('#modeSub').textContent = (S.daily ? (S.winnable ? 'Daily ' : 'Daily deal ') + S.daily : 'Deal #' + S.deal) + (S.winnable ? ' · winnable' : '') + (S.assisted ? ' · assisted' : '');
   $('#sScore').textContent = S.score; $('#sMoves').textContent = S.moves; updateTime();
   $('#sTimeW').style.display = settings.showTimer ? '' : 'none';
   $('#bUndo').disabled = !undoStack.length || S.won; $('#bRedo').disabled = !redoStack.length || S.won;
@@ -3579,6 +3938,7 @@ const MODALS = {
     '<div class="set"><label>Court cards<small>Art Deco line art, or the painted portraits</small></label>' + seg('courts', [['deco', 'Art Deco'], ['painted', 'Painted']]) + '</div>' +
     '<div class="set"><label>Four-color suits<small>Blue diamonds, green clubs</small></label>' + tog('fourColor', 'Four-color suits') + '</div>' +
     '<div class="set"><label>Auto-move to foundations<small>Safe moves only cards nothing else needs</small></label>' + seg('autoFoundation', [['off', 'Off'], ['safe', 'Safe'], ['all', 'All']]) + '</div>' +
+    '<div class="set"><label>Winnable deals only<small>Random deals are won by a solver before you see them. Not Spider with four suits</small></label>' + tog('winnable', 'Winnable deals only') + '</div>' +
     '<div class="set"><label>Show timer</label>' + tog('showTimer', 'Show timer') + '</div>' +
     '<div class="row"><button class="btn" data-a="backs">Card backs &amp; tables…</button></div>' +
     (storageOK ? '' : '<p class="cap">Settings and stats can\'t be saved in this browser.</p>'),
@@ -3602,7 +3962,7 @@ const MODALS = {
   daily: () => {
     const day = todayStr();
     const list = [['klondike', { draw: 1 }], ['klondike', { draw: 3 }], ['freecell', {}], ['spider', { suits: 1 }], ['spider', { suits: 2 }], ['spider', { suits: 4 }], ['yukon', {}]];
-    return head('Daily deals') + '<p>Everyone gets the same deals today (' + day + '). A new set arrives at midnight.</p><div class="menu">' +
+    return head('Daily deals') + '<p>Everyone gets the same deals today (' + day + '). A new set arrives at midnight. Each one has been won by a solver first, except Spider with four suits.</p><div class="menu">' +
       list.map(([m, o], i) => {
         const k = modeKey(m, Object.assign({ draw: 1, suits: 1 }, o)); const st = meta.daily[day + '|' + k];
         const [name, sub] = modeKeyLabel(k).split(' · ');
@@ -3757,7 +4117,7 @@ window.__game = {
     tickClock(); // elapsedMs is otherwise only as fresh as the last half-second tick
     if (!S) return { scene: sceneName(), settings: Object.assign({}, settings) };
     return { scene: sceneName(), modal: modalKind, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, piles: notePiles(),
-      score: S.score, moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, started: S.started, canAutoComplete: canAutoComplete(),
+      score: S.score, moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, winnable: !!S.winnable, started: S.started, canAutoComplete: canAutoComplete(),
       undoDepth: undoStack.length, redoDepth: redoStack.length, held: held ? Object.assign({}, held) : null, cursor: Object.assign({}, cursor),
       settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, stuck: stuckVerdict, storageOK };
   },
@@ -3788,6 +4148,14 @@ window.__game = {
     return sceneName();
   },
   newGame(o) { return newGame(o || {}); },
+  lastSearch() { return lastSearch && Object.assign({}, lastSearch); },
+  winConfig() { return { search: JSON.parse(JSON.stringify(WIN_SEARCH)), dailyTries: WIN_DAILY_TRIES, sliceMs: WIN_SLICE_MS, firstMs: WIN_FIRST_MS }; },
+  solve(mode, opts, deal, budget) { // search one deal by itself: answers { result, used, path }
+    const o = { draw: opts && opts.draw === 3 ? 3 : 1, suits: opts && [1, 2, 4].includes(opts.suits) ? opts.suits : 1 };
+    const sv = makeSolver(newState(mode, o, deal, null), budget); const result = sv.step(budget + 1);
+    return { result, used: sv.used, path: result === 'won' ? sv.path() : null };
+  },
+  dealCandidate(mode, opts, base, tag, attempt) { return candidateDeal(mode, base, attempt, tag); },
   act(name, ...a) {
     switch (name) {
       case 'move': { const from = a[0], to = a[1]; const p = S.piles[from]; const idx = a[2] != null ? p.length - a[2] : p.length - 1; return tryMove(from, idx, to); }
