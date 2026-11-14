@@ -123,7 +123,7 @@ export const tests = [
       t.equal(s.deal, 4242, 'with the setting off the random deal is the seed itself');
       t.equal(s.winnable, false, 'not marked winnable');
       // settings from before this wave have no such key
-      await t.page.evaluate(([k, v]) => localStorage.setItem(k, v), [SET, JSON.stringify({ sound: false, volume: 0.4, back: 'deco' })]); await reloadGame(t);
+      await t.game('unlockAll'); await t.page.evaluate(([k, v]) => localStorage.setItem(k, v), [SET, JSON.stringify({ sound: false, volume: 0.4, back: 'deco' })]); await reloadGame(t);
       s = await t.state(); t.equal(s.settings.winnable, false, 'an old save gets the default'); t.equal(s.settings.back, 'deco', 'and keeps what it had');
       await t.page.evaluate(([k, v]) => localStorage.setItem(k, v), [SET, JSON.stringify({ winnable: 'yes' })]); await reloadGame(t);
       t.equal((await t.state()).settings.winnable, false, 'a damaged value falls back');

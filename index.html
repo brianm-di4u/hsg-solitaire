@@ -265,6 +265,12 @@
     #modeName{font-size:.98rem} #modeSub{font-size:.66rem}
     #status{gap:14px;font-size:.58rem} #status b{font-size:1.02rem;margin-top:0}
   }
+  .bk small{display:block;font-size:.7rem;color:var(--color-muted)} .bk.lk canvas{filter:grayscale(1);opacity:.4} .bk.lk{cursor:default}
+  .earn{margin:0 auto 12px;max-width:460px;text-align:center;font-size:.9rem} .earn b{font-family:var(--font-deco)} .earn .pb{color:#2E6A3C;font-weight:700}
+  .rec{border-bottom:1px solid var(--color-border);padding:6px 0} .rec b{font-family:var(--font-deco)} .rec small{display:block;color:var(--color-muted)}
+  .ach{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}
+  .ach li{padding:6px 8px;border:1px solid var(--color-border);border-radius:8px;font-size:.85rem;opacity:.8} .ach li.got{opacity:1;border-color:#B8862C;background:var(--chip)}
+  .ach li b{display:block} .ach li small{color:var(--color-muted)}
   @media (prefers-reduced-motion: reduce){ #toast,#dealing{transition:none} .tog::after{transition:none} }
 </style>
 </head>
@@ -302,6 +308,7 @@
     <div class="row" id="tRow">
       <button class="btn" id="tDaily">Daily deals</button>
       <button class="btn" id="tBacks">Backs &amp; tables</button>
+      <button class="btn" id="tRec">Records</button>
       <button class="btn" id="tStats">Statistics</button>
       <button class="btn" id="tSet">Settings</button>
       <button class="btn" id="tHelp">How to play</button>
@@ -364,6 +371,7 @@ function fmtTime(ms) {
 // 2. Storage (always wrapped: the game must run when localStorage is unavailable)
 const KEY = 'spa-solitaire:v1:';
 let storageOK = true;
+const hadSave = (() => { try { return ['settings', 'stats', 'meta', 'current'].some((k) => localStorage.getItem(KEY + k) != null); } catch (e) { return false; } })();
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 function load(name, fallback) {
   let raw;
@@ -383,7 +391,8 @@ const DEFAULT_SETTINGS = {
   sfx: true, music: true, ambience: true, musicVol: 0.6, ambVol: 0.6, // sound effects, music and ambience; all three obey the master `sound` switch
 };
 const loadObj = (name) => { const v = load(name, null); return isObj(v) ? v : {}; };
-const settings = Object.assign({}, DEFAULT_SETTINGS, loadObj('settings'));
+const storedSettings = loadObj('settings');
+const settings = Object.assign({}, DEFAULT_SETTINGS, storedSettings);
 let stats = loadObj('stats');
 let meta = Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 0, daily: {} }, loadObj('meta'));
 const reduceQuery = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
@@ -450,7 +459,7 @@ function makeDeck(mode, opts) {
 function newState(mode, opts, deal, daily) {
   const st = { v: 1, mode, opts: { draw: opts.draw === 3 ? 3 : 1, suits: [1, 2, 4].includes(opts.suits) ? opts.suits : 1 }, deal, daily: daily || null,
     cards: makeDeck(mode, opts), up: [], piles: {}, score: mode === 'spider' ? 500 : 0, moves: 0, elapsedMs: 0, recycles: 0, runs: 0,
-    started: false, won: false, usedUndo: false, assisted: false };
+    started: false, won: false, usedUndo: false, usedHint: false, assisted: false };
   for (const id of pileIds(mode)) st.piles[id] = [];
   st.up = st.cards.map(() => false);
   const P = st.piles; const d = MODES[mode];
@@ -616,6 +625,7 @@ function settleTableau(delayBase) {
         S.piles['f' + f].push(...run);
         run.forEach((u, j) => { animDelay[u] = d + j * 28; });
         d += 400; S.runs++; addScore(100); changed = true; sfx('run');
+        { syncShared(); const a = earn({ wins: meta.totalWins, w: null, run: true }); if (a.length) { save('meta', meta); setTimeout(() => achToast(a), 900); } }
         announce('Completed a run of ' + SUIT_NAME[card(run[0]).s]);
       }
     }
@@ -886,10 +896,10 @@ const makeSolver = (() => {
   };
 })();
 
-// --- Dead-end search (MECHANICS §3) ---
 // it is now. Shuffling cards, cycling the stock or parking a card and taking it back never does, so those
 // loops are never hinted. A win beats every other position, so a search that runs out of
 // positions without finding progress proves the deal can't be won from here.
+// --- Dead-end search (MECHANICS §3) ---
 const HINT_BUDGET = 5000, STUCK_BUDGET = 2500; // positions the search may visit
 const STOCK_MOVE = { stock: true };
 
@@ -1062,6 +1072,7 @@ function stockHintText() {
 
 function hint() {
   if (!S || S.won) return { ok: false };
+  S.usedHint = true;
   const sig = S.moves + '|' + undoStack.length + '|' + (S.piles.stock ? S.piles.stock.length : 0);
   if (!hintState || hintState.sig !== sig) {
     const a = analyze(HINT_BUDGET, false, true);
@@ -1283,6 +1294,10 @@ function confirmAbandon(o, restart) {
 }
 function restartDeal() { if (!S) return; newGame({ mode: S.mode, draw: S.opts.draw, suits: S.opts.suits, deal: S.deal, daily: S.daily, winnable: S.winnable }); }
 
+function earn(c) {
+  const got = ACH.filter((a) => !meta.ach[a[0]] && a[3](c)); got.forEach((a) => { meta.ach[a[0]] = todayStr(); });
+  return got.map((a) => a[1]);
+}
 let lastWin = null;
 function onWin(delay) {
   loadArt(LATE_ART); // the ticket stock, ready long before the ceremony ends
@@ -1298,8 +1313,11 @@ function onWin(delay) {
   saveStats();
   meta.totalWins = (meta.totalWins || 0) + 1;
   if (S.daily) meta.daily[S.daily + '|' + k] = 'won';
+  meta.dailyBest = dailyRun();
+  const ach = earn({ wins: meta.totalWins, w: { ms: S.elapsedMs, usedUndo: S.usedUndo, usedHint: S.usedHint } });
+  const opened = UNLOCKS.filter(([id, n]) => meta.totalWins >= n && !meta.unlock.ids.includes(id)).map(([id]) => id); meta.unlock.ids.push(...opened);
   save('meta', meta); save('current', null);
-  lastWin = { mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, bonus, moves: S.moves, ms: S.elapsedMs,
+  lastWin = { ach, opened: opened.map(unlockName), pb: !!(best.time || best.moves || best.score) && st.won > 1, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, bonus, moves: S.moves, ms: S.elapsedMs,
     best, totalWins: meta.totalWins, assisted: S.assisted, fact: FACTS[fnv1a(S.mode + ':' + S.deal) % FACTS.length] };
   announce('You won! Score ' + S.score);
   winTimer = setTimeout(() => { winTimer = 0; musicHush = true; syncAudio(); sfx('win'); startCascade(); }, Math.max(250, delay + 260));
@@ -1738,6 +1756,50 @@ const TABLES = [
     cap: 'The airbrushed blue sky of a linen-finish souvenir postcard, the kind sold all over the Spa City.' },
 ];
 
+const UNLOCKS = [['b:lozenge', 1], ['t:marble', 2], ['b:paterae', 3], ['b:ironwork', 5], ['b:quapaw', 7], ['t:quapaw', 9], ['b:sculpin', 11], ['b:deco', 13],
+  ['b:pines', 15], ['t:pool', 18], ['b:steam', 21], ['b:lake', 24], ['b:silks', 28], ['b:neon', 32], ['t:midnight', 36], ['t:linen', 40]];
+const UNLOCK_WINS = Object.fromEntries(UNLOCKS);
+const isOpen = (kind, id) => (kind === 'b' ? id === 'skylight' : id === 'felt') || meta.unlock.ids.includes(kind + ':' + id);
+const unlockName = (u) => (u[0] === 'b' ? BACKS : TABLES).find((x) => x.id === u.slice(2)).name + (u[0] === 'b' ? ' back' : ' table');
+const lockNote = (u) => { const n = UNLOCK_WINS[u], have = meta.totalWins || 0; return 'Win ' + n + (n > 1 ? ' games' : ' game') + ' to unlock' + (have ? ' (' + have + ' so far)' : ''); };
+const anyWon = (f) => MODE_KEYS.some((k) => f(k) && statFor(k).won > 0);
+const bestOf = (f) => Math.max(0, ...MODE_KEYS.map((k) => statFor(k)[f]));
+const ACH = [
+  ['first', 'First Soak', 'Win your first game.', (c) => c.wins >= 1],
+  ['klon', 'Parlor Game', 'Win a game of Klondike.', () => anyWon((k) => k.startsWith('klondike'))],
+  ['free', 'Cooling Room', 'Win a game of FreeCell.', () => anyWon((k) => k === 'freecell')],
+  ['spid', 'Web of Steam', 'Win a game of Spider.', () => anyWon((k) => k.startsWith('spider'))],
+  ['yuk', 'Far North Soak', 'Win a game of Yukon.', () => anyWon((k) => k === 'yukon')],
+  ['draw3', 'Three at a Time', 'Win Klondike drawing three cards.', () => anyWon((k) => k === 'klondike3')],
+  ['spid2', 'Two Springs', 'Win Spider with two suits.', () => anyWon((k) => k === 'spider2')],
+  ['spid4', 'Four Springs', 'Win Spider with all four suits.', () => anyWon((k) => k === 'spider4')],
+  ['quick', 'Quick Dip', 'Win a game in under five minutes.', (c) => c.w && c.w.ms < 300000],
+  ['rush', 'Steam Rush', 'Win a game in under three minutes.', (c) => c.w && c.w.ms < 180000],
+  ['steady', 'Steady Hand', 'Win without using Undo.', (c) => c.w && !c.w.usedUndo],
+  ['alone', 'Own Two Hands', 'Win without Undo or Hint.', (c) => c.w && !c.w.usedUndo && !c.w.usedHint],
+  ['run', 'Clear Water', 'Complete a King-to-Ace run in Spider.', (c) => c.run],
+  ['st3', 'Warm Streak', 'Win three games in a row in one game.', () => bestOf('bestStreak') >= 3],
+  ['st7', 'Hot Streak', 'Win seven games in a row in one game.', () => bestOf('bestStreak') >= 7],
+  ['w10', 'Ten Baths', 'Win 10 games.', (c) => c.wins >= 10],
+  ['w21', 'Full Course', 'Win 21 games, a whole course of baths.', (c) => c.wins >= 21],
+  ['w40', 'Fully Furnished', 'Win 40 games and open every back and table.', (c) => c.wins >= 40],
+  ['w50', 'Season Ticket', 'Win 50 games.', (c) => c.wins >= 50],
+  ['w100', 'Hundred Waters', 'Win 100 games.', (c) => c.wins >= 100],
+  ['d1', 'Today’s Soak', 'Win a daily deal.', () => Object.values(meta.daily).includes('won')],
+  ['d3', 'Three Days Running', 'Win a daily deal three days in a row.', () => dailyRun() >= 3],
+  ['d7', 'A Week of Waters', 'Win a daily deal seven days in a row.', () => dailyRun() >= 7],
+  ['d7all', 'Full Bath', 'Win all seven daily deals on one day.', () => Object.values(dailyDays()).some((n) => n >= 7)],
+];
+function dailyDays() { const d = {}; for (const k in meta.daily) if (meta.daily[k] === 'won') { const s = k.slice(0, 10); d[s] = (d[s] || 0) + 1; } return d; }
+const dayShift = (s, n) => { const [y, m, d] = s.split('-').map(Number); return todayStr(new Date(y, m - 1, d + n)); };
+function dailyStreak() { const d = dailyDays(); let t = todayStr(); if (!d[t]) t = dayShift(t, -1); let n = 0; for (; d[t]; t = dayShift(t, -1)) n++; return n; }
+function dailyRun() {
+  const d = dailyDays(), days = Object.keys(d).sort(); let best = 0, run = 0, prev = '';
+  for (const s of days) { run = prev && dayShift(prev, 1) === s ? run + 1 : 1; prev = s; best = Math.max(best, run); }
+  return Math.max(best, meta.dailyBest || 0);
+}
+const DAILY_KEEP_DAYS = 400; // older daily entries are dropped when the save loads
+
 const SETTING_ENUMS = { motion: ['auto', 'full', 'reduced'], cardSize: ['compact', 'standard', 'large'], layout: ['fit', 'classic'], autoFoundation: ['off', 'safe', 'all'],
   courts: ['deco', 'painted'], back: BACKS.map((b) => b.id), table: TABLES.map((x) => x.id) };
 for (const k in DEFAULT_SETTINGS) {
@@ -1751,12 +1813,20 @@ function normalizeMeta() {
   meta.lastOpts = { draw: meta.lastOpts.draw === 3 ? 3 : 1, suits: [1, 2, 4].includes(meta.lastOpts.suits) ? meta.lastOpts.suits : 1 };
   if (typeof meta.totalWins !== 'number' || !isFinite(meta.totalWins)) meta.totalWins = 0;
   if (!isObj(meta.daily)) meta.daily = {};
+  if (typeof meta.dailyBest !== 'number' || !isFinite(meta.dailyBest)) meta.dailyBest = 0;
+  const u = meta.unlock, known = UNLOCKS.map((x) => x[0]);
+  meta.unlock = { ids: isObj(u) && Array.isArray(u.ids) ? u.ids.filter((x) => known.includes(x)) : hadSave ? known : [] };
+  if (!isObj(meta.ach)) meta.ach = {};
+  for (const k in meta.ach) if (!ACH.some((a) => a[0] === k) || typeof meta.ach[k] !== 'string') delete meta.ach[k];
 }
 normalizeMeta();
+if (!isOpen('b', settings.back)) settings.back = 'skylight';
+if (!isOpen('t', settings.table)) settings.table = 'felt';
+if (!hadSave) save('meta', meta);
 // before every change (and whenever another tab writes) so each write builds on the latest numbers.
 function syncShared() {
   const s = load('stats', null); if (isObj(s)) stats = s;
-  const m = load('meta', null); if (isObj(m)) { meta = Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 0, daily: {} }, m); normalizeMeta(); }
+  const m = load('meta', null); if (isObj(m)) { const had = meta.unlock; meta = Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 0, daily: {} }, m); if (!isObj(m.unlock)) meta.unlock = had; normalizeMeta(); }
 }
 window.addEventListener('storage', (e) => { if (e.key === null || e.key === KEY + 'stats' || e.key === KEY + 'meta') syncShared(); });
 
@@ -3309,12 +3379,13 @@ function makeCues(ctx, dest) {
         case 'undo': { const f = noise(t, .22, 'bandpass', 3000, 1.2, 2); f.frequency.exponentialRampToValueAtTime(500, t + .2); tone(t + .1, 330, .1, 'sine', .28, .004); break; }
         case 'hint': tone(t, 880, .18, 'sine', .32); tone(t + .08, 1320, .2, 'sine', .24); break;
         case 'run': [523, 659, 784].forEach((f, i) => tone(t + i * .07, f, .4, 'triangle', .3)); noise(t + .14, .3, 'highpass', 5000, .1); break;
+        case 'ach': tone(t, 659.25, .5, 'sine', .24, .01); tone(t + .11, 987.77, .5, 'sine', .24, .01); tone(t + .24, 1318.5, .7, 'triangle', .12, .01); break;
         case 'win': [392, 523.25, 659.25, 783.99].forEach((f, i) => { tone(t + i * .12, f, 1.1, 'sawtooth', .08, .03); tone(t + i * .12, f, 1.2, 'triangle', .19, .02); }); noise(t + .4, 1.4, 'highpass', 2500, .17); break;
       }
     },
   };
 }
-const CUE_NAMES = ['pick', 'place', 'flip', 'found', 'deal', 'nope', 'undo', 'hint', 'run', 'win'];
+const CUE_NAMES = ['pick', 'place', 'flip', 'found', 'deal', 'nope', 'undo', 'hint', 'run', 'ach', 'win'];
 for (const ev of ['pointerdown', 'click', 'keydown']) document.addEventListener(ev, () => initAudio(), { passive: true, capture: true }); // the first gesture of any kind starts the audio
 function initAudio() {
   if (AC || !settings.sound) return;
@@ -3328,7 +3399,7 @@ function initAudio() {
   syncAudio();
 }
 const PENTA = [0, 2, 4, 7, 9];
-const PAUSE_MODALS = ['menu', 'confirm', 'deal', 'daily', 'backs', 'stats', 'help'];
+const PAUSE_MODALS = ['menu', 'confirm', 'deal', 'daily', 'backs', 'stats', 'help', 'records'];
 let musicHush = false; // the win ceremony: the music steps back, then returns
 function wakeAudio() { if (AC && (AC.state === 'suspended' || AC.state === 'interrupted')) AC.resume(); } // Safari reports 'interrupted' after a call or alarm
 function syncAudio() {
@@ -3372,6 +3443,8 @@ const sr = $('#sr'), toastEl = $('#toast');
 function announce(msg) { sr.textContent = ''; sr.textContent = msg; }
 let toastTimer = 0;
 function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('on'), 2400); announce(msg); }
+function achToast(names) { sfx('ach'); toast('Achievement: ' + names[0] + (names.length > 1 ? ' and ' + (names.length - 1) + ' more' : '')); }
+
 function updateHUD() {
   if (!S) return;
   $('#modeName').textContent = MODES[S.mode].name + (variantLabel(S.mode, S.opts) ? ' (' + variantLabel(S.mode, S.opts) + ')' : '');
@@ -3437,6 +3510,7 @@ function buildTitle() {
   $('#tDaily').onclick = () => openModal('daily');
   $('#tBacks').onclick = () => openModal('backs');
   $('#tStats').onclick = () => openModal('stats');
+  $('#tRec').onclick = () => openModal('records');
   $('#tSet').onclick = () => openModal('settings');
   $('#tHelp').onclick = () => openModal('help');
 }
@@ -3483,12 +3557,12 @@ function trapFocus(e) {
 const head = (title) => '<h2 id="mT">' + title + '<button class="ib x" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></h2>';
 function openModal(kind, data) {
   tickClock();
-  if (modalKind && kind !== modalKind && ['settings', 'backs', 'stats', 'help', 'deal', 'daily'].includes(kind) && modalKind === 'menu') modalReturn = 'menu';
+  if (modalKind && kind !== modalKind && ['settings', 'backs', 'stats', 'help', 'deal', 'daily', 'records'].includes(kind) && modalKind === 'menu') modalReturn = 'menu';
   modalKind = kind; sheet.className = 'sheet' + (kind === 'backs' || kind === 'help' ? ' wide' : '') + (kind === 'win' ? ' win' : '') + (kind === 'win' && !reducedMotion() ? ' rise' : '');
   if (kind === 'win' && !reducedMotion()) { modalAnimUntil = now() + 1250; setTimeout(() => sfx('place', 3), 650); } // the ticket punch
   sheet.innerHTML = (MODALS[kind] || (() => ''))(data || {});
   modalEl.classList.add('on'); syncAudio();
-  if (kind === 'win') setTimeout(() => { musicHush = false; syncAudio(); }, 1800); // the music returns once the ticket is up
+  if (kind === 'win') { setTimeout(() => { musicHush = false; syncAudio(); }, 1800); if (lastWin && ((lastWin.ach || []).length || (lastWin.opened || []).length)) setTimeout(() => sfx('ach'), 900); } // the music returns once the ticket is up
   sheet.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => closeModal(true)));
   const binder = BIND[kind]; if (binder) binder(data || {});
   if (kind === 'daily') paintHands('#sheet');
@@ -3504,7 +3578,7 @@ const MODALS = {
   menu: () => head('Menu') + '<div class="menu">' +
     '<button class="btn solid" data-a="resume" data-focus><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5v14l11-7z"/></svg>Resume</button>' +
     '<button class="btn" data-a="new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="11" height="15" rx="2"/><path d="M9 21h9a2 2 0 0 0 2-2V8"/></svg>New deal</button><button class="btn" data-a="restart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M4 4v4h4"/></svg>Restart this deal</button><button class="btn" data-a="deal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/></svg>Choose deal number…</button><button class="btn" data-a="daily"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Daily deals</button>' +
-    '<button class="btn" data-a="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10l8-6 8 6v10"/><path d="M9 20v-6h6v6"/></svg>Change game</button><button class="btn" data-a="backs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="9" height="13" rx="1.5"/><rect x="11" y="7" width="9" height="13" rx="1.5"/><path d="M15.5 11.5l-2 2 2 2 2-2z"/></svg>Backs &amp; tables</button><button class="btn" data-a="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Settings</button><button class="btn" data-a="stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V11M12 20V5M19 20v-7"/></svg>Statistics</button><button class="btn" data-a="help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.3-.9.8-.9 1.4v.6M12 17h.01"/></svg>How to play</button></div>',
+    '<button class="btn" data-a="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10l8-6 8 6v10"/><path d="M9 20v-6h6v6"/></svg>Change game</button><button class="btn" data-a="backs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="9" height="13" rx="1.5"/><rect x="11" y="7" width="9" height="13" rx="1.5"/><path d="M15.5 11.5l-2 2 2 2 2-2z"/></svg>Backs &amp; tables</button><button class="btn" data-a="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Settings</button><button class="btn" data-a="stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V11M12 20V5M19 20v-7"/></svg>Statistics</button><button class="btn" data-a="records"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M12 13v4M8 20h8"/></svg>Records</button><button class="btn" data-a="help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.3-.9.8-.9 1.4v.6M12 17h.01"/></svg>How to play</button></div>',
   settings: () => head('Settings') +
     '<div class="set"><label>Sound<small>Master switch for all sound</small></label>' + tog('sound', 'Sound') + '</div>' +
     '<div class="set"><label for="vol">Master volume</label><input type="range" id="vol" min="0" max="1" step="0.05" value="' + settings.volume + '"></div>' +
@@ -3525,9 +3599,9 @@ const MODALS = {
     '<div class="row"><button class="btn" data-a="backs">Card backs &amp; tables…</button></div>' +
     (storageOK ? '' : '<p class="cap">Settings and stats can\'t be saved in this browser.</p>'),
   backs: () => head('Card backs &amp; tables') + '<div class="backs" id="bkGrid">' +
-    BACKS.map((b) => '<button class="bk" data-back="' + b.id + '" aria-pressed="' + (settings.back === b.id) + '"><canvas width="168" height="236"></canvas><b>' + b.name + '</b></button>').join('') +
+    BACKS.map((b) => { const lk = !isOpen('b', b.id); return '<button class="bk' + (lk ? ' lk" aria-disabled="true' : '') + '" data-back="' + b.id + '" aria-pressed="' + (settings.back === b.id) + '"><canvas width="168" height="236"></canvas><b>' + b.name + '</b>' + (lk ? '<small>' + lockNote('b:' + b.id) + '</small>' : '') + '</button>'; }).join('') +
     '</div><p class="cap" id="bkCap"></p><div class="row" style="margin-top:6px"><button class="btn" data-a="reseed">Reshuffle the skylight glass</button></div>' +
-    '<h3>Tables</h3><div class="backs">' + TABLES.map((t) => '<button class="bk tbl" data-table="' + t.id + '" aria-pressed="' + (settings.table === t.id) + '"><canvas width="240" height="144"></canvas><b>' + t.name + '</b></button>').join('') + '</div>' +
+    '<h3>Tables</h3><div class="backs">' + TABLES.map((t) => { const lk = !isOpen('t', t.id); return '<button class="bk tbl' + (lk ? ' lk" aria-disabled="true' : '') + '" data-table="' + t.id + '" aria-pressed="' + (settings.table === t.id) + '"><canvas width="240" height="144"></canvas><b>' + t.name + '</b>' + (lk ? '<small>' + lockNote('t:' + t.id) + '</small>' : '') + '</button>'; }).join('') + '</div>' +
     '<p class="cap" id="tblCap">' + esc(tableInfo().cap || '') + '</p>',
   stats: (d) => {
     const k = d.key || (S ? modeKey(S.mode, S.opts) : 'klondike1'); const st = statFor(k);
@@ -3551,6 +3625,15 @@ const MODALS = {
         return '<button class="btn day' + (st === 'won' ? ' won' : '') + '"' + (i === 0 ? ' data-focus' : '') + ' data-daily="' + i + '"><canvas aria-hidden="true" data-hand="' + m + '"></canvas><b>' + name + '</b><small>' + (sub || '&nbsp;') + '</small>' +
           '<em>' + (st === 'won' ? 'Won' : st ? 'In progress' : 'Not played') + '</em>' + (st === 'won' ? '<i class="seal" aria-hidden="true"></i>' : '') + '</button>';
       }).join('') + '</div>';
+  },
+  records: () => {
+    const n = ACH.filter((a) => meta.ach[a[0]]).length, nx = UNLOCKS.find((u) => !meta.unlock.ids.includes(u[0]));
+    return head('Records') + '<p>Baths won: <b>' + (meta.totalWins || 0) + '</b> · Daily streak: <b>' + dailyStreak() + '</b> (best ' + dailyRun() + ')' +
+      (nx ? '<br>Next to open: ' + esc(unlockName(nx[0])) + '. ' + lockNote(nx[0]) + '.' : '') + '</p><h3>By game</h3>' +
+      MODE_KEYS.map((k) => { const st = statFor(k); return '<div class="rec"><b>' + esc(modeKeyLabel(k)) + '</b><small>Won ' + st.won + ' of ' + st.played + ' · streak ' + st.streak + ' (best ' + st.bestStreak + ')</small><small>' +
+        (st.won ? 'Best ' + fmtTime(st.bestTimeMs) + ' · ' + st.fewestMoves + ' moves · score ' + st.bestScore : 'No wins yet') + '</small></div>'; }).join('') +
+      '<h3>Achievements: ' + n + ' of ' + ACH.length + '</h3><ul class="ach">' +
+      ACH.map((a) => '<li' + (meta.ach[a[0]] ? ' class="got"' : '') + '><b>' + esc(a[1]) + '</b>' + esc(a[2]) + '<small> ' + (meta.ach[a[0]] ? 'Earned ' + meta.ach[a[0]] : 'Not yet') + '</small></li>').join('') + '</ul>';
   },
   help: () => head('How to play') +
     '<p><b>Goal:</b> move every card to the foundations, building each up by suit from Ace to King (Spider: complete eight King-to-Ace runs).</p>' +
@@ -3583,6 +3666,7 @@ const MODALS = {
       '<div class="meta">' + esc(modeKeyLabel(k)) + ' · ' + (w.daily ? 'Daily ' + w.daily : 'Deal #' + w.deal) + (w.bonus ? ' · time bonus +' + w.bonus : '') + '</div>' +
       '<div class="course" aria-label="Course progress ' + filled + ' of 21">' + Array.from({ length: 21 }, (_, i) => '<i class="' + (i < filled ? 'f' : '') + (i === filled - 1 ? ' new' : '') + ((i + 1) % 7 === 0 ? ' m' : '') + '"' + ((i + 1) % 7 === 0 ? ' title="' + (i + 1) + ' baths"' : '') + '></i>').join('') + '</div>' +
       '<div class="meta">Course of 21 baths: ' + filled + ' of 21' + (courses ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : '') + '</div></div>' +
+      (w.pb || (w.ach || []).length || (w.opened || []).length ? '<div class="earn" role="status">' + (w.pb ? '<div class="pb">New personal best</div>' : '') + ((w.ach || []).length ? '<div>' + (w.ach.length > 1 ? 'Achievements' : 'Achievement') + ': ' + w.ach.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + ((w.opened || []).length ? '<div>Unlocked: ' + w.opened.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + '</div>' : '') +
       '<div class="fact"><div class="k">Did you know?</div><div class="q">' + esc(f[1]) + '</div><div class="a">' + esc(f[2]) + '</div><div>' + esc(f[3]) + '</div><div class="src">Source: ' + esc(f[4]) + '</div></div>' +
       '<div class="row"><button class="btn solid" data-a="new" data-focus>New deal</button><button class="btn" data-a="restart">Replay this deal</button><button class="btn" data-a="title">Change game</button></div>';
   },
@@ -3595,6 +3679,7 @@ const ACTIONS = {
   resume: () => closeModal(), new: () => confirmAbandon({ mode: S ? S.mode : meta.lastMode }), restart: () => confirmAbandon(null, true), undo: () => { closeModal(); undo(); },
   deal: () => openModal('deal'), daily: () => openModal('daily'), title: () => { closeModal(); showTitle(true); },
   backs: () => openModal('backs'), settings: () => openModal('settings'), stats: () => openModal('stats'), help: () => openModal('help'),
+  records: () => openModal('records'),
   reseed: () => { settings.deckSeed = 1 + Math.floor(Math.random() * 1e6); saveSettings(); if (settings.back !== 'skylight') settings.back = 'skylight'; applyLook(); openModal('backs'); },
 };
 const BIND = {
@@ -3614,16 +3699,16 @@ const BIND = {
   },
   backs() {
     BIND._common();
-    const cap = $('#bkCap'); const show = (id) => { const b = BACKS.find((x) => x.id === id); cap.textContent = b.name + ': ' + b.cap; };
+    const cap = $('#bkCap'); const show = (id) => { const b = BACKS.find((x) => x.id === id); cap.textContent = b.name + ': ' + (isOpen('b', id) ? b.cap : lockNote('b:' + id)); };
     loadArt([...BACKS.map((b) => 'back-' + b.id), ...TABLES.flatMap((t) => tableArt(t.id, true)), ...courtSet('deco'), ...courtSet('painted'), ...LATE_ART]);
     paintPickers();
     sheet.querySelectorAll('[data-back]').forEach((b) => {
-      b.onclick = () => { setSetting('back', b.dataset.back); sheet.querySelectorAll('[data-back]').forEach((x) => x.setAttribute('aria-pressed', x === b)); show(b.dataset.back); };
+      b.onclick = () => { if (!isOpen('b', b.dataset.back)) { show(b.dataset.back); return; } setSetting('back', b.dataset.back); sheet.querySelectorAll('[data-back]').forEach((x) => x.setAttribute('aria-pressed', x === b)); show(b.dataset.back); };
       b.onfocus = () => show(b.dataset.back);
     });
     show(settings.back);
     sheet.querySelectorAll('[data-table]').forEach((b) => {
-      b.onclick = () => { setSetting('table', b.dataset.table); sheet.querySelectorAll('[data-table]').forEach((x) => x.setAttribute('aria-pressed', x === b)); $('#tblCap').textContent = tableInfo().cap || ''; };
+      b.onclick = () => { if (!isOpen('t', b.dataset.table)) { $('#tblCap').textContent = TABLES.find((x) => x.id === b.dataset.table).name + ': ' + lockNote('t:' + b.dataset.table); return; } setSetting('table', b.dataset.table); sheet.querySelectorAll('[data-table]').forEach((x) => x.setAttribute('aria-pressed', x === b)); $('#tblCap').textContent = tableInfo().cap || ''; };
     });
   },
   stats(d) {
@@ -3661,6 +3746,7 @@ function applyLook() {
   loadArt(essentialArt()); sprites.clear(); tableDirty = true; relayout(true); markDirty(); updateHUD();
 }
 function setSetting(k, v) {
+  if ((k === 'back' || k === 'table') && !isOpen(k[0], v)) return;
   if (k === 'sound') { settings.sound = !!v; if (v) initAudio(); }
   else if (k === 'volume') { settings.volume = clamp(+v, 0, 1); if (master) master.gain.value = settings.volume; }
   else if (k === 'musicVol' || k === 'ambVol') settings[k] = clamp(+v, 0, 1);
@@ -3709,6 +3795,8 @@ window.__game = {
     closeModal(); showTitle(false); relayout(true); updateHUD(); markDirty();
     return true;
   },
+  unlockAll() { meta.unlock.ids = UNLOCKS.map((u) => u[0]); save('meta', meta); return true; },
+  meta() { return JSON.parse(JSON.stringify(meta)); },
   fxLevel() { return lowFx ? 'low' : 'full'; },
   audioList, audioRender, audioState,
   frameStats(reset) {

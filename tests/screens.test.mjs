@@ -56,7 +56,7 @@ export const tests = [
   {
     name: 'screens-26 twelve card backs',
     async run(t) {
-      await baseSettings(t);
+      await baseSettings(t); await t.game('unlockAll');
       await t.game('scene', 'backs');
       t.equal(await t.page.locator('[data-back]').count(), 12, 'twelve backs in the picker');
       t.equal(await t.page.locator('[data-table]').count(), 6, 'six tables in the picker');
@@ -82,7 +82,7 @@ export const tests = [
   {
     name: 'screens-27 six tables',
     async run(t) {
-      await baseSettings(t);
+      await baseSettings(t); await t.game('unlockAll');
       for (const id of TABLE_IDS) {
         await t.game('setSettings', { table: id });
         await t.game('newGame', { mode: 'klondike', deal: 2024 });
