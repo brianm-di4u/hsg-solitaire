@@ -271,6 +271,11 @@
   .ach{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}
   .ach li{padding:6px 8px;border:1px solid var(--color-border);border-radius:8px;font-size:.85rem;opacity:.8} .ach li.got{opacity:1;border-color:#B8862C;background:var(--chip)}
   .ach li b{display:block} .ach li small{color:var(--color-muted)}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;font-size:.8rem;margin:6px 0}
+  .cal i{font-style:normal;min-height:44px;border:1px solid var(--color-border);border-radius:6px;padding:2px;display:flex;flex-direction:column;justify-content:center}
+  .cal i small{font-size:.62rem;color:var(--color-muted)} .cal i.w{background:var(--chip);border-color:#B8862C} .cal i.f{background:#B8862C;color:#3A2810} .cal i.f small{color:#3A2810}
+  .cal i.t{outline:2px solid var(--color-primary)} .cal i.h{border:0;min-height:0;font-weight:700;color:var(--color-muted)}
+  .cm{display:flex;align-items:center;justify-content:space-between;gap:8px} .cm b{font-family:var(--font-deco)} .cm .btn{min-width:44px}
   @media (prefers-reduced-motion: reduce){ #toast,#dealing{transition:none} .tog::after{transition:none} }
 </style>
 </head>
@@ -1813,6 +1818,7 @@ function normalizeMeta() {
   meta.lastOpts = { draw: meta.lastOpts.draw === 3 ? 3 : 1, suits: [1, 2, 4].includes(meta.lastOpts.suits) ? meta.lastOpts.suits : 1 };
   if (typeof meta.totalWins !== 'number' || !isFinite(meta.totalWins)) meta.totalWins = 0;
   if (!isObj(meta.daily)) meta.daily = {};
+  const cut = dayShift(todayStr(), -DAILY_KEEP_DAYS); for (const k in meta.daily) if (k.slice(0, 10) < cut) delete meta.daily[k];
   if (typeof meta.dailyBest !== 'number' || !isFinite(meta.dailyBest)) meta.dailyBest = 0;
   const u = meta.unlock, known = UNLOCKS.map((x) => x[0]);
   meta.unlock = { ids: isObj(u) && Array.isArray(u.ids) ? u.ids.filter((x) => known.includes(x)) : hadSave ? known : [] };
@@ -3624,7 +3630,7 @@ const MODALS = {
         const [name, sub] = modeKeyLabel(k).split(' · ');
         return '<button class="btn day' + (st === 'won' ? ' won' : '') + '"' + (i === 0 ? ' data-focus' : '') + ' data-daily="' + i + '"><canvas aria-hidden="true" data-hand="' + m + '"></canvas><b>' + name + '</b><small>' + (sub || '&nbsp;') + '</small>' +
           '<em>' + (st === 'won' ? 'Won' : st ? 'In progress' : 'Not played') + '</em>' + (st === 'won' ? '<i class="seal" aria-hidden="true"></i>' : '') + '</button>';
-      }).join('') + '</div>';
+      }).join('') + '</div>' + dailyHistory();
   },
   records: () => {
     const n = ACH.filter((a) => meta.ach[a[0]]).length, nx = UNLOCKS.find((u) => !meta.unlock.ids.includes(u[0]));
@@ -3726,9 +3732,28 @@ const BIND = {
   daily() {
     const list = [['klondike', { draw: 1 }], ['klondike', { draw: 3 }], ['freecell', {}], ['spider', { suits: 1 }], ['spider', { suits: 2 }], ['spider', { suits: 4 }], ['yukon', {}]];
     sheet.querySelectorAll('[data-daily]').forEach((b) => (b.onclick = () => { const [m, o] = list[+b.dataset.daily]; confirmAbandon(Object.assign({ mode: m, daily: true }, o)); }));
+    const bindCal = () => sheet.querySelectorAll('[data-mo]').forEach((b) => (b.onclick = () => { const w = $('#calW'), dir = b.getAttribute('aria-label'); w.innerHTML = calendar(b.dataset.mo); bindCal(); const f = w.querySelector('[aria-label="' + dir + '"]:not(:disabled)') || w.querySelector('[data-mo]:not(:disabled)'); if (f) f.focus({ preventScroll: true }); }));
+    bindCal();
   },
   confirm(d) { sheet.querySelector('[data-a="yes"]').onclick = () => d.onYes(); },
 };
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+function dailyHistory() {
+  const day = todayStr(), full = Object.values(dailyDays()).filter((n) => n >= 7).length;
+  return '<h3>Your dailies</h3><p>Streak: <b>' + dailyStreak() + '</b> ' + (dailyStreak() === 1 ? 'day' : 'days') + ' · best ' + dailyRun() + ' · full baths (all seven): ' + full + '</p><div id="calW">' + calendar(day.slice(0, 7)) + '</div>';
+}
+function calendar(ym) {
+  const [Y, M] = ym.split('-').map(Number), pad = (n) => String(n).padStart(2, '0'), won = dailyDays(), today = todayStr();
+  const lo = dayShift(today, -DAILY_KEEP_DAYS).slice(0, 7), prev = M === 1 ? (Y - 1) + '-12' : Y + '-' + pad(M - 1), next = M === 12 ? (Y + 1) + '-01' : Y + '-' + pad(M + 1);
+  let cells = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((x) => '<i class="h" aria-hidden="true">' + x + '</i>').join('') + '<i class="h"></i>'.repeat(new Date(Y, M - 1, 1).getDay());
+  for (let d = 1, n = new Date(Y, M, 0).getDate(); d <= n; d++) {
+    const ds = ym + '-' + pad(d), c = won[ds] || 0;
+    cells += '<i role="img" aria-label="' + MONTHS[M - 1] + ' ' + d + ': ' + c + ' of 7 won" class="' + (c >= 7 ? 'f' : c ? 'w' : '') + (ds === today ? ' t' : '') + '">' + d + '<small>' + (c >= 7 ? '★' : c ? c + '/7' : '&nbsp;') + '</small></i>';
+  }
+  const nav = (to, label, off) => '<button class="btn" data-mo="' + to + '" aria-label="' + label + '"' + (off ? ' disabled' : '') + '>' + (label[0] === 'P' ? '‹' : '›') + '</button>';
+  return '<div class="cm">' + nav(prev, 'Previous month', ym <= lo) + '<b>' + MONTHS[M - 1] + ' ' + Y + '</b>' + nav(next, 'Next month', ym >= today.slice(0, 7)) + '</div><div class="cal">' + cells + '</div>';
+}
 
 function paintPickers() {
   sheet.querySelectorAll('[data-back]').forEach((b) => {

@@ -164,4 +164,65 @@ export const tests = [
       t.expect((await t.page.locator('#sheet .earn').textContent()).includes('New personal best'), 'a faster win than the record says so');
     },
   },
+  {
+    name: 'w2c S3-04 the daily streak counts consecutive days, resets on a gap, and the calendar shows each day',
+    async run(t) {
+      const d0 = await daysAgo(t, 0), d1 = await daysAgo(t, 1), d2 = await daysAgo(t, 2), d9 = await daysAgo(t, 9);
+      const daily = {}; for (const d of [d0, d1, d2]) daily[d + '|klondike1'] = 'won'; daily[d1 + '|freecell'] = 'won'; daily[d9 + '|klondike1'] = 'won';
+      for (const k of KEYS) daily[d2 + '|' + k] = 'won'; daily[d0 + '|yukon'] = 'played';
+      await put(t, { meta: Object.assign({}, OLD.meta, { daily }), settings: OLD.settings, stats: OLD.stats }); await reloadGame(t);
+      await t.game('scene', 'daily');
+      const txt = await t.page.locator('#sheet').textContent();
+      t.expect(txt.includes('Streak: 3 days · best 3 · full baths (all seven): 1'), 'streak line: ' + txt.slice(txt.indexOf('Streak')));
+      t.expect(await t.page.locator('.cal i.f').count() >= 1, 'a full day gets a star cell'); t.expect(await t.page.locator('.cal i.t').count() <= 1, 'today is outlined once');
+      t.expect(await t.page.locator('.cal i.w, .cal i.f').count() >= 1, 'won days are marked');
+      const full = await t.page.locator('.cal i.f small').first().textContent(); t.equal(full, '★', 'the star');
+      await t.page.evaluate(() => { const s = document.getElementById('sheet'); s.scrollTop = s.scrollHeight; });
+      await shot(t, 'S3-04', 'calendar');
+      const before = await t.page.locator('.cm b').textContent();
+      await t.page.locator('[data-mo]').first().click();
+      t.expect((await t.page.locator('.cm b').textContent()) !== before, 'the previous month button moves the calendar');
+      await t.page.locator('[data-mo]').last().click();
+      t.equal(await t.page.locator('.cm b').textContent(), before, 'and back');
+      t.expect(await t.page.locator('[data-mo]').last().isDisabled(), 'the next-month button stops at the current month');
+      await t.checkLayout({ allowScrollY: true });
+    },
+  },
+  {
+    name: 'w2c S3-04 a streak that ended before yesterday is zero; the best run is kept',
+    viewports: ['desktop'],
+    async run(t) {
+      const daily = {}; for (const n of [5, 6, 7, 8]) daily[(await daysAgo(t, n)) + '|klondike1'] = 'won';
+      await put(t, { meta: Object.assign({}, OLD.meta, { daily }), settings: OLD.settings, stats: OLD.stats }); await reloadGame(t);
+      await t.game('scene', 'daily');
+      const txt = await t.page.locator('#sheet').textContent();
+      t.expect(txt.includes('Streak: 0 days · best 4'), 'a gap resets the streak, the best stays: ' + txt.slice(txt.indexOf('Streak'), txt.indexOf('Streak') + 50));
+    },
+  },
+  {
+    name: 'w2c S3-04 winning a daily extends the streak, earns the daily achievements, and all seven in a day earn Full Bath',
+    viewports: ['desktop'],
+    async run(t) {
+      const d0 = await daysAgo(t, 0), d1 = await daysAgo(t, 1), d2 = await daysAgo(t, 2);
+      const daily = { [d1 + '|klondike1']: 'won', [d2 + '|klondike1']: 'won' }; for (const k of KEYS.slice(1)) daily[d0 + '|' + k] = 'won';
+      await put(t, { meta: Object.assign({}, OLD.meta, { daily }), settings: OLD.settings, stats: OLD.stats }); await reloadGame(t);
+      await baseSettings(t, { sound: false });
+      await t.game('setState', Object.assign(nearWinKlondike(), { daily: d0 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 15000 });
+      const m = await meta(t);
+      t.equal(m.daily[d0 + '|klondike1'], 'won', 'the win is recorded under today');
+      for (const id of ['d1', 'd3', 'd7all']) t.expect(m.ach[id], 'earned ' + id + ': ' + Object.keys(m.ach));
+      t.equal(m.dailyBest, 3, 'the best run is stored');
+    },
+  },
+  {
+    name: 'w2c S3-04 old daily entries are pruned when the save loads, recent ones stay',
+    viewports: ['desktop'],
+    async run(t) {
+      const old = await daysAgo(t, 500), recent = await daysAgo(t, 300);
+      await put(t, { meta: Object.assign({}, OLD.meta, { daily: { [old + '|klondike1']: 'won', [recent + '|klondike1']: 'won' } }), settings: OLD.settings, stats: OLD.stats }); await reloadGame(t);
+      const m = await meta(t); t.equal(Object.keys(m.daily), [recent + '|klondike1'], 'only the entry inside 400 days is kept');
+    },
+  },
 ];
