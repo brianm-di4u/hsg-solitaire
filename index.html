@@ -316,9 +316,7 @@
 <script>
 'use strict';
 (() => {
-// ============================================================================================
 // 1. Utilities and RNG
-// ============================================================================================
 const $ = (s, r = document) => r.querySelector(s);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const now = () => performance.now();
@@ -341,9 +339,6 @@ function shuffle(arr, rng) {
   for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t = arr[i]; arr[i] = arr[j]; arr[j] = t; }
   return arr;
 }
-// Classic numbered FreeCell deal, written from the published description of the algorithm
-// (LCG 214013/2531011 mod 2^31, output >> 16; deck AC AD AH AS 2C ...; swap-with-last-and-pop).
-// Returns the 52 card codes (rank-major, suit order C D H S) in dealing order.
 function freecellOrder(dealNo) {
   let seed = dealNo >>> 0;
   const rand = () => { seed = (Math.imul(214013, seed) + 2531011) & 0x7fffffff; return seed >> 16; };
@@ -366,9 +361,7 @@ function fmtTime(ms) {
     : m + ':' + String(s % 60).padStart(2, '0');
 }
 
-// ============================================================================================
 // 2. Storage (always wrapped: the game must run when localStorage is unavailable)
-// ============================================================================================
 const KEY = 'spa-solitaire:v1:';
 let storageOK = true;
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -376,7 +369,6 @@ function load(name, fallback) {
   let raw;
   try { raw = localStorage.getItem(KEY + name); } catch (e) { storageOK = false; return fallback; }
   if (!raw) return fallback;
-  // Unreadable JSON is a bad value, not a broken store: drop just that key.
   try { return JSON.parse(raw); } catch (e) { try { localStorage.removeItem(KEY + name); } catch (e2) { /* storage is read-only */ } return fallback; }
 }
 function save(name, value) {
@@ -397,10 +389,7 @@ let meta = Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }
 const reduceQuery = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
 const reducedMotion = () => settings.motion === 'reduced' || (settings.motion === 'auto' && reduceQuery && reduceQuery.matches);
 
-// ============================================================================================
 // 3. Cards and notation
-// ============================================================================================
-// Suits: 0 ♣ clubs, 1 ♦ diamonds, 2 ♥ hearts, 3 ♠ spades. Ranks 1..13.
 const RANKS = 'A23456789TJQK';
 const SUITS = 'CDHS';
 const SUIT_GLYPH = ['♣', '♦', '♥', '♠'];
@@ -416,9 +405,7 @@ function parseNote(n) {
   return { r, s, up };
 }
 
-// ============================================================================================
 // 4. Game definitions (rules engine)
-// ============================================================================================
 const MODES = {
   klondike: { name: 'Klondike', cols: 7, found: 4, cells: 0, build: 'alt', lift: 'alt', empty: 'king', stock: 'draw', foundBack: true },
   freecell: { name: 'FreeCell', cols: 8, found: 4, cells: 4, build: 'alt', lift: 'alt', empty: 'any', stock: null, foundBack: true, capacity: true },
@@ -444,7 +431,6 @@ function pileIds(mode) {
 }
 const kindOf = (id) => id === 'stock' ? 'stock' : id === 'waste' ? 'waste' : id[0] === 'f' ? 'found' : id[0] === 'c' ? 'cell' : 'tab';
 
-// The live game state (one serializable object; see MECHANICS §2).
 let S = null;
 const card = (u) => S.cards[u];
 const top = (id) => { const p = S.piles[id]; return p.length ? p[p.length - 1] : -1; };
@@ -470,7 +456,6 @@ function newState(mode, opts, deal, daily) {
   const P = st.piles; const d = MODES[mode];
   let order;
   if (mode === 'freecell') {
-    // map MS card code (rank-major C D H S) to our uid (suit*13 + rank-1)
     order = freecellOrder(deal).map((c) => (c & 3) * 13 + (c >> 2));
     order.forEach((u, i) => { P['t' + (i % 8)].push(u); st.up[u] = true; });
     return st;
@@ -566,9 +551,7 @@ function canAutoComplete() {
   return true;
 }
 
-// ============================================================================================
 // 5. Game controller: moves, undo/redo, scoring, autoplay, hints, auto-complete
-// ============================================================================================
 let undoStack = [], redoStack = [];
 let animDelay = {};          // uid → ms delay before its next tween starts (staggered autoplay)
 let flipQueue = [];          // uids that just turned face up (for flip animation + sound)
@@ -609,7 +592,6 @@ function rawMove(from, idx, to, delay) {
   return run;
 }
 
-// Spider: does the column end in a face-up King-to-Ace run of one suit?
 function endsInRun(p) {
   if (p.length < 13) return false;
   const seg = p.slice(-13); if (card(seg[0]).r !== 13 || !S.up[seg[12]]) return false;
@@ -617,7 +599,6 @@ function endsInRun(p) {
   return true;
 }
 
-// Flip exposed tableau tops; Spider: lift completed K→A suit runs to the foundations.
 function settleTableau(delayBase) {
   let changed = true, d = delayBase || 0;
   while (changed) {
@@ -631,7 +612,6 @@ function settleTableau(delayBase) {
       }
       if (def().runs && endsInRun(p)) {
         let f = 0; while (S.piles['f' + f].length) f++;
-        // move K..A as one run; the King ends on top so the completed foundation shows it
         const run = p.splice(p.length - 13); run.reverse();
         S.piles['f' + f].push(...run);
         run.forEach((u, j) => { animDelay[u] = d + j * 28; });
@@ -645,7 +625,6 @@ function settleTableau(delayBase) {
 
 function safeToAutoplay(u) {
   const c = card(u); if (c.r <= 2) return true;
-  // both opposite-colour foundations already reach rank-1
   let need = 0;
   for (let i = 0; i < 4; i++) {
     const p = S.piles['f' + i]; if (!p.length) continue;
@@ -758,7 +737,6 @@ function redo() {
 }
 
 // --- Legal moves and hints ---
-// `all` keeps the moves the ranker would prune as pointless; the dead-end search needs every move.
 function legalMoves(all) {
   if (!S || S.won) return [];
   const out = []; const d = def();
@@ -794,7 +772,6 @@ function legalMoves(all) {
             sc += fk === 'tab' && reveals ? 4 : 2;
           }
           if (fk === 'tab' && idx === 0 && !destEmpty) sc += 12;  // empties a column
-          // pointless shuttle: the run already sits on a card it builds on, and nothing is revealed
           if (!all && under >= 0 && !reveals && buildsOn(under, run[0])) {
             const improves = d.lift === 'suit' && tk === 'tab' && !destEmpty && card(top(to)).s === card(run[0]).s && card(under).s !== card(run[0]).s;
             if (!improves) continue;
@@ -910,22 +887,17 @@ const makeSolver = (() => {
 })();
 
 // --- Dead-end search (MECHANICS §3) ---
-// Hints and the "no more moves" check look ahead instead of ranking single moves. A breadth-first search
-// plays moves on throwaway copies of the position, looking for a line that raises potential() above where
 // it is now. Shuffling cards, cycling the stock or parking a card and taking it back never does, so those
 // loops are never hinted. A win beats every other position, so a search that runs out of
 // positions without finding progress proves the deal can't be won from here.
 const HINT_BUDGET = 5000, STUCK_BUDGET = 2500; // positions the search may visit
 const STOCK_MOVE = { stock: true };
 
-// Run fn with S pointed at another position (an undo snapshot or a search node); rules read S throughout.
 function inPosition(pos, fn) {
   const real = S; S = Object.assign({}, real, { piles: pos.piles, up: pos.up });
   try { return fn(); } finally { S = real; }
 }
 // Columns, free cells and foundations are interchangeable, so they're sorted: positions that differ only
-// in which column holds what count as one, which keeps FreeCell's cell shuffling from blowing up the search.
-// Cards go by rank and suit, not uid, so Spider's identical copies trading places is the same position.
 function posKey() {
   let k = ''; const tabs = [], cells = [], found = [];
   const cards = (p) => { let s = ''; for (const u of p) { const c = S.cards[u]; s += String.fromCharCode(65 + c.s * 13 + c.r); } return s; };
@@ -999,9 +971,7 @@ function simStock() {
   }
   return false;
 }
-// Klondike: each waste top the stock can reach (drawing and turning it over), played straight away, as one
 // "draw k times, then play" move. Drawing without playing never changes what the tableau can do, so the
-// search uses these instead of single draws and the stock stops multiplying its depth.
 function stockPlays() {
   const out = [], n = S.piles.stock.length + S.piles.waste.length; if (!n) return out;
   const dests = pileIds(S.mode).filter((id) => kindOf(id) === 'tab' || kindOf(id) === 'found');
@@ -1012,7 +982,6 @@ function stockPlays() {
     for (let k = 1; k <= 2 * n + 4; k++) {
       simStock(); if (S.piles.stock.length === start) break;
       const u = top('waste'); if (u < 0) continue;
-      // a draw that auto-moves a card home ends the walk there, as it would in play
       if (auto !== 'off' && foundationFor(u) && (auto === 'all' || safeToAutoplay(u))) { out.push({ from: 'waste', to: null, count: 1, draws: k, auto: true, score: 60 }); break; }
       let emptyTab = false, emptyFound = false;
       for (const to of dests) {
@@ -1046,8 +1015,6 @@ const nextMoves = () => S.mode === 'klondike' ? legalMoves(true).concat(stockPla
   : S.mode === 'spider' ? legalMoves(true).concat(STOCK_MOVE) : legalMoves(true);
 const historyKeys = () => new Set(undoStack.map((sn) => inPosition(sn, posKey)));
 
-// productive: first moves of paths to a better position than this one, nearest first.
-// dead: every reachable position was checked and none is better.
 // avoidHistory (for hints): never route through a position this game has already been in, so following
 // hints can't go round in circles; a dip such as parking a card is only hinted if it leads somewhere new.
 function analyze(budget, stopAtFirst, avoidHistory) {
@@ -1060,7 +1027,6 @@ function analyze(budget, stopAtFirst, avoidHistory) {
   let visited = 0;
   for (let qi = 0; qi < queue.length; qi++) {
     const n = queue[qi];
-    // a level past the nearest payoff is plenty of alternatives to cycle through
     if (found.length && n.depth > found[0].depth) break;
     for (const m of inPosition(n, nextMoves)) {
       if (visited >= budget) return { productive: found, dead: false, exhausted: false };
@@ -1075,14 +1041,12 @@ function analyze(budget, stopAtFirst, avoidHistory) {
       c.depth = n.depth + 1; c.first = first; queue.push(c);
     }
   }
-  // tableau moves before the stock, nearest payoff first, then the ranker's order
   const viaStock = (m) => !!(m.stock || m.draws);
   found.sort((a, b) => a.depth - b.depth || viaStock(a) - viaStock(b) || (b.score || 0) - (a.score || 0));
   return { productive: found, dead: !found.length, exhausted: true };
 }
 
 // When the search runs out of budget: the ranked one-ply list, minus moves (and draws) that go back to a
-// position this game has already been in.
 function fallbackHints() {
   const here = { piles: S.piles, up: S.up }, hist = historyKeys();
   const fresh = (m) => { const c = simChild(here, m); return c && !hist.has(c.key); };
@@ -1098,7 +1062,6 @@ function stockHintText() {
 
 function hint() {
   if (!S || S.won) return { ok: false };
-  // pressing Hint again on the same position cycles to the next move, however long the player waited
   const sig = S.moves + '|' + undoStack.length + '|' + (S.piles.stock ? S.piles.stock.length : 0);
   if (!hintState || hintState.sig !== sig) {
     const a = analyze(HINT_BUDGET, false, true);
@@ -1127,7 +1090,6 @@ function hint() {
   return { ok: true, move: m };
 }
 
-// After every move, once the cards have settled: if no line of play can help, say so once per position.
 function scheduleStuckCheck() {
   clearTimeout(stuckTimer);
   stuckTimer = setTimeout(function tick() {
@@ -1181,7 +1143,6 @@ function autoComplete() {
   return { ok: true };
 }
 
-// Tap / click / Enter-less keyboard auto-move: best destination for the run at (from, idx)
 function bestDestination(from, idx) {
   if (!canPick(from, idx)) return null;
   const p = S.piles[from]; const run = p.slice(idx); const d = def();
@@ -1220,9 +1181,7 @@ function pileName(id) {
   return k === 'tab' ? 'column ' + n : k === 'found' ? 'foundation ' + n : k === 'cell' ? 'free cell ' + n : id;
 }
 
-// ============================================================================================
 // 6. New game, stats, win
-// ============================================================================================
 function statFor(k) {
   const d = { played: 0, won: 0, streak: 0, bestStreak: 0, bestTimeMs: 0, fewestMoves: 0, bestScore: 0, totalMs: 0 };
   if (!isObj(stats[k])) return (stats[k] = d);
@@ -1309,7 +1268,6 @@ function startDeal(mode, opts, deal, daily, winnable) {
   announce(MODES[mode].name + ' ' + variantLabel(mode, S.opts) + ', deal ' + deal);
   return { ok: true, deal };
 }
-// Starting another deal throws away the one in progress (its save, undo history and streak), so ask first.
 // A deal with no moves, a won deal and the "no more moves" sheet have nothing worth protecting.
 function liveDeal() {
   const g = S ? (S.won ? null : S) : (loadSaved() || {}).state;
@@ -1405,22 +1363,14 @@ function resumeSaved() {
   return true;
 }
 
-// ============================================================================================
 // 7. Art: suits, faces, court archetypes, card backs, tables, skyline (all procedural)
-//    Colours are the corpus estimates from research/visual-style-guide.md (see town-content.md).
-// ============================================================================================
 // --- Painted art: assets/*.webp (generated, packed by shared/test-harness/art-pack.mjs) ---------
-// Images load with <img> decoding, so the game also works from file://. Every painted layer has a
-// vector fallback below, so a missing folder (or ?art=0) still gives a complete game.
 const ART_ON = !/[?&]art=0\b/.test(location.search);
 const art = {}, artWant = new Set();
 let artTick = 0, artPending = 0;
 const artImg = (name) => art[name] || null;
-// Two court sets: flat Art Deco colour-block ("deco-*", the default) and the v2 painted portraits ("court-*").
 const courtSet = (set) => { const a = []; for (const s of 'cdhs') for (const r of 'jqk') a.push((set === 'painted' ? 'court-' : 'deco-') + r + s); return a; };
 // Vendored OFL fonts (assets/fonts.css, data URIs) must be ready before card sprites are baked.
-// The stylesheet is non-blocking, so wait for it to apply before asking for the faces (a face that isn't declared
-// yet would "load" instantly as the fallback). Give up after 4 s and keep the system fallback fonts.
 let fontsPending = !!(document.fonts && document.fonts.load);
 if (fontsPending) {
   const css = document.getElementById('fontCss');
@@ -1430,7 +1380,6 @@ if (fontsPending) {
 }
 const LATE_ART = ['ticket-stock']; // fetched once the first deal is on the table
 const BRASS_ART = ['brass-corner', 'brass-slot', 'brass-cell', 'brass-recycle', 'brass-frame']; // the frame is a CSS border-image; decoding it here warms the cache
-// Table art: lit tables have landscape and portrait cuts of a frameless texture; the rest use one painted image.
 const tableArt = (id, both) => TABLE_LOOK[id] ? [...(both ? ['-l', '-p'] : [innerHeight > innerWidth * 1.1 ? '-p' : '-l']).map((o) => 'tex-' + id + o), ...(TABLE_LOOK[id].glow ? [TABLE_LOOK[id].glow] : [])] : ['table-' + id];
 const essentialArt = () => [...courtSet(settings.courts), ...BRASS_ART, 'ace-medallion', 'back-' + settings.back, ...tableArt(settings.table), 'title-hero'];
 function loadArt(names) {
@@ -1440,10 +1389,7 @@ function loadArt(names) {
     return im.decode().then(() => { if (COURT_FOCUS[n]) im.focusX = COURT_FOCUS[n]; art[n] = im; artChanged(); }, () => {}).finally(() => { artPending--; });
   }));
 }
-// Where each Art Deco court figure stands (0..1 across its painting), for framing the phone cameos. Measured once from
-// the art by art-src/court-focus.json; reading pixels at runtime would fail under file:// (a tainted canvas).
 const COURT_FOCUS = {"deco-jc":0.645,"deco-qc":0.712,"deco-kc":0.666,"deco-jd":0.687,"deco-qd":0.644,"deco-kd":0.713,"deco-jh":0.527,"deco-qh":0.75,"deco-kh":0.739,"deco-js":0.608,"deco-qs":0.572,"deco-ks":0.732};
-// New art arrived: rebake sprites once per frame at most.
 function artChanged() {
   if (artTick) return;
   artTick = requestAnimationFrame(() => {
@@ -1452,13 +1398,11 @@ function artChanged() {
     if (modalKind === 'backs') paintPickers();
   });
 }
-// Draw img to cover (x,y,w,h); ax/ay pick which part survives the crop (0 = left/top, 1 = right/bottom).
 function coverImg(ctx, img, x, y, w, h, ax = .5, ay = .5, zoom = 1) {
   const k = Math.max(w / img.naturalWidth, h / img.naturalHeight) * zoom, dw = img.naturalWidth * k, dh = img.naturalHeight * k;
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(img, x + (w - dw) * ax, y + (h - dh) * ay, dw, dh);
 }
-// Faint paper grain for card stock, tiled as a pattern.
 let grainCanvas = null;
 function grain() {
   if (grainCanvas) return grainCanvas;
@@ -1532,11 +1476,8 @@ const PIPS = { // [column, f] with column L/C/R and f in 0..1 down the pip area
   10: [['L', 0], ['R', 0], ['C', 1 / 6], ['L', 1 / 3], ['R', 1 / 3], ['L', 2 / 3], ['R', 2 / 3], ['C', 5 / 6], ['L', 1], ['R', 1]],
 };
 
-// Corner index size as a fraction of card width. Narrow cards (phones, Spider) get the heavy jumbo index that
-// carries all the reading in a fanned column.
 // Only on phones: desktop cards shrunk to fit a long column keep the normal proportions.
 const idxScale = (w, large) => w < 70 && innerWidth < 560 ? { rs: .46, ss: .30 } : large ? { rs: .40, ss: .29 } : { rs: .30, ss: .22 };
-// Height of the face's index block (rank glyph including J/Q descenders), measured with the real font.
 let idxMeasure = null;
 function indexBottom(w, h, large) {
   const { rs } = idxScale(w, large), size = w * rs;
@@ -1550,7 +1491,6 @@ function drawFace(ctx, c, w, h, large) {
   const col = suitColor(c.s);
   cardStock(ctx, w, h);
   const small = w < 58;
-  // Corner index: rank top-left, suit top-right. Sized so it stays readable in a 28%-of-height fan strip.
   const { rs: rsK, ss: ssK } = idxScale(w, large);
   const rs = w * rsK;
   ctx.fillStyle = col; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
@@ -1564,7 +1504,6 @@ function drawFace(ctx, c, w, h, large) {
   const tallCourt = c.r > 10 && !small && artImg(courtArt(c)); // painted courts fill the card instead
   if (c.r > 10 && settings.courts !== 'painted' && artImg(courtArt(c))) { drawDecoCourt(ctx, c, w, h, small, rs, ss, col); return; }
   if (!small && !tallCourt) {
-    // bottom-right mirrored index on roomy cards
     ctx.save(); ctx.translate(w, h); ctx.rotate(Math.PI);
     const bs = w * .19; ctx.font = '700 ' + bs + 'px ' + SERIF; ctx.fillStyle = col;
     ctx.save(); ctx.translate(w * .06, bs * .9 + h * .015); if (lab === '10') ctx.scale(.84, 1); ctx.fillText(lab, 0, 0); ctx.restore();
@@ -1581,7 +1520,6 @@ function drawFace(ctx, c, w, h, large) {
     drawSuit(ctx, c.s, xs[cl], y, ps, col, f > .5);
   }
 }
-// Card stock: warm ivory with a faint grain, a soft inner edge and a fine border.
 function cardStock(ctx, w, h) {
   rrect(ctx, .5, .5, w - 1, h - 1, w * .075);
   const g = ctx.createLinearGradient(0, 0, w * .4, h); g.addColorStop(0, '#FFFDF7'); g.addColorStop(1, '#F5EFE2');
@@ -1599,13 +1537,11 @@ function drawAce(ctx, c, w, h, small) {
   if (med) { const ms = size * (small ? 1.5 : 1.75); ctx.save(); ctx.globalAlpha = .92; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(med, cx - ms / 2, cy - ms / 2 - size * .02, ms, ms); ctx.restore(); }
   drawSuit(ctx, c.s, cx, cy, size, col);
   if (c.s === 3) {
-    // a stepped-setback tower inside the spade: a nod to the Medical Arts Building (1929–30)
     ctx.fillStyle = '#E8DFC9'; const u = size / 12; const bx = cx, by = cy + size * .2;
     ctx.fillRect(bx - 2.2 * u, by - 3 * u, 4.4 * u, 3 * u); ctx.fillRect(bx - 1.6 * u, by - 5.2 * u, 3.2 * u, 2.3 * u);
     ctx.fillRect(bx - 1 * u, by - 7 * u, 2 * u, 1.9 * u); ctx.fillRect(bx - .25 * u, by - 8.2 * u, .5 * u, 1.3 * u);
     ctx.fillStyle = col; for (let i = -1; i <= 1; i++) ctx.fillRect(bx + i * 1.2 * u - .2 * u, by - 2.6 * u, .4 * u, 2.2 * u);
   } else if (c.s === 2) {
-    // magnolia blossom inside the heart: a nod to the 1890s Magnolia Promenade
     const mx = cx, my = cy - size * .06, pr = size * .2;
     ctx.fillStyle = '#FBF8F1';
     for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3 - Math.PI / 2; ctx.beginPath(); ctx.ellipse(mx + Math.cos(a) * pr * .55, my + Math.sin(a) * pr * .55, pr * .5, pr * .26, a, 0, Math.PI * 2); ctx.fill(); }
@@ -1614,7 +1550,6 @@ function drawAce(ctx, c, w, h, small) {
 }
 
 // Court cards: original era-costume archetypes (bath attendant / jockey jacks, promenade queens,
-// card-room kings). Flat geometric figures; no real person is depicted.
 const courtArt = (c, set = settings.courts) => (set === 'painted' ? 'court-' : 'deco-') + 'jqk'[c.r - 11] + 'cdhs'[c.s];
 function drawCourtPanel(ctx, c, w, h, small) {
   const col = suitColor(c.s);
@@ -1622,7 +1557,6 @@ function drawCourtPanel(ctx, c, w, h, small) {
   const x = w * (small ? .1 : tall ? .075 : .14), y = h * (small ? .33 : tall ? .235 : .25), pw = w - 2 * x, ph = h * (small ? .62 : tall ? .72 : .615);
   ctx.save(); rrect(ctx, x, y, pw, ph, w * .04); ctx.clip();
   if (img) {
-    // Painted waist-up portrait, mirrored through the centre like a real double-ended court card.
     const hh = ph / 2;
     ctx.fillStyle = '#F4EDE0'; ctx.fillRect(x, y, pw, ph);
     ctx.save(); ctx.beginPath(); ctx.rect(x, y, pw, hh); ctx.clip(); coverImg(ctx, img, x, y, pw, hh, .5, .1, 1.3); ctx.restore();
@@ -1630,7 +1564,6 @@ function drawCourtPanel(ctx, c, w, h, small) {
     courtBand(ctx, x, y + hh, pw, w, col);
   } else {
     ctx.fillStyle = isRed(c.s) ? '#F5E4DA' : '#E4E9E1'; ctx.fillRect(x, y, pw, ph);
-    // faint deco rays behind the figure
     ctx.strokeStyle = 'rgba(217,162,58,.35)'; ctx.lineWidth = Math.max(.6, w * .006);
     for (let i = 0; i < 9; i++) { const a = Math.PI + (i + .5) * Math.PI / 9; ctx.beginPath(); ctx.moveTo(x + pw / 2, y + ph * .62); ctx.lineTo(x + pw / 2 + Math.cos(a) * pw, y + ph * .62 + Math.sin(a) * pw); ctx.stroke(); }
     drawCourt(ctx, c, x, y, pw, ph, col);
@@ -1642,27 +1575,21 @@ function drawCourtPanel(ctx, c, w, h, small) {
     if (img) drawSuit(ctx, c.s, x + pw - ss * .75, y + ph - ss * .75, ss, col, true);
   }
 }
-// Flat Art Deco court: a full-bleed, double-ended panel. Ivory notches are cut out of the panel for the corner
-// indices, so a fanned court still shows rank and suit, with a strip of the figure's hat between them.
 function drawDecoCourt(ctx, c, w, h, small, rs, ss, col) {
   const img = artImg(courtArt(c));
   const px = w * .05, py = h * .035, pw = w - 2 * px, r = w * .04;
   const lab = RANK_LABEL[c.r]; ctx.font = '700 ' + rs + 'px ' + SERIF;
   const rankW = ctx.measureText(lab).width, ib = indexBottom(w, h, small || rs / w > .35);
-  // notch boxes in card coordinates (top-left for the rank, top-right for the suit); the bottom pair is the 180-degree turn
   const nr = { x: px, y: py, w: w * .06 + rankW + w * .035 - px, h: ib.full + h * .012 - py };
   const sx0 = w - w * .07 - ss * .9 - w * .035; const ns = { x: sx0, y: py, w: w - px - sx0, h: h * .03 + ss + rs * .1 + h * .012 - py };
   if (small) {
-    // phones: one upright half-figure under the index strip; it reads far better than a mirrored postage stamp
     const top = Math.max(nr.h, ns.h) + py + h * .01, ph = h - top - py;
     ctx.save(); rrect(ctx, px, top, pw, ph, r); ctx.clip(); ctx.fillStyle = '#F4EDE0'; ctx.fillRect(px, top, pw, ph);
-    // a tight head-and-shoulders crop centred on the figure (found from the art when it loaded)
     const fx = img.focusX != null ? img.focusX : .56; const zoom = 1.45, k = Math.max(pw / img.naturalWidth, ph / img.naturalHeight) * zoom;
     const dw = img.naturalWidth * k, dh = img.naturalHeight * k;
     ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, px + pw / 2 - fx * dw, top - dh * .04, dw, dh); ctx.restore();
     gildFrame(ctx, px, top, pw, ph, w); return;
   }
-  // full-bleed double-ended panel; the index corners fade into ivory card stock instead of being boxed
   ctx.save(); rrect(ctx, px, py, pw, h - 2 * py, r); ctx.clip();
   ctx.fillStyle = '#F4EDE0'; ctx.fillRect(0, 0, w, h);
   const hh = h / 2 - py;
@@ -1680,7 +1607,6 @@ function drawDecoCourt(ctx, c, w, h, small, rs, ss, col) {
   ctx.strokeStyle = g; ctx.lineWidth = Math.max(1.2, w * .02); ctx.stroke();
   ctx.strokeStyle = 'rgba(31,42,36,.7)'; ctx.lineWidth = Math.max(.6, w * .006); ctx.stroke(); ctx.restore();
   courtBand(ctx, px, h / 2, pw, w, col);
-  // both indices go on top of the panel; the bottom one is the top one turned through 180 degrees
   for (const turn of [false, true]) {
     ctx.save(); if (turn) { ctx.translate(w, h); ctx.rotate(Math.PI); }
     ctx.fillStyle = col; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left'; ctx.font = '700 ' + rs + 'px ' + SERIF;
@@ -1689,7 +1615,6 @@ function drawDecoCourt(ctx, c, w, h, small, rs, ss, col) {
     ctx.restore();
   }
 }
-// Gilt double rule around a panel: a gold line with a fine dark keyline inside.
 function gildFrame(ctx, x, y, pw, ph, w) {
   const g = ctx.createLinearGradient(x, y, x + pw, y + ph);
   g.addColorStop(0, '#E9C873'); g.addColorStop(.45, '#B8862C'); g.addColorStop(.55, '#D9B256'); g.addColorStop(1, '#9C6E1E');
@@ -1697,7 +1622,6 @@ function gildFrame(ctx, x, y, pw, ph, w) {
   const k = Math.max(1.2, w * .02);
   rrect(ctx, x + k, y + k, pw - 2 * k, ph - 2 * k, w * .03); ctx.strokeStyle = 'rgba(31,42,36,.55)'; ctx.lineWidth = Math.max(.5, w * .005); ctx.stroke();
 }
-// The ornamental band where the two halves of a court portrait meet.
 function courtBand(ctx, x, my, pw, w, col) {
   const bh = Math.max(2, w * .035);
   const g = ctx.createLinearGradient(0, my - bh / 2, 0, my + bh / 2); g.addColorStop(0, '#F3DA92'); g.addColorStop(.5, '#B8862C'); g.addColorStop(1, '#E2BE66');
@@ -1727,7 +1651,6 @@ function drawCourt(ctx, c, x, y, w, h, col) {
     ctx.beginPath(); ctx.arc(cx, hy + hr * .35, hr * .25, .2 * Math.PI, .8 * Math.PI); ctx.stroke();
   };
   if (c.r === 13) {
-    // King: 1920s card-room gentleman in a fedora and bow tie
     shoulders(dark ? '#2B2F3A' : '#5A1E1A');
     ctx.fillStyle = '#F4F1EA'; ctx.beginPath(); ctx.moveTo(cx - w * .12, y + h * .645); ctx.lineTo(cx + w * .12, y + h * .645); ctx.lineTo(cx, y + h * .92); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.moveTo(cx - w * .12, y + h * .65); ctx.lineTo(cx - w * .05, y + h * .95); ctx.moveTo(cx + w * .12, y + h * .65); ctx.lineTo(cx + w * .05, y + h * .95); ctx.stroke();
@@ -1737,14 +1660,12 @@ function drawCourt(ctx, c, x, y, w, h, col) {
     ctx.fillStyle = '#F4F1EA'; ctx.fillRect(x + w * .66, y + h * .76, w * .1, h * .03);
     head();
     ctx.fillStyle = line; ctx.beginPath(); ctx.ellipse(cx, hy + hr * .2, hr * .32, hr * .08, 0, 0, 7); ctx.fill();
-    // fedora
     ctx.fillStyle = dark ? '#3A3A44' : '#6B4A2E';
     ctx.beginPath(); ctx.ellipse(cx, hy - hr * .62, hr * 1.55, hr * .3, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(cx - hr * .85, hy - hr * .6); ctx.lineTo(cx - hr * .7, hy - hr * 1.5); ctx.quadraticCurveTo(cx, hy - hr * 1.25, cx + hr * .7, hy - hr * 1.5);
     ctx.lineTo(cx + hr * .85, hy - hr * .6); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.fillStyle = col; ctx.fillRect(cx - hr * .82, hy - hr * .92, hr * 1.64, hr * .26);
   } else if (c.r === 12) {
-    // Queen: promenade lady with a parasol and a wide hat
     ctx.fillStyle = isRed(c.s) ? '#F7D6CF' : '#DCE6E0';
     ctx.beginPath(); ctx.moveTo(x + w * .02, y + h * .3); ctx.arc(x + w * .3, y + h * .3, w * .3, Math.PI, 2 * Math.PI); ctx.closePath(); ctx.fill(); ctx.stroke();
     for (let i = 1; i < 6; i++) { const a = Math.PI + i * Math.PI / 6; ctx.beginPath(); ctx.moveTo(x + w * .3, y + h * .3); ctx.lineTo(x + w * .3 + Math.cos(a) * w * .3, y + h * .3 + Math.sin(a) * w * .3); ctx.stroke(); }
@@ -1760,7 +1681,6 @@ function drawCourt(ctx, c, x, y, w, h, col) {
     ctx.fillStyle = '#FBF8F1'; ctx.beginPath(); ctx.arc(cx + hr * .8, hy - hr * 1.05, hr * .28, 0, 7); ctx.fill();
     ctx.fillStyle = '#D9A23A'; ctx.beginPath(); ctx.arc(cx + hr * .8, hy - hr * 1.05, hr * .1, 0, 7); ctx.fill();
   } else if (dark) {
-    // Jack (clubs, spades): bath attendant in a white jacket with a towel over the shoulder
     shoulders('#F4F1EA');
     ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(cx - w * .06, y + h * .64); ctx.lineTo(cx + w * .06, y + h * .64); ctx.lineTo(cx, y + h * .72); ctx.closePath(); ctx.fill();
     for (let i = 0; i < 3; i++) { ctx.fillStyle = line; ctx.beginPath(); ctx.arc(cx, y + h * (.78 + i * .07), w * .018, 0, 7); ctx.fill(); }
@@ -1772,7 +1692,6 @@ function drawCourt(ctx, c, x, y, w, h, col) {
     ctx.fillStyle = '#F4F1EA'; ctx.fillRect(cx - hr * .7, hy - hr * 1.35, hr * 1.4, hr * .55); ctx.strokeRect(cx - hr * .7, hy - hr * 1.35, hr * 1.4, hr * .55);
     ctx.fillStyle = col; ctx.fillRect(cx - hr * .7, hy - hr * .95, hr * 1.4, hr * .15);
   } else {
-    // Jack (hearts, diamonds): jockey in generic diamond-pattern silks and cap
     ctx.save(); ctx.beginPath(); ctx.moveTo(x + w * .06, y + h);
     ctx.bezierCurveTo(x + w * .08, y + h * .7, x + w * .3, y + h * .64, cx, y + h * .64);
     ctx.bezierCurveTo(x + w * .7, y + h * .64, x + w * .92, y + h * .7, x + w * .94, y + h); ctx.closePath();
@@ -1819,7 +1738,6 @@ const TABLES = [
     cap: 'The airbrushed blue sky of a linen-finish souvenir postcard, the kind sold all over the Spa City.' },
 ];
 
-// Stored settings and meta come from outside the game, so fall back per key to a known-good value.
 const SETTING_ENUMS = { motion: ['auto', 'full', 'reduced'], cardSize: ['compact', 'standard', 'large'], layout: ['fit', 'classic'], autoFoundation: ['off', 'safe', 'all'],
   courts: ['deco', 'painted'], back: BACKS.map((b) => b.id), table: TABLES.map((x) => x.id) };
 for (const k in DEFAULT_SETTINGS) {
@@ -1835,7 +1753,6 @@ function normalizeMeta() {
   if (!isObj(meta.daily)) meta.daily = {};
 }
 normalizeMeta();
-// Stats and meta are written whole, so another tab's changes would be overwritten. Adopt the stored copy
 // before every change (and whenever another tab writes) so each write builds on the latest numbers.
 function syncShared() {
   const s = load('stats', null); if (isObj(s)) stats = s;
@@ -1884,8 +1801,6 @@ function drawBack(ctx, id, w, h, seed) {
   const r = w * .075, m = w * .055;
   const img = artImg('back-' + id);
   if (img) {
-    // Painted back on ivory stock with a gilt rule. The skylight glass is re-cut per deck seed by
-    // mirroring and a small hue shift, so "Reshuffle the skylight glass" still gives a new deck.
     cardStock(ctx, w, h);
     const x0 = m, y0 = m, iw = w - 2 * m, ih = h - 2 * m;
     ctx.save(); rrect(ctx, x0, y0, iw, ih, r * .6); ctx.clip();
@@ -2012,7 +1927,6 @@ function drawBack(ctx, id, w, h, seed) {
     }
     case 'sculpin': {
       ctx.fillStyle = '#F3E9D2'; ctx.fillRect(x0, y0, iw, ih);
-      // parapet bands: scallop shells framing gold sculpin ("as built"), mirrored top and bottom
       const bandH = ih * .24, n = 3, sr = Math.min(iw / n * .48, bandH * .8);
       for (const flip of [false, true]) {
         ctx.save(); if (flip) { ctx.translate(cx, cy); ctx.rotate(Math.PI); ctx.translate(-cx, -cy); }
@@ -2147,10 +2061,6 @@ function drawBack(ctx, id, w, h, seed) {
 }
 
 // --- Tables (5) -----------------------------------------------------------------------------
-// Lit tabletop: a frameless material texture (landscape or portrait cut, so nothing important is cropped),
-// a warm overhead lamp, a vignette and a brass Deco inlay fitted to whatever size the table is.
-// tone: a flat wash that sets the table's value under ivory cards; blur softens busy textures; glow: a coloured
-// light pattern multiplied over the surface (the Fordyce skylight); lamp/edge: the warm pool and the falloff.
 const TABLE_LOOK = {
   felt: { tone: 'rgba(8,40,24,.30)', lamp: 'rgba(255,226,170,.22)', edge: 'rgba(4,10,6,.62)' },
   marble: { tone: 'rgba(34,36,38,.5)', light: 1, glow: 'glow-skylight', lamp: 'rgba(255,236,200,.18)', edge: 'rgba(52,38,22,.58)' },
@@ -2172,7 +2082,6 @@ function drawLitTable(ctx, id, W, H) {
     ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = .26; coverImg(ctx, glow, 0, 0, W, H, .5, .35);
     ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = .55; coverImg(ctx, glow, 0, 0, W, H, .5, .35); ctx.restore();
   }
-  // the lamp hangs above the upper middle of the table, where the foundations and the top of the tableau sit
   const lx = W * .5, ly = H * .3, R = Math.hypot(W, H) * .62;
   ctx.save(); ctx.globalCompositeOperation = 'soft-light';
   let g = ctx.createRadialGradient(lx, ly, 0, lx, ly, R); g.addColorStop(0, look.lamp.replace(/[\d.]+\)$/, '1)')); g.addColorStop(.55, look.lamp); g.addColorStop(1, 'rgba(0,0,0,.35)');
@@ -2183,7 +2092,6 @@ function drawLitTable(ctx, id, W, H) {
   if (W > 200) brassInlay(ctx, W, H); // not on the little picker swatches
   return true;
 }
-// On tall phones the lower table is printed with a faint Deco emblem, like the logo on a club's card-table felt.
 function feltEmblem(ctx, W, H, light) {
   const cx = W / 2, cy = H * .72, r = W * .3;
   ctx.save(); ctx.globalAlpha = light ? .14 : .1; ctx.strokeStyle = ctx.fillStyle = light ? '#3A2A18' : '#F3DA92'; ctx.lineWidth = 1.5;
@@ -2194,9 +2102,7 @@ function feltEmblem(ctx, W, H, light) {
   ctx.font = '600 ' + Math.round(W * .03) + 'px ' + DECO; ctx.fillText('H O T   S P R I N G S ,   A R K .', cx, cy + r * .12 + W * .095);
   ctx.restore();
 }
-// Brass inlay around the play area: a double rule with Blender-rendered Deco fans in the corners.
 function brassInlay(ctx, W, H) {
-  // phones put cards 6 px from the edge, so they get one hairline outside the cards; roomier tables get the double rule
   const fan = artImg('brass-corner'), narrow = W < 560, m = narrow ? 2 : Math.max(5, Math.round(Math.min(W, H) * .012));
   const g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#E9C873'); g.addColorStop(.35, '#9C6E1E'); g.addColorStop(.6, '#D9B256'); g.addColorStop(1, '#7A5418');
   ctx.save();
@@ -2207,8 +2113,6 @@ function brassInlay(ctx, W, H) {
   if (!fan) return;
   const s = clamp(Math.round(Math.min(W, H) * .13), 44, 128);
   ctx.save(); ctx.imageSmoothingQuality = 'high';
-  // the sprite's corner is at its bottom-left; rotate it into each corner of the table
-  // the slot row runs into the top corners in every game, so the fans sit at the bottom; the top gets small stepped brackets
   if (!narrow) {
     ctx.save(); ctx.strokeStyle = g; ctx.lineWidth = 1.5;
     for (const [x, y, sx] of [[m + 9, m + 9, 1], [W - m - 9, m + 9, -1]]) {
@@ -2289,7 +2193,6 @@ function drawSkyline(ctx, W, H, t, dark) {
       ctx.globalAlpha = (dark ? .12 : .2) * Math.sin(Math.PI * k); ctx.drawImage(pf, x - r, y - r, r * 2, r * 2);
     }
     ctx.globalAlpha = 1;
-    // dusk falls toward the bottom so the plaques and their text sit on shadow
     const f = ctx.createLinearGradient(0, H * .18, 0, H); f.addColorStop(0, 'rgba(8,12,10,0)'); f.addColorStop(.45, 'rgba(8,12,10,.55)'); f.addColorStop(1, 'rgba(8,12,10,.92)');
     ctx.fillStyle = f; ctx.fillRect(0, 0, W, H);
     return;
@@ -2298,14 +2201,12 @@ function drawSkyline(ctx, W, H, t, dark) {
   if (dark) { g.addColorStop(0, '#14121F'); g.addColorStop(1, '#2A2640'); } else { g.addColorStop(0, '#E9F1F2'); g.addColorStop(1, '#F2EFE8'); }
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   const ground = H - 22;
-  // Hot Springs Mountain behind the Row
   ctx.fillStyle = dark ? '#1F3324' : '#7E9A72'; ctx.beginPath(); ctx.moveTo(0, ground);
   for (let i = 0; i <= 30; i++) { const x = i * W / 30; ctx.lineTo(x, ground - H * (.42 + .22 * Math.sin(i / 30 * Math.PI) + .03 * Math.sin(i * 1.7))); }
   ctx.lineTo(W, ground); ctx.fill();
   ctx.fillStyle = dark ? '#2F4A2C' : '#5C7A3A'; ctx.beginPath(); ctx.moveTo(0, ground);
   for (let i = 0; i <= 30; i++) { const x = i * W / 30; ctx.lineTo(x, ground - H * (.3 + .12 * Math.sin(i / 30 * Math.PI + .6) + .03 * Math.sin(i * 2.3))); }
   ctx.lineTo(W, ground); ctx.fill();
-  // steam behind the buildings
   ctx.lineCap = 'round';
   for (let i = 0; i < 9; i++) {
     const px = W * (.06 + i * .11), a = dark ? .14 : .45;
@@ -2337,10 +2238,7 @@ function drawSkyline(ctx, W, H, t, dark) {
   ctx.fillStyle = dark ? '#2F4A2C' : '#4E7D5B'; ctx.fillRect(0, ground, W, 3);
 }
 
-// ============================================================================================
 // Win-screen facts: a filtered subset of research/trivia-bank.json (confirmed items only).
-// [id, question, answer, explanation, source] — see research/town-content.md section 8.
-// ============================================================================================
 const FACTS = [
   ["hs-0002","How many years older is the 1832 Hot Springs Reservation than Yellowstone National Park?","40 years","NPS calls Hot Springs the oldest current park unit, reserved 40 years before Yellowstone (1872).","NPS: History & Culture"],
   ["hs-0003","Which president sent William Dunbar and George Hunter to explore the Ouachita country and its hot springs?","Thomas Jefferson","It was one of four Jefferson-commissioned expeditions into the Louisiana Purchase.","Encyclopedia of Arkansas: Hunter-Dunbar Expedition"],
@@ -2394,9 +2292,7 @@ const FACTS = [
   ["hs-0490","Which organization named Hot Springs' Bridge Street the shortest street in everyday use in the 1940s?","Ripley's Believe It or Not","Ripley's gave the title in the 1940s.","AP via Las Vegas Sun (2025)"]
 ];
 
-// ============================================================================================
 // 8. Layout
-// ============================================================================================
 const stage = $('#stage'), cv = $('#cv'), tcv = $('#tbl');
 const ctx = cv.getContext('2d'), tctx = tcv.getContext('2d');
 let W = 0, H = 0, DPR = 1, L = null, tableDirty = true;
@@ -2407,15 +2303,12 @@ const D = [];  // per-uid display state {x,y,sx,sy,tx,ty,t0,dur,up,f0}
 function topSlots() {
   const lh = settings.leftHanded; const n = (k, p) => Array.from({ length: k }, (_, i) => p + i);
   switch (S.mode) {
-    // the waste sits right beside the stock: drawing and playing from it is the most repeated reach in the game
     case 'klondike': return lh ? ['stock', 'waste', null, ...n(4, 'f')] : [...n(4, 'f'), null, 'waste', 'stock'];
     case 'freecell': return lh ? [...n(4, 'f'), ...n(4, 'c')] : [...n(4, 'c'), ...n(4, 'f')];
     case 'spider': return lh ? ['stock', null, ...n(8, 'f')] : [...n(8, 'f'), null, 'stock'];
     default: return lh ? [...n(4, 'f'), null, null, null] : [null, null, null, ...n(4, 'f')];
   }
 }
-// Short, wide screens can seat the top-row piles in rails beside the tableau instead, so the columns get the whole
-// height. A rail is a list of columns, each a list of pile ids stacked downward. Spider's ten columns leave no room.
 function sideRails() {
   const quad = (p) => [[p + 0, p + 2], [p + 1, p + 3]]; // a 2×2 block: x0 x1 over x2 x3
   let a, b; // a sits where the top row starts, b where the stock (or the foundations) end it
@@ -2427,15 +2320,12 @@ function sideRails() {
   }
   return settings.leftHanded ? { left: b, right: a } : { left: a, right: b };
 }
-// Card width cap: big enough that a large monitor is used, small enough that a 4K screen does not get poster-sized cards.
 const CARD_CAP = 200;
 function computeLayout(fit = 1) {
   const d = def(), cols = d.cols, compact = Math.min(W, H) < 560; // phones, either way up
   const margin = compact ? 6 : Math.max(12, Math.round(W * .018));
   const size = settings.cardSize;
   const gr = size === 'large' ? (compact ? .05 : .08) : size === 'compact' ? .18 : (compact ? .07 : .14);
-  // Two arrangements: the classic top row over the tableau, or rails beside it. Whichever gives bigger cards wins, the
-  // rails by at least 8% so a board near the boundary does not flip between them. A rail sits a little apart (a seam).
   const rails = sideRails(), nl = rails ? rails.left.length : 0, nr = rails ? rails.right.length : 0, seams = (nl ? 1 : 0) + (nr ? 1 : 0);
   const fitW = (units, s) => (W - 2 * margin) / (units + (units - 1 + s * .6) * gr);
   const topBase = Math.min(fitW(cols, 0), (H - 2 * margin) / (1.4 * 4.3));
@@ -2449,7 +2339,6 @@ function computeLayout(fit = 1) {
   const gap = units > 1 ? Math.min((W - 2 * margin - units * cw) / (units - 1 + s * .6), cw * .3) : 0, seam = gap * .6;
   const rowW = units * cw + (units - 1) * gap + s * seam, x0 = Math.round((W - rowW) / 2);
   const slotX = (i) => Math.round(x0 + i * (cw + gap));
-  // Portrait phones are width-bound and tall: lower the board a little toward the thumb and give the spare height to the fans.
   const portrait = H > W * 1.25, lower = portrait && !side ? Math.round(clamp((H / W - 1.4) * W * .22, 0, H * .07)) : 0;
   const vgap = Math.max(8, ch * .14), topY = margin + lower, tabY = side ? topY : Math.round(topY + ch + vgap);
   const piles = {};
@@ -2465,13 +2354,10 @@ function computeLayout(fit = 1) {
   }
   const largeIdx = size === 'large' || cw < 58;
   const ib = indexBottom(cw, ch, largeIdx);
-  // columns stop clear of the brass inlay on the table edge
   return { cw, ch, gap, margin, piles, arr: side ? 'side' : 'top', bottom: H - margin - (compact ? 2 : 8), largeIdx, portrait, fit,
-    // the face-up step always shows the whole rank glyph (J and Q descenders included) plus a little air
     fanUp: Math.max(ch * (portrait ? .46 : largeIdx ? .31 : .25), ch * .28, ib.full + 3), fanMin: ib.full + 1,
     idxFull: ib.full, idxCap: ib.cap, fanDown: ch * (portrait ? .27 : .14), downMin: ch * .06 };
 }
-// Target position for every card in the current state.
 function computeTargets() {
   const T = []; const { cw, ch } = L;
   for (const id in S.piles) {
@@ -2489,8 +2375,6 @@ function computeTargets() {
       p.forEach((u, i) => { T[u] = { x: b.x, y, pile: id }; bm.cards.push({ x: b.x, y, w: cw, h: ch, up: S.up[u] }); y += S.up[u] ? fu : dd; });
       b.zoneH = (p.length ? bm.cards[bm.cards.length - 1].y - b.y : 0) + ch;
     } else if (k === 'waste') {
-      // The playable card stays on the waste slot, beside the stock; the rest of a draw-3 fan steps away from the stock
-      // (down the rail in the side arrangement). Left-handed, the stock is on the slot's left, so the fan opens rightward.
       const fanN = S.opts.draw === 3 ? 3 : 1; const start = Math.max(0, p.length - fanN), n = Math.max(0, p.length - 1 - start);
       const down = L.arr === 'side', back = !down && L.piles.stock && L.piles.stock.x > b.x;
       const step = cw * .27, vstep = Math.max(L.idxFull + 3, ch * .17);
@@ -2515,8 +2399,6 @@ const FIT_FLOOR = () => settings.cardSize === 'large' ? .7 : .8;
 let targets = [], lastCw = 0, fitHold = 1; // fitHold: the smallest board scale used this deal
 const ease = (t) => 1 - Math.pow(1 - t, 3);
 const easeBack = (t) => { const c = 1.4; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); }; // overshoots ~4%, then settles
-// Cards travel on a shallow arc: they lift off the felt (bigger, softer shadow), lean into the direction of
-// travel, then settle. lift 0..1 drives scale and shadow; rot is the lean in radians.
 function dispPos(u, t) {
   const d = D[u]; if (!d) return null;
   if (t < d.t0) return { x: d.sx, y: d.sy, lift: 0, rot: 0 };
@@ -2526,7 +2408,6 @@ function dispPos(u, t) {
 }
 function relayout(instant) {
   if (!S || !W) return;
-  // Shrink the cards (in small steps) until every column fits with each face-up rank fully visible.
   let fit = Math.min(1, fitHold);
   for (;;) {
     L = computeLayout(fit); let ok = true;
@@ -2559,7 +2440,6 @@ function relayout(instant) {
   animDelay = {};
   startLoop();
 }
-// Gold glints where a card lands on a foundation (scheduled by relayout, drawn by drawFx).
 let landFx = [], fx = [];
 function glints(x, y, n, spread, t0) {
   if (lowFx) return;
@@ -2600,9 +2480,7 @@ function dealAnimation() {
   startLoop();
 }
 
-// ============================================================================================
 // 9. Rendering
-// ============================================================================================
 const sprites = new Map();
 function sprite(key, draw) {
   let c = sprites.get(key);
@@ -2624,11 +2502,9 @@ function tweensActive(t) {
   for (let u = 0; u < S.cards.length; u++) { const d = D[u]; if (d && (t < d.t0 + d.dur || t < d.f0 + FLIP_MS)) return true; }
   return landFx.length > 0 || fx.length > 0;
 }
-// Test hook support: a frozen clock holds one exact frame of an animation (act('ceremonyAt', ms)).
 let frozenAt = null, modalAnimUntil = 0;
 const fstat = { n: 0, sum: 0, max: 0, xs: [] }; // CPU time spent drawing frames, for the performance tests
 // Low-end watchdog: if animated frames keep costing more than ~12 ms of CPU, drop the optional effects (glints,
-// confetti, ceremony steam and skylight glow). Cards, flights and flips stay. ?fx=low forces it for testing.
 let lowFx = /[?&]fx=low\b/.test(location.search), fxEma = 0;
 function loop() {
   rafId = 0; if (frozenAt !== null) return; const t = now();
@@ -2640,11 +2516,9 @@ function loop() {
 function drawTableLayer() {
   tctx.setTransform(DPR, 0, 0, DPR, 0, 0); drawTable(tctx, settings.table, W, H); tableDirty = false;
 }
-// Empty piles on a lit table are brass inlays (Blender renders) with an engraved mark.
 function brassPlaceholder(id, b) {
   const { cw, ch } = L; const k = kindOf(id); const plate = artImg(k === 'cell' ? 'brass-cell' : 'brass-slot');
   if (!plate || !TABLE_LOOK[settings.table]) return false;
-  // a recessed well under the inlay; deeper on pale tables so the brass still reads
   ctx.save(); ctx.fillStyle = TABLE_LOOK[settings.table].light ? 'rgba(20,12,4,.3)' : 'rgba(0,0,0,.2)'; rrect(ctx, b.x + 2, b.y + 2, cw - 4, ch - 4, cw * .07); ctx.fill();
   ctx.globalAlpha = 1; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(plate, b.x - cw * .02, b.y - ch * .02, cw * 1.04, ch * 1.04); ctx.restore();
   const engrave = (draw) => { // dark recess, then a bright lower lip, like lettering cut into brass
@@ -2681,7 +2555,6 @@ function placeholder(id, b) {
   }
 }
 const FLIP_MS = 220;
-// Draw one card. lift 0..1 raises it toward the lamp (scale, longer and softer shadow); rot leans it.
 function drawCardAt(u, x, y, t, lift = 0, rot = 0) {
   const { cw, ch } = L; const d = D[u];
   let showUp = S.up[u], sx = 1, fk = -1;
@@ -2696,12 +2569,10 @@ function drawCardAt(u, x, y, t, lift = 0, rot = 0) {
     ctx.drawImage(img, x, y, cw, ch); return;
   }
   const sc = 1 + .055 * Math.min(lift, 1.2), cx = x + cw / 2, cy = y + ch / 2;
-  // the shadow falls away from the lamp (down and right) as the card rises
   const shd = shadowSprite(true), p = shd.pad, off = cw * (.02 + .11 * lift);
   ctx.save(); ctx.globalAlpha = Math.min(1, .55 + .45 * lift); ctx.translate(cx + off * .6, cy + off); ctx.rotate(rot); ctx.scale(sc * Math.max(.05, sx), sc);
   ctx.drawImage(shd, -cw / 2 - p, -ch / 2 - p, cw + 2 * p, ch + 2 * p); ctx.restore();
   ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot);
-  // a card turning over: foreshortened, with a slight perspective shear
   if (sx < .999) ctx.transform(Math.max(.02, sx), (fk < .5 ? 1 : -1) * .1 * (1 - sx), 0, 1, 0, 0);
   ctx.scale(sc, sc);
   ctx.drawImage(img, -cw / 2, -ch / 2, cw, ch);
@@ -2709,12 +2580,10 @@ function drawCardAt(u, x, y, t, lift = 0, rot = 0) {
     ctx.fillStyle = 'rgba(20,16,10,' + ((1 - sx) * .25).toFixed(3) + ')'; rrect(ctx, -cw / 2, -ch / 2, cw, ch, cw * .075); ctx.fill();
     ctx.globalAlpha = Math.sin(Math.PI * clamp(fk, 0, 1)) * .9; ctx.drawImage(sheenSprite(), -cw / 2, -ch / 2, cw, ch); ctx.globalAlpha = 1;
   } else if (lift > .05) {
-    // the lamp catches a lifted card: a soft specular band across the stock
     ctx.globalAlpha = lift * .5; ctx.drawImage(sheenSprite(), -cw / 2, -ch / 2, cw, ch); ctx.globalAlpha = 1;
   }
   ctx.restore();
 }
-// A specular band across a card, baked once per card size.
 function sheenSprite() {
   let c = sprites.get('sheen');
   if (!c) {
@@ -2725,7 +2594,6 @@ function sheenSprite() {
   }
   return c;
 }
-// Soft card shadow, baked once per card size (resting and lifted variants).
 function shadowSprite(lifted) {
   const key = 'sh' + (lifted ? 1 : 0); let c = sprites.get(key);
   if (!c) {
@@ -2734,13 +2602,11 @@ function shadowSprite(lifted) {
     const g = c.getContext('2d'); g.scale(DPR, DPR);
     g.shadowColor = 'rgba(0,0,0,' + (lifted ? .42 : .30) + ')'; g.shadowBlur = cw * (lifted ? .14 : .05) * DPR;
     g.shadowOffsetX = 4000 * DPR; g.fillStyle = '#000'; rrect(g, pad - 4000, pad, cw, ch, cw * .075); g.fill();
-    // resting cards show a sliver of card edge below the face: the stock's thickness, like a printed deck
     if (!lifted) { g.shadowColor = 'transparent'; g.fillStyle = '#B4A584'; rrect(g, pad, pad, cw, ch, cw * .075); g.fill(); }
     c.pad = pad; sprites.set(key, c);
   }
   return c;
 }
-// A brass arc from the hinted card to its destination; the dashes run toward the target.
 function hintArrow(x0, y0, x1, y1, t) {
   const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy); if (d < 8) return;
   const bend = Math.min(d * .35, L.ch * .9), nx = -dy / d, ny = dx / d, side = dx >= 0 ? -1 : 1;
@@ -2770,7 +2636,6 @@ function frame(t) {
   if (tableDirty) drawTableLayer();
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
   const { cw, ch } = L;
-  // during the win ceremony the emptied board steps back: slots fade out and the table dims under a spotlight
   const cerK = cascade ? clamp((t - cascade.t0) / 350, 0, 1) : 0;
   if (cerK < 1) { ctx.globalAlpha = 1 - cerK; for (const id in L.piles) placeholder(id, L.piles[id]); ctx.globalAlpha = 1; }
   if (cerK > 0) {
@@ -2778,7 +2643,6 @@ function frame(t) {
     g.addColorStop(0, 'rgba(0,0,0,' + (.08 * cerK) + ')'); g.addColorStop(1, 'rgba(0,0,0,' + (.5 * cerK) + ')');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   }
-  // squared-up piles (stock, waste, foundations) show their thickness as stacked card edges
   for (const id in L.piles) {
     const k = kindOf(id), n = S.piles[id].length; if (n < 2 || k === 'tab' || k === 'cell' || (k === 'stock' && S.mode === 'spider') || cascade) continue;
     const b = L.piles[id], depth = Math.min(5, Math.ceil(n / 7)), step = Math.max(1, cw * .011);
@@ -2803,7 +2667,6 @@ function frame(t) {
     ctx.fillStyle = 'rgba(20,18,31,.82)'; const bw = cw * .42, bh = cw * .3; rrect(ctx, b.x + cw - bw - 3, b.y + ch - bh - 3, bw, bh, bh / 2); ctx.fill();
     ctx.fillStyle = '#F4F2EC'; ctx.font = '700 ' + bh * .66 + 'px ' + DECO; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(n), b.x + cw - bw / 2 - 3, b.y + ch - bh / 2 - 2);
   }
-  // hint glow
   if (hintState && hintState.until > t) {
     const a = .55 + .45 * Math.sin(t / 140);
     if (hintState.cur) {
@@ -2814,7 +2677,6 @@ function frame(t) {
       if (first) hintArrow(first.x + cw / 2, first.y + Math.min(ch, L.fanUp) * .5, dl.x + cw / 2, dl.y + ch * .45, t);
     } else if (hintState.stockHint && L.piles.stock) glowRect(L.piles.stock.x, L.piles.stock.y, cw, ch, '#F6C933', a, 3);
   }
-  // keyboard: held cards lift, cursor ring
   if (held) {
     const cs = L.piles[held.from].cards;
     for (let i = held.index; i < cs.length; i++) { /* drawn lifted below */ }
@@ -2823,17 +2685,14 @@ function frame(t) {
   if (kbMode && cursor.pile && L.piles[cursor.pile]) {
     const b = L.piles[cursor.pile]; const c = b.cards[cursor.depth] || b.cards[b.cards.length - 1] || { x: b.x, y: b.y };
     const hgt = b.cards.length && kindOf(cursor.pile) === 'tab' ? b.cards[b.cards.length - 1].y + ch - c.y : ch;
-    // one focus language: an ivory halo with a brass ring
     ctx.save(); rrect(ctx, c.x - 5, c.y - 5, cw + 10, hgt + 10, cw * .11);
     ctx.strokeStyle = 'rgba(255,248,230,.85)'; ctx.lineWidth = 5; ctx.stroke();
     ctx.strokeStyle = '#B8862C'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.restore();
   }
   if (drag) {
-    // held cards: lifted, leaning with the hand's motion, with a gold rim like a card catching the light
     drag.tilt = (drag.tilt || 0) * .82 + clamp((drag.vx || 0) * .003, -.12, .12) * .18; drag.vx = (drag.vx || 0) * .7;
     const n = drag.run.length, hgt = (n - 1) * (drag.fan || 0) + ch;
     ctx.save(); ctx.translate(drag.x + cw / 2, drag.y + ch / 2); ctx.rotate(drag.tilt); ctx.translate(-drag.x - cw / 2, -drag.y - ch / 2);
-    // a quick flick leaves two fading ghost copies along the path
     if (!lowFx && drag.trail) drag.trail.forEach((q, k) => { ctx.globalAlpha = .12 + k * .08; ctx.drawImage(faceSprite(drag.run[0]), q.x, q.y, cw, ch); });
     ctx.globalAlpha = 1;
     drag.run.forEach((u, i) => drawCardAt(u, drag.x, drag.y + i * (drag.fan || 0), t, 1.35));
@@ -2855,7 +2714,6 @@ function steamBurst() {
   for (let i = 0; i < 14; i++) steam.push({ x: src.x + L.cw * (.2 + Math.random() * .6), y: src.y + L.ch * .6, r: L.cw * (.08 + Math.random() * .1), t0: t + i * 40, life: 900 + Math.random() * 500, vx: (Math.random() - .5) * 30 });
   startLoop();
 }
-// A soft steam puff, baked once: a feathered radial blob (no hard disc edge) used for every wisp.
 let puffCanvas = null;
 function puff() {
   if (puffCanvas) return puffCanvas;
@@ -2878,10 +2736,7 @@ function drawSteam(t) {
   ctx.restore();
 }
 
-// ============================================================================================
 // 10. Win ceremony: the cards gather into a rosette under a skylight glow, then spray out like a thermal
-//     fountain with steam and brass confetti. An original sequence; tap or a key skips it.
-// ============================================================================================
 const CER = { gather: 950, hold: 650, spray: 2600 };
 function startCascade() {
   if (!S) return;
@@ -2904,7 +2759,6 @@ function startCascade() {
 function drawCascade(t) {
   const c = cascade, el = t - c.t0, dt = Math.min(.05, (t - c.last) / 1000); c.last = t;
   const { cw, ch } = L, sc = Math.min(W, H) / 800, T1 = CER.gather, T2 = T1 + CER.hold;
-  // the skylight: amber ring light with a blue-green heart, blooming as the rosette forms
   const glowA = lowFx ? 0 : clamp(el / T1, 0, 1) * (el < T2 + 600 ? 1 : Math.max(0, 1 - (el - T2 - 600) / 900));
   if (glowA > 0) {
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = glowA * .55;
@@ -2917,7 +2771,6 @@ function drawCascade(t) {
     ctx.restore();
   }
   const spin = el > T1 ? (el - T1) / 5200 : 0;
-  // gather and hold: every card arcs from its foundation to its place in the rosette, pointing outward
   for (const p of c.parts) {
     if (p.flying) continue;
     const k = clamp((el - p.d0) / (T1 * .55), 0, 1), e = ease(k), hump = Math.sin(Math.PI * k);
@@ -2925,8 +2778,6 @@ function drawCascade(t) {
     const ly = p.sy + (ty - p.sy) * e, x = p.sx + (tx - p.sx) * e, y = Math.max(ch * .55, ly - hump * ch * .6), rot = (a + Math.PI / 2) * e;
     drawCardAt(p.u, x - cw / 2, y - ch / 2, t, Math.max(hump, .25), rot);
   }
-  // spray: the cards peel off the rosette one by one and fall in bouncing arcs, each bounce raising a puff of
-  // steam and every few frames stamping the card into a fading trail (a nod to the classic solitaire finale)
   if (el > T2) {
     const due = Math.min(c.parts.length, Math.floor((el - T2) / (CER.spray * .6) * c.parts.length));
     while (c.sprayed < due) {
@@ -2936,7 +2787,6 @@ function drawCascade(t) {
       c.fly.push({ u: p.u, x, y, vx: out * (narrow ? 40 + Math.random() * 90 : 120 + Math.random() * 200) * sc, vy: (narrow ? -60 - Math.random() * 120 : -160 - Math.random() * 220) * sc, rot: a + Math.PI / 2, vr: out * (1.5 + Math.random() * 2), n: 0, bounces: 0 });
     }
   }
-  // the trail is a soft, fading layer, so it lives at 1x resolution whatever the screen's pixel ratio
   if (!c.trail) { c.trail = document.createElement('canvas'); c.trail.width = Math.round(W); c.trail.height = Math.round(H); c.tg = c.trail.getContext('2d'); }
   const grav = 1700 * sc, floor = H - ch * .5 - 6;
   c.tg.save(); c.tg.setTransform(1, 0, 0, 1, 0, 0); c.tg.globalCompositeOperation = 'destination-out'; c.tg.fillStyle = 'rgba(0,0,0,.07)'; c.tg.fillRect(0, 0, c.trail.width, c.trail.height); c.tg.restore();
@@ -2954,7 +2804,6 @@ function drawCascade(t) {
   c.fly = c.fly.filter((f) => f.y < H + ch * 1.5);
   if (!lowFx) ctx.drawImage(c.trail, 0, 0, W, H);
   for (const f of c.fly) drawCardAt(f.u, f.x - cw / 2, f.y - ch / 2, t, .8, f.rot);
-  // steam rising from the spray and the floor of the table
   if (!lowFx && el > T2 && el < T2 + CER.spray && c.puffs.length < 60 && Math.random() < .2) c.puffs.push({ x: Math.random() * W, y: H + 10, t0: t, r: cw * (.6 + Math.random() * .8), floor: true });
   const img = puff(); ctx.save();
   c.puffs = c.puffs.filter((q) => t - q.t0 < 1800);
@@ -2963,7 +2812,6 @@ function drawCascade(t) {
     ctx.drawImage(img, q.x + Math.sin(k * 4 + q.r) * 14 - r, q.y - k * (q.floor ? H * .45 : ch * 1.6) - r, r * 2, r * 2);
   }
   ctx.restore();
-  // brass confetti: little foil flakes that flutter as they fall
   if (!lowFx && el > T2 - 200 && el < T2 + CER.spray * .8) while (c.flakes.length < 140 && Math.random() < .9) {
     c.flakes.push({ x: Math.random() * W, y: -10 - Math.random() * H * .2, vy: (60 + Math.random() * 90) * sc, ph: Math.random() * 6, w: 4 + Math.random() * 5, hue: Math.random() });
     if (c.flakes.length % 7 === 0) break;
@@ -2981,9 +2829,7 @@ function endCascade() {
   if (!cascade) return; cascade = null; markDirty(); openModal('win');
 }
 
-// ============================================================================================
 // 11. Input: pointer (mouse, pen, touch) and keyboard
-// ============================================================================================
 function ptr(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
 function hitTest(x, y) {
   if (!L) return null;
@@ -3038,7 +2884,6 @@ function finishDrag() {
   const t = now();
   if (best) { tryMove(dr.from, dr.index, best); }
   else { sfx('nope'); }
-  // tween every dragged card from where it was dropped to its (new or old) home
   dr.run.forEach((u) => {
     const d = D[u], T = targets[u]; if (!T) return; const dist = Math.hypot(T.x - d.sx, T.y - d.sy);
     d.tx = T.x; d.ty = T.y; d.t0 = t; d.dur = reducedMotion() ? 0 : clamp(170 + dist * .25, 200, 320); d.arc = 0; d.spin = 0; d.back = true;
@@ -3136,18 +2981,13 @@ window.addEventListener('keydown', (e) => {
   if (gameKey(e)) e.preventDefault();
 });
 
-// ============================================================================================
 // 12. Audio (WebAudio synthesis; the context is created on the first user gesture)
-// ============================================================================================
 let AC = null, master = null, cues = null, kit = null, audioMeter = null;
-// Mix constants: the shipped levels (settings defaults) are what audioRender measures.
 const LIMITER = { threshold: -8, knee: 8, ratio: 12, attack: 0.003, release: 0.25 };
 function makeLimiter(ctx, dest) {
   const c = ctx.createDynamicsCompressor(); c.threshold.value = LIMITER.threshold; c.knee.value = LIMITER.knee; c.ratio.value = LIMITER.ratio;
   c.attack.value = LIMITER.attack; c.release.value = LIMITER.release; c.connect(dest); return c;
 }
-// Music and ambience are generated from the data below by the kit; nothing is a recording.
-// Chord roots are scale degrees (0 = I, 1 = ii, 2 = iii, 3 = IV, 4 = V, 5 = vi); one bar each, [degree, bars] holds longer.
 const SCORES = {
   // Title: the painted Bathhouse Row at dusk. Slow, a flute over a pad in B flat. 16 bars of 4 s, about 64 s.
   title: {
@@ -3175,7 +3015,6 @@ const SCENES = {
     spots: [{ make: 'drip', every: [1.5, 5], gain: 0.04 }, { make: 'hiss', every: [9, 20], gain: 0.03 }, { make: 'swell', every: [14, 30], gain: 0.03 }],
   },
 };
-// The Hot Springs Games audio kit (generative music and ambience from data), adapted from the collection kit.
 function makeAudioKit(ctx, out, opt = {}) {
   const sr = ctx.sampleRate;
   let seed = (opt.seed || 0x5EED1) >>> 0;
@@ -3198,7 +3037,6 @@ function makeAudioKit(ctx, out, opt = {}) {
     bus.gain.linearRampToValueAtTime(0.0001, at + Math.max(fade, 0.02)); dead.push({ at: at + fade + 0.2, nodes });
   };
 
-  // ------------------------------------------------------------------------------------------- instruments
   // sus: held for the note's length then released over r seconds. Otherwise percussive: decays over `decay`.
   // waves: one oscillator each, detuned +/- det cents. parts: extra sine partials [frequency multiple, gain].
   const INST = {
@@ -3235,21 +3073,8 @@ function makeAudioKit(ctx, out, opt = {}) {
     b: (m, t, v) => { const e = gain(0.0001, lowpass(3200, m.inp, 'bandpass', 0.5)); e.gain.setValueAtTime(0.0001, t); e.gain.linearRampToValueAtTime(v * 0.4, t + 0.03); e.gain.exponentialRampToValueAtTime(0.0001, t + 0.2); noise(t, 0.22).connect(e); },   // brush
   };
 
-  // ------------------------------------------------------------------------------------------------- music
   // A score is data:
-  //   { bpm, beats: 4, spb: 2 (steps per beat: 2 = eighths, 4 = sixteenths), swing: 0..0.33,
   //     key: 62 (MIDI note of the tonic), scale: [0,2,4,5,7,9,11], sevenths: [4] (chord degrees that take a 7th),
-  //     form: 'AABA', sections: { A: [0,5,3,4], B: [3,0,4,4] }   // chord roots as scale degrees, one bar each
-  //                                                               // ([degree, bars] holds a chord for longer),
-  //     pad:  { inst: 'pad', gain: 0.05 },
-  //     bass: { inst: 'bass', pattern: 'root' | 'two' | 'walk', gain: 0.12 },
-  //     comp: { inst: 'piano', at: [1, 3] (beats), gain: 0.04 },
-  //     lead: { inst: 'mallet', gain: 0.09, oct: 1, lo: -2, hi: 9, classes: [0,1,2,4,5], vary: 0.3, rest: 0.15,
-  //             rhythms: [[0,3,4,6], ...] (steps in the bar) },
-  //     perc: { k: [0, 2], s: [1, 3], h: [0.5, 1.5, 2.5, 3.5], gain: 0.5 }, perc2: {...} (added at high intensity),
-  //     lp: 4200, delay: 0.18 (echo level, 0 for none), delayBeats: 0.75 }
-  // The lead is composed once per section bar and remembered, so A sounds like A each time it returns; on
-  // every return a bar has a `vary` chance of a small variation that is not remembered.
   const RHY = {
     8: [[0, 3, 4, 6], [0, 2, 4], [0, 4, 6, 7], [2, 4, 6], [0, 3, 6], [0, 2, 3, 4, 6], [0, 4], [0, 1, 2, 4], [1, 2, 4, 6]],
     6: [[0, 2, 4], [0, 3], [0, 4, 5], [2, 4], [0, 2, 3, 4]],
@@ -3355,17 +3180,10 @@ function makeAudioKit(ctx, out, opt = {}) {
     duck(db = 6, ms = 400) { if (held) return; const t = ctx.currentTime; musicBus.gain.cancelScheduledValues(t); musicBus.gain.setTargetAtTime(mLevel * 10 ** (-db / 20), t, 0.02); musicBus.gain.setTargetAtTime(mLevel, t + ms / 1000, 0.25); },
     intensity(x) { inten = Math.max(0, Math.min(1, x)); },
     get score() { return cur && cur.score; },
-    // For tests: how much the lead has really varied so far.
     info() { return cur ? { bars: cur.bar, formBars: cur.bars.length, distinctBars: cur.sigs.size, notes: cur.notes, pitches: cur.pitches.size } : null; },
   };
 
-  // ---------------------------------------------------------------------------------------------- ambience
-  // A scene is data:
-  //   { beds:  [{ type: 'lowpass' | 'bandpass' | 'highpass', freq, q, gain, pan,
   //               lfo: { rate (Hz), depth 0..1 } (slow swell of the bed's level), flfo: { rate, depth (Hz) },
-  //               param: 'wind', range: [0.2, 1] }],     // amb.set('wind', 0..1) moves this bed's level
-  //     spots: [{ make: 'drip' | 'bird' | 'hiss' | 'bell' | 'cricket' | 'swell' | (ctx, dest, t, rnd) => {},
-  //               every: [4, 10] (seconds between), gain, pan: [-0.6, 0.6], param: 'night' }] }
   // Beds are continuous; spots are sparse one-shots at random gaps so the place never loops audibly.
   const SPOT = {
     drip: (dst, t, v) => { const f = rr(1100, 2300), o = ctx.createOscillator(), e = gain(0.0001, dst); o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.55, t + 0.03); o.frequency.exponentialRampToValueAtTime(f * 1.5, t + 0.09); e.gain.setValueAtTime(v, t); e.gain.exponentialRampToValueAtTime(0.0001, t + 0.12); o.connect(e); o.start(t); o.stop(t + 0.14); },
@@ -3405,7 +3223,6 @@ function makeAudioKit(ctx, out, opt = {}) {
     get scene() { return scene && scene.def; },
   };
 
-  // --------------------------------------------------------------------------------------------- scheduler
   function scheduleUntil(T) {
     const now = ctx.currentTime;
     if (!held) {
@@ -3425,24 +3242,15 @@ function makeAudioKit(ctx, out, opt = {}) {
 
   return {
     music, amb, scheduleUntil, INST,
-    // Cue variation for the game's own tone() and noise(): multiply the frequency by f and the gain by g, start
-    // a noise buffer at offset o (seconds), so no two repeats of a cue are sample-identical.
     jit(cents = 25, db = 1.5) { return { f: 2 ** (rr(-cents, cents) / 1200), g: 10 ** (rr(-db, 0) / 20), o: rr(0, 1.5) }; },
     start() { if (!timer) timer = setInterval(() => { if (ctx.state === 'running') scheduleUntil(ctx.currentTime + 0.25); }, 25); },
     stop() { if (timer) clearInterval(timer); timer = 0; },
-    // Pause card or hidden tab: fade both buses out and schedule nothing until release().
     hold(tc = 0.08) { held = true; const t = ctx.currentTime; musicBus.gain.cancelScheduledValues(t); musicBus.gain.setTargetAtTime(0, t, tc); ambBus.gain.setTargetAtTime(0, t, tc); },
     release(tc = 0.3) { held = false; const t = ctx.currentTime; musicBus.gain.setTargetAtTime(mLevel, t, tc); ambBus.gain.setTargetAtTime(aLevel, t, tc); },
     get held() { return held; },
   };
 }
 
-// Renders `seconds` of audio faster than real time and measures it, so a test can check music and ambience
-// that nobody in the test run can hear. `build(ctx, dest)` builds the graph on the offline context and schedules
-// everything up to `seconds` (for the kit: make a kit on ctx, play, then kit.scheduleUntil(seconds)); whatever it
-// returns comes back as `built` (return kit.music.info() to get the variation counts).
-//   peak, rms: linear, 0..1 (peakDb, rmsDb in dBFS). longestSilence: seconds in a row below -60 dBFS.
-//   stereo: side level over mid level (0 = mono). secs: RMS of each second. wav: base64 16-bit WAV if asked.
 async function measureAudio(build, seconds, o = {}) {
   const rate = o.rate || 22050, OC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
   const oc = new OC(2, Math.ceil(rate * seconds), rate), made = build(oc, oc.destination);
@@ -3465,8 +3273,6 @@ async function measureAudio(build, seconds, o = {}) {
   return res;
 }
 
-// Sound effects. Every call jitters its pitch (10 to 30 cents), filter (+/-8%) and gain (0 to -2 dB) and starts the
-// noise at a random offset, so no two repeats are identical. Bound to a context so a test can render them offline.
 function makeCues(ctx, dest) {
   const sr = ctx.sampleRate, nb = ctx.createBuffer(1, sr * 2, sr), nd = nb.getChannelData(0);
   for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
@@ -3484,7 +3290,6 @@ function makeCues(ctx, dest) {
     o.connect(g); g.connect(out(pan)); o.start(t); o.stop(t + dur + .05); return o;
   }
   return {
-    // arg: the card's rank for 'found', the number of cards moved for 'place'. pan: -1..1 by where the move lands.
     play(name, arg, t, pan) {
       switch (name) {
         case 'pick': noise(t, .05, 'bandpass', 3200, .4, 1.2, pan); tone(t, 420, .045, 'sine', .2, .003, pan); break;
@@ -3523,7 +3328,6 @@ function initAudio() {
   syncAudio();
 }
 const PENTA = [0, 2, 4, 7, 9];
-// Dialogs that take the player away from the table (the menu is the pause card) fade the music and ambience out.
 const PAUSE_MODALS = ['menu', 'confirm', 'deal', 'daily', 'backs', 'stats', 'help'];
 let musicHush = false; // the win ceremony: the music steps back, then returns
 function wakeAudio() { if (AC && (AC.state === 'suspended' || AC.state === 'interrupted')) AC.resume(); } // Safari reports 'interrupted' after a call or alarm
@@ -3543,7 +3347,6 @@ function sfx(name, arg, pan) {
   if (name === 'run' || name === 'win') kit.music.duck(6, 500);
 }
 // Test hooks: render one piece, scene or cue by itself on an OfflineAudioContext at the shipped levels, without
-// touching the live audio or the settings. For a cue, `seconds` of repeats one second apart are rendered.
 function audioList() {
   const barSeconds = {}; for (const k in SCORES) barSeconds[k] = +(60 / SCORES[k].bpm * (SCORES[k].beats || 4)).toFixed(3);
   return { music: Object.keys(SCORES), ambience: Object.keys(SCENES), cues: CUE_NAMES.slice(), barSeconds };
@@ -3564,9 +3367,7 @@ function audioState() {
     ambience: kit && kit.amb.scene ? 'bathhouse' : null, bars: i ? i.bars : 0, hush: musicHush };
 }
 
-// ============================================================================================
 // 13. UI chrome: HUD, toast, title, dialogs
-// ============================================================================================
 const sr = $('#sr'), toastEl = $('#toast');
 function announce(msg) { sr.textContent = ''; sr.textContent = msg; }
 let toastTimer = 0;
@@ -3583,7 +3384,6 @@ function updateHUD() {
 }
 function updateTime() { if (S) $('#sTime').textContent = fmtTime(S.elapsedMs); }
 setInterval(() => { tickClock(); updateTime(); }, 500);
-// Hidden tabs get throttled timers, so the clock mark can be a minute stale when the tab returns: restart it then.
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { tickClock(); flushSave(); } else clockMark = now();
   if (AC) { syncAudio(); try { (document.hidden ? AC.suspend() : AC.resume()).catch(() => {}); } catch (e) { /* context already closed */ } }
@@ -3604,7 +3404,6 @@ const TILES = [
   { mode: 'spider', desc: 'Two decks. Build same-suit runs from King down to Ace.', chips: [['1 suit', { suits: 1 }], ['2 suits', { suits: 2 }], ['4 suits', { suits: 4 }]] },
   { mode: 'yukon', desc: 'No stock: move any face-up card along with everything on top of it.', chips: [['Play', {}]] },
 ];
-// A small fanned hand on each title plaque, in the player's current back and court style.
 const HANDS = { klondike: [[13, 3], [12, 2], [11, 0], 'back'], freecell: [[1, 3], [1, 2], [1, 1], [1, 0]], spider: [[13, 3], [12, 3], [11, 3], [10, 3]], yukon: ['back', 'back', [13, 2], [12, 0]] };
 function paintHands(scope = '#tiles') {
   document.querySelectorAll(scope + ' canvas[data-hand]').forEach((c) => {
@@ -3846,7 +3645,6 @@ const BIND = {
   confirm(d) { sheet.querySelector('[data-a="yes"]').onclick = () => d.onYes(); },
 };
 
-// Back and table previews in the picker (repainted when their art arrives).
 function paintPickers() {
   sheet.querySelectorAll('[data-back]').forEach((b) => {
     const c = b.querySelector('canvas'); const g = c.getContext('2d'); g.setTransform(c.width / 84, 0, 0, c.height / 118, 0, 0); g.clearRect(0, 0, 84, 118); drawBack(g, b.dataset.back, 84, 118, settings.deckSeed);
@@ -3858,7 +3656,6 @@ function paintPickers() {
 function saveSettings() { save('settings', settings); }
 function applyLook() {
   steam = []; fx = []; landFx = [];
-  // left-handed moves the short-landscape tool rail to the left, which can change the table's size
   document.documentElement.classList.toggle('lh', !!settings.leftHanded); const r = stage.getBoundingClientRect();
   if (Math.round(r.width) !== W || Math.round(r.height) !== H) { resize(); updateHUD(); return; }
   loadArt(essentialArt()); sprites.clear(); tableDirty = true; relayout(true); markDirty(); updateHUD();
@@ -3873,9 +3670,7 @@ function setSetting(k, v) {
   if (['leftHanded', 'cardSize', 'layout', 'fourColor', 'back', 'table', 'showTimer', 'deckSeed', 'courts'].includes(k)) applyLook();
 }
 
-// ============================================================================================
 // 14. Resize and boot
-// ============================================================================================
 function resize() {
   const r = stage.getBoundingClientRect(); W = Math.round(r.width); H = Math.round(r.height); DPR = Math.min(3, window.devicePixelRatio || 1);
   for (const c of [cv, tcv]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
@@ -3888,9 +3683,7 @@ window.addEventListener('resize', resize);
 if (window.visualViewport) visualViewport.addEventListener('resize', () => { const r = stage.getBoundingClientRect(); if (Math.round(r.width) !== W || Math.round(r.height) !== H) resize(); });
 if (reduceQuery && reduceQuery.addEventListener) reduceQuery.addEventListener('change', () => markDirty());
 
-// ============================================================================================
 // 15. Test hooks (window.__game; see MECHANICS §9)
-// ============================================================================================
 const noteOf = (u) => (S.up[u] ? '' : '#') + RANKS[card(u).r - 1] + SUITS[card(u).s];
 function notePiles() { const o = {}; for (const id in S.piles) o[id] = S.piles[id].map(noteOf); return o; }
 function sceneName() { return modalKind || (titleOn ? 'title' : S ? 'game' : 'title'); }
@@ -3971,7 +3764,6 @@ window.__game = {
   art() { return { on: ART_ON, wanted: [...artWant], loaded: Object.keys(art) }; },
 };
 
-// Boot
 buildTitle();
 document.documentElement.classList.toggle('lh', !!settings.leftHanded);
 resize();
