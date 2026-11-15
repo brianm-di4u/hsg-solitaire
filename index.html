@@ -323,9 +323,9 @@
     <div id="status" aria-label="Game status">
       <span id="sScoreW">Score<small id="sBonus" hidden></small><b id="sScore">0</b></span><span>Moves<b id="sMoves">0</b></span><span id="sTimeW">Time<b id="sTime">0:00</b></span>
     </div>
+    <button class="ib" id="bHelp" aria-label="How to play" title="How to play (?)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.3-.9.8-.9 1.4v.6M12 17h.01"/></svg></button>
   </header>
   <main id="stage">
-    <button class="ib" id="bHelp" aria-label="How to play" title="How to play (?)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.3-.9.8-.9 1.4v.6M12 17h.01"/></svg></button>
     <canvas id="tbl" aria-hidden="true"></canvas>
     <canvas id="cv" tabindex="0" role="application" aria-roledescription="card table"
       aria-label="Card table. Arrow keys move the cursor, Enter picks up or drops cards, H for a hint, U to undo. Press question mark for help."></canvas>
@@ -444,13 +444,13 @@ const DEFAULT_SETTINGS = {
   dealGrade: 'any', // random deals graded by solver effort: any (today's), easy, medium or hard
   winnable: false, // random deals come from a solver-won sequence; dailies always do
   sfx: true, music: true, ambience: true, musicVol: 0.6, ambVol: 0.6, // sound effects, music and ambience; all three obey the master `sound` switch
+  autoNoted: false, // set once the first automatic move to a foundation has been explained with a toast
   tips: true, tipStep: 0, tipModes: "", // first-run tips: on for a new player, off for a save that came before them; progress is kept
 };
 const loadObj = (name) => { const v = load(name, null); return isObj(v) ? v : {}; };
 const storedSettings = loadObj('settings');
 const settings = Object.assign({}, DEFAULT_SETTINGS, storedSettings);
 if (!hadSave) save('settings', settings); // a save from here on is a player who has seen the tips
-  autoNoted: false, // set once the first automatic move to a foundation has been explained with a toast
 let stats = loadObj('stats');
 let meta = Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 0, daily: {} }, loadObj('meta'));
 const reduceQuery = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
@@ -1467,8 +1467,8 @@ function pickFact(seed) {
   meta.seenFacts = seen.filter((x) => x !== i).concat(i);
   return i;
 }
-let lastWin = null;
 const timeBonus = (ms) => Math.max(0, Math.round(1000 - 2 * ms / 1000)); // what a win now would add: 1000 less 2 a second
+let lastWin = null;
 function onWin(delay) {
   loadArt(LATE_ART); // the ticket stock, ready long before the ceremony ends
   tickClock(); syncShared();
@@ -1993,6 +1993,7 @@ for (const k in DEFAULT_SETTINGS) {
   if (typeof v !== typeof d || (typeof v === 'number' && !isFinite(v)) || (SETTING_ENUMS[k] && !SETTING_ENUMS[k].includes(v))) settings[k] = d;
 }
 if (hadSave && typeof storedSettings.tips !== 'boolean') settings.tips = false;
+if (hadSave && typeof storedSettings.autoNoted !== 'boolean') settings.autoNoted = true; // someone who has played before has already seen cards go home by themselves
 settings.tipStep = clamp(Math.floor(settings.tipStep), 0, 3);
 settings.volume = clamp(settings.volume, 0, 1); settings.musicVol = clamp(settings.musicVol, 0, 1); settings.ambVol = clamp(settings.ambVol, 0, 1);
 function normalizeMeta() {
@@ -2000,7 +2001,6 @@ function normalizeMeta() {
   if (!isObj(meta.lastOpts)) meta.lastOpts = {};
   meta.lastOpts = { draw: meta.lastOpts.draw === 3 ? 3 : 1, suits: [1, 2, 4].includes(meta.lastOpts.suits) ? meta.lastOpts.suits : 1 };
   if (typeof meta.totalWins !== 'number' || !isFinite(meta.totalWins)) meta.totalWins = 0;
-if (hadSave && typeof storedSettings.autoNoted !== 'boolean') settings.autoNoted = true; // someone who has played before has already seen cards go home by themselves
   if (!isObj(meta.daily)) meta.daily = {};
   meta.wonDeals = Array.isArray(meta.wonDeals) ? meta.wonDeals.filter((x) => typeof x === 'string').slice(-WON_DEALS_KEPT) : []; // the last deals won, so a replay can be told from a first win
   const cut = dayShift(todayStr(), -DAILY_KEEP_DAYS); for (const k in meta.daily) if (k.slice(0, 10) < cut) delete meta.daily[k];
@@ -3763,7 +3763,9 @@ $('#bUndo').onclick = (e) => { initAudio(); undo(); backToTable(e); };
 $('#bRedo').onclick = (e) => { initAudio(); redo(); backToTable(e); };
 $('#bHint').onclick = (e) => { initAudio(); hint(); backToTable(e); };
 $('#bAuto').onclick = (e) => { initAudio(); autoComplete(); backToTable(e); };
+$('#assistTag').onclick = (e) => { toast('Undo or Hint was used. Wins still count, flagged as assisted.'); backToTable(e); };
 $('#bMenu').onclick = () => { initAudio(); openModal('menu'); };
+$('#bHelp').onclick = () => { initAudio(); openModal('help'); };
 
 // --- Title screen ---
 const TILES = [
@@ -3806,15 +3808,16 @@ function buildTitle() {
   $('#tBacks').onclick = () => openModal('backs');
   $('#tStats').onclick = () => openModal('stats');
   $('#tRec').onclick = () => openModal('records');
-$('#bHelp').onclick = () => { initAudio(); openModal('help'); };
   $('#tSet').onclick = () => openModal('settings');
   $('#tHelp').onclick = () => openModal('help');
 }
+// One line under the title, a different one each time the title comes up (the first is the plain description).
+const TITLE_LINES = ['Patience, the Spa City way: four classic games, twelve Hot Springs card backs.', 'In the Valley of Vapors, patience is a virtue.', 'Take the waters, then take your time.', 'A hand of cards between baths.'];
+let titleLineAt = 0;
 let skyRaf = 0;
 const darkScheme = () => window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
 function drawSky(t) {
   const c = $('#sky'); const w = c.clientWidth, h = c.clientHeight; if (!w) return;
-$('#assistTag').onclick = (e) => { toast('Undo or Hint was used. Wins still count, flagged as assisted.'); backToTable(e); };
   const sd = Math.min(1.5, DPR); // a full-screen painting with drifting steam: 1.5x is plenty and keeps phones cool
   if (c.width !== Math.round(w * sd) || c.height !== Math.round(h * sd)) { c.width = Math.round(w * sd); c.height = Math.round(h * sd); }
   const g = c.getContext('2d'); g.setTransform(sd, 0, 0, sd, 0, 0); drawSkyline(g, w, h, t / 1000, darkScheme());
@@ -3827,6 +3830,7 @@ function showTitle(on) {
   if (on) {
     $('#tCont').hidden = !loadSaved();
     { const day = todayStr(); const n = Object.keys(meta.daily).filter((k) => k.startsWith(day + '|') && meta.daily[k] === 'won').length; $('#tDaily').textContent = 'Daily deals' + (n ? ' (' + n + '/7 ✓)' : ''); }
+    $('#tTag').textContent = TITLE_LINES[titleLineAt++ % TITLE_LINES.length];
     DPR = Math.min(3, window.devicePixelRatio || 1);
     drawSky(now()); paintHands(); if (!skyRaf && !reducedMotion()) skyRaf = requestAnimationFrame(skyLoop);
     setTimeout(() => { const b = $('#tCont').hidden ? $('#tiles .chip') : $('#tCont'); if (b && !modalKind) b.focus({ preventScroll: true }); }, 0);
@@ -3843,9 +3847,6 @@ function closeModal(back) {
   clockMark = now(); syncAudio();
   if (back && modalReturn && modalReturn !== was) { const r = modalReturn; modalReturn = null; openModal(r); return; }
   modalReturn = null; setTimeout(tipShow, 500);
-// One line under the title, a different one each time the title comes up (the first is the plain description).
-const TITLE_LINES = ['Patience, the Spa City way: four classic games, twelve Hot Springs card backs.', 'In the Valley of Vapors, patience is a virtue.', 'Take the waters, then take your time.', 'A hand of cards between baths.'];
-let titleLineAt = 0;
   if (titleOn) { const b = $('#tiles .chip'); if (b) b.focus({ preventScroll: true }); } else cv.focus({ preventScroll: true });
 }
 function trapFocus(e) {
@@ -3862,7 +3863,6 @@ function openModal(kind, data) {
   if (kind === 'win' && !reducedMotion()) { modalAnimUntil = now() + 1250; setTimeout(() => sfx('place', 3), 650); } // the ticket punch
   sheet.innerHTML = (MODALS[kind] || (() => ''))(data || {});
   modalEl.classList.add('on'); syncAudio();
-    $('#tTag').textContent = TITLE_LINES[titleLineAt++ % TITLE_LINES.length];
   if (kind === 'win') { setTimeout(() => { musicHush = false; syncAudio(); }, 1800); if (lastWin && ((lastWin.ach || []).length || (lastWin.opened || []).length)) setTimeout(() => sfx('ach'), 900); } // the music returns once the ticket is up
   sheet.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => closeModal(true)));
   const binder = BIND[kind]; if (binder) binder(data || {});
