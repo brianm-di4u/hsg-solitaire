@@ -3732,11 +3732,18 @@ const MODALS = {
       '<div class="row"><button class="btn solid" data-a="new" data-focus>New deal</button><button class="btn" data-a="restart">Replay this deal</button><button class="btn" data-a="title">Change game</button></div>';
   },
   confirm: (d) => head(d.title) + '<p>' + d.text + '</p><div class="row"><button class="btn solid" data-a="yes">' + d.yes + '</button><button class="btn" data-close data-focus>Cancel</button></div>',
+  fault: () => head('Something went wrong') + '<p>The table could not be drawn as it should, so it has been redrawn. Your game is still here.</p><p>If it keeps happening, clear the saved game and start again.</p>' +
+    '<div class="row"><button class="btn solid" data-close data-focus>Carry on</button><button class="btn" data-a="resetSaved">Reset saved game</button></div>',
   stuck: () => head('No more moves') + '<p>Nothing left on the table can lead anywhere. Every move that remains just shuffles cards around.</p><div class="row">' +
     (undoStack.length ? '<button class="btn solid" data-a="undo" data-focus>Undo</button>' : '') +
     '<button class="btn' + (undoStack.length ? '' : ' solid" data-focus="1') + '" data-a="restart">Restart this deal</button><button class="btn" data-a="new">New deal</button><button class="btn" data-close>Keep looking</button></div>',
 };
 const ACTIONS = {
+  resetSaved: () => { // a table that will not come right: forget it and go back to the title
+    clearTimeout(saveTimer); saveTimer = 0; clearTimeout(winTimer); winTimer = 0; clearStuck();
+    S = null; undoStack = []; redoStack = []; held = null; drag = null; cascade = null; hintState = null;
+    save('current', null); closeModal(); showTitle(true); toast('Saved game cleared.');
+  },
   resume: () => closeModal(), new: () => confirmAbandon({ mode: S ? S.mode : meta.lastMode }), restart: () => confirmAbandon(null, true), undo: () => { closeModal(); undo(); },
   deal: () => openModal('deal'), daily: () => openModal('daily'), title: () => { closeModal(); showTitle(true); },
   backs: () => openModal('backs'), settings: () => openModal('settings'), stats: () => openModal('stats'), help: () => openModal('help'),
@@ -3751,6 +3758,7 @@ const BIND = {
   menu() { BIND._common(); },
   win() { BIND._common(); },
   stuck() { BIND._common(); },
+  fault() { BIND._common(); },
   settings() {
     BIND._common();
     sheet.querySelectorAll('[data-set]').forEach((b) => (b.onclick = () => { setSetting(b.dataset.set, b.dataset.val); sheet.querySelectorAll('[data-set="' + b.dataset.set + '"]').forEach((x) => x.setAttribute('aria-pressed', x === b)); }));
@@ -3933,6 +3941,18 @@ window.__game = {
   stats() { return JSON.parse(JSON.stringify(stats)); },
   art() { return { on: ART_ON, wanted: [...artWant], loaded: Object.keys(art) }; },
 };
+
+// A script error or a broken promise must not leave a frozen table with no word: redraw, say so once, offer a way out.
+let faults = 0;
+function fault(why) {
+  if (/ResizeObserver loop/.test(why)) return;
+  try {
+    markDirty();
+    if (faults++ === 0 && modalKind !== 'win') openModal('fault');
+  } catch (e) { /* the page is in worse shape than the notice can help with */ }
+}
+window.addEventListener('error', (e) => fault(String(e.message || e.error || '')));
+window.addEventListener('unhandledrejection', (e) => fault(String(e.reason || '')));
 
 // A phone can add the game to its home screen and run it without the browser bar. The manifest is built here so the
 // page stays one file; its start page is this page, and the icon is drawn, not shipped.
