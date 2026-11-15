@@ -137,4 +137,52 @@ export const tests = [
       t.expect(await t.page.evaluate(() => getComputedStyle(document.getElementById('tTag')).backgroundColor) !== 'rgba(0, 0, 0, 0)', 'a wide screen keeps its tagline plate');
     },
   },
+  {
+    name: 'w3e S4-01 the table is never quite still: steam and lamplight under the cards, stopped for reduced motion, dialogs, the title and a hidden tab',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'full' });
+      await t.game('newGame', { mode: 'klondike' });
+      const amb = () => t.game('ambient');
+      await t.page.waitForFunction(() => window.__game.ambient().running);
+      const a = await amb();
+      t.expect(a.painted > 0, 'the ambient layer has paint on it: ' + a.painted);
+      await t.page.waitForFunction((n) => window.__game.ambient().frames >= n + 4, a.frames);
+      const rate = await t.page.evaluate(() => new Promise((done) => { const f0 = window.__game.ambient().frames, t0 = performance.now(); setTimeout(() => done((window.__game.ambient().frames - f0) / ((performance.now() - t0) / 1000)), 1000); }));
+      t.expect(rate <= 22 && rate > 3, 'about 20 frames a second at most, never a full-rate loop: ' + rate.toFixed(1));
+      t.expect(await t.page.evaluate(() => { const r = document.getElementById('cv').getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2).id; }) === 'cv', 'it never takes a press from the table');
+      t.expect((await t.game('isIdle')) === true, 'it does not keep the game from being idle');
+      const m = await t.frameCost(1500); t.log('frame cost with the ambient layer running: ' + JSON.stringify(m));
+      await shot(t, 'S4-01', 'ambient');
+      // reduced motion: nothing runs and nothing is left on the canvas
+      await t.game('setSettings', { motion: 'reduced' });
+      await t.page.waitForFunction(() => { const q = window.__game.ambient(); return !q.running && q.painted === 0; });
+      await t.game('setSettings', { motion: 'full' });
+      await t.page.waitForFunction(() => window.__game.ambient().running);
+      // a dialog over the table, and the title: stopped and cleared
+      await t.game('scene', 'settings');
+      await t.page.waitForFunction(() => { const q = window.__game.ambient(); return !q.running && q.painted === 0; });
+      await t.game('scene', 'game');
+      await t.page.waitForFunction(() => window.__game.ambient().running);
+      await t.game('scene', 'title');
+      await t.page.waitForFunction(() => { const q = window.__game.ambient(); return !q.running && q.painted === 0; });
+      await t.game('scene', 'game');
+      await t.page.waitForFunction(() => window.__game.ambient().running);
+      // a hidden tab
+      await t.page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')); });
+      await t.page.waitForFunction(() => { const q = window.__game.ambient(); return !q.running && q.painted === 0; });
+      await t.page.evaluate(() => { delete document.hidden; document.dispatchEvent(new Event('visibilitychange')); });
+      await t.page.waitForFunction(() => window.__game.ambient().running);
+    },
+  },
+  {
+    name: 'w3e S4-01 low-effects mode has no ambient layer',
+    url: 'index.html?fx=low',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'full' });
+      await t.game('newGame', { mode: 'klondike' }); await t.waitForStable();
+      t.equal(await t.game('fxLevel'), 'low', 'the page is in low-effects mode');
+      const a = await t.game('ambient');
+      t.expect(!a.wanted && !a.running && a.painted === 0, 'the ambient layer is off: ' + JSON.stringify(a));
+    },
+  },
 ];
