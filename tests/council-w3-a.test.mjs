@@ -6,6 +6,7 @@ import { baseSettings } from './_util.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.resolve(HERE, '..', '..', '_council', 'hsg-solitaire', 'wave-3', 'shots');
+const rawShot = async (t, id, name) => { fs.mkdirSync(SHOTS, { recursive: true }); await t.page.screenshot({ path: path.join(SHOTS, id + '-' + name + '-' + t.viewport + '.png') }); };
 const shot = async (t, id, name) => { fs.mkdirSync(SHOTS, { recursive: true }); await t.waitForStable(); await t.page.screenshot({ path: path.join(SHOTS, id + '-' + name + '-' + t.viewport + '.png') }); };
 
 const P = 'spa-solitaire:v1:';
@@ -143,6 +144,32 @@ export const tests = [
       await t.game('act', 'draw');
       await t.page.waitForFunction(() => window.__game.getState().stuck !== null, null, { timeout: 8000 });
       t.equal((await t.state()).lost, null, 'no search while many cards are face down');
+    },
+  },
+  {
+    name: 'w3a S1-06 while a card is held the pile it would land on is lit, and letting go lands it there',
+    async run(t) {
+      await baseSettings(t, { motion: 'full' });
+      // Spider columns are narrow on a phone: a card held between two columns goes to the one it covers more
+      await t.game('setState', { mode: 'spider', opts: { suits: 4 }, piles: { stock: [], t0: ['6S'], t1: ['6H'], t2: ['5D'], t3: ['KC'], t4: [], t5: [], t6: [], t7: [], t8: [], t9: [] } });
+      await t.waitForStable();
+      const lay = await t.game('getLayout');
+      const c = lay.piles.t2.cards[0], w = lay.cardW, x0 = lay.piles.t0.x, x1 = lay.piles.t1.x, y = lay.piles.t0.y + lay.piles.t0.cards.length * 4;
+      const at = async (cardX) => { await t.page.mouse.move(cardX + c.w / 2, y + 10, { steps: 4 }); await t.page.waitForFunction(() => window.__game.getState().dropTarget !== undefined); return (await t.state()).dropTarget; };
+      t.equal((await t.state()).dropTarget, null, 'nothing is lit when nothing is held');
+      await t.page.mouse.move(c.x + c.w / 2, c.y + 10); await t.page.mouse.down();
+      await t.page.mouse.move(c.x + c.w / 2, c.y - 40, { steps: 4 });
+      t.equal(await at(x0 + (x1 - x0) * 0.3), 't0', 'held nearer the first column: it is lit');
+      await rawShot(t, 'S1-06', 'lit-first');
+      t.equal(await at(x0 + (x1 - x0) * 0.7), 't1', 'nearer the second: that one is');
+      await rawShot(t, 'S1-06', 'lit-second');
+      t.equal(await at(lay.piles.t3.x), null, 'over a column that will not take it: nothing is lit');
+      await at(x0 + (x1 - x0) * 0.8);
+      await t.page.mouse.up();
+      await t.waitForStable();
+      t.equal((await t.state()).piles.t1, ['6H', '5D'], 'letting go lands it on the column that was lit');
+      t.equal((await t.state()).dropTarget, null, 'and the light goes out');
+      await t.checkLayout();
     },
   },
 ];

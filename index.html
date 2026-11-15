@@ -2829,6 +2829,8 @@ function frame(t) {
     drag.run.forEach((u, i) => drawCardAt(u, drag.x, drag.y + i * (drag.fan || 0), t, 1.35));
     glowRect(drag.x - cw * .035, drag.y - ch * .035, cw * 1.07, hgt + ch * .07, '#F6C933', .75, 2.5);
     ctx.restore();
+    const tg = dropTarget(drag); // the rim goes over the held card so it shows even where the card covers the pile
+    if (tg) { const b = L.piles[tg], tc = b.cards.length ? b.cards[b.cards.length - 1] : b; glowRect(tc.x, tc.y, cw, ch, '#FFE08A', .9, 2.5); }
     if (Math.abs(drag.tilt) > .002) startLoop();
   }
   drawFx(t);
@@ -3002,8 +3004,8 @@ cv.addEventListener('pointermove', (e) => {
   drag.trail = sp > L.cw * .25 ? [...(drag.trail || []), { x: drag.x, y: drag.y }].slice(-2) : [];
   drag.x = p.x - drag.ox; drag.y = p.y - drag.oy; markDirty();
 });
-function finishDrag() {
-  const dr = drag; drag = null;
+// The pile a held run would land on: the legal one it overlaps most. frame() lights it while the card is held; finishDrag drops there.
+function dropTarget(dr) {
   const { cw, ch } = L; let best = null, bestA = 0;
   for (const id in L.piles) {
     if (id === dr.from || !canDrop(dr.run, id, dr.from)) continue;
@@ -3011,6 +3013,11 @@ function finishDrag() {
     const ix = Math.max(0, Math.min(dr.x + cw, zx + cw) - Math.max(dr.x, zx)), iy = Math.max(0, Math.min(dr.y + ch, zy + zh) - Math.max(dr.y, zy));
     if (ix * iy > bestA) { bestA = ix * iy; best = id; }
   }
+  return best;
+}
+function finishDrag() {
+  const dr = drag; drag = null;
+  const best = dropTarget(dr);
   dr.run.forEach((u, i) => { const d = D[u]; d.sx = d.x = dr.x; d.sy = d.y = dr.y + i * dr.fan; d.tx = d.sx; d.ty = d.sy; });
   const t = now();
   if (best) { tryMove(dr.from, dr.index, best); }
@@ -3907,7 +3914,7 @@ window.__game = {
     if (!S) return { scene: sceneName(), settings: Object.assign({}, settings) };
     return { scene: sceneName(), modal: modalKind, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, piles: notePiles(),
       score: S.score, moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, winnable: !!S.winnable, started: S.started, canAutoComplete: canAutoComplete(),
-      undoDepth: undoStack.length, redoDepth: redoStack.length, held: held ? Object.assign({}, held) : null, cursor: Object.assign({}, cursor),
+      undoDepth: undoStack.length, redoDepth: redoStack.length, held: held ? Object.assign({}, held) : null, dropTarget: drag ? dropTarget(drag) : null, cursor: Object.assign({}, cursor),
       settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, stuck: stuckVerdict, lost: lostVerdict, storageOK };
   },
   setState(s) {
