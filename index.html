@@ -57,6 +57,10 @@
   #ttl{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15}
   #modeName{font-family:var(--font-display);font-weight:400;font-size:1.12rem;letter-spacing:.03em;color:var(--brass-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #modeSub{font-family:var(--font-deco);font-size:.74rem;letter-spacing:.04em;color:var(--lac-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #subRow{display:flex;align-items:center;gap:8px;min-width:0} #subRow #modeSub{min-width:0}
+  #assistTag{flex:none;position:relative;border:1px solid rgba(233,200,115,.55);border-radius:999px;background:transparent;color:var(--brass-hi);font-family:var(--font-deco);font-size:.62rem;font-weight:600;letter-spacing:.06em;padding:0 8px;line-height:1.5;cursor:pointer}
+  #assistTag::after{content:"";position:absolute;inset:-14px -6px}
+  #assistTag[hidden]{display:none}
   #status{display:flex;gap:20px;font-family:var(--font-deco);font-size:.66rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
     color:var(--lac-muted);white-space:nowrap}
   #status span{text-align:right}
@@ -310,7 +314,7 @@
 <div id="app">
   <header id="bar">
     <button class="ib" id="bMenu" aria-label="Menu" title="Menu (Esc)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-    <div id="ttl"><span id="modeName">Spa City Solitaire</span><span id="modeSub"></span></div>
+    <div id="ttl"><span id="modeName">Spa City Solitaire</span><div id="subRow"><span id="modeSub"></span><button id="assistTag" type="button" hidden>assisted</button></div></div>
     <div id="status" aria-label="Game status">
       <span id="sScoreW">Score<b id="sScore">0</b></span><span>Moves<b id="sMoves">0</b></span><span id="sTimeW">Time<b id="sTime">0:00</b></span>
     </div>
@@ -1167,7 +1171,7 @@ function solverHint() {
 
 function hint() {
   if (!S || S.won) return { ok: false };
-  S.usedHint = true; S.assisted = true; tipEvent('hint');
+  S.usedHint = true; S.assisted = true; tipEvent('hint'); updateHUD();
   const sig = S.moves + '|' + undoStack.length + '|' + (S.piles.stock ? S.piles.stock.length : 0);
   if (!hintState || hintState.sig !== sig) {
     const a = analyze(HINT_BUDGET, false, true);
@@ -3685,7 +3689,8 @@ $('#coachSkip').onclick = () => { setSetting('tips', false); toast('Tips off. Se
 function updateHUD() {
   if (!S) return;
   $('#modeName').textContent = MODES[S.mode].name + (variantLabel(S.mode, S.opts) ? ' (' + variantLabel(S.mode, S.opts) + ')' : '');
-  $('#modeSub').textContent = (S.daily ? (S.winnable ? 'Daily ' : 'Daily deal ') + S.daily : 'Deal #' + S.deal) + (S.winnable ? ' · ' + (Object.hasOwn(GRADE_RANK, S.grade) ? S.grade : 'winnable') : '') + (S.assisted ? ' · assisted' : '');
+  $('#modeSub').textContent = (S.daily ? (S.winnable ? 'Daily ' : 'Daily deal ') + S.daily : 'Deal #' + S.deal) + (S.winnable ? ' · ' + (Object.hasOwn(GRADE_RANK, S.grade) ? S.grade : 'winnable') : '');
+  $('#assistTag').hidden = !S.assisted;
   $('#sScore').textContent = S.score; $('#sMoves').textContent = S.moves; updateTime();
   $('#sScoreW').style.display = settings.scoring === 'none' ? 'none' : '';
   $('#sTimeW').style.display = settings.showTimer ? '' : 'none';
@@ -3758,6 +3763,7 @@ let skyRaf = 0;
 const darkScheme = () => window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
 function drawSky(t) {
   const c = $('#sky'); const w = c.clientWidth, h = c.clientHeight; if (!w) return;
+$('#assistTag').onclick = (e) => { toast('Undo or Hint was used. Wins still count, flagged as assisted.'); backToTable(e); };
   const sd = Math.min(1.5, DPR); // a full-screen painting with drifting steam: 1.5x is plenty and keeps phones cool
   if (c.width !== Math.round(w * sd) || c.height !== Math.round(h * sd)) { c.width = Math.round(w * sd); c.height = Math.round(h * sd); }
   const g = c.getContext('2d'); g.setTransform(sd, 0, 0, sd, 0, 0); drawSkyline(g, w, h, t / 1000, darkScheme());
