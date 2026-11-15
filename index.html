@@ -3575,10 +3575,12 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', flushSave);
 
 $('#bNew').onclick = () => { initAudio(); confirmAbandon({ mode: S ? S.mode : 'klondike' }); };
-$('#bUndo').onclick = () => { initAudio(); undo(); };
-$('#bRedo').onclick = () => { initAudio(); redo(); };
-$('#bHint').onclick = () => { initAudio(); hint(); };
-$('#bAuto').onclick = () => { initAudio(); autoComplete(); };
+// After a mouse or touch press on a toolbar button the keys belong to the table again (a keyboard press keeps its focus, so Tab and Enter still work).
+const backToTable = (e) => { if (e.detail > 0 && !modalKind && !titleOn) cv.focus({ preventScroll: true }); };
+$('#bUndo').onclick = (e) => { initAudio(); undo(); backToTable(e); };
+$('#bRedo').onclick = (e) => { initAudio(); redo(); backToTable(e); };
+$('#bHint').onclick = (e) => { initAudio(); hint(); backToTable(e); };
+$('#bAuto').onclick = (e) => { initAudio(); autoComplete(); backToTable(e); };
 $('#bMenu').onclick = () => { initAudio(); openModal('menu'); };
 
 // --- Title screen ---

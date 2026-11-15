@@ -197,4 +197,23 @@ export const tests = [
       }
     },
   },
+  {
+    name: 'w3a S1-11 after a mouse press on a toolbar button the arrow keys move the table cursor again; a key press keeps its focus',
+    async run(t) {
+      await baseSettings(t);
+      await t.seed(7); await t.game('newGame', { mode: 'klondike' }); await t.waitForStable();
+      for (const id of ['bHint', 'bUndo', 'bRedo']) {
+        if (id === 'bUndo') { await firstMove(t); await t.waitForStable(); }
+        await t.page.evaluate(() => { window.__game.act('key', 'ArrowLeft'); }); // a known start
+        const before = (await t.state()).cursor.pile;
+        await t.page.locator('#' + id).click({ force: true });
+        t.equal(await t.page.evaluate(() => document.activeElement.id), 'cv', id + ': the table has the keys again');
+        await t.page.keyboard.press('ArrowRight');
+        t.expect((await t.state()).cursor.pile !== before, id + ': ArrowRight moved the cursor (' + before + ' to ' + (await t.state()).cursor.pile + ')');
+      }
+      await t.page.locator('#bHint').focus();
+      await t.page.keyboard.press('Enter');
+      t.equal(await t.page.evaluate(() => document.activeElement.id), 'bHint', 'a keyboard press leaves focus on the button');
+    },
+  },
 ];
