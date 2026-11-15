@@ -12,6 +12,9 @@ const shot = async (t, id, name) => { fs.mkdirSync(SHOTS, { recursive: true }); 
 const P = 'spa-solitaire:v1:';
 const raw = (t, k) => t.page.evaluate(([p, k]) => localStorage.getItem(p + k), [P, k]);
 const waitModal = (t, kind) => t.page.waitForFunction((k) => window.__game.getState().scene === k, kind, { timeout: 8000 });
+const suitDown = (s) => ['K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2', 'A'].map((r) => r + s);
+// four columns that each end in an Ace: Finish plays all 52 cards home, 70 ms apart (about 3.6 s)
+const finishDeal = () => ({ mode: 'klondike', opts: { draw: 1 }, piles: { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: suitDown('C'), t1: suitDown('D'), t2: suitDown('H'), t3: suitDown('S'), t4: [], t5: [], t6: [] } });
 const firstMove = async (t) => { const m = (await t.game('legalMoves')).find((x) => x.to && x.from !== 'stock'); await t.game('act', 'move', m.from, m.to, m.count); };
 
 export const tests = [
@@ -170,6 +173,28 @@ export const tests = [
       t.equal((await t.state()).piles.t1, ['6H', '5D'], 'letting go lands it on the column that was lit');
       t.equal((await t.state()).dropTarget, null, 'and the light goes out');
       await t.checkLayout();
+    },
+  },
+  {
+    name: 'w3a S1-10 a press or a key while Finish is playing cards home cuts the run short',
+    async run(t) {
+      await baseSettings(t, { motion: 'full' });
+      for (const how of ['pointer', 'key']) {
+        await t.game('setState', finishDeal());
+        await t.page.waitForFunction(() => window.__game.getState().canAutoComplete);
+        await t.page.locator('#bAuto').click();
+        const t0 = await t.page.evaluate(() => performance.now());
+        t.expect((await t.state()).finishing, 'Finish is under way (' + how + ')');
+        if (how === 'pointer') { const b = await t.page.locator('#cv').boundingBox(); await t.page.mouse.click(b.x + b.width / 2, b.y + b.height - 20); }
+        else await t.page.keyboard.press('Space');
+        await t.page.waitForFunction(() => window.__game.getState().ceremony, null, { timeout: 8000 });
+        const took = await t.page.evaluate((t0) => performance.now() - t0, t0);
+        t.expect(took < 2500, 'the ceremony starts well before the 3.9 s the full run takes (' + how + ': ' + Math.round(took) + ' ms)');
+        const s = await t.state();
+        t.equal(s.finishing, false, 'and the run is over');
+        t.equal(s.piles.f0.length + s.piles.f1.length + s.piles.f2.length + s.piles.f3.length, 52, 'every card is home');
+        await t.game('act', 'skip');
+      }
     },
   },
 ];

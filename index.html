@@ -1207,7 +1207,7 @@ function autoComplete() {
   }
   S.moves++;
   sfx('deal');
-  if (!S.won && isWon()) { S.won = true; onWin(d); }
+  if (!S.won && isWon()) { S.won = true; finishRun = d > 300; onWin(d); }
   relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   return { ok: true };
 }
@@ -1326,7 +1326,7 @@ function newGame(o = {}) {
 }
 function startDeal(mode, opts, deal, daily, winnable) {
   abandonCurrent();
-  clearTimeout(winTimer); winTimer = 0;
+  clearTimeout(winTimer); winTimer = 0; finishRun = false;
   S = newState(mode, opts, deal, daily); musicHush = false;
   if (winnable) S.winnable = true;
   undoStack = []; redoStack = []; hintState = null; held = null; drag = null; cascade = null; cursor = { pile: null, depth: 0 }; clearStuck();
@@ -1378,9 +1378,15 @@ function onWin(delay) {
   lastWin = { ach, opened: opened.map(unlockName), pb: !!(best.time || best.moves || best.score) && st.won > 1, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, bonus, moves: S.moves, ms: S.elapsedMs,
     best, totalWins: meta.totalWins, assisted: S.assisted, fact: FACTS[fnv1a(S.mode + ':' + S.deal) % FACTS.length] };
   announce('You won! Score ' + S.score);
-  winTimer = setTimeout(() => { winTimer = 0; musicHush = true; syncAudio(); sfx('win'); startCascade(); }, Math.max(250, delay + 260));
+  winTimer = setTimeout(ceremony, Math.max(250, delay + 260));
 }
-let winTimer = 0;
+let winTimer = 0, finishRun = false; // finishRun: Finish is still playing cards home, and any press cuts it short
+function ceremony() { winTimer = 0; finishRun = false; musicHush = true; syncAudio(); sfx('win'); startCascade(); }
+function skipFinish() {
+  finishRun = false; const t = now();
+  for (let u = 0; u < S.cards.length; u++) if (D[u]) { D[u].t0 = Math.min(D[u].t0, t - 1e5); D[u].f0 = Math.min(D[u].f0, t - 1e5); }
+  landFx = []; clearTimeout(winTimer); winTimer = setTimeout(ceremony, 250); markDirty();
+}
 
 // --- Save current game ---
 let saveTimer = 0;
@@ -1427,7 +1433,7 @@ function loadSaved() {
 }
 function resumeSaved() {
   const c = loadSaved(); if (!c) return false;
-  clearTimeout(winTimer); winTimer = 0;
+  clearTimeout(winTimer); winTimer = 0; finishRun = false;
   const prev = { S, undoStack };
   try {
     S = c.state; undoStack = c.undo; redoStack = []; hintState = null; held = null; drag = null; cascade = null; fitHold = 1; clearStuck();
@@ -2978,6 +2984,7 @@ let pd = null;
 cv.addEventListener('pointerdown', (e) => {
   initAudio(); kbMode = false; kbClass(); cv.focus({ preventScroll: true });
   if (cascade) { endCascade(); return; }
+  if (finishRun && winTimer) { skipFinish(); return; }
   if (!S || S.won || e.button > 0) return;
   if (pd && pd.id !== e.pointerId) return;
   const p = ptr(e); const hit = hitTest(p.x, p.y);
@@ -3057,6 +3064,7 @@ function gameKey(e) {
   const k = e.key; const ctrl = e.ctrlKey || e.metaKey;
   if (!S) return false;
   if (cascade) { if (k === 'Enter' || k === ' ' || k === 'Escape') { endCascade(); return true; } return false; }
+  if (finishRun && winTimer) { skipFinish(); return true; }
   if (ctrl && (k === 'z' || k === 'Z')) { undo(); return true; }
   if (ctrl && (k === 'y' || k === 'Y')) { redo(); return true; }
   if (ctrl || e.altKey) return false;
@@ -3784,7 +3792,7 @@ const MODALS = {
 };
 const ACTIONS = {
   resetSaved: () => { // a table that will not come right: forget it and go back to the title
-    clearTimeout(saveTimer); saveTimer = 0; clearTimeout(winTimer); winTimer = 0; clearStuck();
+    clearTimeout(saveTimer); saveTimer = 0; clearTimeout(winTimer); winTimer = 0; finishRun = false; clearStuck();
     S = null; undoStack = []; redoStack = []; held = null; drag = null; cascade = null; hintState = null;
     save('current', null); closeModal(); showTitle(true); toast('Saved game cleared.');
   },
@@ -3914,7 +3922,7 @@ window.__game = {
     if (!S) return { scene: sceneName(), settings: Object.assign({}, settings) };
     return { scene: sceneName(), modal: modalKind, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, piles: notePiles(),
       score: S.score, moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, winnable: !!S.winnable, started: S.started, canAutoComplete: canAutoComplete(),
-      undoDepth: undoStack.length, redoDepth: redoStack.length, held: held ? Object.assign({}, held) : null, dropTarget: drag ? dropTarget(drag) : null, cursor: Object.assign({}, cursor),
+      undoDepth: undoStack.length, redoDepth: redoStack.length, finishing: !!(finishRun && winTimer), ceremony: !!cascade, held: held ? Object.assign({}, held) : null, dropTarget: drag ? dropTarget(drag) : null, cursor: Object.assign({}, cursor),
       settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, stuck: stuckVerdict, lost: lostVerdict, storageOK };
   },
   setState(s) {
@@ -3925,7 +3933,7 @@ window.__game = {
     for (const id in s.piles || {}) { if (!st.piles[id]) continue; for (const n of s.piles[id]) { const c = parseNote(n); st.piles[id].push(st.cards.length); st.cards.push({ s: c.s, r: c.r }); st.up.push(c.up); } }
     if (s.score != null) st.score = s.score; if (s.moves != null) st.moves = s.moves;
     S = st; undoStack = []; redoStack = []; held = null; drag = null; cascade = null; hintState = null; lastWin = null; clearStuck();
-    clearTimeout(winTimer); winTimer = 0;
+    clearTimeout(winTimer); winTimer = 0; finishRun = false;
     closeModal(); showTitle(false); relayout(true); updateHUD(); markDirty();
     return true;
   },
@@ -3963,14 +3971,14 @@ window.__game = {
       case 'tap': return tapAt(a[0], a[1]);
       case 'key': { const r = gameKey({ key: a[0], ctrlKey: !!a[1], metaKey: false, altKey: false, shiftKey: false }); return { ok: r }; }
       case 'ceremonyAt': { // render the win ceremony exactly `ms` in, then hold that frame
-        if (winTimer) { clearTimeout(winTimer); winTimer = 0; }
+        if (winTimer) { clearTimeout(winTimer); winTimer = 0; finishRun = false; }
         if (!cascade) startCascade(); if (!cascade) return { ok: false };
         frozenAt = null; const t0 = cascade.t0, end = t0 + (+a[0] || 0);
         for (let tt = t0; tt < end; tt += 16) frame(tt);
         frame(end); frozenAt = end; return { ok: true };
       }
       case 'unfreeze': frozenAt = null; markDirty(); return { ok: true };
-      case 'skip': { const t = now(); if (S) for (let u = 0; u < S.cards.length; u++) if (D[u]) { D[u].t0 = Math.min(D[u].t0, t - 1e5); D[u].f0 = Math.min(D[u].f0, t - 1e5); } if (winTimer) { clearTimeout(winTimer); winTimer = 0; startCascade(); } if (cascade) endCascade(); markDirty(); return { ok: true }; }
+      case 'skip': { const t = now(); if (S) for (let u = 0; u < S.cards.length; u++) if (D[u]) { D[u].t0 = Math.min(D[u].t0, t - 1e5); D[u].f0 = Math.min(D[u].f0, t - 1e5); } if (winTimer) { clearTimeout(winTimer); winTimer = 0; finishRun = false; startCascade(); } if (cascade) endCascade(); markDirty(); return { ok: true }; }
       default: return { ok: false, reason: 'unknown action' };
     }
   },
