@@ -444,6 +444,7 @@ const loadObj = (name) => { const v = load(name, null); return isObj(v) ? v : {}
 const storedSettings = loadObj('settings');
 const settings = Object.assign({}, DEFAULT_SETTINGS, storedSettings);
 if (!hadSave) save('settings', settings); // a save from here on is a player who has seen the tips
+  autoNoted: false, // set once the first automatic move to a foundation has been explained with a toast
 let stats = loadObj('stats');
 let meta = Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 0, daily: {} }, loadObj('meta'));
 const reduceQuery = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
@@ -721,7 +722,10 @@ function autoplay(delayBase) {
       const u = top(id); if (u < 0 || !S.up[u]) continue;
       if (kindOf(id) === 'found') continue;
       const f = foundationFor(u);
-      if (f && (mode === 'all' || safeToAutoplay(u))) { rawMove(id, S.piles[id].length - 1, f, d + 1); d += 90; moved = true; settleTableau(d); break; }
+      if (f && (mode === 'all' || safeToAutoplay(u))) {
+        if (!settings.autoNoted) { settings.autoNoted = true; saveSettings(); toast('Moved the ' + describeCard(u).replace(/^./, (c) => c.toLowerCase()) + ' up. Turn this off in Settings.'); } // said once, the first time a card moves by itself
+        rawMove(id, S.piles[id].length - 1, f, d + 1); d += 90; moved = true; settleTableau(d); break;
+      }
     }
   }
   return d;
@@ -1989,6 +1993,7 @@ function normalizeMeta() {
   if (!isObj(meta.lastOpts)) meta.lastOpts = {};
   meta.lastOpts = { draw: meta.lastOpts.draw === 3 ? 3 : 1, suits: [1, 2, 4].includes(meta.lastOpts.suits) ? meta.lastOpts.suits : 1 };
   if (typeof meta.totalWins !== 'number' || !isFinite(meta.totalWins)) meta.totalWins = 0;
+if (hadSave && typeof storedSettings.autoNoted !== 'boolean') settings.autoNoted = true; // someone who has played before has already seen cards go home by themselves
   if (!isObj(meta.daily)) meta.daily = {};
   meta.wonDeals = Array.isArray(meta.wonDeals) ? meta.wonDeals.filter((x) => typeof x === 'string').slice(-WON_DEALS_KEPT) : []; // the last deals won, so a replay can be told from a first win
   const cut = dayShift(todayStr(), -DAILY_KEEP_DAYS); for (const k in meta.daily) if (k.slice(0, 10) < cut) delete meta.daily[k];
