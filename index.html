@@ -3141,6 +3141,18 @@ function hitTest(x, y) {
   return null;
 }
 let pd = null, lastTap = null;
+// A press that moves but cannot lift the card (face down, or a FreeCell run longer than the cells allow) says so once instead of doing nothing.
+function runTooLong(id, idx) {
+  const p = S.piles[id]; if (!def().capacity || kindOf(id) !== 'tab' || idx >= p.length) return false;
+  for (let i = idx; i < p.length; i++) if (!S.up[p[i]]) return false;
+  for (let i = idx; i < p.length - 1; i++) if (!(def().lift === 'suit' ? suitDesc(p[i], p[i + 1]) : altDesc(p[i], p[i + 1]))) return false;
+  return p.length - idx > capacity(null);
+}
+function refuseDrag(pile, index) {
+  if (kindOf(pile) === 'stock') return;
+  shake(pile, index); sfx('nope');
+  if (runTooLong(pile, index)) toast('Not enough free cells for that run');
+}
 const DOUBLE_TAP_MS = 320; // two presses on the same card this close are a double-tap
 const tapMode = () => (['tap', 'double', 'drag'].includes(settings.tapMove) ? settings.tapMove : 'tap');
 cv.addEventListener('pointerdown', (e) => {
@@ -3162,9 +3174,9 @@ cv.addEventListener('pointermove', (e) => {
     const dist = Math.hypot(p.x - pd.x, p.y - pd.y);
     if (dist < (pd.touch ? 10 : 6) || !pd.hit || pd.hit.index < 0) return;
     const { pile, index } = pd.hit;
-    if (!canPick(pile, index)) { pd.hit = null; return; }
+    if (!canPick(pile, index)) { pd.hit = null; refuseDrag(pile, index); return; }
     const c = L.piles[pile].cards[index]; const cs = L.piles[pile].cards;
-    drag = { from: pile, index, run: S.piles[pile].slice(index), ox: pd.x - c.x, oy: pd.y - c.y, x: c.x, y: c.y,
+    drag = { from: pile, index, run: S.piles[pile].slice(index), ox: pd.x - c.x, oy: pd.y - c.y, x: c.x, y: c.y, x0: c.x, y0: c.y, touch: pd.touch,
       fan: cs.length > index + 1 ? cs[index + 1].y - c.y : 0 };
     sfx('pick');
   }
@@ -3184,13 +3196,19 @@ function dropTarget(dr) {
   }
   return best;
 }
+const DRAG_TAP_REACH = 2.5; // a press that travelled less than this many drag thresholds is a tap that wobbled
+function overSource(dr) {
+  const b = L.piles[dr.from], px = dr.x + dr.ox, py = dr.y + dr.oy;
+  return !!b && px >= b.x && px <= b.x + L.cw && py >= b.y && py <= b.y + (b.zoneH || L.ch);
+}
 function finishDrag() {
   const dr = drag; drag = null;
   const best = dropTarget(dr);
   dr.run.forEach((u, i) => { const d = D[u]; d.sx = d.x = dr.x; d.sy = d.y = dr.y + i * dr.fan; d.tx = d.sx; d.ty = d.sy; });
   const t = now();
   if (best) { tryMove(dr.from, dr.index, best); }
-  else { sfx('nope'); }
+  else if (Math.hypot(dr.x - dr.x0, dr.y - dr.y0) < DRAG_TAP_REACH * (dr.touch ? 10 : 6)) { if (tapMode() === 'tap') tapAt(dr.from, dr.index); } // a wobbly tap is still a tap
+  else if (!overSource(dr)) sfx('nope'); // putting a card back where it came from is not a mistake
   dr.run.forEach((u) => {
     const d = D[u], T = targets[u]; if (!T) return; const dist = Math.hypot(T.x - d.sx, T.y - d.sy);
     d.tx = T.x; d.ty = T.y; d.t0 = t; d.dur = reducedMotion() ? 0 : clamp(170 + dist * .25, 200, 320); d.arc = 0; d.spin = 0; d.back = true;
