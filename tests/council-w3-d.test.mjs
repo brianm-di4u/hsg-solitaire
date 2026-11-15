@@ -1,5 +1,11 @@
 // Council wave 3, batch D: sound (CL-01, S1-07, S1-08, S1-12, S1-17, S3-18, S5-03, S5-05, S5-06).
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { baseSettings } from './_util.mjs';
+
+const SHOTS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '_council', 'hsg-solitaire', 'wave-3', 'shots');
+const shot = async (t, id, name) => { fs.mkdirSync(SHOTS, { recursive: true }); await t.waitForStable(); await t.page.screenshot({ path: path.join(SHOTS, id + '-' + name + '-' + t.viewport + '.png') }); };
 
 const MAX = { volume: 1, musicVol: 1, ambVol: 1 };
 // The refusal cue (nope) is the only one built from square waves, so counting them counts refusals: two per cue.
@@ -7,6 +13,9 @@ const spySquares = () => { const d = Object.getOwnPropertyDescriptor(OscillatorN
 const nopes = async (t) => (await t.page.evaluate(() => window.__sq)) / 2;
 const EMPTY_K = { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: [], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] };
 const card0 = async (t, pile, i = 0) => { const lay = await t.game('getLayout'); const c = lay.piles[pile].cards[i]; return { x: c.x + c.w / 2, y: c.y + 12, lay }; };
+const stubVibrate = () => { window.__vib = []; navigator.vibrate = (p) => { window.__vib.push(p); return true; }; };
+const vib = (t) => t.page.evaluate(() => window.__vib.slice());
+const fingerDown = (t) => t.page.evaluate(() => document.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', bubbles: true })));
 const render = (t, name, secs, over) => t.page.evaluate(([n, s, o]) => window.__game.audioRender(n, s, false, o), [name, secs, over]);
 
 export const tests = [
@@ -85,6 +94,43 @@ export const tests = [
       t.equal(await nopes(t), 0, 'a run the cells allow lifts without a refusal');
       t.equal(await t.page.evaluate(() => document.getElementById('toast').textContent), '', 'and says nothing');
       await t.page.mouse.up();
+    },
+  },
+  {
+    name: 'w3d S1-12 touch gets short buzzes on pick, place, foundation and refusal, behind a Vibration switch',
+    initScript: stubVibrate,
+    async run(t) {
+      await baseSettings(t, { sound: false });
+      const setup = () => t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EMPTY_K, { t0: ['AS'], t1: ['6S'], t2: ['5H'], t3: ['9C'] }) });
+      await setup();
+      t.equal(await vib(t), [], 'nothing buzzes before a touch');
+      await t.game('act', 'move', 't2', 't1');
+      t.equal(await vib(t), [], 'a mouse player on a laptop never buzzes');
+      await setup(); await fingerDown(t);
+      await t.game('act', 'move', 't2', 't1');
+      t.equal(await vib(t), [12], 'a card placed: 12 ms');
+      await t.game('act', 'move', 't0', 'f0');
+      t.equal((await vib(t)).slice(1), [[10, 40, 10]], 'a card sent home: a double pulse');
+      await t.game('act', 'tap', 't3', 0);
+      t.equal((await vib(t)).slice(2), [25], 'a refused move: 25 ms');
+      // picking a card up with a finger
+      await setup(); await fingerDown(t); await t.page.evaluate(() => { window.__vib.length = 0; });
+      const c = await card0(t, 't0');
+      await t.page.evaluate(([x, y]) => { const cv = document.getElementById('cv'), ev = (type, dx) => cv.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: 7, isPrimary: true, clientX: x + dx, clientY: y, bubbles: true })); ev('pointerdown', 0); ev('pointermove', 30); }, [c.x, c.y]);
+      t.equal(await vib(t), [10], 'a card lifted: 10 ms');
+      await t.page.evaluate(([x, y]) => document.getElementById('cv').dispatchEvent(new PointerEvent('pointerup', { pointerType: 'touch', pointerId: 7, isPrimary: true, clientX: x + 30, clientY: y, bubbles: true })), [c.x, c.y]);
+      // the switch, and reduced motion
+      await t.game('scene', 'settings');
+      t.expect(await t.page.isVisible('[data-tog="haptics"]'), 'Settings has a Vibration switch');
+      await t.page.locator('[data-tog="haptics"]').scrollIntoViewIfNeeded(); await shot(t, 'S1-12', 'settings');
+      await t.page.click('[data-tog="haptics"]');
+      t.equal((await t.state()).settings.haptics, false, 'it turns off and is saved');
+      await t.game('scene', 'game'); await setup(); await fingerDown(t); await t.page.evaluate(() => { window.__vib.length = 0; });
+      await t.game('act', 'move', 't2', 't1');
+      t.equal(await vib(t), [], 'switched off: silent');
+      await t.game('setSettings', { haptics: true, motion: 'reduced' }); await setup(); await fingerDown(t);
+      await t.game('act', 'move', 't2', 't1');
+      t.equal(await vib(t), [], 'reduced motion: silent');
     },
   },
 ];

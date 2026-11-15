@@ -443,6 +443,7 @@ const DEFAULT_SETTINGS = {
   dealGrade: 'any', // random deals graded by solver effort: any (today's), easy, medium or hard
   winnable: false, // random deals come from a solver-won sequence; dailies always do
   sfx: true, music: true, ambience: true, musicVol: 0.6, ambVol: 0.6, // sound effects, music and ambience; all three obey the master `sound` switch
+  haptics: true, // short buzzes on touch, where the browser can vibrate; never with reduced motion
   autoNoted: false, // set once the first automatic move to a foundation has been explained with a toast
   tips: true, tipStep: 0, tipModes: "", // first-run tips: on for a new player, off for a save that came before them; progress is kept
 };
@@ -3674,7 +3675,14 @@ function syncAudio() {
   const paused = document.hidden || PAUSE_MODALS.includes(modalKind);
   if (paused && !kit.held) kit.hold(); else if (!paused && kit.held) kit.release();
 }
+// Haptics: a short pulse on the cues a thumb should feel. Only after a touch (a laptop with a mouse never buzzes), never with reduced motion, and with its own switch.
+const BUZZ = { pick: 10, place: 12, found: [10, 40, 10], nope: 25 };
+function buzz(name) {
+  const p = BUZZ[name]; if (!p || !settings.haptics || !touchIn || !navigator.vibrate || document.hidden || reducedMotion()) return;
+  try { navigator.vibrate(p); } catch (_) { /* vibration is optional */ }
+}
 function sfx(name, arg, pan) {
+  buzz(name);
   if (!settings.sound || !settings.sfx || !AC || document.hidden) return;
   wakeAudio();
   cues.play(name, arg, AC.currentTime, pan);
@@ -3915,6 +3923,7 @@ const MODALS = {
     '<div class="set"><label for="musicVol">Music volume</label><input type="range" id="musicVol" min="0" max="1" step="0.05" value="' + settings.musicVol + '"></div>' +
     '<div class="set"><label>Ambience<small>The quiet of the bathhouse</small></label>' + tog('ambience', 'Ambience') + '</div>' +
     '<div class="set"><label for="ambVol">Ambience volume</label><input type="range" id="ambVol" min="0" max="1" step="0.05" value="' + settings.ambVol + '"></div>' +
+    (navigator.vibrate ? '<div class="set"><label>Vibration<small>Short buzzes on touch devices</small></label>' + tog('haptics', 'Vibration') + '</div>' : '') +
     '<div class="set"><label>Motion<small>Auto follows your system setting</small></label>' + seg('motion', [['auto', 'Auto'], ['full', 'Full'], ['reduced', 'Reduced']]) + '</div>' +
     '<div class="set"><label>Left-handed layout<small>Stock and free cells on the left</small></label>' + tog('leftHanded', 'Left-handed layout') + '</div>' +
     '<div class="set"><label>Card size<small>Large also enlarges the corner index</small></label>' + seg('cardSize', [['compact', 'Compact'], ['standard', 'Standard'], ['large', 'Large']]) + '</div>' +
