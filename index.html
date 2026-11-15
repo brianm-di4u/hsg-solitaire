@@ -295,6 +295,8 @@
   .rec{border-bottom:1px solid var(--color-border);padding:6px 0} .rec b{font-family:var(--font-deco)} .rec small{display:block;color:var(--color-muted)}
   .ach{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}
   .ach li{padding:6px 8px;border:1px solid var(--color-border);border-radius:8px;font-size:.85rem;opacity:.8} .ach li.got{opacity:1;border-color:#B8862C;background:var(--chip)}
+  .fnd{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}
+  .fnd li{padding:6px 8px;border:1px solid #B8862C;border-radius:8px;font-size:.85rem;background:var(--chip)} .fnd li b{display:block}
   .ach li b{display:block} .ach li small{color:var(--color-muted)}
   .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;font-size:.8rem;margin:6px 0}
   .cal i{font-style:normal;min-height:44px;border:1px solid var(--color-border);border-radius:6px;padding:2px;display:flex;flex-direction:column;justify-content:center}
@@ -3881,7 +3883,7 @@ const MODALS = {
       '<br>Graded deals won: Easy <b>' + meta.gradeWins.easy + '</b> · Medium <b>' + meta.gradeWins.medium + '</b> · Hard <b>' + meta.gradeWins.hard + '</b></p><h3>By game</h3>' +
       MODE_KEYS.map((k) => { const st = statFor(k); return '<div class="rec"><b>' + esc(modeKeyLabel(k)) + '</b><small>Won ' + st.won + ' of ' + st.played + ' · streak ' + st.streak + ' (best ' + st.bestStreak + ')</small><small>' +
         (st.bestTimeMs ? 'Best ' + fmtTime(st.bestTimeMs) + ' · ' + st.fewestMoves + ' moves · score ' + st.bestScore : st.won ? 'No unaided first win yet' : 'No wins yet') + '</small></div>'; }).join('') +
-      hp('Facts found: ' + found.length + ' of ' + FACTS.length, null, '<ul class="ach">' + found.map((i) => '<li class="got"><b>' + esc(FACTS[i][2]) + '</b>' + esc(FACTS[i][1]) + '</li>').join('') + '</ul>') +
+      hp('Facts found: ' + found.length + ' of ' + FACTS.length, null, '<ul class="fnd">' + found.map((i) => '<li><b>' + esc(FACTS[i][2]) + '</b>' + esc(FACTS[i][1]) + '</li>').join('') + '</ul>') +
       '<h3>Achievements: ' + n + ' of ' + ACH.length + '</h3><ul class="ach">' +
       ACH.map((a) => '<li' + (meta.ach[a[0]] ? ' class="got"' : '') + '><b>' + esc(a[1]) + '</b>' + esc(a[2]) + '<small> ' + (meta.ach[a[0]] ? 'Earned ' + meta.ach[a[0]] : 'Not yet') + '</small></li>').join('') + '</ul>';
   },

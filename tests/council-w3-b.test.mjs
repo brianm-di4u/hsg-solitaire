@@ -224,8 +224,8 @@ export const tests = [
       await t.game('scene', 'records');
       t.expect((await t.page.locator('#sheet').textContent()).includes('Facts found: 50 of 50'), 'Records counts them');
       await t.page.locator('#sheet details.hp summary').first().click();
-      t.equal(await t.page.locator('#sheet details.hp[open] li').count(), 50, 'and lists them');
-      await t.page.locator('#sheet details.hp[open] li').nth(3).scrollIntoViewIfNeeded();
+      t.equal(await t.page.locator('#sheet details.hp[open] .fnd li').count(), 50, 'and lists them');
+      await t.page.locator('#sheet details.hp[open] .fnd li').nth(3).scrollIntoViewIfNeeded();
       await shot(t, 'S3-16', 'records');
       await t.checkLayout();
       await t.reload();
