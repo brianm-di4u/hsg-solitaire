@@ -1511,9 +1511,16 @@ function onWin(delay) {
   const factIdx = pickFact(S.mode + ':' + S.deal);
   save('meta', meta); save('current', null);
   lastWin = { ach, opened: opened.map(unlockName), pb: !!(best.time || best.moves || best.score) && hadBest, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, scoring: settings.scoring, bonus, moves: S.moves, ms: S.elapsedMs,
-    best, totalWins: meta.totalWins, assisted: S.assisted, replay, fact: FACTS[factIdx] };
+    best, totalWins: meta.totalWins, streak: replay ? 0 : st.streak, assisted: S.assisted, replay, fact: FACTS[factIdx] };
   announce(settings.scoring === 'none' ? 'You won!' : 'You won! Score ' + S.score);
   winTimer = setTimeout(ceremony, Math.max(250, delay + 260));
+}
+// The one cue the win sheet adds for what the win earned: a whole course of baths or a daily, then a new personal best, then three or more wins in a row.
+function milestoneCue(w) {
+  if (!w) return null;
+  if (w.totalWins % 21 === 0 || w.daily) return ['course'];
+  if (w.pb) return ['best'];
+  return w.streak >= 3 ? ['streak', Math.min(5, w.streak)] : null;
 }
 let winTimer = 0, finishRun = false; // finishRun: Finish is still playing cards home, and any press cuts it short
 function ceremony() { winTimer = 0; finishRun = false; musicHush = true; syncAudio(); sfx('win'); startCascade(); }
@@ -3659,12 +3666,22 @@ function makeCues(ctx, dest) {
         case 'hint': tone(t, 880, .18, 'sine', .32); tone(t + .08, 1320, .2, 'sine', .24); break;
         case 'run': [523, 659, 784].forEach((f, i) => tone(t + i * .07, f, .4, 'triangle', .3)); noise(t + .14, .3, 'highpass', 5000, .1); break;
         case 'ach': tone(t, 659.25, .5, 'sine', .24, .01); tone(t + .11, 987.77, .5, 'sine', .24, .01); tone(t + .24, 1318.5, .7, 'triangle', .12, .01); break;
+        case 'best': tone(t, 987.77, .4, 'sine', .3, .008, pan); tone(t + .11, 1479.98, .6, 'sine', .3, .008, pan); tone(t + .11, 2959.96, .3, 'sine', .07, .008, pan); noise(t + .1, .3, 'highpass', 6000, .08, 1, pan); break;
+        case 'streak': { // an arpeggio up the key of the ach cue, one note longer for each win in the row (3 to 5)
+          const n = clamp(arg || 3, 2, 5), up = [659.25, 830.61, 987.77, 1318.5, 1661.22];
+          for (let i = 0; i < n; i++) tone(t + i * .085, up[i], i === n - 1 ? .7 : .35, i === n - 1 ? 'triangle' : 'sine', .26, .008, pan);
+          noise(t + (n - 1) * .085, .3, 'highpass', 6000, .06, 1, pan); break;
+        }
+        case 'course': { // a whole course of baths: a long E major chord over a low E
+          [329.63, 415.3, 493.88, 659.25].forEach((f, i) => { tone(t + i * .07, f, 1.8, 'triangle', .14, .02, pan); tone(t + i * .07, f * 2, 1.2, 'sine', .04, .02, pan); });
+          tone(t, 164.81, 1.8, 'sine', .22, .03, pan); noise(t + .2, 1.2, 'highpass', 5000, .05, 1, pan); break;
+        }
         case 'win': [392, 523.25, 659.25, 783.99].forEach((f, i) => { tone(t + i * .12, f, 1.1, 'sawtooth', .08, .03); tone(t + i * .12, f, 1.2, 'triangle', .19, .02); }); noise(t + .4, 1.4, 'highpass', 2500, .17); break;
       }
     },
   };
 }
-const CUE_NAMES = ['pick', 'place', 'flip', 'found', 'deal', 'nope', 'undo', 'hint', 'run', 'ach', 'win'];
+const CUE_NAMES = ['pick', 'place', 'flip', 'found', 'deal', 'nope', 'undo', 'hint', 'run', 'ach', 'win', 'best', 'streak', 'course'];
 for (const ev of ['pointerdown', 'click', 'keydown']) document.addEventListener(ev, (e) => { initAudio(); if (e.pointerType) touchIn = e.pointerType !== 'mouse'; }, { passive: true, capture: true }); // the first gesture of any kind starts the audio
 function initAudio() {
   if (AC || !settings.sound) return;
@@ -3698,8 +3715,10 @@ function buzz(name, waitSec, auto) {
   if (waitSec) setTimeout(go, waitSec * 1000); else go();
 }
 // o.delay: seconds to wait before the cue sounds (a card's landing). o.auto: the game moved the card, so no buzz.
+const CUE_LOG = []; // the last cues asked for, for the test hook (kept whether or not sound is on)
 function sfx(name, arg, pan, o) {
   const wait = (o && o.delay) || 0;
+  if (CUE_LOG.push({ name, arg, wait }) > 80) CUE_LOG.shift();
   buzz(name, wait, o && o.auto);
   if (!settings.sound || !settings.sfx || !AC || document.hidden) return;
   wakeAudio();
@@ -3914,7 +3933,12 @@ function openModal(kind, data) {
   if (kind === 'win' && !reducedMotion()) { modalAnimUntil = now() + 1250; setTimeout(() => sfx('place', 3), 650); } // the ticket punch
   sheet.innerHTML = (MODALS[kind] || (() => ''))(data || {});
   modalEl.classList.add('on'); syncAudio();
-  if (kind === 'win') { setTimeout(() => { musicHush = false; syncAudio(); }, 1800); if (lastWin && ((lastWin.ach || []).length || (lastWin.opened || []).length)) setTimeout(() => sfx('ach'), 900); } // the music returns once the ticket is up
+  if (kind === 'win') {
+    setTimeout(() => { musicHush = false; syncAudio(); }, 1800); // the music returns once the ticket is up
+    const earned = lastWin && ((lastWin.ach || []).length || (lastWin.opened || []).length), m = milestoneCue(lastWin);
+    if (earned) setTimeout(() => sfx('ach'), 900);
+    if (m) setTimeout(() => { if (modalKind === 'win') sfx(m[0], m[1]); }, earned ? 1500 : 1000); // after the achievement chime, if there was one
+  }
   sheet.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => closeModal(true)));
   const binder = BIND[kind]; if (binder) binder(data || {});
   if (kind === 'daily' || kind === 'help') paintHands('#sheet');
@@ -4031,7 +4055,7 @@ const MODALS = {
       '<div class="meta">' + esc(modeKeyLabel(k)) + ' · ' + (w.daily ? 'Daily ' + w.daily : 'Deal #' + w.deal) + (w.bonus ? ' · time bonus +' + w.bonus : '') + (w.replay ? ' · replay' : '') + (w.assisted ? ' · assisted' : '') + '</div>' +
       '<div class="course" aria-label="Course progress ' + filled + ' of 21">' + Array.from({ length: 21 }, (_, i) => '<i class="' + (i < filled ? 'f' : '') + (i === filled - 1 ? ' new' : '') + ((i + 1) % 7 === 0 ? ' m' : '') + '"' + ((i + 1) % 7 === 0 ? ' title="' + (i + 1) + ' baths"' : '') + '></i>').join('') + '</div>' +
       '<div class="meta">Course of 21 baths: ' + filled + ' of 21' + (courses ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : '') + '</div></div>' +
-      (w.pb || (w.ach || []).length || (w.opened || []).length ? '<div class="earn" role="status">' + (w.pb ? '<div class="pb">New personal best</div>' : '') + ((w.ach || []).length ? '<div>' + (w.ach.length > 1 ? 'Achievements' : 'Achievement') + ': ' + w.ach.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + ((w.opened || []).length ? '<div>Unlocked: ' + w.opened.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + '</div>' : '') +
+      (w.pb || w.streak >= 3 || (w.ach || []).length || (w.opened || []).length ? '<div class="earn" role="status">' + (w.pb ? '<div class="pb">New personal best</div>' : '') + (w.streak >= 3 ? '<div>' + w.streak + ' wins in a row</div>' : '') + ((w.ach || []).length ? '<div>' + (w.ach.length > 1 ? 'Achievements' : 'Achievement') + ': ' + w.ach.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + ((w.opened || []).length ? '<div>Unlocked: ' + w.opened.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + '</div>' : '') +
       '<div class="fact"><div class="k">Did you know?</div><div class="q">' + esc(f[1]) + '</div><div class="a">' + esc(f[2]) + '</div><div>' + esc(f[3]) + '</div><div class="src">Source: ' + esc(f[4]) + '</div></div>' +
       '<div class="row"><button class="btn solid" data-a="new" data-focus>New deal</button><button class="btn" data-a="restart">Replay this deal</button><button class="btn" data-a="title">Change game</button></div>';
   },
@@ -4195,6 +4219,7 @@ window.__game = {
   meta() { return JSON.parse(JSON.stringify(meta)); },
   fxLevel() { return lowFx ? 'low' : 'full'; },
   audioList, audioRender, audioState,
+  cuesPlayed(clear) { const r = CUE_LOG.slice(); if (clear) CUE_LOG.length = 0; return r; },
   frameStats(reset) {
     const xs = fstat.xs.slice().sort((a, b) => a - b), q = (f) => xs.length ? +xs[Math.min(xs.length - 1, Math.floor(xs.length * f))].toFixed(2) : 0;
     const r = { frames: fstat.n, avgMs: fstat.n ? +(fstat.sum / fstat.n).toFixed(2) : 0, p50Ms: q(.5), p95Ms: q(.95), maxMs: +fstat.max.toFixed(2) };

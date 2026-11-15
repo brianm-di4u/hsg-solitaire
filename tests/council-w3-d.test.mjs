@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { baseSettings, dragCard } from './_util.mjs';
+import { baseSettings, dragCard, nearWinKlondike } from './_util.mjs';
 
 const SHOTS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '_council', 'hsg-solitaire', 'wave-3', 'shots');
 const shot = async (t, id, name) => { fs.mkdirSync(SHOTS, { recursive: true }); await t.waitForStable(); await t.page.screenshot({ path: path.join(SHOTS, id + '-' + name + '-' + t.viewport + '.png') }); };
@@ -22,6 +22,23 @@ const fingerDown = (t) => t.page.evaluate(() => document.dispatchEvent(new Point
 // Every tone the game starts, as seconds from now until it sounds.
 const spyStarts = () => { window.__lead = []; const st = OscillatorNode.prototype.start; OscillatorNode.prototype.start = function (when) { window.__lead.push((when || 0) - this.context.currentTime); return st.apply(this, arguments); }; };
 const leads = (t) => t.page.evaluate(() => { const a = window.__lead.slice(); window.__lead.length = 0; return a; });
+const P = 'spa-solitaire:v1:';
+const put = (t, o) => t.page.evaluate(([p, o]) => { for (const k in o) localStorage.setItem(p + k, JSON.stringify(o[k])); }, [P, o]);
+const reloadGame = async (t) => { await t.page.reload(); await t.page.waitForFunction(() => !!window.__game); };
+const cuesNow = (t, clear) => t.page.evaluate((c) => window.__game.cuesPlayed(c), !!clear);
+// win the near-won Klondike deal (as the winner of a save with these records) and wait for the win sheet
+const KL = { played: 9, won: 8, streak: 0, bestStreak: 9, bestTimeMs: 1, fewestMoves: 1, bestScore: 99999, totalMs: 1, assistedWon: 0, recent: '' };
+// (an assisted win is never a record, so it shows a streak on its own)
+const winWith = async (t, stats, meta, assisted) => {
+  await put(t, { stats: { klondike1: Object.assign({}, KL, stats) }, meta: Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 5, daily: {}, unlock: { ids: [] } }, meta), settings: { sound: false, tips: false } });
+  await reloadGame(t); await baseSettings(t, { sound: false });
+  await t.game('setState', nearWinKlondike()); if (assisted) await t.game('act', 'hint');
+  await cuesNow(t, true);
+  await t.game('act', 'move', 't0', 'f3');
+  await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+  await t.page.waitForFunction(() => window.__game.cuesPlayed().some((c) => ['best', 'streak', 'course'].includes(c.name)) || document.querySelector('#sheet .ticket'), null, { timeout: 5000 }).catch(() => {});
+};
+const heard = async (t) => (await cuesNow(t)).map((c) => c.name).filter((n) => ['best', 'streak', 'course'].includes(n));
 const render = (t, name, secs, over) => t.page.evaluate(([n, s, o]) => window.__game.audioRender(n, s, false, o), [name, secs, over]);
 
 export const tests = [
@@ -171,6 +188,31 @@ export const tests = [
       await t.game('act', 'move', 't2', 't1');
       l = await leads(t);
       t.expect(l.length > 0 && Math.max(...l) < 0.05, 'reduced motion: no wait: ' + l.map((x) => x.toFixed(3)));
+    },
+  },
+  {
+    name: 'w3d S3-18 a record, a streak and a finished course each get a cue of their own on the win sheet',
+    async run(t) {
+      // nothing earned: no milestone cue
+      await winWith(t, {}, { totalWins: 5 }, true);
+      await t.page.waitForFunction(() => !window.__game.audioState().hush, null, { timeout: 8000 }); // negative check: the music returns at 1.8 s, after the latest a milestone cue waits (1.5 s)
+      t.equal(await heard(t), [], 'an ordinary win: no milestone cue');
+      // a faster time than the record
+      await winWith(t, { bestTimeMs: 600000 }, { totalWins: 5 });
+      await t.page.waitForFunction(() => window.__game.cuesPlayed().some((c) => c.name === 'best'), null, { timeout: 5000 });
+      t.equal(await heard(t), ['best'], 'a new personal best: the best cue');
+      t.expect((await t.page.locator('#sheet .earn').textContent()).includes('New personal best'), 'and the sheet says so');
+      // three in a row (two before this one), no record
+      await winWith(t, { streak: 2 }, { totalWins: 5 }, true);
+      await t.page.waitForFunction(() => window.__game.cuesPlayed().some((c) => c.name === 'streak'), null, { timeout: 5000 });
+      const st = (await cuesNow(t)).find((c) => c.name === 'streak');
+      t.equal(st.arg, 3, 'a streak of three: three notes');
+      t.expect((await t.page.locator('#sheet .earn').textContent()).includes('3 wins in a row'), 'and the sheet says so');
+      await shot(t, 'S3-18', 'win-streak');
+      // the 21st win completes a course (it wins over a record on the same win)
+      await winWith(t, { bestTimeMs: 600000 }, { totalWins: 20 });
+      await t.page.waitForFunction(() => window.__game.cuesPlayed().some((c) => ['best', 'streak', 'course'].includes(c.name)), null, { timeout: 5000 });
+      t.equal(await heard(t), ['course'], 'a finished course of 21 baths: the course cue, once');
     },
   },
 ];
