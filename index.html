@@ -1552,11 +1552,11 @@ function onWin(delay) {
   // but do not grow the streak or set a best.
   // A best score is only comparable with the ones already saved when the game was scored the same way: the speed bonus counts (Spider has none).
   const scoredLikeRecords = settings.scoring === 'timed' || (settings.scoring === 'standard' && S.mode === 'spider');
-  const hadBest = !!st.bestTimeMs, dealKey = S.mode + ':' + S.deal, replay = !!S.replay || meta.wonDeals.includes(dealKey), clean = !replay && !S.assisted;
+  const hadBest = !!st.bestTimeMs, dealKey = k + ':' + S.deal, replay = !!S.replay || meta.wonDeals.includes(dealKey) || meta.wonDeals.includes(S.mode + ':' + S.deal), clean = !replay && !S.assisted;
   const best = { time: clean && (!st.bestTimeMs || S.elapsedMs < st.bestTimeMs), moves: clean && (!st.fewestMoves || S.moves < st.fewestMoves), score: clean && scoredLikeRecords && S.score > st.bestScore };
   st.won++; st.totalMs += S.elapsedMs; noteResult(st, S.assisted ? 'A' : 'W');
   if (!replay && S.winnable && Object.hasOwn(GRADE_RANK, S.grade)) meta.gradeWins[S.grade]++;
-  if (!replay) { st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak); }
+  if (clean) { st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak); }
   if (S.assisted) st.assistedWon++;
   if (best.time) st.bestTimeMs = Math.max(1, Math.round(S.elapsedMs));
   if (best.moves) st.fewestMoves = S.moves;
@@ -1571,7 +1571,7 @@ function onWin(delay) {
   const factIdx = pickFact(S.mode + ':' + S.deal);
   save('meta', meta); save('current', null);
   lastWin = { ach, opened: opened.map(unlockName), pb: !!(best.time || best.moves || best.score) && hadBest, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, scoring: settings.scoring, bonus, moves: S.moves, ms: S.elapsedMs,
-    best, totalWins: meta.totalWins, streak: replay ? 0 : st.streak, assisted: S.assisted, replay, fact: FACTS[factIdx] };
+    best, totalWins: meta.totalWins, streak: clean ? st.streak : 0, assisted: S.assisted, replay, fact: FACTS[factIdx] };
   announce(settings.scoring === 'none' ? 'You won!' : 'You won! Score ' + S.score);
   winTimer = setTimeout(ceremony, Math.max(250, delay + 260));
 }

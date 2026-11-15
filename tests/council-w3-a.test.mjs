@@ -264,30 +264,34 @@ export const tests = [
     name: 'w3a S3-05 streaks and bests count first, unaided wins only; replays and assisted wins still count as wins',
     async run(t) {
       await baseSettings(t, { sound: false });
-      const win = async (deal, moves, hint) => {
-        await t.game('setState', Object.assign(nearWinKlondike(), { deal, moves }));
+      const win = async (deal, moves, hint, draw = 1) => {
+        await t.game('setState', Object.assign(nearWinKlondike(), { deal, moves, opts: { draw } }));
         if (hint) await t.game('act', 'hint');
         await t.game('act', 'move', 't0', 'f3');
         await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
-        return (await t.game('stats')).klondike1;
+        return (await t.game('stats'))['klondike' + draw];
       };
       let st = await win(77, 40);
       t.equal([st.won, st.streak, st.fewestMoves, st.assistedWon], [1, 1, 41, 0], 'a first clean win sets the streak and the bests');
-      const m0 = await t.game('meta'); t.equal(m0.wonDeals, ['klondike:77'], 'and the deal is remembered');
+      const m0 = await t.game('meta'); t.equal(m0.wonDeals, ['klondike1:77'], 'and the deal is remembered under its variant');
       st = await win(77, 5);
       t.equal([st.won, st.streak, st.fewestMoves], [2, 1, 41], 'the same deal again counts as a win but not as a streak step or a best (6 moves would have been one)');
       t.expect((await t.page.locator('#sheet .meta').first().textContent()).includes('replay'), 'the ticket says replay');
       st = await win(78, 5, true);
-      t.equal([st.won, st.streak, st.fewestMoves, st.assistedWon], [3, 2, 41, 1], 'a win after a Hint counts, the streak goes on, no best is set');
+      t.equal([st.won, st.streak, st.fewestMoves, st.assistedWon], [3, 1, 41, 1], 'a win after a Hint counts as a win, the streak stays where it was, no best is set');
       const txt = await t.page.locator('#sheet').textContent();
       t.expect(txt.includes('assisted'), 'the ticket says assisted');
       t.expect(!txt.includes('New personal best'), 'and no personal best is claimed');
+      t.expect(!txt.includes('wins in a row'), 'and no streak is announced');
       st = await win(79, 30);
-      t.equal([st.won, st.streak, st.fewestMoves], [4, 3, 31], 'a new deal, unaided, is a record again');
+      t.equal([st.won, st.streak, st.fewestMoves], [4, 2, 31], 'a new deal, unaided, is a record again');
       await t.game('scene', 'stats');
       t.expect((await t.page.locator('#sheet').textContent()).includes('Wins with Undo or Hint1'), 'Statistics shows the assisted wins');
       await shot(t, 'S3-05', 'stats');
       await t.checkLayout();
+      const d3 = await win(77, 20, false, 3);
+      t.equal([d3.won, d3.streak, d3.fewestMoves], [1, 1, 21], 'deal 77 in Draw 3 is another deal: a first win with a streak and a best');
+      t.equal((await t.game('meta')).wonDeals.slice(-2), ['klondike1:79', 'klondike3:77'], 'each variant keeps its own entry');
     },
   },
   {
@@ -302,8 +306,12 @@ export const tests = [
       await t.game('act', 'move', 't0', 'f3');
       await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
       let w = (await t.game('meta')).wonDeals;
-      t.equal([w.length, w[0], w[w.length - 1]], [200, 'klondike:1006', 'klondike:77'], 'a win pushes the oldest out');
+      t.equal([w.length, w[0], w[w.length - 1]], [200, 'klondike:1006', 'klondike1:77'], 'a win pushes the oldest out');
       t.equal(JSON.parse(await raw(t, 'meta')).wonDeals.length, 200, 'and it is saved');
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 1100 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      t.expect((await t.page.locator('#sheet .meta').first().textContent()).includes('replay'), 'a deal a saved game remembers under the old key is still a replay');
       await t.page.evaluate(([p]) => { localStorage.setItem(p + 'meta', JSON.stringify({ totalWins: 2, wonDeals: 'oops' })); }, [P]);
       await t.reload();
       t.equal((await t.game('meta')).wonDeals, [], 'a damaged list is dropped, nothing else breaks');
