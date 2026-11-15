@@ -104,4 +104,45 @@ export const tests = [
       t.expect(await t.page.locator('#tCont').isVisible(), 'and the game can be continued');
     },
   },
+  {
+    name: 'w3a S3-12 a deal with no winning line left says so once, a winnable one stays quiet, and a deal with many cards face down is not asked',
+    async run(t) {
+      await baseSettings(t);
+      const run = (s, n) => ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'].slice(0, n).map((r) => r + s);
+      // The Jack of spades sits on the Ten, every column is held by a king or a card that cannot move, so the Ten can never go home.
+      // The Nine of spades in the waste can still go up, so the old "no more moves" check has nothing to say.
+      const lost = { mode: 'klondike', opts: { draw: 1 }, piles: { stock: [], waste: ['9S'], f0: run('C', 7), f1: run('D', 12), f2: run('H', 12), f3: run('S', 8),
+        t0: ['TS', 'JS'], t1: ['KD'], t2: ['KH'], t3: ['KC'], t4: ['KS'], t5: ['9C'], t6: ['TC'] } };
+      await t.game('setState', lost);
+      await t.game('act', 'move', 'waste', 'f3'); // the one move left that helps; the checks run after a move, as in play
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      await t.page.waitForFunction(() => window.__game.getState().lost === 'dead', null, { timeout: 15000 });
+      t.equal(await t.page.evaluate(() => document.getElementById('toast').textContent), 'No winning line left from here. Undo takes you back.', 'the toast says so');
+      t.equal((await t.state()).scene, 'game', 'and it does not block play: no sheet opened');
+      t.equal((await t.state()).stuck, 'live', 'the old dead-end check still sees a move, so this is the new warning');
+      await shot(t, 'S3-12', 'lost-toast');
+      await t.checkLayout();
+      // the same position with the Ten on top is a win
+      const won = { mode: 'klondike', opts: { draw: 1 }, piles: { stock: [], waste: ['9S'], f0: run('C', 13), f1: run('D', 13), f2: run('H', 13), f3: run('S', 8),
+        t0: ['KS', 'QS', 'JS', 'TS'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] } };
+      await t.game('setState', won);
+      await t.game('act', 'move', 'waste', 'f3');
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      await t.page.waitForFunction(() => window.__game.getState().lost === 'won', null, { timeout: 15000 });
+      t.equal(await t.page.evaluate(() => document.getElementById('toast').textContent), '', 'a winnable position is not warned about');
+      // and one that needs a real search: the Jack must move onto the red Queen before the Ten can go home
+      const search = { mode: 'klondike', opts: { draw: 1 }, piles: { stock: [], waste: ['9S'], f0: run('C', 13), f1: run('D', 13), f2: run('H', 11), f3: run('S', 8),
+        t0: ['TS', 'JS'], t1: [], t2: [], t3: ['KS', 'QH'], t4: ['KH'], t5: ['QS'], t6: [] } };
+      await t.game('setState', search);
+      await t.game('act', 'move', 'waste', 'f3');
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      await t.page.waitForFunction(() => window.__game.getState().lost === 'won', null, { timeout: 15000 });
+      t.equal(await t.page.evaluate(() => document.getElementById('toast').textContent), '', 'a win that takes a few moves is not warned about either');
+      // a fresh deal has far too many cards face down to be worth asking
+      await t.game('newGame', { mode: 'klondike', deal: 5 });
+      await t.game('act', 'draw');
+      await t.page.waitForFunction(() => window.__game.getState().stuck !== null, null, { timeout: 8000 });
+      t.equal((await t.state()).lost, null, 'no search while many cards are face down');
+    },
+  },
 ];

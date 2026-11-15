@@ -905,13 +905,16 @@ const makeSolver = (() => {
     const mode = st.mode, draw = st.opts.draw, spider = mode === 'spider', code = (u) => st.cards[u].s * 16 + st.cards[u].r;
     const t = [], dn = [];
     for (const id in st.piles) if (id[0] === 't') { const p = st.piles[id]; t.push(p.map(code)); const d = p.findIndex((u) => st.up[u]); dn.push(d < 0 ? p.length : d); }
-    const root = { t, dn, st: (st.piles.stock || []).map(code), w: [], f: [0, 0, 0, 0], done: 0 };
+    const root = { t, dn, st: (st.piles.stock || []).map(code), w: (st.piles.waste || []).map(code), f: [0, 0, 0, 0], done: 0 };
+    for (const id in st.piles) if (id[0] === 'f') { const p = st.piles[id]; if (spider) root.done += Math.floor(p.length / 13); else if (p.length) root.f[st.cards[p[0]].s] = p.length; } // a game part-way through
     if (!spider) settle(root);
     const gen = mode === 'klondike' ? klondikeMoves : mode === 'yukon' ? tabMoves : spiderMoves, apply = spider ? spiderApply : tabApply;
     const frame = (s) => { const ms = []; gen(s, ms); return { s, ms: ms.sort((a, b) => b[0] - a[0]), i: 0 }; };
     const stack = [frame(root)], seen = new Set([key(root)]), me = { used: 0 };
+    const home = (c) => (spider ? c.done === 8 : c.f[0] + c.f[1] + c.f[2] + c.f[3] === 52);
     me.step = (n) => {
       const end = me.used + n;
+      if (home(root)) { me.moves = []; return 'won'; } // a game part-way through can already be won by the safe moves
       for (;;) {
         if (me.used >= budget) return 'budget';
         if (me.used >= end) return 'more';
@@ -919,7 +922,7 @@ const makeSolver = (() => {
         if (f.i >= f.ms.length) { stack.pop(); continue; }
         const c = apply(f.s, f.ms[f.i++], draw), id = key(c); if (seen.has(id)) continue;
         seen.add(id); me.used++;
-        if (spider ? c.done === 8 : c.f[0] + c.f[1] + c.f[2] + c.f[3] === 52) { me.moves = stack.map((x) => x.ms[x.i - 1]); return 'won'; }
+        if (home(c)) { me.moves = stack.map((x) => x.ms[x.i - 1]); return 'won'; }
         stack.push(frame(c));
       }
     };
@@ -1134,11 +1137,12 @@ function hint() {
 
 function scheduleStuckCheck() {
   clearTimeout(stuckTimer);
+  lostRun++;
   stuckTimer = setTimeout(function tick() {
     stuckTimer = 0;
     if (!S || S.won || titleOn) return;
     if (modalKind || drag || held || cascade || tweensActive(now())) { stuckTimer = setTimeout(tick, 400); return; }
-    checkStuck();
+    checkStuck(); lostKick();
   }, 500);
 }
 function checkStuck() {
@@ -1154,7 +1158,30 @@ function showStuck(force) {
   if (!force && stuckShownFor === k) return;
   stuckShownFor = k; sfx('nope'); openModal('stuck');
 }
-function clearStuck() { clearTimeout(stuckTimer); stuckTimer = 0; stuckVerdict = null; stuckShownFor = null; }
+function clearStuck() { clearTimeout(stuckTimer); stuckTimer = 0; stuckVerdict = null; stuckShownFor = null; lostRun++; lostVerdict = null; lostWarned = false; }
+
+// A deal can become unwinnable long before it runs out of moves. Once few cards are face down, ask the solver (it sees every card),
+// a few positions at a time between frames; if it runs out of lines it says so once, and stays quiet when it is only out of budget.
+// It does not look at pulling cards back down from a foundation, so the words are "no winning line", not "impossible".
+const LOST_BUDGET = 4000, LOST_FACEDOWN = 8; // positions to search; most face-down cards worth asking about
+let lostRun = 0, lostVerdict = null, lostWarned = false;
+function lostKick() {
+  const my = ++lostRun; lostVerdict = null;
+  if (!S || S.won || modalKind || (S.mode !== 'klondike' && S.mode !== 'yukon')) return;
+  let down = 0; for (let i = 0; i < def().cols; i++) for (const u of S.piles['t' + i]) if (!S.up[u]) down++;
+  if (down > LOST_FACEDOWN) return;
+  const sv = makeSolver(S, LOST_BUDGET);
+  const tick = () => {
+    if (lostRun !== my || !S) return;
+    const end = now() + 6; let r;
+    do r = sv.step(25); while (r === 'more' && now() < end);
+    if (r === 'more') return void setTimeout(tick, 0);
+    lostVerdict = r;
+    if (r === 'dead' && !lostWarned && !modalKind) { lostWarned = true; toast('No winning line left from here. Undo takes you back.'); }
+    else if (r !== 'dead') lostWarned = false;
+  };
+  setTimeout(tick, 0);
+}
 
 function autoComplete() {
   if (!canAutoComplete()) return { ok: false };
@@ -3881,7 +3908,7 @@ window.__game = {
     return { scene: sceneName(), modal: modalKind, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, piles: notePiles(),
       score: S.score, moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, winnable: !!S.winnable, started: S.started, canAutoComplete: canAutoComplete(),
       undoDepth: undoStack.length, redoDepth: redoStack.length, held: held ? Object.assign({}, held) : null, cursor: Object.assign({}, cursor),
-      settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, stuck: stuckVerdict, storageOK };
+      settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, stuck: stuckVerdict, lost: lostVerdict, storageOK };
   },
   setState(s) {
     fitHold = 1;
