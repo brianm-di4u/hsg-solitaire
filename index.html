@@ -2368,9 +2368,9 @@ const TABLE_LOOK = {
   quapaw: { tone: 'rgba(96,72,44,.5)', zoom: 2.2, blur: 1.4, light: 1, lamp: 'rgba(255,226,170,.22)', edge: 'rgba(30,18,8,.6)' },
   pool: { tone: 'rgba(6,36,40,.46)', light: 1, blur: 2.4, lamp: 'rgba(220,255,245,.16)', edge: 'rgba(2,18,22,.6)' },
   midnight: { tone: null, lamp: 'rgba(255,196,130,.34)', edge: 'rgba(0,0,0,.66)' },
-  linen: { tone: 'rgba(16,34,70,.26)', light: 1, blur: .6, lamp: 'rgba(255,244,220,.18)', edge: 'rgba(8,18,40,.55)' },
+  linen: { mark: '#1F2F5C', tone: 'rgba(16,34,70,.26)', light: 1, blur: .6, lamp: 'rgba(255,244,220,.18)', edge: 'rgba(8,18,40,.55)' },
 };
-function drawLitTable(ctx, id, W, H) {
+function drawLitTable(ctx, id, W, H, band) {
   const look = TABLE_LOOK[id]; if (!look) return false;
   const tex = artImg('tex-' + id + (H > W * 1.1 ? '-p' : '-l')) || artImg('tex-' + id + (H > W * 1.1 ? '-l' : '-p'));
   if (!tex) return false;
@@ -2389,19 +2389,54 @@ function drawLitTable(ctx, id, W, H) {
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore();
   g = ctx.createRadialGradient(lx, ly + H * .1, Math.min(W, H) * .32, lx, ly + H * .1, R * 1.05);
   g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, look.edge); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  if (W > 200 && H > W * 1.4) feltEmblem(ctx, W, H, look.light);
+  if (W > 200 && band) placeMarks(ctx, W, H, look, band);
   if (W > 200) brassInlay(ctx, W, H); // not on the little picker swatches
   return true;
 }
-function feltEmblem(ctx, W, H, light) {
-  const cx = W / 2, cy = H * .72, r = W * .3;
-  ctx.save(); ctx.globalAlpha = light ? .14 : .1; ctx.strokeStyle = ctx.fillStyle = light ? '#3A2A18' : '#F3DA92'; ctx.lineWidth = 1.5;
+// The place marks on the empty felt under the columns. On a tall phone the Spa City sunburst sits low on the table and the rooflines of
+// Bathhouse Row run along its foot; on a wider screen the sunburst fills the band below the deepest column of the deal when that band is at
+// least PLACE_MIN_FREE of the table's height. They are painted on the table layer, under the cards, so a column that grows covers them.
+const PLACE_MIN_FREE = .22;
+let placeDrawn = null; // what the last table layer painted, for the tests
+const DEAL_DEPTH = { klondike: [6, 0], freecell: [0, 6], spider: [5, 0], yukon: [6, 5] }; // [face-down, face-up] cards above the last one in the deepest column at the deal
+function placeBand() {
+  if (!S || !L || !L.piles.t0) return null;
+  const [dn, up] = DEAL_DEPTH[S.mode] || [0, 0];
+  return { top: L.piles.t0.y + L.ch + dn * L.fanDown + up * L.fanUp, bottom: L.bottom };
+}
+function placeMarks(ctx, W, H, look, band) {
+  const free = band.bottom - band.top, ink = look.mark || (look.light ? '#3A2A18' : '#F3DA92'); placeDrawn = { band, emblem: null, skyline: null };
+  if (H > W * 1.4) { // a tall phone: the sunburst low on the table, the rooflines at its foot
+    const r = W * .3; placeDrawn.emblem = { cx: W / 2, cy: H * .72, r }; feltEmblem(ctx, W / 2, H * .72, r, ink, look.light);
+    const hs = Math.min(W * .2, free * .3); if (free > hs * 1.6) { placeDrawn.skyline = { x: 0, y: band.bottom - hs, w: W, h: hs }; skyline(ctx, 0, band.bottom - 6, W, hs, ink, look.light ? .1 : .09); }
+  } else if (free >= H * PLACE_MIN_FREE) {
+    const r = Math.min(W * .3, free * .8 / 1.55), cy = (band.top + band.bottom) / 2 + r * .225; // the mark is 1.55 r tall, from the arc's top to the foot of the small line
+    placeDrawn.emblem = { cx: W / 2, cy, r }; feltEmblem(ctx, W / 2, cy, r, ink, look.light, 1.6);
+  }
+}
+function feltEmblem(ctx, cx, cy, r, ink, light, boost = 1) { // boost: a little stronger where the mark is small beside a wide table
+  ctx.save(); ctx.globalAlpha = (light ? .14 : .1) * boost; ctx.strokeStyle = ctx.fillStyle = ink; ctx.lineWidth = Math.max(1, Math.min(1.5, r / 70));
   ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 0); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, r * .82, Math.PI, 0); ctx.stroke();
   for (let i = 0; i <= 12; i++) { const a = Math.PI + i / 12 * Math.PI, r0 = r * .3, r1 = r * (i % 2 ? .7 : .8); ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); ctx.stroke(); }
   ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy); ctx.stroke();
-  ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.font = Math.round(W * .075) + 'px ' + DISPLAY; ctx.fillText('Spa City', cx, cy + r * .12);
-  ctx.font = '600 ' + Math.round(W * .03) + 'px ' + DECO; ctx.fillText('H O T   S P R I N G S ,   A R K .', cx, cy + r * .12 + W * .095);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.font = Math.round(r * .25) + 'px ' + DISPLAY; ctx.fillText('Spa City', cx, cy + r * .12);
+  ctx.font = '600 ' + Math.round(r * .1) + 'px ' + DECO; ctx.fillText('H O T   S P R I N G S ,   A R K .', cx, cy + r * .12 + r * .317);
   ctx.restore();
+}
+// Bathhouse Row as one flat shape: eight buildings of the row's own names (Superior, Hale, Maurice, Fordyce, Quapaw with its dome, Ozark with its towers,
+// Buckstaff, Lamar) as plain rooflines, between x and x + w, standing on y and no taller than h.
+const SKYLINE = [[.9, 'flat'], [.78, 'gable'], [.95, 'flat'], [1, 'gable'], [.86, 'dome'], [.7, 'towers'], [.88, 'flat'], [.64, 'flat']];
+function skyline(ctx, x, y, w, h, ink, alpha) {
+  const gap = w * .006, bw = (w - gap * (SKYLINE.length + 1)) / SKYLINE.length;
+  ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = ink; ctx.beginPath();
+  SKYLINE.forEach(([k, roof], i) => {
+    const bx = x + gap + i * (bw + gap), bh = h * k * .72, top = y - bh;
+    ctx.rect(bx, top, bw, bh);
+    if (roof === 'gable') { ctx.moveTo(bx - gap, top); ctx.lineTo(bx + bw / 2, top - h * k * .26); ctx.lineTo(bx + bw + gap, top); ctx.closePath(); }
+    else if (roof === 'dome') { ctx.moveTo(bx + bw * .2, top); ctx.arc(bx + bw / 2, top, bw * .3, Math.PI, 0); ctx.closePath(); ctx.rect(bx + bw / 2 - bw * .02, top - bw * .3 - h * .12, bw * .04, h * .12); }
+    else if (roof === 'towers') for (const tx of [bx + bw * .05, bx + bw * .68]) { ctx.rect(tx, top - h * .2, bw * .27, h * .2); ctx.moveTo(tx - 1, top - h * .2); ctx.lineTo(tx + bw * .135, top - h * .3); ctx.lineTo(tx + bw * .27 + 1, top - h * .2); ctx.closePath(); }
+  });
+  ctx.fill(); ctx.fillRect(x, y, w, Math.max(2, h * .05)); ctx.restore();
 }
 function brassInlay(ctx, W, H) {
   const fan = artImg('brass-corner'), narrow = W < 560, m = narrow ? 2 : Math.max(5, Math.round(Math.min(W, H) * .012));
@@ -2429,8 +2464,8 @@ function brassInlay(ctx, W, H) {
   ctx.restore();
 }
 
-function drawTable(ctx, id, W, H) {
-  if (drawLitTable(ctx, id, W, H)) return;
+function drawTable(ctx, id, W, H, band) {
+  if (drawLitTable(ctx, id, W, H, band)) return;
   const img = artImg('table-' + id);
   if (img) {
     coverImg(ctx, img, 0, 0, W, H);
@@ -2729,7 +2764,7 @@ function computeTargets() {
 }
 // Long columns may shrink the board, but never below 80% of a Standard-size card (Large cards may give up a bit more).
 const FIT_FLOOR = () => settings.cardSize === 'large' ? .7 : .8;
-let targets = [], lastCw = 0, fitHold = 1; // fitHold: the smallest board scale used this deal
+let bandSig = '', targets = [], lastCw = 0, fitHold = 1; // fitHold: the smallest board scale used this deal
 const ease = (t) => 1 - Math.pow(1 - t, 3);
 const easeBack = (t) => { const c = 1.4; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); }; // overshoots ~4%, then settles
 function dispPos(u, t) {
@@ -2753,6 +2788,7 @@ function relayout(instant) {
     fit = Math.max(FIT_FLOOR(), fit * .94);
   }
   fitHold = fit;
+  { const b = placeBand(), sig = b ? Math.round(b.top) + '|' + Math.round(b.bottom) + '|' + S.mode : ''; if (sig !== bandSig) { bandSig = sig; tableDirty = true; } } // the place marks follow the free band
   if (lastCw !== L.cw) { sprites.clear(); lastCw = L.cw; }
   targets = computeTargets();
   const t = now(), rm = reducedMotion();
@@ -2847,7 +2883,7 @@ function loop() {
   if (!rafId && (tweensActive(t) || drag || cascade || steam.length || Object.keys(shakes).length || (hintState && hintState.until > t))) rafId = requestAnimationFrame(loop);
 }
 function drawTableLayer() {
-  tctx.setTransform(DPR, 0, 0, DPR, 0, 0); drawTable(tctx, settings.table, W, H); tableDirty = false;
+  tctx.setTransform(DPR, 0, 0, DPR, 0, 0); drawTable(tctx, settings.table, W, H, placeBand()); tableDirty = false;
 }
 function brassPlaceholder(id, b) {
   const { cw, ch } = L; const k = kindOf(id); const plate = artImg(k === 'cell' ? 'brass-cell' : 'brass-slot');
@@ -4251,6 +4287,7 @@ window.__game = {
   meta() { return JSON.parse(JSON.stringify(meta)); },
   fxLevel() { return lowFx ? 'low' : 'full'; },
   audioList, audioRender, audioState,
+  placeMarks: () => (placeDrawn ? JSON.parse(JSON.stringify(placeDrawn)) : null),
   cuesPlayed(clear) { const r = CUE_LOG.slice(); if (clear) CUE_LOG.length = 0; return r; },
   frameStats(reset) {
     const xs = fstat.xs.slice().sort((a, b) => a - b), q = (f) => xs.length ? +xs[Math.min(xs.length - 1, Math.floor(xs.length * f))].toFixed(2) : 0;

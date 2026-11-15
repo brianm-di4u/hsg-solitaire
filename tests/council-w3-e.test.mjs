@@ -63,4 +63,52 @@ export const tests = [
       t.expect(await t.page.evaluate(() => getComputedStyle(document.querySelector('#tiles canvas')).display !== 'none'), 'portrait still shows the card hands');
     },
   },
+  {
+    name: 'w3e S4-07 S2-20 the empty felt carries the Spa City mark, and a phone the rooflines of Bathhouse Row',
+    async run(t) {
+      await t.game('unlockAll');
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced', table: 'felt' });
+      const marks = async () => { await t.page.waitForFunction(() => window.__game.placeMarks()); return t.game('placeMarks'); };
+      // the mark is painted: gold along the arc, plain felt between the arcs and outside them
+      const ringContrast = (e, dark) => t.page.evaluate(([e, dark]) => {
+        const c = document.getElementById('tbl'), k = c.width / c.clientWidth, g = c.getContext('2d');
+        const lum = (x, y) => { const d = g.getImageData(Math.round(x * k) - 1, Math.round(y * k) - 1, 3, 3).data; let m = dark ? 999 : 0; for (let i = 0; i < 36; i += 4) { const v = .3 * d[i] + .59 * d[i + 1] + .11 * d[i + 2]; m = dark ? Math.min(m, v) : Math.max(m, v); } return m; };
+        const at = (rr) => { let s = 0; for (let i = 1; i < 40; i++) { const a = Math.PI + i / 40 * Math.PI; s += lum(e.cx + Math.cos(a) * e.r * rr, e.cy + Math.sin(a) * e.r * rr); } return s / 39; };
+        return at(1) - (at(.91) + at(1.12)) / 2;
+      }, [e, dark]);
+      await t.game('newGame', { mode: 'klondike' }); await t.waitForStable();
+      let m = await marks(), lay = await t.game('getLayout');
+      t.expect(m.emblem, 'a Klondike table has the Spa City mark on the empty felt');
+      const lowest = Math.max(...Object.keys(lay.piles).filter((k) => /^td$/.test(k)).map((k) => lay.piles[k].y + (lay.piles[k].zoneH || 0)));
+      t.expect(m.emblem.cy - m.emblem.r >= m.band.top - 1 && m.emblem.cy + m.emblem.r * .6 <= m.band.bottom, 'it sits inside the free band under the dealt columns: ' + JSON.stringify(m.emblem) + ' in ' + JSON.stringify(m.band));
+      t.expect(m.band.top >= lowest - 1, 'and below the lowest column of the deal (' + Math.round(lowest) + ' <= ' + Math.round(m.band.top) + ')');
+      t.expect(await ringContrast(m.emblem) > 8, 'the mark is really painted on the table layer: ' + await ringContrast(m.emblem));
+      if (t.viewport === 'mobile') {
+        t.expect(m.skyline && m.skyline.w >= 380 && m.skyline.h >= 40, 'a phone also has the rooflines along the foot of the table: ' + JSON.stringify(m.skyline));
+        const roof = await t.page.evaluate((sk) => { // Lamar (the low building at the right end): inside it against just above its roof
+          const c = document.getElementById('tbl'), k = c.width / c.clientWidth, g = c.getContext('2d'), base = sk.y + sk.h - 6, top = base - sk.h * .64 * .72, x = sk.x + sk.w * .93;
+          const l = (y) => { let s = 0; for (let i = -3; i <= 3; i++) { const d = g.getImageData(Math.round((x + i * 4) * k), Math.round(y * k), 1, 1).data; s += .3 * d[0] + .59 * d[1] + .11 * d[2]; } return s / 7; };
+          return l(top + 8) - l(top - 8);
+        }, m.skyline);
+        t.expect(roof > 5, 'the rooflines are painted: ' + roof);
+      } else t.expect(!m.skyline, 'a wide table has no rooflines');
+      await shot(t, 'S4-07', 'felt-mark');
+      // a table where the free band is small gets no mark, and a mark is never drawn into a band under 22% of the table
+      for (const [w, h] of [[1280, 800], [1280, 600], [1000, 700], [390, 844], [500, 800]]) {
+        await t.page.setViewportSize({ width: w, height: h });
+        for (const mode of ['klondike', 'freecell', 'spider', 'yukon']) {
+          await t.game('newGame', { mode, opts: mode === 'spider' ? { suits: 1 } : {} }); await t.waitForStable();
+          await t.page.waitForFunction(() => window.__game.placeMarks());
+          const q = await t.game('placeMarks'), H = await t.page.evaluate(() => document.getElementById('stage').clientHeight);
+          if (h <= w * 1.4 && q.emblem) t.expect(q.band.bottom - q.band.top >= H * .22 - 1, w + 'x' + h + ' ' + mode + ': the mark only where the band is at least 22% of the table');
+          if (q.emblem) t.expect(q.emblem.cy + q.emblem.r * .6 <= q.band.bottom + 1 && q.emblem.cy - q.emblem.r >= 0, w + 'x' + h + ' ' + mode + ': the mark is on the table');
+        }
+      }
+      await t.page.setViewportSize(t.vp);
+      // a light table keeps the mark: dark ink on marble
+      await t.game('setSettings', { table: 'marble' }); await t.game('newGame', { mode: 'klondike' }); await t.waitForStable();
+      t.expect(await ringContrast((await marks()).emblem, true) < -3, 'on marble the mark is darker than the stone');
+      await shot(t, 'S4-07', 'marble-mark');
+    },
+  },
 ];
