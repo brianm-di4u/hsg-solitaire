@@ -316,4 +316,33 @@ export const tests = [
       t.equal((await t.state()).replay, true, 'restarting the same deal is');
     },
   },
+  {
+    name: 'w3a P-N01 Finish is offered only when it can win: not when a needed card is buried, in Klondike or Yukon',
+    async run(t) {
+      await baseSettings(t);
+      const base = (mode, piles) => ({ mode, opts: { draw: 1 }, piles });
+      // the Ace of spades is under the Five, the Six stands alone, one card is in the stock: all face up, but Finish could not move a card
+      const buried = (mode) => base(mode, Object.assign({ stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['AS', '5H'], t1: ['6C'], t2: [], t3: [], t4: [], t5: [], t6: [] }, mode === 'klondike' ? { stock: ['2S'] } : {}));
+      for (const mode of ['klondike', 'yukon']) {
+        await t.game('setState', buried(mode)); await t.waitForStable();
+        t.equal((await t.state()).canAutoComplete, false, mode + ': a buried Ace means no Finish');
+        t.expect(await t.page.locator('#bAuto').isDisabled(), mode + ': the button is disabled');
+        t.expect(!(await t.page.locator('#bAuto').getAttribute('class') || '').includes('glow'), mode + ': and does not glow');
+        t.equal((await t.game('act', 'autoComplete')).ok, false, mode + ': asking anyway does nothing');
+        const s = await t.state(); t.equal([s.moves, s.undoDepth], [0, 0], mode + ': and costs no move and no undo step');
+      }
+      await t.game('setState', buried('klondike'));
+      await t.game('act', 'key', 'a');
+      t.equal(await t.page.evaluate(() => document.getElementById('toast').textContent), 'Finish appears once every card can go straight home', 'the A key says why');
+      // the stock must be cycled for the win: Finish is offered, and plays it
+      await t.game('setState', base('klondike', { stock: ['2S'], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['AS'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] }));
+      await t.waitForStable();
+      t.equal((await t.state()).canAutoComplete, true, 'a position Finish can win offers it, even with cards in the stock');
+      t.expect(await t.page.locator('#bAuto').isEnabled(), 'the button is enabled');
+      await shot(t, 'P-N01', 'finish-offered');
+      t.equal((await t.game('act', 'autoComplete')).ok, true, 'it runs');
+      await t.page.waitForFunction(() => window.__game.getState().won, null, { timeout: 8000 });
+      await t.game('act', 'skip');
+    },
+  },
 ];

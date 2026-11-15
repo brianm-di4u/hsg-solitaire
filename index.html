@@ -589,7 +589,25 @@ function canAutoComplete() {
     return true;
   }
   for (let i = 0; i < d.cols; i++) for (const u of S.piles['t' + i]) if (!S.up[u]) return false;
-  return true;
+  return finishWins();
+}
+// Finish only ever plays a top card to a foundation (turning the stock over when nothing else will go), so with the cards all face up
+// it can win only if that plays out; the button is offered only then. This plays it out on a copy.
+function finishWins() {
+  const piles = {}; for (const k in S.piles) piles[k] = S.piles[k].slice();
+  return inPosition({ piles, up: S.up.slice() }, () => {
+    for (let guard = 0, stall = 0; guard++ < 400 && !isWon();) {
+      let best = null;
+      for (const id of sourcePiles()) {
+        if (kindOf(id) === 'found') continue;
+        const u = top(id); if (u < 0 || !S.up[u]) continue;
+        const f = foundationFor(u); if (f && (!best || card(u).r < card(best.u).r)) best = { id, u, f };
+      }
+      if (best) { S.piles[best.f].push(S.piles[best.id].pop()); stall = 0; continue; }
+      if (def().stock !== 'draw' || stall++ > S.piles.stock.length + S.piles.waste.length + 2 || !simStock()) break;
+    }
+    return isWon();
+  });
 }
 
 // 5. Game controller: moves, undo/redo, scoring, autoplay, hints, auto-complete
@@ -3131,7 +3149,7 @@ function gameKey(e) {
     case 'u': case 'U': case 'z': case 'Z': case 'Backspace': undo(); break;
     case 'y': case 'Y': redo(); break;
     case 'h': case 'H': hint(); break;
-    case 'a': case 'A': if (!autoComplete().ok) toast('Auto-complete is available once every card is face up and in order'); break;
+    case 'a': case 'A': if (!autoComplete().ok) toast('Finish appears once every card can go straight home'); break;
     case 'n': case 'N': confirmAbandon({ mode: S.mode }); break;
     case '?': openModal('help'); break;
     case 'p': case 'P': openModal('menu'); break;
