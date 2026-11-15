@@ -322,6 +322,28 @@ export const tests = [
     },
   },
   {
+    name: 'w3e S4-08 the stamped mark is painted on the table canvas: its words, in the pale ink, at the ring centre and a readable size',
+    initScript: () => {
+      window.__ink = [];
+      const f = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (txt, x, y) { if (txt === 'Spa City' && this.canvas.id === 'cv') window.__ink.push({ fill: String(this.fillStyle).toLowerCase(), a: this.globalAlpha, px: parseFloat(this.font), x, y }); return f.apply(this, arguments); };
+    },
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'full' });
+      await t.game('setState', nearWinKlondike()); await t.game('act', 'move', 't0', 'f3');
+      const stamps = () => t.page.evaluate(() => { const w = document.querySelector('#cv').getBoundingClientRect(); const a = window.__ink.filter((i) => i.fill === '#f3da92').map((i) => Object.assign({}, i, { cx: w.width / 2, cy: w.height / 2 })); window.__ink.length = 0; return a; });
+      await t.game('act', 'ceremonyAt', 100); await stamps();
+      await t.game('act', 'ceremonyAt', 100);
+      t.equal((await stamps()).length, 0, 'before the gather has begun nothing is stamped');
+      await t.game('act', 'ceremonyAt', 1300);
+      const s = (await stamps()).slice(-1)[0];
+      t.expect(!!s, 'at the hold the words Spa City are painted in the pale ink');
+      t.expect(s.px >= 10, 'at a readable size (' + s.px + ' px)');
+      t.expect(s.a > .3, 'with enough strength to see (' + (s.a || 0).toFixed(2) + ')');
+      t.expect(Math.abs(s.x - s.cx) < 3 && Math.abs(s.y - s.cy) < s.cy * .5, 'in the middle of the ring');
+    },
+  },
+  {
     name: 'w3e S4-08 low-effects mode keeps the stamp but has no steam',
     url: 'index.html?fx=low',
     viewports: ['desktop'],
