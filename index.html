@@ -760,9 +760,22 @@ function afterAction(opts = {}) {
   hintState = null;
   if (!S.won && isWon()) { S.won = true; onWin(d); }
   if (flipQueue.length) { sfx('flip'); flipQueue.length = 0; }
-  relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
+  relayout(); if (!deferLand) flushLandCues(); updateHUD(); scheduleSave(); scheduleStuckCheck();
 }
 
+// A card's thump or chime belongs to the moment it lands, not the moment it is released: cues wait here until relayout has given the card
+// its flight, then sound a little before it arrives. Cards the game moves by itself ('auto') are thinned to one every 60 ms.
+let landCues = [], deferLand = false;
+const LAND_LEAD_MS = 30, LAND_THIN_MS = 60;
+function cueOnLand(name, arg, pan, u, auto) { landCues.push({ name, arg, pan, u, auto }); }
+function flushLandCues() {
+  const list = landCues; landCues = []; const t = now(); let last = -1e9;
+  for (const c of list) {
+    const d = D[c.u], ms = clamp(d ? d.t0 + d.dur - t - LAND_LEAD_MS : 0, 0, 1500);
+    if (c.auto && ms - last < LAND_THIN_MS) continue;
+    last = ms; sfx(c.name, c.arg, c.pan, { delay: ms / 1000, auto: c.auto });
+  }
+}
 function tryMove(from, idx, to, why = 'player') {
   if (!S || S.won) return { ok: false, reason: 'no game' };
   if (!canPick(from, idx)) return { ok: false, reason: 'cannot pick' };
@@ -771,7 +784,7 @@ function tryMove(from, idx, to, why = 'player') {
   pushUndo(); startClock(); if (why === 'player') tipEvent('move');
   rawMove(from, idx, to);
   S.moves++; if (S.mode === 'spider') addScore(-1);
-  { const b = L && L.piles[to]; sfx(kindOf(to) === 'found' ? 'found' : 'place', kindOf(to) === 'found' ? card(run[0]).r : run.length, b ? (b.x + L.cw / 2) / W * 2 - 1 : 0); }
+  { const b = L && L.piles[to]; cueOnLand(kindOf(to) === 'found' ? 'found' : 'place', kindOf(to) === 'found' ? card(run[0]).r : run.length, b ? (b.x + L.cw / 2) / W * 2 - 1 : 0, run[0]); }
   announce(describeRun(run) + ' to ' + pileName(to));
   afterAction();
   void why;
@@ -3207,6 +3220,7 @@ function finishDrag() {
   const best = dropTarget(dr);
   dr.run.forEach((u, i) => { const d = D[u]; d.sx = d.x = dr.x; d.sy = d.y = dr.y + i * dr.fan; d.tx = d.sx; d.ty = d.sy; });
   const t = now();
+  deferLand = true; // the drop glide below sets the card's real landing time
   if (best) { tryMove(dr.from, dr.index, best); }
   else if (Math.hypot(dr.x - dr.x0, dr.y - dr.y0) < DRAG_TAP_REACH * (dr.touch ? 10 : 6)) { if (tapMode() === 'tap') tapAt(dr.from, dr.index); } // a wobbly tap is still a tap
   else if (!overSource(dr)) sfx('nope'); // putting a card back where it came from is not a mistake
@@ -3214,6 +3228,7 @@ function finishDrag() {
     const d = D[u], T = targets[u]; if (!T) return; const dist = Math.hypot(T.x - d.sx, T.y - d.sy);
     d.tx = T.x; d.ty = T.y; d.t0 = t; d.dur = reducedMotion() ? 0 : clamp(170 + dist * .25, 200, 320); d.arc = 0; d.spin = 0; d.back = true;
   });
+  deferLand = false; flushLandCues();
   startLoop();
 }
 cv.addEventListener('pointerup', (e) => {
@@ -3677,15 +3692,18 @@ function syncAudio() {
 }
 // Haptics: a short pulse on the cues a thumb should feel. Only after a touch (a laptop with a mouse never buzzes), never with reduced motion, and with its own switch.
 const BUZZ = { pick: 10, place: 12, found: [10, 40, 10], nope: 25 };
-function buzz(name) {
-  const p = BUZZ[name]; if (!p || !settings.haptics || !touchIn || !navigator.vibrate || document.hidden || reducedMotion()) return;
-  try { navigator.vibrate(p); } catch (_) { /* vibration is optional */ }
+function buzz(name, waitSec, auto) {
+  const p = BUZZ[name]; if (!p || auto || !settings.haptics || !touchIn || !navigator.vibrate || document.hidden || reducedMotion()) return;
+  const go = () => { try { navigator.vibrate(p); } catch (_) { /* vibration is optional */ } };
+  if (waitSec) setTimeout(go, waitSec * 1000); else go();
 }
-function sfx(name, arg, pan) {
-  buzz(name);
+// o.delay: seconds to wait before the cue sounds (a card's landing). o.auto: the game moved the card, so no buzz.
+function sfx(name, arg, pan, o) {
+  const wait = (o && o.delay) || 0;
+  buzz(name, wait, o && o.auto);
   if (!settings.sound || !settings.sfx || !AC || document.hidden) return;
   wakeAudio();
-  cues.play(name, arg, AC.currentTime, pan);
+  cues.play(name, arg, AC.currentTime + wait, pan);
   if (name === 'run' || name === 'win') kit.music.duck(6, 500);
 }
 // Test hooks: render one piece, scene or cue by itself on an OfflineAudioContext at the shipped levels, without
