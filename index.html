@@ -426,6 +426,7 @@ const DEFAULT_SETTINGS = {
   autoFoundation: 'safe', back: 'skylight', table: 'felt', showTimer: true, deckSeed: 1914, courts: 'deco',
   tapMove: 'tap', // how a press on a card moves it: tap (today's way), double-tap, or drag only
   scoring: 'timed', // timed: points and a speed bonus on a win (today's way); standard: points only; none: no score shown
+  dealGrade: 'any', // random deals graded by solver effort: any (today's), easy, medium or hard
   winnable: false, // random deals come from a solver-won sequence; dailies always do
   sfx: true, music: true, ambience: true, musicVol: 0.6, ambVol: 0.6, // sound effects, music and ambience; all three obey the master `sound` switch
   tips: true, tipStep: 0, tipModes: "", // first-run tips: on for a new player, off for a save that came before them; progress is kept
@@ -1309,6 +1310,13 @@ function dailyDeal(mode, opts, date) {
 // A deal is shown once a solver has won it (the deal, then fnv1a(tag|attempt)); positions, not time, so every machine agrees.
 // Left out: four-suit Spider (nothing wins) and FreeCell (no room in the size budget).
 const WIN_SEARCH = { klondike1: [300, 24], klondike3: [400, 24], yukon: [400, 24], spider1: [800, 24], spider2: [800, 80] };
+// Deal grades. The solver counts the positions it visits before it wins a deal; a deal it wins with hardly any backtracking is easy, one that
+// needs a long search is hard. [last easy count, last medium count] per game, set from 120 solved deals of each (about half easy, a quarter
+// medium, a fifth hard). Two-suit Spider is left out: its search is too slow to pick from.
+const GRADES = { klondike1: [100, 400], klondike3: [120, 500], yukon: [70, 250], spider1: [200, 450], spider2: [400, 1000] };
+const GRADE_CAP = 3000, GRADE_TRIES = 60; // positions a hard-or-medium candidate may use; candidates tried before taking the nearest grade found
+const gradeOf = (key, used) => { const g = GRADES[key]; return !g ? '' : used <= g[0] ? 'easy' : used <= g[1] ? 'medium' : 'hard'; };
+const GRADE_RANK = { easy: 0, medium: 1, hard: 2 };
 const candidateDeal = (base, a, tag) => (a ? 1 + fnv1a(tag + '|' + a) % 2000000000 : base);
 let dealPending = null;
 const showDealing = (on) => { $('#dealing').classList.toggle('on', on); if (on) announce('Finding a winnable deal'); };
@@ -1327,19 +1335,25 @@ function newGame(o = {}) {
   deal = mode === 'freecell' ? clamp(Math.floor(deal), 1, 1000000) : clamp(Math.floor(deal), 1, 2147483646);
   dealPending = null; showDealing(false);
   const key = modeKey(mode, opts), cfg = WIN_SEARCH[key];
-  if (exact || !cfg || !(daily || settings.winnable)) return startDeal(mode, opts, deal, daily, exact && o.winnable);
-  const tag = daily ? daily + '|' + key : String(deal), tries = daily ? 160 : cfg[1];
-  let a = 0, sv = null, cand = deal;
+  const want = !daily && settings.dealGrade !== 'any' && key !== 'spider2' && GRADES[key] ? settings.dealGrade : '';
+  if (exact || !cfg || !(daily || settings.winnable || want)) return startDeal(mode, opts, deal, daily, exact && o.winnable, exact && o.grade);
+  const tag = daily ? daily + '|' + key : String(deal), tries = daily ? 160 : want ? GRADE_TRIES : cfg[1], budget = want === 'easy' ? GRADES[key][0] : want ? GRADE_CAP : cfg[0];
+  let a = 0, sv = null, cand = deal, near = 0, nearGrade = '', grade = '';
   const slice = (ms) => { // null to keep going, else the deal (0 if none won)
     for (const end = now() + ms; ;) {
-      if (!sv) { cand = candidateDeal(deal, a, tag); sv = makeSolver(newState(mode, opts, cand, null), cfg[0]); }
+      if (!sv) { cand = candidateDeal(deal, a, tag); sv = makeSolver(newState(mode, opts, cand, null), budget); }
       const r = sv.step(20);
-      if (r === 'won') return cand;
-      if (r !== 'more') { sv = null; if (++a >= tries) return 0; }
+      if (r === 'won') {
+        const g = gradeOf(key, sv.used);
+        if (!want || g === want) { grade = g; return cand; }
+        // not the grade asked for: keep the nearest one in case none turns up
+        if (!near || Math.abs(GRADE_RANK[g] - GRADE_RANK[want]) < Math.abs(GRADE_RANK[nearGrade] - GRADE_RANK[want])) { near = cand; nearGrade = g; }
+      }
+      if (r !== 'more') { sv = null; if (++a >= tries) { grade = nearGrade; return near; } }
       if (now() >= end) return null;
     }
   };
-  const finish = (r) => startDeal(mode, opts, r || deal, daily, !!r);
+  const finish = (r) => startDeal(mode, opts, r || deal, daily, !!r, r && want ? grade : ''); // only a deal picked by grade carries one
   const first = slice(45);
   if (first != null) return finish(first);
   const me = dealPending = {}; showDealing(true);
@@ -1353,11 +1367,12 @@ function newGame(o = {}) {
     setTimeout(tick, 0);
   });
 }
-function startDeal(mode, opts, deal, daily, winnable) {
+function startDeal(mode, opts, deal, daily, winnable, grade) {
   abandonCurrent();
   clearTimeout(winTimer); winTimer = 0; finishRun = false;
   S = newState(mode, opts, deal, daily); musicHush = false;
   if (winnable) S.winnable = true;
+  if (winnable && grade) S.grade = grade;
   undoStack = []; redoStack = []; hintState = null; held = null; drag = null; cascade = null; cursor = { pile: null, depth: 0 }; clearStuck();
   syncShared(); meta.lastMode = mode; meta.lastOpts = { draw: S.opts.draw, suits: S.opts.suits }; save('meta', meta);
   closeModal(); showTitle(false); tipHide(); setTimeout(tipShow, 1400);
@@ -1382,7 +1397,7 @@ function confirmAbandon(o, restart) {
 function restartDeal() { // the same deal again: the player has now seen its cards, so a win here is a replay
   if (!S) return;
   const deal = S.deal;
-  newGame({ mode: S.mode, draw: S.opts.draw, suits: S.opts.suits, deal, daily: S.daily, winnable: S.winnable });
+  newGame({ mode: S.mode, draw: S.opts.draw, suits: S.opts.suits, deal, daily: S.daily, winnable: S.winnable, grade: S.grade });
   if (S && S.deal === deal) S.replay = true;
 }
 
@@ -1404,6 +1419,7 @@ function onWin(delay) {
   const hadBest = !!st.bestTimeMs, dealKey = S.mode + ':' + S.deal, replay = !!S.replay || meta.wonDeals.includes(dealKey), clean = !replay && !S.assisted;
   const best = { time: clean && (!st.bestTimeMs || S.elapsedMs < st.bestTimeMs), moves: clean && (!st.fewestMoves || S.moves < st.fewestMoves), score: clean && scoredLikeRecords && S.score > st.bestScore };
   st.won++; st.totalMs += S.elapsedMs;
+  if (!replay && S.winnable && Object.hasOwn(GRADE_RANK, S.grade)) meta.gradeWins[S.grade]++;
   if (!replay) { st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak); }
   if (S.assisted) st.assistedWon++;
   if (best.time) st.bestTimeMs = Math.max(1, Math.round(S.elapsedMs));
@@ -1907,7 +1923,7 @@ function dailyRun() {
 const DAILY_KEEP_DAYS = 400; // older daily entries are dropped when the save loads
 
 const SETTING_ENUMS = { motion: ['auto', 'full', 'reduced'], cardSize: ['compact', 'standard', 'large'], layout: ['fit', 'classic'], autoFoundation: ['off', 'safe', 'all'],
-  courts: ['deco', 'painted'], scoring: ['timed', 'standard', 'none'], back: BACKS.map((b) => b.id), table: TABLES.map((x) => x.id) };
+  courts: ['deco', 'painted'], scoring: ['timed', 'standard', 'none'], dealGrade: ['any', 'easy', 'medium', 'hard'], back: BACKS.map((b) => b.id), table: TABLES.map((x) => x.id) };
 for (const k in DEFAULT_SETTINGS) {
   const v = settings[k], d = DEFAULT_SETTINGS[k];
   if (typeof v !== typeof d || (typeof v === 'number' && !isFinite(v)) || (SETTING_ENUMS[k] && !SETTING_ENUMS[k].includes(v))) settings[k] = d;
@@ -1923,6 +1939,8 @@ function normalizeMeta() {
   if (!isObj(meta.daily)) meta.daily = {};
   meta.wonDeals = Array.isArray(meta.wonDeals) ? meta.wonDeals.filter((x) => typeof x === 'string').slice(-WON_DEALS_KEPT) : []; // the last deals won, so a replay can be told from a first win
   const cut = dayShift(todayStr(), -DAILY_KEEP_DAYS); for (const k in meta.daily) if (k.slice(0, 10) < cut) delete meta.daily[k];
+  const gw = isObj(meta.gradeWins) ? meta.gradeWins : {};
+  meta.gradeWins = {}; for (const g of ['easy', 'medium', 'hard']) meta.gradeWins[g] = typeof gw[g] === 'number' && isFinite(gw[g]) && gw[g] > 0 ? Math.floor(gw[g]) : 0; // first wins of graded deals
   if (typeof meta.dailyBest !== 'number' || !isFinite(meta.dailyBest)) meta.dailyBest = 0;
   const u = meta.unlock, known = UNLOCKS.map((x) => x[0]);
   meta.unlock = { ids: isObj(u) && Array.isArray(u.ids) ? u.ids.filter((x) => known.includes(x)) : hadSave ? known : [] };
@@ -3615,7 +3633,7 @@ $('#coachSkip').onclick = () => { setSetting('tips', false); toast('Tips off. Se
 function updateHUD() {
   if (!S) return;
   $('#modeName').textContent = MODES[S.mode].name + (variantLabel(S.mode, S.opts) ? ' (' + variantLabel(S.mode, S.opts) + ')' : '');
-  $('#modeSub').textContent = (S.daily ? (S.winnable ? 'Daily ' : 'Daily deal ') + S.daily : 'Deal #' + S.deal) + (S.winnable ? ' · winnable' : '') + (S.assisted ? ' · assisted' : '');
+  $('#modeSub').textContent = (S.daily ? (S.winnable ? 'Daily ' : 'Daily deal ') + S.daily : 'Deal #' + S.deal) + (S.winnable ? ' · ' + (Object.hasOwn(GRADE_RANK, S.grade) ? S.grade : 'winnable') : '') + (S.assisted ? ' · assisted' : '');
   $('#sScore').textContent = S.score; $('#sMoves').textContent = S.moves; updateTime();
   $('#sScoreW').style.display = settings.scoring === 'none' ? 'none' : '';
   $('#sTimeW').style.display = settings.showTimer ? '' : 'none';
@@ -3768,6 +3786,7 @@ const MODALS = {
     '<div class="set"><label>Auto-move to foundations<small>Safe moves only cards nothing else needs</small></label>' + seg('autoFoundation', [['off', 'Off'], ['safe', 'Safe'], ['all', 'All']]) + '</div>' +
     '<div class="set"><label>Move a card by<small>Tap sends a card to its best pile</small></label>' + seg('tapMove', [['tap', 'Tap'], ['double', 'Double-tap'], ['drag', 'Drag only']]) + '</div>' +
     '<div class="set"><label>Scoring<small>Timed adds a bonus for a quick win. Standard is points only. None hides the score</small></label>' + seg('scoring', [['timed', 'Timed'], ['standard', 'Standard'], ['none', 'None']]) + '</div>' +
+    '<div class="set"><label>Deal difficulty<small>Random deals a solver has won, picked by how much searching they took. Not FreeCell or Spider with 2 or 4 suits</small></label>' + seg('dealGrade', [['any', 'Any'], ['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']]) + '</div>' +
     '<div class="set"><label>Winnable deals only<small>A solver wins random deals first. Not FreeCell or four-suit Spider</small></label>' + tog('winnable', 'Winnable deals only') + '</div>' +
     '<div class="set"><label>Show timer</label>' + tog('showTimer', 'Show timer') + '</div>' +
     '<div class="set"><label>Show tips<small>Short hints while you play</small></label>' + tog('tips', 'Show tips') + '</div>' +
@@ -3806,7 +3825,8 @@ const MODALS = {
   records: () => {
     const n = ACH.filter((a) => meta.ach[a[0]]).length, nx = UNLOCKS.find((u) => !meta.unlock.ids.includes(u[0]));
     return head('Records') + '<p>Baths won: <b>' + (meta.totalWins || 0) + '</b> · Daily streak: <b>' + dailyStreak() + '</b> (best ' + dailyRun() + ')' +
-      (nx ? '<br>Next to open: ' + esc(unlockName(nx[0])) + '. ' + lockNote(nx[0]) + '.' : '') + '</p><h3>By game</h3>' +
+      (nx ? '<br>Next to open: ' + esc(unlockName(nx[0])) + '. ' + lockNote(nx[0]) + '.' : '') +
+      '<br>Graded deals won: Easy <b>' + meta.gradeWins.easy + '</b> · Medium <b>' + meta.gradeWins.medium + '</b> · Hard <b>' + meta.gradeWins.hard + '</b></p><h3>By game</h3>' +
       MODE_KEYS.map((k) => { const st = statFor(k); return '<div class="rec"><b>' + esc(modeKeyLabel(k)) + '</b><small>Won ' + st.won + ' of ' + st.played + ' · streak ' + st.streak + ' (best ' + st.bestStreak + ')</small><small>' +
         (st.bestTimeMs ? 'Best ' + fmtTime(st.bestTimeMs) + ' · ' + st.fewestMoves + ' moves · score ' + st.bestScore : st.won ? 'No unaided first win yet' : 'No wins yet') + '</small></div>'; }).join('') +
       '<h3>Achievements: ' + n + ' of ' + ACH.length + '</h3><ul class="ach">' +
@@ -3986,7 +4006,7 @@ window.__game = {
     tickClock(); // elapsedMs is otherwise only as fresh as the last half-second tick
     if (!S) return { scene: sceneName(), settings: Object.assign({}, settings) };
     return { scene: sceneName(), modal: modalKind, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, piles: notePiles(),
-      score: S.score, moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, winnable: !!S.winnable, started: S.started, canAutoComplete: canAutoComplete(),
+      score: S.score, moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, winnable: !!S.winnable, grade: S.winnable && Object.hasOwn(GRADE_RANK, S.grade) ? S.grade : '', started: S.started, canAutoComplete: canAutoComplete(),
       undoDepth: undoStack.length, redoDepth: redoStack.length, replay: !!S.replay, finishing: !!(finishRun && winTimer), ceremony: !!cascade, held: held ? Object.assign({}, held) : null, dropTarget: drag ? dropTarget(drag) : null, cursor: Object.assign({}, cursor),
       settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, stuck: stuckVerdict, lost: lostVerdict, storageOK };
   },
@@ -3996,6 +4016,7 @@ window.__game = {
     const st = newState(mode, s.opts || {}, s.deal || 1, s.daily || null);
     st.cards = []; st.up = []; for (const id in st.piles) st.piles[id] = [];
     for (const id in s.piles || {}) { if (!st.piles[id]) continue; for (const n of s.piles[id]) { const c = parseNote(n); st.piles[id].push(st.cards.length); st.cards.push({ s: c.s, r: c.r }); st.up.push(c.up); } }
+    if (s.grade) { st.winnable = true; st.grade = s.grade; }
     if (s.score != null) st.score = s.score; if (s.moves != null) st.moves = s.moves;
     S = st; undoStack = []; redoStack = []; held = null; drag = null; cascade = null; hintState = null; lastWin = null; clearStuck();
     clearTimeout(winTimer); winTimer = 0; finishRun = false;

@@ -57,6 +57,7 @@ export const tests = [
       t.equal(await row.count(), 3, 'three choices');
       await t.page.locator('#sheet [data-set="scoring"][data-val="none"]').click();
       t.equal((await t.state()).settings.scoring, 'none', 'a click chooses it');
+      await row.first().scrollIntoViewIfNeeded();
       await shot(t, 'S2-19', 'settings');
       await t.checkLayout();
       await t.reload();
@@ -100,6 +101,56 @@ export const tests = [
       await shot(t, 'S4-06', 'help-controls');
       await t.checkLayout();
       await t.game('scene', 'stats'); await shot(t, 'S4-06', 'stats');
+    },
+  },
+  {
+    name: 'w3b S3-02 Deal difficulty picks a solver-won random deal of the asked grade, says so, and counts first wins per grade',
+    async run(t) {
+      await baseSettings(t, { dealGrade: 'any', winnable: false });
+      // the bands for Klondike Draw 1, as the page sets them: easy up to 100 positions, medium up to 400, then hard
+      const gradeOf = (n) => (n <= 100 ? 'easy' : n <= 400 ? 'medium' : 'hard');
+      await t.seed(5); await t.game('newGame', { mode: 'klondike', draw: 1 });
+      let s = await t.state();
+      t.equal([s.deal, s.winnable, s.grade], [5, false, ''], 'Any is the plain shuffle, as before');
+      const seen = [];
+      for (const want of ['easy', 'medium', 'hard']) {
+        await t.game('setSettings', { dealGrade: want });
+        await t.seed(5);
+        await t.game('newGame', { mode: 'klondike', draw: 1 });
+        await t.page.waitForFunction(() => window.__game.getState().scene === 'game', null, { timeout: 30000 });
+        s = await t.state();
+        t.expect(s.winnable, want + ': the deal is one the solver won');
+        t.equal(s.grade, want, want + ': the deal carries the grade asked for');
+        const r = await t.game('solve', 'klondike', { draw: 1 }, s.deal, 3000);
+        t.equal([r.result, gradeOf(r.used)], ['won', want], want + ': measured on its own, the solver agrees (used ' + r.used + ' positions)');
+        t.expect((await t.page.locator('#modeSub').textContent()).includes(' · ' + want), want + ': the header says so');
+        seen.push(s.deal);
+      }
+      t.equal(new Set(seen).size, 3, 'three grades, three different deals from one seed');
+      await t.game('scene', 'settings');
+      t.equal(await t.page.locator('#sheet [data-set="dealGrade"]').count(), 4, 'Settings has Any, Easy, Medium and Hard');
+      await t.page.locator('#sheet [data-set="dealGrade"]').first().scrollIntoViewIfNeeded();
+      await shot(t, 'S3-02', 'settings');
+      await t.checkLayout();
+      await t.game('scene', 'game'); await shot(t, 'S3-02', 'header');
+      // FreeCell and two-suit Spider are left alone
+      await t.seed(9); await t.game('newGame', { mode: 'freecell' });
+      s = await t.state(); t.equal([s.deal, s.winnable], [9, false], 'FreeCell is dealt as before');
+      // first wins of a graded deal are counted, replays are not
+      const win = async (deal) => {
+        await t.game('setState', Object.assign(nearWinKlondike(), { deal, grade: 'hard' }));
+        await t.game('act', 'move', 't0', 'f3');
+        await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      };
+      await win(41); await win(41); await win(42);
+      t.equal((await t.game('meta')).gradeWins, { easy: 0, medium: 0, hard: 2 }, 'two hard deals won, the replay not counted');
+      await t.game('scene', 'records');
+      t.expect((await t.page.locator('#sheet').textContent()).includes('Hard 2'), 'Records shows the count');
+      await t.reload();
+      t.equal((await t.game('meta')).gradeWins.hard, 2, 'it survives a reload');
+      await t.page.evaluate(() => { const k = 'spa-solitaire:v1:meta'; const m = JSON.parse(localStorage.getItem(k)); m.gradeWins = { easy: 'x', hard: -4, medium: 3.7 }; localStorage.setItem(k, JSON.stringify(m)); });
+      await t.reload();
+      t.equal((await t.game('meta')).gradeWins, { easy: 0, medium: 3, hard: 0 }, 'a damaged count is mended, nothing else breaks');
     },
   },
 ];
