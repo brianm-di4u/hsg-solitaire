@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { baseSettings, clickCard, dragCard } from './_util.mjs';
+import { baseSettings, clickCard, dragCard, nearWinKlondike } from './_util.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.resolve(HERE, '..', '..', '_council', 'hsg-solitaire', 'wave-3', 'shots');
@@ -258,6 +258,62 @@ export const tests = [
       await t.checkLayout();
       await t.reload();
       t.equal((await t.state()).settings.tapMove, 'double', 'and it is kept');
+    },
+  },
+  {
+    name: 'w3a S3-05 streaks and bests count first, unaided wins only; replays and assisted wins still count as wins',
+    async run(t) {
+      await baseSettings(t, { sound: false });
+      const win = async (deal, moves, hint) => {
+        await t.game('setState', Object.assign(nearWinKlondike(), { deal, moves }));
+        if (hint) await t.game('act', 'hint');
+        await t.game('act', 'move', 't0', 'f3');
+        await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+        return (await t.game('stats')).klondike1;
+      };
+      let st = await win(77, 40);
+      t.equal([st.won, st.streak, st.fewestMoves, st.assistedWon], [1, 1, 41, 0], 'a first clean win sets the streak and the bests');
+      const m0 = await t.game('meta'); t.equal(m0.wonDeals, ['klondike:77'], 'and the deal is remembered');
+      st = await win(77, 5);
+      t.equal([st.won, st.streak, st.fewestMoves], [2, 1, 41], 'the same deal again counts as a win but not as a streak step or a best (6 moves would have been one)');
+      t.expect((await t.page.locator('#sheet .meta').first().textContent()).includes('replay'), 'the ticket says replay');
+      st = await win(78, 5, true);
+      t.equal([st.won, st.streak, st.fewestMoves, st.assistedWon], [3, 2, 41, 1], 'a win after a Hint counts, the streak goes on, no best is set');
+      const txt = await t.page.locator('#sheet').textContent();
+      t.expect(txt.includes('assisted'), 'the ticket says assisted');
+      t.expect(!txt.includes('New personal best'), 'and no personal best is claimed');
+      st = await win(79, 30);
+      t.equal([st.won, st.streak, st.fewestMoves], [4, 3, 31], 'a new deal, unaided, is a record again');
+      await t.game('scene', 'stats');
+      t.expect((await t.page.locator('#sheet').textContent()).includes('Wins with Undo or Hint1'), 'Statistics shows the assisted wins');
+      await shot(t, 'S3-05', 'stats');
+      await t.checkLayout();
+    },
+  },
+  {
+    name: 'w3a S3-05 the won-deal list is bounded and saved, a damaged one is ignored, and Restart marks a replay',
+    async run(t) {
+      await baseSettings(t, { sound: false });
+      const old = Array.from({ length: 205 }, (_, i) => 'klondike:' + (1000 + i));
+      await t.page.evaluate(([p, old]) => { localStorage.setItem(p + 'meta', JSON.stringify({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 205, daily: {}, wonDeals: old })); }, [P, old]);
+      await t.reload();
+      t.equal((await t.game('meta')).wonDeals.length, 200, 'a list longer than 200 is cut to the newest 200 on load');
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 77 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      let w = (await t.game('meta')).wonDeals;
+      t.equal([w.length, w[0], w[w.length - 1]], [200, 'klondike:1006', 'klondike:77'], 'a win pushes the oldest out');
+      t.equal(JSON.parse(await raw(t, 'meta')).wonDeals.length, 200, 'and it is saved');
+      await t.page.evaluate(([p]) => { localStorage.setItem(p + 'meta', JSON.stringify({ totalWins: 2, wonDeals: 'oops' })); }, [P]);
+      await t.reload();
+      t.equal((await t.game('meta')).wonDeals, [], 'a damaged list is dropped, nothing else breaks');
+      await t.game('newGame', { mode: 'klondike', deal: 5 });
+      t.equal((await t.state()).replay, false, 'a new deal is not a replay');
+      await firstMove(t);
+      await t.game('scene', 'menu');
+      await t.page.locator('#sheet [data-a="restart"]').click();
+      await t.page.locator('#sheet [data-a="yes"]').click();
+      t.equal((await t.state()).replay, true, 'restarting the same deal is');
     },
   },
 ];

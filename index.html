@@ -412,6 +412,7 @@ function storageNote() {
   if (!storageOK && !storageToasted) { storageToasted = true; toast('Progress cannot be saved in this browser.'); }
 }
 
+const WON_DEALS_KEPT = 200;
 const DEFAULT_SETTINGS = {
   sound: true, volume: 0.6, motion: 'auto', leftHanded: false, cardSize: 'standard', layout: 'fit', fourColor: false,
   autoFoundation: 'safe', back: 'skylight', table: 'felt', showTimer: true, deckSeed: 1914, courts: 'deco',
@@ -490,7 +491,7 @@ function makeDeck(mode, opts) {
 function newState(mode, opts, deal, daily) {
   const st = { v: 1, mode, opts: { draw: opts.draw === 3 ? 3 : 1, suits: [1, 2, 4].includes(opts.suits) ? opts.suits : 1 }, deal, daily: daily || null,
     cards: makeDeck(mode, opts), up: [], piles: {}, score: mode === 'spider' ? 500 : 0, moves: 0, elapsedMs: 0, recycles: 0, runs: 0,
-    started: false, won: false, usedUndo: false, usedHint: false, assisted: false };
+    started: false, won: false, usedUndo: false, usedHint: false, assisted: false, replay: false };
   for (const id of pileIds(mode)) st.piles[id] = [];
   st.up = st.cards.map(() => false);
   const P = st.piles; const d = MODES[mode];
@@ -1107,7 +1108,7 @@ function stockHintText() {
 
 function hint() {
   if (!S || S.won) return { ok: false };
-  S.usedHint = true; tipEvent('hint');
+  S.usedHint = true; S.assisted = true; tipEvent('hint');
   const sig = S.moves + '|' + undoStack.length + '|' + (S.piles.stock ? S.piles.stock.length : 0);
   if (!hintState || hintState.sig !== sig) {
     const a = analyze(HINT_BUDGET, false, true);
@@ -1253,7 +1254,7 @@ function pileName(id) {
 
 // 6. New game, stats, win
 function statFor(k) {
-  const d = { played: 0, won: 0, streak: 0, bestStreak: 0, bestTimeMs: 0, fewestMoves: 0, bestScore: 0, totalMs: 0 };
+  const d = { played: 0, won: 0, streak: 0, bestStreak: 0, bestTimeMs: 0, fewestMoves: 0, bestScore: 0, totalMs: 0, assistedWon: 0 };
   if (!isObj(stats[k])) return (stats[k] = d);
   for (const f in d) if (typeof stats[k][f] !== 'number' || !isFinite(stats[k][f])) stats[k][f] = d[f];
   return stats[k];
@@ -1351,7 +1352,12 @@ function confirmAbandon(o, restart) {
     text: (restart ? 'Your moves so far will be lost.' : 'The game in progress will be lost.') + (streak > 0 ? ' Your ' + modeKeyLabel(k) + ' streak of ' + streak + ' will reset.' : ''),
     yes: restart ? 'Restart' : 'New deal', onYes: go });
 }
-function restartDeal() { if (!S) return; newGame({ mode: S.mode, draw: S.opts.draw, suits: S.opts.suits, deal: S.deal, daily: S.daily, winnable: S.winnable }); }
+function restartDeal() { // the same deal again: the player has now seen its cards, so a win here is a replay
+  if (!S) return;
+  const deal = S.deal;
+  newGame({ mode: S.mode, draw: S.opts.draw, suits: S.opts.suits, deal, daily: S.daily, winnable: S.winnable });
+  if (S && S.deal === deal) S.replay = true;
+}
 
 function earn(c) {
   const got = ACH.filter((a) => !meta.ach[a[0]] && a[3](c)); got.forEach((a) => { meta.ach[a[0]] = todayStr(); });
@@ -1364,11 +1370,17 @@ function onWin(delay) {
   const k = modeKey(S.mode, S.opts); const st = statFor(k);
   let bonus = 0;
   if (S.mode !== 'spider') { bonus = Math.max(0, Math.round(1000 - 2 * S.elapsedMs / 1000)); addScore(bonus); }
-  const best = { time: !st.bestTimeMs || S.elapsedMs < st.bestTimeMs, moves: !st.fewestMoves || S.moves < st.fewestMoves, score: S.score > st.bestScore };
-  st.won++; st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak); st.totalMs += S.elapsedMs;
+  // Records are for first, unaided wins: a deal already won (or restarted), and a game that used Undo or Hint, still count as a win
+  // but do not grow the streak or set a best.
+  const hadBest = !!st.bestTimeMs, dealKey = S.mode + ':' + S.deal, replay = !!S.replay || meta.wonDeals.includes(dealKey), clean = !replay && !S.assisted;
+  const best = { time: clean && (!st.bestTimeMs || S.elapsedMs < st.bestTimeMs), moves: clean && (!st.fewestMoves || S.moves < st.fewestMoves), score: clean && S.score > st.bestScore };
+  st.won++; st.totalMs += S.elapsedMs;
+  if (!replay) { st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak); }
+  if (S.assisted) st.assistedWon++;
   if (best.time) st.bestTimeMs = Math.max(1, Math.round(S.elapsedMs));
   if (best.moves) st.fewestMoves = S.moves;
   if (best.score) st.bestScore = S.score;
+  meta.wonDeals = meta.wonDeals.filter((x) => x !== dealKey).concat(dealKey).slice(-WON_DEALS_KEPT);
   saveStats();
   meta.totalWins = (meta.totalWins || 0) + 1;
   if (S.daily) meta.daily[S.daily + '|' + k] = 'won';
@@ -1376,8 +1388,8 @@ function onWin(delay) {
   const ach = earn({ wins: meta.totalWins, w: { ms: S.elapsedMs, usedUndo: S.usedUndo, usedHint: S.usedHint } });
   const opened = UNLOCKS.filter(([id, n]) => meta.totalWins >= n && !meta.unlock.ids.includes(id)).map(([id]) => id); meta.unlock.ids.push(...opened);
   save('meta', meta); save('current', null);
-  lastWin = { ach, opened: opened.map(unlockName), pb: !!(best.time || best.moves || best.score) && st.won > 1, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, bonus, moves: S.moves, ms: S.elapsedMs,
-    best, totalWins: meta.totalWins, assisted: S.assisted, fact: FACTS[fnv1a(S.mode + ':' + S.deal) % FACTS.length] };
+  lastWin = { ach, opened: opened.map(unlockName), pb: !!(best.time || best.moves || best.score) && hadBest, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, bonus, moves: S.moves, ms: S.elapsedMs,
+    best, totalWins: meta.totalWins, assisted: S.assisted, replay, fact: FACTS[fnv1a(S.mode + ':' + S.deal) % FACTS.length] };
   announce('You won! Score ' + S.score);
   winTimer = setTimeout(ceremony, Math.max(250, delay + 260));
 }
@@ -1880,6 +1892,7 @@ function normalizeMeta() {
   meta.lastOpts = { draw: meta.lastOpts.draw === 3 ? 3 : 1, suits: [1, 2, 4].includes(meta.lastOpts.suits) ? meta.lastOpts.suits : 1 };
   if (typeof meta.totalWins !== 'number' || !isFinite(meta.totalWins)) meta.totalWins = 0;
   if (!isObj(meta.daily)) meta.daily = {};
+  meta.wonDeals = Array.isArray(meta.wonDeals) ? meta.wonDeals.filter((x) => typeof x === 'string').slice(-WON_DEALS_KEPT) : []; // the last deals won, so a replay can be told from a first win
   const cut = dayShift(todayStr(), -DAILY_KEEP_DAYS); for (const k in meta.daily) if (k.slice(0, 10) < cut) delete meta.daily[k];
   if (typeof meta.dailyBest !== 'number' || !isFinite(meta.dailyBest)) meta.dailyBest = 0;
   const u = meta.unlock, known = UNLOCKS.map((x) => x[0]);
@@ -3739,7 +3752,8 @@ const MODALS = {
     return head('Statistics') + '<div class="tabs" role="tablist">' + MODE_KEYS.map((m) => '<button class="chip' + (m === k ? ' solid" data-focus="1' : '') + '" data-key="' + m + '" role="tab" aria-selected="' + (m === k) + '">' + modeKeyLabel(m) + '</button>').join('') + '</div>' +
       '<table class="st">' + rowS('Played', st.played) + rowS('Won', st.won) + rowS('Win rate', st.played ? Math.round(100 * st.won / st.played) + '%' : 'n/a') +
       rowS('Current streak', st.streak) + rowS('Best streak', st.bestStreak) + rowS('Best time', st.bestTimeMs ? fmtTime(st.bestTimeMs) : 'n/a') +
-      rowS('Fewest moves', st.fewestMoves || 'n/a') + rowS('Best score', st.bestScore || 'n/a') + rowS('Wins, all games', meta.totalWins || 0) + '</table>' +
+      rowS('Fewest moves', st.fewestMoves || 'n/a') + rowS('Best score', st.bestScore || 'n/a') + rowS('Wins with Undo or Hint', st.assistedWon) + rowS('Wins, all games', meta.totalWins || 0) + '</table>' +
+      '<p class="cap">Streaks and bests count first wins without Undo or Hint. Replaying a deal you have won, or using Undo or Hint, still counts as a win.</p>' +
       (storageOK ? '' : '<p class="cap">Stats can\'t be saved in this browser.</p>') +
       '<div class="row"><button class="btn" data-a="resetStats" data-key="' + k + '">Reset ' + modeKeyLabel(k) + ' stats</button></div>';
   },
@@ -3761,7 +3775,7 @@ const MODALS = {
     return head('Records') + '<p>Baths won: <b>' + (meta.totalWins || 0) + '</b> · Daily streak: <b>' + dailyStreak() + '</b> (best ' + dailyRun() + ')' +
       (nx ? '<br>Next to open: ' + esc(unlockName(nx[0])) + '. ' + lockNote(nx[0]) + '.' : '') + '</p><h3>By game</h3>' +
       MODE_KEYS.map((k) => { const st = statFor(k); return '<div class="rec"><b>' + esc(modeKeyLabel(k)) + '</b><small>Won ' + st.won + ' of ' + st.played + ' · streak ' + st.streak + ' (best ' + st.bestStreak + ')</small><small>' +
-        (st.won ? 'Best ' + fmtTime(st.bestTimeMs) + ' · ' + st.fewestMoves + ' moves · score ' + st.bestScore : 'No wins yet') + '</small></div>'; }).join('') +
+        (st.bestTimeMs ? 'Best ' + fmtTime(st.bestTimeMs) + ' · ' + st.fewestMoves + ' moves · score ' + st.bestScore : st.won ? 'No unaided first win yet' : 'No wins yet') + '</small></div>'; }).join('') +
       '<h3>Achievements: ' + n + ' of ' + ACH.length + '</h3><ul class="ach">' +
       ACH.map((a) => '<li' + (meta.ach[a[0]] ? ' class="got"' : '') + '><b>' + esc(a[1]) + '</b>' + esc(a[2]) + '<small> ' + (meta.ach[a[0]] ? 'Earned ' + meta.ach[a[0]] : 'Not yet') + '</small></li>').join('') + '</ul>';
   },
@@ -3782,7 +3796,7 @@ const MODALS = {
     '<tr><td><kbd>U</kbd> <kbd>Ctrl</kbd>+<kbd>Z</kbd> · <kbd>Y</kbd></td><td>Undo · Redo (unlimited)</td></tr>' +
     '<tr><td><kbd>H</kbd> · <kbd>A</kbd> · <kbd>N</kbd></td><td>Hint (press again for the next) · Auto-complete · New deal</td></tr>' +
     '<tr><td><kbd>Esc</kbd> · <kbd>?</kbd></td><td>Menu (or put cards back) · This help</td></tr></table>' +
-    '<h3>Scoring</h3><p>Klondike and Yukon: +10 to a foundation, +5 waste to column, +5 for turning a card, −15 back from a foundation, and a recycle penalty in Klondike after the first pass. FreeCell: +10 per card home. Klondike, Yukon and FreeCell add a time bonus on a win (1000 − 2 × seconds). Spider starts at 500, −1 a move, +100 per completed run. Undo is unlimited and free; the game is marked "assisted".</p>' +
+    '<h3>Scoring</h3><p>Klondike and Yukon: +10 to a foundation, +5 waste to column, +5 for turning a card, −15 back from a foundation, and a recycle penalty in Klondike after the first pass. FreeCell: +10 per card home. Klondike, Yukon and FreeCell add a time bonus on a win (1000 − 2 × seconds). Spider starts at 500, −1 a move, +100 per completed run. Undo and Hint are free; a game that used either is marked "assisted". Streaks and bests count only first wins without them: replaying a deal you have won, or an assisted win, still counts as a win.</p>' +
     '<h3>About the art &amp; facts</h3><p>Every card back and table is an original Art Deco painting based on the Hot Springs research files: the Fordyce skylight and lozenge brick, the Quapaw dome and sculpin, Row ironwork, the Superior\'s medallions, Medical Arts Deco, the Ouachitas, thermal water and Lake Ouachita. Colors are estimates, so the designs are "inspired by". Court cards are invented 1920s archetypes (bath attendant, jockey, bellhop, saxophonist, promenade and evening ladies, card-room and racing gentlemen), not real people. The bath ticket and neon colors are invented designs. Win-screen facts come from the project\'s sourced trivia bank. In the Valley of Vapors, patience is a virtue.</p>',
   win: () => {
     const w = lastWin; if (!w) return head('You won!');
@@ -3793,7 +3807,7 @@ const MODALS = {
       '<div class="serial" aria-hidden="true">No. ' + String(w.deal).padStart(6, '0') + '</div><div class="punch" aria-hidden="true"></div>' +
       '<div class="big">' + w.score + '</div>' +
       '<div class="grid"><div>Time<b>' + fmtTime(w.ms) + '</b>' + (w.best.time ? '<span class="best">best</span>' : '') + '</div><div>Moves<b>' + w.moves + '</b>' + (w.best.moves ? '<span class="best">best</span>' : '') + '</div><div>Score<b>' + w.score + '</b>' + (w.best.score ? '<span class="best">best</span>' : '') + '</div></div>' +
-      '<div class="meta">' + esc(modeKeyLabel(k)) + ' · ' + (w.daily ? 'Daily ' + w.daily : 'Deal #' + w.deal) + (w.bonus ? ' · time bonus +' + w.bonus : '') + '</div>' +
+      '<div class="meta">' + esc(modeKeyLabel(k)) + ' · ' + (w.daily ? 'Daily ' + w.daily : 'Deal #' + w.deal) + (w.bonus ? ' · time bonus +' + w.bonus : '') + (w.replay ? ' · replay' : '') + (w.assisted ? ' · assisted' : '') + '</div>' +
       '<div class="course" aria-label="Course progress ' + filled + ' of 21">' + Array.from({ length: 21 }, (_, i) => '<i class="' + (i < filled ? 'f' : '') + (i === filled - 1 ? ' new' : '') + ((i + 1) % 7 === 0 ? ' m' : '') + '"' + ((i + 1) % 7 === 0 ? ' title="' + (i + 1) + ' baths"' : '') + '></i>').join('') + '</div>' +
       '<div class="meta">Course of 21 baths: ' + filled + ' of 21' + (courses ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : '') + '</div></div>' +
       (w.pb || (w.ach || []).length || (w.opened || []).length ? '<div class="earn" role="status">' + (w.pb ? '<div class="pb">New personal best</div>' : '') + ((w.ach || []).length ? '<div>' + (w.ach.length > 1 ? 'Achievements' : 'Achievement') + ': ' + w.ach.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + ((w.opened || []).length ? '<div>Unlocked: ' + w.opened.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + '</div>' : '') +
@@ -3939,7 +3953,7 @@ window.__game = {
     if (!S) return { scene: sceneName(), settings: Object.assign({}, settings) };
     return { scene: sceneName(), modal: modalKind, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, piles: notePiles(),
       score: S.score, moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, winnable: !!S.winnable, started: S.started, canAutoComplete: canAutoComplete(),
-      undoDepth: undoStack.length, redoDepth: redoStack.length, finishing: !!(finishRun && winTimer), ceremony: !!cascade, held: held ? Object.assign({}, held) : null, dropTarget: drag ? dropTarget(drag) : null, cursor: Object.assign({}, cursor),
+      undoDepth: undoStack.length, redoDepth: redoStack.length, replay: !!S.replay, finishing: !!(finishRun && winTimer), ceremony: !!cascade, held: held ? Object.assign({}, held) : null, dropTarget: drag ? dropTarget(drag) : null, cursor: Object.assign({}, cursor),
       settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, stuck: stuckVerdict, lost: lostVerdict, storageOK };
   },
   setState(s) {
