@@ -791,6 +791,7 @@ function tryMove(from, idx, to, why = 'player') {
   return { ok: true };
 }
 
+const FLIP_GAP_MS = 45;
 function stockAction() {
   if (!S || S.won) return { ok: false };
   tipEvent('stock');
@@ -802,7 +803,8 @@ function stockAction() {
     if (st.length) {
       const n = Math.min(S.opts.draw, st.length);
       for (let i = 0; i < n; i++) { const u = st.pop(); w.push(u); S.up[u] = true; animDelay[u] = i * 70; }
-      sfx('flip'); announce('Drew ' + describeCard(top('waste')));
+      for (let i = 0; i < n; i++) sfx('flip', undefined, undefined, { delay: i * FLIP_GAP_MS / 1000 }); // Draw 3 flips three cards: three flips
+      announce('Drew ' + describeCard(top('waste')));
     } else {
       S.recycles++;
       if (S.recycles > 1) addScore(S.opts.draw === 3 ? -20 : -50);
