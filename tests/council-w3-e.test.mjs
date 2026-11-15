@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { baseSettings } from './_util.mjs';
+import { baseSettings, nearWinKlondike } from './_util.mjs';
 
 const SHOTS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '_council', 'hsg-solitaire', 'wave-3', 'shots');
 const shot = async (t, id, name) => { fs.mkdirSync(SHOTS, { recursive: true }); await t.waitForStable(); await t.page.screenshot({ path: path.join(SHOTS, id + '-' + name + '-' + t.viewport + '.png') }); };
@@ -291,6 +291,34 @@ export const tests = [
       l = await labels(); has('c0', 'Free cell 1, empty'); t.expect(l.filter((x) => /^t\d+:/.test(x)).length >= 8, 'FreeCell: a button for the cards of every column');
       await t.game('newGame', { mode: 'spider', opts: { suits: 1 } }); await t.waitForStable();
       l = await labels(); has('stock', 'deals left. Press to deal a row');
+    },
+  },
+  {
+    name: 'w3e S4-08 the win ceremony stamps the Spa City mark into the ring and lets steam rise from it',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'full' });
+      await t.game('setState', nearWinKlondike()); await t.game('act', 'move', 't0', 'f3');
+      let r = await t.game('act', 'ceremonyAt', 100);
+      t.equal([r.steamed, r.stamp], [0, 0], 'at the start of the gather there is neither steam nor stamp');
+      r = await t.game('act', 'ceremonyAt', 700);
+      t.expect(r.steamed > 0 && r.stamp > 0 && r.stamp < 1, 'the mark is fading in and the steam has begun: ' + JSON.stringify(r));
+      r = await t.game('act', 'ceremonyAt', 1300);
+      t.expect(r.steamed >= 6 && r.stamp === 1, 'by the hold the mark is whole and steam keeps coming: ' + JSON.stringify(r));
+      await shot(t, 'S4-08', 'ceremony-stamp');
+      r = await t.game('act', 'ceremonyAt', 3600);
+      t.equal(r.stamp, 0, 'the mark has faded by the end of the spray');
+      t.expect(r.steamed < 40, 'and the steam stopped with the rosette: ' + r.steamed);
+    },
+  },
+  {
+    name: 'w3e S4-08 low-effects mode keeps the stamp but has no steam',
+    url: 'index.html?fx=low',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'full' });
+      await t.game('setState', nearWinKlondike()); await t.game('act', 'move', 't0', 'f3');
+      const r = await t.game('act', 'ceremonyAt', 1300);
+      t.equal([r.steamed, r.stamp], [0, 1], 'stamp whole, no steam: ' + JSON.stringify(r));
     },
   },
 ];
