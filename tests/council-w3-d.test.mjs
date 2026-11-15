@@ -28,13 +28,14 @@ const reloadGame = async (t) => { await t.page.reload(); await t.page.waitForFun
 const cuesNow = (t, clear) => t.page.evaluate((c) => window.__game.cuesPlayed(c), !!clear);
 // win the near-won Klondike deal (as the winner of a save with these records) and wait for the win sheet
 const KL = { played: 9, won: 8, streak: 0, bestStreak: 9, bestTimeMs: 1, fewestMoves: 1, bestScore: 99999, totalMs: 1, assistedWon: 0, recent: '' };
-// (an assisted win is never a record, so it shows a streak on its own)
-const winWith = async (t, stats, meta, assisted) => {
+// (a slow win cannot beat KL's records, so it is a record only where a test lowers one; an assisted win never grows the streak)
+const winWith = async (t, stats, meta, assisted, slow) => {
   await put(t, { stats: { klondike1: Object.assign({}, KL, stats) }, meta: Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 5, daily: {}, unlock: { ids: [] } }, meta), settings: { sound: false, tips: false } });
   await reloadGame(t); await baseSettings(t, { sound: false });
   await t.game('setState', nearWinKlondike()); if (assisted) await t.game('act', 'hint');
   await cuesNow(t, true);
-  await t.game('act', 'move', 't0', 'f3');
+  // slow: a first move and a moment on the clock, so the win is slower than KL's 1 ms record and cannot be a record by being instant
+  if (slow) { await t.game('act', 'move', 't0', 't1'); await t.page.waitForFunction(() => window.__game.getState().elapsedMs > 50, null, { timeout: 10000 }); await t.game('act', 'move', 't1', 'f3'); } else await t.game('act', 'move', 't0', 'f3');
   await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
   await t.page.waitForFunction(() => window.__game.cuesPlayed().some((c) => ['best', 'streak', 'course'].includes(c.name)) || document.querySelector('#sheet .ticket'), null, { timeout: 5000 }).catch(() => {});
 };
@@ -206,8 +207,12 @@ export const tests = [
       await t.page.waitForFunction(() => window.__game.cuesPlayed().some((c) => c.name === 'best'), null, { timeout: 5000 });
       t.equal(await heard(t), ['best'], 'a new personal best: the best cue');
       t.expect((await t.page.locator('#sheet .earn').textContent()).includes('New personal best'), 'and the sheet says so');
-      // three in a row (two before this one), no record
+      // a win with a Hint does not grow the streak: no streak cue, no "in a row" line
       await winWith(t, { streak: 2 }, { totalWins: 5 }, true);
+      t.equal(await heard(t), [], 'an assisted win after two: no streak cue');
+      t.expect(!(await t.page.locator('#sheet').textContent()).includes('in a row'), 'and the sheet does not say wins in a row');
+      // three in a row (two before this one), no record
+      await winWith(t, { streak: 2 }, { totalWins: 5 }, false, true);
       await t.page.waitForFunction(() => window.__game.cuesPlayed().some((c) => c.name === 'streak'), null, { timeout: 5000 });
       const st = (await cuesNow(t)).find((c) => c.name === 'streak');
       t.equal(st.arg, 3, 'a streak of three: three notes');
