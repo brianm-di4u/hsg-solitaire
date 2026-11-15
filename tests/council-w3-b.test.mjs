@@ -192,4 +192,44 @@ export const tests = [
       t.equal((await t.game('stats')).klondike1.recent, 'WWALWL', 'it survives a reload');
     },
   },
+  {
+    name: 'w3b S3-16 Win facts are ones not yet met, then the longest unseen; Records keeps the collection; damaged lists are mended',
+    async run(t) {
+      await baseSettings(t, { sound: false });
+      const MK = 'spa-solitaire:v1:meta';
+      const setSeen = (seen) => t.page.evaluate(([k, seen]) => { const m = JSON.parse(localStorage.getItem(k) || '{}'); m.seenFacts = seen; localStorage.setItem(k, JSON.stringify(m)); }, [MK, seen]);
+      const win = async (deal) => {
+        await t.game('setState', Object.assign(nearWinKlondike(), { deal }));
+        await t.game('act', 'move', 't0', 'f3');
+        await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+        return (await t.page.locator('#sheet .fact .q').textContent());
+      };
+      t.equal((await t.game('meta')).seenFacts, [], 'a new profile has met none');
+      await setSeen(['x', -1, 3.5, 2, 2, 7]); await t.reload();
+      t.equal((await t.game('meta')).seenFacts, [2, 7], 'a damaged list keeps whole numbers once each (' + JSON.stringify((await t.game('meta')).seenFacts) + ')');
+      const all = Array.from({ length: 50 }, (_, i) => i);
+      await setSeen(all.slice(0, 48)); await t.reload();
+      const a = await win(11);
+      let seen = (await t.game('meta')).seenFacts;
+      t.equal([seen.length, all.slice(48).includes(seen[48])], [49, true], 'with 48 met, the win shows one of the two others');
+      const b = await win(12);
+      seen = (await t.game('meta')).seenFacts;
+      t.equal(seen.length, 50, 'the next win shows the last one');
+      t.expect(a !== b, 'two different facts back to back');
+      const c = await win(13);
+      const seen2 = (await t.game('meta')).seenFacts;
+      t.equal([seen2.length, new Set(seen2).size], [50, 50], 'all met: nothing is lost from the collection');
+      t.expect(c !== b && c !== a, 'a fourth is a repeat, but not one of the last two shown');
+      t.expect(seen.slice(0, 25).includes(seen2[49]), 'it came from the half shown longest ago');
+      await t.game('scene', 'records');
+      t.expect((await t.page.locator('#sheet').textContent()).includes('Facts found: 50 of 50'), 'Records counts them');
+      await t.page.locator('#sheet details.hp summary').first().click();
+      t.equal(await t.page.locator('#sheet details.hp[open] li').count(), 50, 'and lists them');
+      await t.page.locator('#sheet details.hp[open] li').nth(3).scrollIntoViewIfNeeded();
+      await shot(t, 'S3-16', 'records');
+      await t.checkLayout();
+      await t.reload();
+      t.equal((await t.game('meta')).seenFacts.length, 50, 'the collection survives a reload');
+    },
+  },
 ];

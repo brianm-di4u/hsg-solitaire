@@ -1412,6 +1412,15 @@ function earn(c) {
   const got = ACH.filter((a) => !meta.ach[a[0]] && a[3](c)); got.forEach((a) => { meta.ach[a[0]] = todayStr(); });
   return got.map((a) => a[1]);
 }
+// A win shows a fact the player has not met yet (chosen from the deal, so a deal always picks the same one from the same unmet set). Once all
+// are found, it picks among the half shown longest ago. The list only ever grows to the number of facts; it is also the Records collection.
+function pickFact(seed) {
+  const n = FACTS.length, seen = [...new Set(meta.seenFacts.filter((i) => i < n))], unseen = [];
+  for (let i = 0; i < n; i++) if (!seen.includes(i)) unseen.push(i);
+  const pool = unseen.length ? unseen : seen.slice(0, Math.ceil(n / 2)), i = pool[fnv1a(seed) % pool.length];
+  meta.seenFacts = seen.filter((x) => x !== i).concat(i);
+  return i;
+}
 let lastWin = null;
 function onWin(delay) {
   loadArt(LATE_ART); // the ticket stock, ready long before the ceremony ends
@@ -1439,9 +1448,10 @@ function onWin(delay) {
   meta.dailyBest = dailyRun();
   const ach = earn({ wins: meta.totalWins, w: { ms: S.elapsedMs, usedUndo: S.usedUndo, usedHint: S.usedHint } });
   const opened = UNLOCKS.filter(([id, n]) => meta.totalWins >= n && !meta.unlock.ids.includes(id)).map(([id]) => id); meta.unlock.ids.push(...opened);
+  const factIdx = pickFact(S.mode + ':' + S.deal);
   save('meta', meta); save('current', null);
   lastWin = { ach, opened: opened.map(unlockName), pb: !!(best.time || best.moves || best.score) && hadBest, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, scoring: settings.scoring, bonus, moves: S.moves, ms: S.elapsedMs,
-    best, totalWins: meta.totalWins, assisted: S.assisted, replay, fact: FACTS[fnv1a(S.mode + ':' + S.deal) % FACTS.length] };
+    best, totalWins: meta.totalWins, assisted: S.assisted, replay, fact: FACTS[factIdx] };
   announce(settings.scoring === 'none' ? 'You won!' : 'You won! Score ' + S.score);
   winTimer = setTimeout(ceremony, Math.max(250, delay + 260));
 }
@@ -1948,6 +1958,7 @@ function normalizeMeta() {
   const cut = dayShift(todayStr(), -DAILY_KEEP_DAYS); for (const k in meta.daily) if (k.slice(0, 10) < cut) delete meta.daily[k];
   const gw = isObj(meta.gradeWins) ? meta.gradeWins : {};
   meta.gradeWins = {}; for (const g of ['easy', 'medium', 'hard']) meta.gradeWins[g] = typeof gw[g] === 'number' && isFinite(gw[g]) && gw[g] > 0 ? Math.floor(gw[g]) : 0; // first wins of graded deals
+  meta.seenFacts = Array.isArray(meta.seenFacts) ? [...new Set(meta.seenFacts.filter((i) => Number.isInteger(i) && i >= 0 && i < 10000))] : []; // win-screen facts found, least recently shown first
   if (typeof meta.dailyBest !== 'number' || !isFinite(meta.dailyBest)) meta.dailyBest = 0;
   const u = meta.unlock, known = UNLOCKS.map((x) => x[0]);
   meta.unlock = { ids: isObj(u) && Array.isArray(u.ids) ? u.ids.filter((x) => known.includes(x)) : hadSave ? known : [] };
@@ -3834,12 +3845,13 @@ const MODALS = {
       }).join('') + '</div>' + dailyHistory();
   },
   records: () => {
-    const n = ACH.filter((a) => meta.ach[a[0]]).length, nx = UNLOCKS.find((u) => !meta.unlock.ids.includes(u[0]));
+    const found = [...new Set(meta.seenFacts)].filter((i) => i < FACTS.length).sort((a, b) => a - b), n = ACH.filter((a) => meta.ach[a[0]]).length, nx = UNLOCKS.find((u) => !meta.unlock.ids.includes(u[0]));
     return head('Records') + '<p>Baths won: <b>' + (meta.totalWins || 0) + '</b> · Daily streak: <b>' + dailyStreak() + '</b> (best ' + dailyRun() + ')' +
       (nx ? '<br>Next to open: ' + esc(unlockName(nx[0])) + '. ' + lockNote(nx[0]) + '.' : '') +
       '<br>Graded deals won: Easy <b>' + meta.gradeWins.easy + '</b> · Medium <b>' + meta.gradeWins.medium + '</b> · Hard <b>' + meta.gradeWins.hard + '</b></p><h3>By game</h3>' +
       MODE_KEYS.map((k) => { const st = statFor(k); return '<div class="rec"><b>' + esc(modeKeyLabel(k)) + '</b><small>Won ' + st.won + ' of ' + st.played + ' · streak ' + st.streak + ' (best ' + st.bestStreak + ')</small><small>' +
         (st.bestTimeMs ? 'Best ' + fmtTime(st.bestTimeMs) + ' · ' + st.fewestMoves + ' moves · score ' + st.bestScore : st.won ? 'No unaided first win yet' : 'No wins yet') + '</small></div>'; }).join('') +
+      hp('Facts found: ' + found.length + ' of ' + FACTS.length, null, '<ul class="ach">' + found.map((i) => '<li class="got"><b>' + esc(FACTS[i][2]) + '</b>' + esc(FACTS[i][1]) + '</li>').join('') + '</ul>') +
       '<h3>Achievements: ' + n + ' of ' + ACH.length + '</h3><ul class="ach">' +
       ACH.map((a) => '<li' + (meta.ach[a[0]] ? ' class="got"' : '') + '><b>' + esc(a[1]) + '</b>' + esc(a[2]) + '<small> ' + (meta.ach[a[0]] ? 'Earned ' + meta.ach[a[0]] : 'Not yet') + '</small></li>').join('') + '</ul>';
   },
