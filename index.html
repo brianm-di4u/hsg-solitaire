@@ -200,6 +200,9 @@
   table.st{width:100%;border-collapse:collapse;font-size:.92rem}
   table.st td{padding:8px 4px;border-bottom:1px solid var(--color-border)}
   table.st td:last-child{text-align:right;font-family:var(--font-mono);font-weight:700}
+  .rs{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}
+  .rs i{font-style:normal;font-family:var(--font-deco);font-weight:700;font-size:.78rem;width:24px;height:24px;display:grid;place-items:center;border-radius:5px;border:1px solid #B8862C}
+  .rs .W{background:#2E6A3C;color:#F3E9D2;border-color:#2E6A3C} .rs .A{background:#E9C873;color:#3A2810} .rs .L{background:transparent;color:var(--color-muted)}
   table.keys td{padding:4px 6px;vertical-align:top;font-size:.88rem}
   kbd{font-family:var(--font-deco);font-variant:all-small-caps;font-weight:700;letter-spacing:.04em;font-size:.95em;border:1px solid #B8862C;border-bottom-width:2px;border-radius:4px;padding:0 6px;background:linear-gradient(var(--sheet),var(--chip));white-space:nowrap}
   .hp{border-top:1px solid var(--color-border)}
@@ -1281,12 +1284,16 @@ function pileName(id) {
 }
 
 // 6. New game, stats, win
+const RECENT_KEPT = 20; // results shown in Statistics: W won, A won with Undo or Hint, L left unfinished; oldest first
 function statFor(k) {
-  const d = { played: 0, won: 0, streak: 0, bestStreak: 0, bestTimeMs: 0, fewestMoves: 0, bestScore: 0, totalMs: 0, assistedWon: 0 };
+  const d = { played: 0, won: 0, streak: 0, bestStreak: 0, bestTimeMs: 0, fewestMoves: 0, bestScore: 0, totalMs: 0, assistedWon: 0, recent: '' };
   if (!isObj(stats[k])) return (stats[k] = d);
-  for (const f in d) if (typeof stats[k][f] !== 'number' || !isFinite(stats[k][f])) stats[k][f] = d[f];
+  for (const f in d) if (f !== 'recent' && (typeof stats[k][f] !== 'number' || !isFinite(stats[k][f]))) stats[k][f] = d[f];
+  if (typeof stats[k].recent !== 'string' || /[^WAL]/.test(stats[k].recent)) stats[k].recent = '';
+  stats[k].recent = stats[k].recent.slice(-RECENT_KEPT);
   return stats[k];
 }
+const noteResult = (st, c) => { st.recent = (st.recent + c).slice(-RECENT_KEPT); };
 function saveStats() { save('stats', stats); }
 let clockMark = 0;
 function tickClock() {
@@ -1298,7 +1305,7 @@ function tickClock() {
 const paused = () => document.hidden || modalKind !== null || titleOn;
 
 function abandonCurrent() {
-  if (S && S.started && !S.won) { syncShared(); const st = statFor(modeKey(S.mode, S.opts)); st.streak = 0; saveStats(); }
+  if (S && S.started && !S.won) { syncShared(); const st = statFor(modeKey(S.mode, S.opts)); st.streak = 0; noteResult(st, 'L'); saveStats(); }
 }
 
 function dailyDeal(mode, opts, date) {
@@ -1418,7 +1425,7 @@ function onWin(delay) {
   const scoredLikeRecords = settings.scoring === 'timed' || (settings.scoring === 'standard' && S.mode === 'spider');
   const hadBest = !!st.bestTimeMs, dealKey = S.mode + ':' + S.deal, replay = !!S.replay || meta.wonDeals.includes(dealKey), clean = !replay && !S.assisted;
   const best = { time: clean && (!st.bestTimeMs || S.elapsedMs < st.bestTimeMs), moves: clean && (!st.fewestMoves || S.moves < st.fewestMoves), score: clean && scoredLikeRecords && S.score > st.bestScore };
-  st.won++; st.totalMs += S.elapsedMs;
+  st.won++; st.totalMs += S.elapsedMs; noteResult(st, S.assisted ? 'A' : 'W');
   if (!replay && S.winnable && Object.hasOwn(GRADE_RANK, S.grade)) meta.gradeWins[S.grade]++;
   if (!replay) { st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak); }
   if (S.assisted) st.assistedWon++;
@@ -1948,12 +1955,14 @@ function normalizeMeta() {
   for (const k in meta.ach) if (!ACH.some((a) => a[0] === k) || typeof meta.ach[k] !== 'string') delete meta.ach[k];
 }
 normalizeMeta();
+const tidyStats = () => { for (const k in stats) if (isObj(stats[k])) statFor(k); }; // mends the result strips of a hand-edited or damaged save
+tidyStats();
 if (!isOpen('b', settings.back)) settings.back = 'skylight';
 if (!isOpen('t', settings.table)) settings.table = 'felt';
 if (!hadSave) save('meta', meta);
 // before every change (and whenever another tab writes) so each write builds on the latest numbers.
 function syncShared() {
-  const s = load('stats', null); if (isObj(s)) stats = s;
+  const s = load('stats', null); if (isObj(s)) { stats = s; tidyStats(); }
   const m = load('meta', null); if (isObj(m)) { const had = meta.unlock; meta = Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 0, daily: {} }, m); if (!isObj(m.unlock)) meta.unlock = had; normalizeMeta(); }
 }
 window.addEventListener('storage', (e) => { if (e.key === null || e.key === KEY + 'stats' || e.key === KEY + 'meta') syncShared(); });
@@ -3803,8 +3812,10 @@ const MODALS = {
     const rowS = (a, b) => '<tr><td>' + a + '</td><td>' + b + '</td></tr>';
     return head('Statistics') + '<div class="tabs" role="tablist">' + MODE_KEYS.map((m) => '<button class="chip' + (m === k ? ' solid" data-focus="1' : '') + '" data-key="' + m + '" role="tab" aria-selected="' + (m === k) + '">' + modeKeyLabel(m) + '</button>').join('') + '</div>' +
       '<table class="st">' + rowS('Played', st.played) + rowS('Won', st.won) + rowS('Win rate', st.played ? Math.round(100 * st.won / st.played) + '%' : 'n/a') +
+      rowS('Average win time', st.won && st.totalMs > 0 ? fmtTime(st.totalMs / st.won) : 'n/a') + rowS('Wins without Undo or Hint', Math.max(0, st.won - st.assistedWon)) +
       rowS('Current streak', st.streak) + rowS('Best streak', st.bestStreak) + rowS('Best time', st.bestTimeMs ? fmtTime(st.bestTimeMs) : 'n/a') +
       rowS('Fewest moves', st.fewestMoves || 'n/a') + rowS('Best score', st.bestScore || 'n/a') + rowS('Wins with Undo or Hint', st.assistedWon) + rowS('Wins, all games', meta.totalWins || 0) + '</table>' +
+      (st.recent ? '<h3>Last ' + RECENT_KEPT + ' games</h3><div class="rs" role="img" aria-label="Last ' + st.recent.length + ' games, oldest first: ' + [...st.recent].map((c) => ({ W: 'won', A: 'won with help', L: 'unfinished' })[c]).join(', ') + '">' + [...st.recent].map((c) => '<i class="' + c + '">' + c + '</i>').join('') + '</div><p class="cap">Oldest on the left. W won, A won with Undo or Hint, L left unfinished.</p>' : '') +
       '<p class="cap">Streaks and bests count first wins without Undo or Hint. Replaying a deal you have won, or using Undo or Hint, still counts as a win.</p>' +
       (storageOK ? '' : '<p class="cap">Stats can\'t be saved in this browser.</p>') +
       '<div class="row"><button class="btn" data-a="resetStats" data-key="' + k + '">Reset ' + modeKeyLabel(k) + ' stats</button></div>';

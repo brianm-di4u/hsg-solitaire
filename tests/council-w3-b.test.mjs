@@ -153,4 +153,43 @@ export const tests = [
       t.equal((await t.game('meta')).gradeWins, { easy: 0, medium: 3, hard: 0 }, 'a damaged count is mended, nothing else breaks');
     },
   },
+  {
+    name: 'w3b S3-06 Statistics shows the average win time, unaided wins and the last 20 results; a damaged list is mended',
+    async run(t) {
+      await baseSettings(t, { sound: false });
+      const SK = 'spa-solitaire:v1:stats';
+      const seeded = (o) => t.page.evaluate(([k, o]) => { localStorage.setItem(k, JSON.stringify(o)); }, [SK, o]);
+      const base = { played: 4, won: 3, streak: 1, bestStreak: 2, bestTimeMs: 60000, fewestMoves: 90, bestScore: 900, totalMs: 270000, assistedWon: 1 };
+      await seeded({ klondike1: Object.assign({}, base, { recent: 'WWAL' }), klondike3: Object.assign({}, base, { recent: 'W'.repeat(25) }), yukon: Object.assign({}, base, { recent: 'Wxyz' }), freecell: Object.assign({}, base, { totalMs: 0, won: 0 }) });
+      await t.reload();
+      let st = await t.game('stats');
+      t.equal(st.klondike1.recent, 'WWAL', 'a good list is kept');
+      t.equal(st.klondike3.recent.length, 20, 'a list longer than 20 is cut to the newest 20');
+      t.equal(st.yukon.recent, '', 'a damaged list is dropped, the numbers beside it stay (' + st.yukon.won + ' won)');
+      await t.game('scene', 'stats');
+      let txt = await t.page.locator('#sheet table.st').textContent();
+      t.expect(txt.includes('Average win time1:30'), 'average win time is total time over wins (270 s over 3 wins)');
+      t.expect(txt.includes('Wins without Undo or Hint2'), 'three wins, one assisted, leaves two unaided');
+      t.equal(await t.page.locator('#sheet .rs i').allTextContents(), ['W', 'W', 'A', 'L'], 'the strip shows the results, oldest first');
+      t.expect((await t.page.locator('#sheet .rs').getAttribute('aria-label')).includes('won with help'), 'and says them to a screen reader');
+      await t.page.locator('#sheet [data-key="freecell"]').click();
+      t.expect((await t.page.locator('#sheet table.st').textContent()).includes('Average win timen/a'), 'no wins means no average');
+      t.equal(await t.page.locator('#sheet .rs').count(), 0, 'and no strip for a game never played');
+      // a win and an abandoned game add to the strip
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 51 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 52 });
+      const m = (await t.game('legalMoves')).find((x) => x.to && x.from !== 'stock'); await t.game('act', 'move', m.from, m.to, m.count);
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 53 });
+      st = await t.game('stats');
+      t.equal(st.klondike1.recent, 'WWALWL', 'a win adds W, a deal left behind adds L');
+      await t.game('scene', 'stats');
+      await t.page.locator('#sheet .rs').scrollIntoViewIfNeeded();
+      await shot(t, 'S3-06', 'stats');
+      await t.checkLayout();
+      await t.reload();
+      t.equal((await t.game('stats')).klondike1.recent, 'WWALWL', 'it survives a reload');
+    },
+  },
 ];
