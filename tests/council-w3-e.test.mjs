@@ -79,7 +79,7 @@ export const tests = [
       await t.game('newGame', { mode: 'klondike' }); await t.waitForStable();
       let m = await marks(), lay = await t.game('getLayout');
       t.expect(m.emblem, 'a Klondike table has the Spa City mark on the empty felt');
-      const lowest = Math.max(...Object.keys(lay.piles).filter((k) => /^td$/.test(k)).map((k) => lay.piles[k].y + (lay.piles[k].zoneH || 0)));
+      const lowest = Math.max(...Object.keys(lay.piles).filter((k) => /^t\d$/.test(k)).map((k) => lay.piles[k].y + (lay.piles[k].zoneH || 0)));
       t.expect(m.emblem.cy - m.emblem.r >= m.band.top - 1 && m.emblem.cy + m.emblem.r * .6 <= m.band.bottom, 'it sits inside the free band under the dealt columns: ' + JSON.stringify(m.emblem) + ' in ' + JSON.stringify(m.band));
       t.expect(m.band.top >= lowest - 1, 'and below the lowest column of the deal (' + Math.round(lowest) + ' <= ' + Math.round(m.band.top) + ')');
       t.expect(await ringContrast(m.emblem) > 8, 'the mark is really painted on the table layer: ' + await ringContrast(m.emblem));
@@ -244,6 +244,53 @@ export const tests = [
       await goTo('t0'); await t.page.keyboard.press('Enter'); await goTo('t1'); await t.page.keyboard.press('Enter');
       t.expect((await said()).includes('Colors alternate: it needs a black seven'), 'the keyboard drop says why too: ' + JSON.stringify(await said()));
       await t.page.evaluate(() => { delete performance.now; });
+    },
+  },
+  {
+    name: 'w3e S2-04 a screen reader can explore the piles and play from a list beside the canvas, and S reads out the table',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced' });
+      const labels = () => t.page.evaluate(() => [...document.querySelectorAll('#mirror button')].map((b) => b.getAttribute('data-key') + ' = ' + b.textContent));
+      const press = (key) => t.page.evaluate((k) => document.querySelector('#mirror [data-key="' + k + '"]').click(), key);
+      const sr = () => t.page.evaluate(() => document.getElementById('sr').textContent);
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EMPTY_K, { stock: ['2D', '3D'], waste: ['4H'], f0: ['AS'], t0: ['#9C', '6H'], t1: ['7S'], t2: ['KD', 'QC'] }) });
+      let l = await labels(), has = (k, txt) => t.expect(l.some((x) => x.startsWith(k + ' = ') && x.includes(txt)), k + ' says "' + txt + '": ' + l.filter((x) => x.startsWith(k + ' ')).join());
+      has('stock', 'Stock, 2 cards. Press to draw'); has('waste', 'Waste, Four of hearts'); has('f0', 'Foundation 1, Ace of spades on top'); has('f1', 'Foundation 2, empty');
+      has('t0:1', 'Column 1: Six of hearts, 1 face down. Press to pick up'); has('t1:0', 'Column 2: Seven of spades'); has('t2:0', 'Column 3: King of diamonds, with 1 card on it'); has('t2:1', 'Column 3: Queen of clubs'); has('t3', 'Column 4, empty');
+      t.expect(await t.page.evaluate(() => { const m = document.getElementById('mirror'); return !m.hidden && m.getAttribute('role') === 'group' && m.getAttribute('aria-hidden') == null && [...m.querySelectorAll('button')].every((b) => b.tabIndex === -1); }), 'a visible-to-readers group whose buttons are out of the Tab order');
+      // pick up the six, and the list now says where it can be dropped
+      await press('t0:1');
+      t.equal((await t.game('getState')).held, { from: 't0', index: 1 }, 'pressing a card in the list picks it up');
+      l = await labels(); has('t1:0', 'Press to drop Six of hearts here');
+      await press('t1:0');
+      const st = await t.game('getState');
+      t.equal([st.piles.t1, st.piles.t0, st.moves], [['7S', '6H'], ['9C'], 1], 'pressing a column drops it there: the move is made');
+      l = await labels(); has('t1:1', 'Column 2: Six of hearts'); t.expect(!l.some((x) => x.startsWith('t1:0 =')) || l.some((x) => x.startsWith('t1:0 =') && x.includes('with 1 card on it')), 'and the list follows the move');
+      // a refused drop says why, to the same live region
+      await press('waste'); await press('t1:1');
+      t.expect(/Build down: a four goes on a five/.test(await sr()), 'a drop the rules refuse is explained: ' + await sr());
+      await press('waste'); // put it back
+      // the stock, by its button
+      await press('stock');
+      t.equal((await t.game('getState')).piles.waste.slice(-1), ['3D'], 'pressing the stock draws a card');
+      // keyboard on a list button keeps the screen reader's place
+      await t.page.evaluate(() => document.querySelector('#mirror [data-key="t2:1"]').focus());
+      await t.page.keyboard.press('Enter');
+      t.expect(await t.page.evaluate(() => { const a = document.activeElement; return a.closest('#mirror') && a.dataset.pile === 't2'; }), 'focus stays in the list, on the same column, after the list is rebuilt');
+      await t.page.evaluate(() => document.querySelector('#mirror [data-key="t2:1"]').click()); // put the queen back
+      // S reads the table
+      await t.page.focus('#cv'); await t.page.keyboard.press('s');
+      const sum = await sr();
+      t.expect(/Stock, 1 card/.test(sum) && /Waste, Three of diamonds/.test(sum) && /Foundations: Ace of spades, empty/.test(sum) && /Columns: 1, 1 face down, Nine of clubs|Columns: 1, empty|Columns: 1,/.test(sum) && /3, King of diamonds|3, 1 face down|3, /.test(sum), 'S announces stock, waste, foundations and columns: ' + sum);
+      // the title hides the list
+      await t.game('scene', 'title');
+      t.expect(await t.page.evaluate(() => document.getElementById('mirror').hidden), 'the list is hidden on the title');
+      await t.game('scene', 'game');
+      // FreeCell and Spider have their own piles
+      await t.game('newGame', { mode: 'freecell' }); await t.waitForStable();
+      l = await labels(); has('c0', 'Free cell 1, empty'); t.expect(l.filter((x) => /^t\d+:/.test(x)).length >= 8, 'FreeCell: a button for the cards of every column');
+      await t.game('newGame', { mode: 'spider', opts: { suits: 1 } }); await t.waitForStable();
+      l = await labels(); has('stock', 'deals left. Press to deal a row');
     },
   },
 ];
