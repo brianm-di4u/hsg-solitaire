@@ -173,4 +173,30 @@ export const tests = [
       t.expect(!/subset of research\/trivia-bank\.json/.test(src), 'the source comment no longer points at it');
     },
   },
+  {
+    name: 'w3c S4-04 S4-05 the title painting wears a brass frame and name tags where the picture shows them',
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced' });
+      await t.reload();
+      await t.page.waitForFunction(() => window.__game.heroTags().drawn, null, { timeout: 15000 });
+      const info = await t.page.evaluate(() => {
+        const c = document.getElementById('sky'), k = c.width / c.clientWidth, W = c.clientWidth, H = c.clientHeight;
+        const m = Math.min(Math.max(Math.min(W, H) * .014, 6), 12), g = c.getContext('2d');
+        const px = (x, y) => Array.from(g.getImageData(Math.round(x * k), Math.round(y * k), 1, 1).data);
+        let best = 0; // the frame line is 2 px wide: look across it for the most brass-coloured pixel
+        for (let dx = -2; dx <= 2; dx++) { const [r, gr, b] = px(m + dx, H * .5); best = Math.max(best, Math.min(r - b, gr - b)); }
+        const h1 = document.getElementById('tH').getBoundingClientRect();
+        return { W, H, best, tags: window.__game.heroTags().tags, h1: { top: h1.top, bottom: h1.bottom } };
+      });
+      t.expect(info.best > 60, 'a brass line runs inside the edge of the picture (colour spread ' + info.best + ')');
+      if (t.viewport === 'desktop') {
+        t.equal(info.tags.map((x) => x.text), ['ARLINGTON', 'CENTRAL AVENUE · BATHHOUSE ROW'], 'the two names are on the picture');
+        t.expect(info.tags.every((x) => x.x >= 0 && x.x + x.w <= info.W && x.y + x.h < info.h1.top), 'and sit clear of the title: ' + JSON.stringify(info.tags));
+      } else {
+        t.equal(info.tags, [], 'a phone crops the picture to the right of the hotel: no tags are drawn on empty ground');
+      }
+      await shot(t, 'S4-04', 'title');
+      await t.checkLayout();
+    },
+  },
 ];
