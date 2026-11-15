@@ -262,9 +262,12 @@
   .dl{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
   @media (max-width:520px){
     :root{--bar-h:56px}
-    #status{gap:9px;font-size:.6rem;letter-spacing:.08em}
+    #bar{gap:6px} #assistTag{font-size:.58rem;padding:0 6px}
+    #sScoreW{display:flex;flex-direction:column} #sBonus{order:3;margin:0;text-align:right;line-height:1.1}
+    .ib{width:36px;height:36px;position:relative} .ib::after{content:"";position:absolute;inset:-4px}
+    #status{gap:7px;font-size:.6rem;letter-spacing:.04em}
     #status b{font-size:.98rem}
-    #modeName{font-size:1rem}
+    #modeName{font-size:.92rem}
     .course{gap:2px} .course i{width:8px;height:8px;border-width:1.2px}
     .tb{font-size:.64rem;letter-spacing:.06em}
     .sheet{padding:14px 14px 16px}
@@ -320,6 +323,7 @@
     </div>
   </header>
   <main id="stage">
+    <button class="ib" id="bHelp" aria-label="How to play" title="How to play (?)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.3-.9.8-.9 1.4v.6M12 17h.01"/></svg></button>
     <canvas id="tbl" aria-hidden="true"></canvas>
     <canvas id="cv" tabindex="0" role="application" aria-roledescription="card table"
       aria-label="Card table. Arrow keys move the cursor, Enter picks up or drops cards, H for a hint, U to undo. Press question mark for help."></canvas>
@@ -3761,6 +3765,7 @@ function buildTitle() {
   $('#tBacks').onclick = () => openModal('backs');
   $('#tStats').onclick = () => openModal('stats');
   $('#tRec').onclick = () => openModal('records');
+$('#bHelp').onclick = () => { initAudio(); openModal('help'); };
   $('#tSet').onclick = () => openModal('settings');
   $('#tHelp').onclick = () => openModal('help');
 }
@@ -3829,9 +3834,9 @@ const tog = (key, label) => '<button class="tog" data-tog="' + key + '" aria-pre
 const hp = (title, hand, body) => '<details class="hp"' + (hand && S && S.mode === hand ? ' open' : '') + '><summary>' + (hand ? '<canvas aria-hidden="true" data-hand="' + hand + '"></canvas>' : '') + title + '</summary>' + body + '</details>';
 const MODALS = {
   menu: () => head('Menu') + '<div class="menu">' +
-    '<button class="btn solid" data-a="resume" data-focus><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5v14l11-7z"/></svg>Resume</button>' +
+    '<button class="btn solid" data-a="resume" data-focus><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5v14l11-7z"/></svg>Resume</button><button class="btn" data-a="help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.3-.9.8-.9 1.4v.6M12 17h.01"/></svg>How to play</button>' +
     '<button class="btn" data-a="new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="11" height="15" rx="2"/><path d="M9 21h9a2 2 0 0 0 2-2V8"/></svg>New deal</button><button class="btn" data-a="restart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M4 4v4h4"/></svg>Restart this deal</button><button class="btn" data-a="deal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/></svg>Choose deal number…</button><button class="btn" data-a="daily"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Daily deals</button>' +
-    '<button class="btn" data-a="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10l8-6 8 6v10"/><path d="M9 20v-6h6v6"/></svg>Change game</button><button class="btn" data-a="backs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="9" height="13" rx="1.5"/><rect x="11" y="7" width="9" height="13" rx="1.5"/><path d="M15.5 11.5l-2 2 2 2 2-2z"/></svg>Backs &amp; tables</button><button class="btn" data-a="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Settings</button><button class="btn" data-a="stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V11M12 20V5M19 20v-7"/></svg>Statistics</button><button class="btn" data-a="records"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M12 13v4M8 20h8"/></svg>Records</button><button class="btn" data-a="help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.3-.9.8-.9 1.4v.6M12 17h.01"/></svg>How to play</button></div>',
+    '<button class="btn" data-a="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10l8-6 8 6v10"/><path d="M9 20v-6h6v6"/></svg>Change game</button><button class="btn" data-a="backs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="9" height="13" rx="1.5"/><rect x="11" y="7" width="9" height="13" rx="1.5"/><path d="M15.5 11.5l-2 2 2 2 2-2z"/></svg>Backs &amp; tables</button><button class="btn" data-a="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Settings</button><button class="btn" data-a="stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V11M12 20V5M19 20v-7"/></svg>Statistics</button><button class="btn" data-a="records"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M12 13v4M8 20h8"/></svg>Records</button></div>',
   settings: () => head('Settings') +
     '<div class="set"><label>Sound<small>Master switch for all sound</small></label>' + tog('sound', 'Sound') + '</div>' +
     '<div class="set"><label for="vol">Master volume</label><input type="range" id="vol" min="0" max="1" step="0.05" value="' + settings.volume + '"></div>' +

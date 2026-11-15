@@ -64,4 +64,28 @@ export const tests = [
       t.equal([await toastText(t), (await t.state()).settings.autoNoted], ['', false], 'Off: no move, no toast, nothing marked');
     },
   },
+  {
+    name: 'w3c S2-09 a ? button sits in the header and How to play is second in the menu',
+    async run(t) {
+      await baseSettings(t);
+      await t.game('newGame', { mode: 'klondike', draw: 1 });
+      const b = await t.page.locator('#bHelp').boundingBox();
+      t.expect(b && b.width >= 34 && b.height >= 34, 'the help button is a full-size control: ' + JSON.stringify(b));
+      const geo = await t.page.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(); const h = r('#bHelp'), st = r('#status'), ttl = r('#ttl'), m = r('#bMenu'); return { helpRight: h.right, vw: innerWidth, statusRight: st.right, helpLeft: h.left, ttlRight: ttl.right, statusLeft: st.left, menuRight: m.right, ttlLeft: ttl.left }; });
+      t.expect(geo.helpRight <= geo.vw && geo.statusRight <= geo.helpLeft + 1 && geo.ttlRight <= geo.statusLeft + 1 && geo.menuRight <= geo.ttlLeft + 1, 'the header does not overlap: ' + JSON.stringify(geo));
+      await shot(t, 'S2-09', 'header');
+      await t.page.click('#bHelp');
+      t.equal((await t.state()).modal, 'help', 'a press opens How to play');
+      await t.page.keyboard.press('Escape');
+      await t.game('scene', 'game');
+      await t.page.click('#bMenu');
+      const order = await t.page.evaluate(() => [...document.querySelectorAll('#sheet .menu .btn')].map((x) => x.dataset.a));
+      t.equal(order.slice(0, 3), ['resume', 'help', 'new'], 'Resume, then How to play');
+      t.equal(order.length, 11, 'nothing was dropped from the menu');
+      await shot(t, 'S2-09', 'menu');
+      await t.page.click('#sheet [data-a="help"]');
+      t.equal((await t.state()).modal, 'help', 'the menu entry still opens help');
+      await t.checkLayout();
+    },
+  },
 ];
