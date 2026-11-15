@@ -415,6 +415,7 @@ function storageNote() {
 const DEFAULT_SETTINGS = {
   sound: true, volume: 0.6, motion: 'auto', leftHanded: false, cardSize: 'standard', layout: 'fit', fourColor: false,
   autoFoundation: 'safe', back: 'skylight', table: 'felt', showTimer: true, deckSeed: 1914, courts: 'deco',
+  tapMove: 'tap', // how a press on a card moves it: tap (today's way), double-tap, or drag only
   winnable: false, // random deals come from a solver-won sequence; dailies always do
   sfx: true, music: true, ambience: true, musicVol: 0.6, ambVol: 0.6, // sound effects, music and ambience; all three obey the master `sound` switch
   tips: true, tipStep: 0, tipModes: "", // first-run tips: on for a new player, off for a save that came before them; progress is kept
@@ -2980,7 +2981,9 @@ function hitTest(x, y) {
   }
   return null;
 }
-let pd = null;
+let pd = null, lastTap = null;
+const DOUBLE_TAP_MS = 320; // two presses on the same card this close are a double-tap
+const tapMode = () => (['tap', 'double', 'drag'].includes(settings.tapMove) ? settings.tapMove : 'tap');
 cv.addEventListener('pointerdown', (e) => {
   initAudio(); kbMode = false; kbClass(); cv.focus({ preventScroll: true });
   if (cascade) { endCascade(); return; }
@@ -3042,6 +3045,13 @@ cv.addEventListener('pointerup', (e) => {
   if (!hit) return;
   if (hit.pile === 'stock') { stockAction(); return; }
   if (hit.index < 0) return;
+  const m = tapMode();
+  if (m === 'drag') return;
+  if (m === 'double') {
+    const t = now();
+    if (!(lastTap && lastTap.pile === hit.pile && lastTap.index === hit.index && t - lastTap.t < DOUBLE_TAP_MS)) { lastTap = { pile: hit.pile, index: hit.index, t }; return; }
+    lastTap = null;
+  }
   tapAt(hit.pile, hit.index);
 });
 cv.addEventListener('pointercancel', () => { pd = null; if (drag) { const dr = drag; drag = null; dr.run.forEach((u) => { D[u].t0 = 0; }); relayout(); } });
@@ -3530,7 +3540,11 @@ const coachEl = $('#coach');
 function tipText(id) {
   const k = kbMode ? 2 : touchIn ? 1 : 0, t = (...a) => a[k];
   if (id === 'goal') return TIP_GOAL[S.mode];
-  if (id === 'move') return t('Click a card to send it where it fits, or drag.', 'Tap a card to send it where it fits.', 'Arrows move; Enter picks up and drops cards.');
+  if (id === 'move') {
+    const m = tapMode();
+    if (m === 'drag' && k < 2) return 'Drag a card to where it fits.';
+    return t(m === 'double' ? 'Double-click a card to send it where it fits, or drag.' : 'Click a card to send it where it fits, or drag.', m === 'double' ? 'Double-tap a card to send it where it fits.' : 'Tap a card to send it where it fits.', 'Arrows move; Enter picks up and drops cards.');
+  }
   if (id === 'hint') return t('Stuck? Hint shows a move; Undo takes one back.', 'Stuck? Tap Hint to see a move.', 'Stuck? Press H for a hint, U to undo.');
   return t('Click the stock pile for more cards.', 'Tap the stock pile for more cards.', 'Press D to draw from the stock.');
 }
@@ -3707,6 +3721,7 @@ const MODALS = {
     '<div class="set"><label>Court cards<small>Art Deco line art, or the painted portraits</small></label>' + seg('courts', [['deco', 'Art Deco'], ['painted', 'Painted']]) + '</div>' +
     '<div class="set"><label>Four-color suits<small>Blue diamonds, green clubs</small></label>' + tog('fourColor', 'Four-color suits') + '</div>' +
     '<div class="set"><label>Auto-move to foundations<small>Safe moves only cards nothing else needs</small></label>' + seg('autoFoundation', [['off', 'Off'], ['safe', 'Safe'], ['all', 'All']]) + '</div>' +
+    '<div class="set"><label>Move a card by<small>Tap sends a card to its best pile</small></label>' + seg('tapMove', [['tap', 'Tap'], ['double', 'Double-tap'], ['drag', 'Drag only']]) + '</div>' +
     '<div class="set"><label>Winnable deals only<small>A solver wins random deals first. Not FreeCell or four-suit Spider</small></label>' + tog('winnable', 'Winnable deals only') + '</div>' +
     '<div class="set"><label>Show timer</label>' + tog('showTimer', 'Show timer') + '</div>' +
     '<div class="set"><label>Show tips<small>Short hints while you play</small></label>' + tog('tips', 'Show tips') + '</div>' +

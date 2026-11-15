@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { baseSettings } from './_util.mjs';
+import { baseSettings, clickCard, dragCard } from './_util.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.resolve(HERE, '..', '..', '_council', 'hsg-solitaire', 'wave-3', 'shots');
@@ -214,6 +214,50 @@ export const tests = [
       await t.page.locator('#bHint').focus();
       await t.page.keyboard.press('Enter');
       t.equal(await t.page.evaluate(() => document.activeElement.id), 'bHint', 'a keyboard press leaves focus on the button');
+    },
+  },
+  {
+    name: 'w3a S1-13 Move a card by: tap (as before), double-tap, or drag only; saved, and old saves keep tap',
+    async run(t) {
+      await baseSettings(t);
+      t.equal((await t.state()).settings.tapMove, 'tap', 'a profile with no choice taps, as it always did');
+      const board = { mode: 'klondike', opts: { draw: 1 }, piles: { stock: ['2C', '3C'], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['6C'], t1: ['5H'], t2: [], t3: [], t4: [], t5: [], t6: [] } };
+      const reset = async () => { await t.game('setState', board); await t.waitForStable(); };
+      const where = async () => (await t.state()).piles;
+      const gap = (ms) => t.page.evaluate((ms) => { const t0 = performance.now(); return new Promise((res) => { const f = () => (performance.now() - t0 >= ms ? res() : requestAnimationFrame(f)); f(); }); }, ms);
+      await reset();
+      await clickCard(t, 't1', 0);
+      t.equal((await where()).t0, ['6C', '5H'], 'tap: one click moves the card');
+      await t.game('setSettings', { tapMove: 'double' });
+      await reset();
+      await clickCard(t, 't1', 0);
+      await gap(500);
+      await clickCard(t, 't1', 0);
+      await gap(500);
+      t.equal((await where()).t1, ['5H'], 'double-tap: two slow clicks are two single clicks and move nothing');
+      await clickCard(t, 't1', 0); await clickCard(t, 't1', 0);
+      t.equal((await where()).t0, ['6C', '5H'], 'double-tap: two quick clicks move it');
+      await reset();
+      await clickCard(t, 'stock'); await t.page.waitForFunction(() => window.__game.getState().piles.waste.length === 1);
+      t.equal((await where()).waste.length, 1, 'double-tap: one click on the stock still draws');
+      await t.game('setSettings', { tapMove: 'drag' });
+      await reset();
+      await clickCard(t, 't1', 0); await clickCard(t, 't1', 0);
+      t.equal((await where()).t1, ['5H'], 'drag only: clicks never move a card');
+      await dragCard(t, 't1', 0, 't0');
+      await t.page.waitForFunction(() => window.__game.getState().piles.t0.length === 2, null, { timeout: 8000 });
+      t.equal((await where()).t0, ['6C', '5H'], 'drag only: a drag still does');
+      await reset();
+      await t.game('act', 'key', 'ArrowRight'); await t.game('act', 'key', 't');
+      t.equal((await where()).t0, ['6C', '5H'], 'drag only: the T key still sends the card');
+      // the switch is in Settings, saved, and the first-run tip tells the truth about it
+      await t.game('scene', 'settings');
+      await t.page.locator('[data-set="tapMove"][data-val="double"]').click();
+      t.equal((await t.state()).settings.tapMove, 'double', 'Settings sets it');
+      await shot(t, 'S1-13', 'settings');
+      await t.checkLayout();
+      await t.reload();
+      t.equal((await t.state()).settings.tapMove, 'double', 'and it is kept');
     },
   },
 ];
