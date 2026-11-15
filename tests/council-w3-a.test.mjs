@@ -76,4 +76,32 @@ export const tests = [
       t.expect((await t.game('frameStats')).frames > 0, 'frames run again after the throw');
     },
   },
+  {
+    name: 'w3a S6-06 blocked storage is said on the title and once in a toast, and a save that works again clears it',
+    initScript: () => {
+      window.__block = true;
+      const set = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) { if (window.__block) throw new Error('quota'); return set.call(this, k, v); };
+    },
+    async run(t) {
+      await t.page.waitForFunction(() => document.getElementById('toast').textContent.includes('cannot be saved'), null, { timeout: 8000 });
+      t.expect(await t.page.locator('#tStore').isVisible(), 'the title carries a notice while progress is not kept');
+      t.equal(await t.page.locator('#tStore').textContent(), "Progress won't be kept in this browser.", 'in plain words');
+      await shot(t, 'S6-06', 'title-notice');
+      await t.checkLayout();
+      await baseSettings(t);
+      await t.game('newGame', { mode: 'klondike' });
+      t.equal((await t.state()).storageOK, false, 'the game knows');
+      await t.page.evaluate(() => { const e = document.getElementById('toast'); e.textContent = ''; });
+      await firstMove(t);
+      await t.page.waitForFunction(() => window.__game.getState().storageOK === false);
+      t.equal(await t.page.evaluate(() => document.getElementById('toast').textContent), '', 'a later failed save does not toast again');
+      await t.page.evaluate(() => { window.__block = false; });
+      await t.game('act', 'draw');
+      await t.page.waitForFunction(() => window.__game.getState().storageOK === true, null, { timeout: 8000 });
+      await t.game('scene', 'title');
+      t.expect(await t.page.locator('#tStore').isHidden(), 'the notice goes once saving works');
+      t.expect(await t.page.locator('#tCont').isVisible(), 'and the game can be continued');
+    },
+  },
 ];

@@ -105,6 +105,8 @@
   #sky{position:fixed;inset:0;width:100%;height:100%;display:block}
   #title h1{font-family:var(--font-display);font-size:clamp(2.4rem,7vw,4rem);letter-spacing:.05em;margin:4px 0 0;text-align:center;
     color:var(--t-brass);font-weight:400;text-shadow:0 2px 0 #3A2810,0 0 24px rgba(0,0,0,.85),0 0 4px rgba(0,0,0,.9)}
+  #title .tnote{text-align:center;margin:0 auto 14px;font-family:var(--font-deco);font-size:.9rem;color:var(--brass-hi);letter-spacing:.03em;width:fit-content;max-width:94%;padding:3px 14px;border-radius:999px;background:rgba(8,12,10,.7);text-shadow:0 1px 6px rgba(0,0,0,.95)}
+  #title .tnote[hidden]{display:none}
   #title .tag{text-align:center;color:var(--t-ink);margin:4px auto 20px;font-family:var(--font-deco);font-size:1rem;letter-spacing:.03em;
     text-shadow:0 1px 8px rgba(0,0,0,.95);max-width:34em;padding:2px 10px;border-radius:999px;background:rgba(8,12,10,.38)}
   .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
@@ -321,6 +323,7 @@
   <div class="wrap">
     <h1 id="tH">Spa City Solitaire</h1>
     <p class="tag">Patience, the Spa City way: four classic games, twelve Hot Springs card backs.</p>
+    <p class="tnote" id="tStore" role="status" hidden>Progress won't be kept in this browser.</p>
     <div class="row" id="tTop"><button class="btn solid" id="tCont" hidden>Continue game</button></div>
     <div class="tiles" id="tiles"></div>
     <div class="row" id="tRow">
@@ -398,8 +401,15 @@ function load(name, fallback) {
   try { return JSON.parse(raw); } catch (e) { try { localStorage.removeItem(KEY + name); } catch (e2) { /* storage is read-only */ } return fallback; }
 }
 function save(name, value) {
-  try { if (value == null) localStorage.removeItem(KEY + name); else localStorage.setItem(KEY + name, JSON.stringify(value)); }
-  catch (e) { storageOK = false; }
+  try { if (value == null) localStorage.removeItem(KEY + name); else localStorage.setItem(KEY + name, JSON.stringify(value)); if (!storageOK) { storageOK = true; storageNote(); } }
+  catch (e) { const was = storageOK; storageOK = false; if (was) storageNote(); }
+}
+// Say so when progress can't be kept: a notice on the title while it is true, and one toast the first time. A save that works again clears it.
+let uiReady = false, storageToasted = false;
+function storageNote() {
+  if (!uiReady) return;
+  $('#tStore').hidden = storageOK;
+  if (!storageOK && !storageToasted) { storageToasted = true; toast('Progress cannot be saved in this browser.'); }
 }
 
 const DEFAULT_SETTINGS = {
@@ -3966,6 +3976,7 @@ try {
   document.head.appendChild(lk);
 } catch (e) { /* a browser without Blob URLs just stays in the tab */ }
 
+uiReady = true;
 buildTitle();
 document.documentElement.classList.toggle('lh', !!settings.leftHanded);
 resize();
@@ -3975,6 +3986,7 @@ loadArt(essentialArt());
   if (q.get('mode') && MODES[q.get('mode')]) newGame({ mode: q.get('mode'), draw: +q.get('draw') || 1, suits: +q.get('suits') || 1, deal: +q.get('deal') || undefined });
   else showTitle(true);
 }
+storageNote();
 })();
 </script>
 </body>
