@@ -73,6 +73,8 @@ export const tests = [
       t.expect(b && b.width >= 34 && b.height >= 34, 'the help button is a full-size control: ' + JSON.stringify(b));
       const geo = await t.page.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(); const h = r('#bHelp'), st = r('#status'), ttl = r('#ttl'), m = r('#bMenu'); return { helpRight: h.right, vw: innerWidth, statusRight: st.right, helpLeft: h.left, ttlRight: ttl.right, statusLeft: st.left, menuRight: m.right, ttlLeft: ttl.left }; });
       t.expect(geo.helpRight <= geo.vw && geo.statusRight <= geo.helpLeft + 1 && geo.ttlRight <= geo.statusLeft + 1 && geo.menuRight <= geo.ttlLeft + 1, 'the header does not overlap: ' + JSON.stringify(geo));
+      const clip = await t.page.evaluate(() => { const n = document.querySelector('#modeName'); return n.scrollWidth - n.clientWidth; });
+      t.expect(clip <= 1, 'the game name is not cut short by the new button: ' + clip + ' px over');
       await shot(t, 'S2-09', 'header');
       await t.page.click('#bHelp');
       t.equal((await t.state()).modal, 'help', 'a press opens How to play');
