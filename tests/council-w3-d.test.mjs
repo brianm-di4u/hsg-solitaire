@@ -46,11 +46,15 @@ export const tests = [
     name: 'w3d CL-01 the busiest moment with every volume control at its maximum stays under 0.95',
     viewports: ['desktop'],
     async run(t) {
-      const shipped = await render(t, 'mix', 12);
-      const full = await render(t, 'mix', 12, MAX);
-      t.log('mix peak: shipped ' + shipped.peak + ', every control at maximum ' + full.peak);
-      t.expect(full.peak > shipped.peak, 'the render hook takes the volume: maximum is louder than the shipped level');
-      t.expect(full.peak < 0.95, 'no clipping at maximum volume: ' + full.peak);
+      // The title piece is seeded, so its two renders are the same every time: the ratio is set by the volume controls alone
+      // (about 2.8), and a hook that ignores them gives exactly 1.
+      const quiet = (await render(t, 'title', 8)).peak, loud = (await render(t, 'title', 8, MAX)).peak;
+      t.log('title piece peak: shipped ' + quiet + ', every control at maximum ' + loud);
+      t.expect(loud / quiet > 2, 'the render hook takes the volume: maximum is more than twice the shipped level (' + (loud / quiet).toFixed(2) + ')');
+      // The cues carry unseeded noise, so single renders of the mix differ by about 10%: clip-check the loudest of three.
+      const mix = []; for (let i = 0; i < 3; i++) mix.push((await render(t, 'mix', 12, MAX)).peak);
+      t.log('mix peaks at maximum: ' + mix);
+      t.expect(Math.max(...mix) < 0.95, 'no clipping at maximum volume: ' + Math.max(...mix));
       for (const name of ['win', 'found', 'place', 'nope', 'hint']) {
         const r = await render(t, name, 21, { volume: 1 });
         t.expect(r.peak < 0.95, name + ' at full volume stays under 0.95: ' + r.peak);
