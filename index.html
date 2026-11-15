@@ -1215,7 +1215,7 @@ function hint() {
   const L = hintState.list;
   if (!L.length || L[hintState.i].stock || L[hintState.i].draws) {
     hintState.stockHint = !!L.length;
-    if (L.length) toast(stockHintText());
+    if (L.length) { toast(stockHintText()); sfx('hint'); } // the stock hint has its chime like any other hint
     else { toast('Nothing useful from here. Undo, or ask for a new deal.'); sfx('nope'); }
     hintState.until = now() + 2200; hintState.cur = null; startLoop();
     return { ok: true, move: null, stock: hintState.stockHint };
@@ -3663,6 +3663,7 @@ function makeCues(ctx, dest) {
           tone(t, 170 * (1 - .035 * (n - 1)), .09 + .012 * n, 'sine', .21 * (1 + .1 * (n - 1)), .004, pan);
           noise(t + .004, .025, 'bandpass', 2400, .2, 1, pan); break;
         }
+        case 'tick': noise(t, .025, 'bandpass', 2600, .42, 1.5, pan); tone(t, 1100, .04, 'sine', .3, .002, pan); break; // a switch, a menu opening
         case 'flip': noise(t, .03, 'highpass', 4200, .38, 1, pan); tone(t, 1000, .02, 'sine', .1, .002, pan); break;
         case 'found': {
           const r = arg || 1, semi = 12 * Math.floor((r - 1) / 5) + PENTA[(r - 1) % 5], f = 523.25 * Math.pow(2, semi / 12);
@@ -3691,7 +3692,7 @@ function makeCues(ctx, dest) {
     },
   };
 }
-const CUE_NAMES = ['pick', 'place', 'flip', 'found', 'deal', 'nope', 'undo', 'hint', 'run', 'ach', 'win', 'best', 'streak', 'course', 'gather', 'spray'];
+const CUE_NAMES = ['pick', 'place', 'flip', 'found', 'deal', 'nope', 'undo', 'hint', 'run', 'ach', 'win', 'best', 'streak', 'course', 'gather', 'spray', 'tick'];
 for (const ev of ['pointerdown', 'click', 'keydown']) document.addEventListener(ev, (e) => { initAudio(); if (e.pointerType) touchIn = e.pointerType !== 'mouse'; }, { passive: true, capture: true }); // the first gesture of any kind starts the audio
 function initAudio() {
   if (AC || !settings.sound) return;
@@ -3847,7 +3848,7 @@ $('#bRedo').onclick = (e) => { initAudio(); redo(); backToTable(e); };
 $('#bHint').onclick = (e) => { initAudio(); hint(); backToTable(e); };
 $('#bAuto').onclick = (e) => { initAudio(); autoComplete(); backToTable(e); };
 $('#assistTag').onclick = (e) => { toast('Undo or Hint was used. Wins still count, flagged as assisted.'); backToTable(e); };
-$('#bMenu').onclick = () => { initAudio(); openModal('menu'); };
+$('#bMenu').onclick = () => { initAudio(); sfx('tick'); openModal('menu'); };
 $('#bHelp').onclick = () => { initAudio(); openModal('help'); };
 
 // --- Title screen ---
@@ -4102,9 +4103,9 @@ const BIND = {
   fault() { BIND._common(); },
   settings() {
     BIND._common();
-    sheet.querySelectorAll('[data-set]').forEach((b) => (b.onclick = () => { setSetting(b.dataset.set, b.dataset.val); sheet.querySelectorAll('[data-set="' + b.dataset.set + '"]').forEach((x) => x.setAttribute('aria-pressed', x === b)); }));
-    sheet.querySelectorAll('[data-tog]').forEach((b) => (b.onclick = () => { const k = b.dataset.tog; setSetting(k, !settings[k]); b.setAttribute('aria-pressed', !!settings[k]); }));
-    $('#vol').oninput = (e) => setSetting('volume', +e.target.value);
+    sheet.querySelectorAll('[data-set]').forEach((b) => (b.onclick = () => { setSetting(b.dataset.set, b.dataset.val); sfx('tick'); sheet.querySelectorAll('[data-set="' + b.dataset.set + '"]').forEach((x) => x.setAttribute('aria-pressed', x === b)); }));
+    sheet.querySelectorAll('[data-tog]').forEach((b) => (b.onclick = () => { const k = b.dataset.tog; setSetting(k, !settings[k]); sfx('tick'); b.setAttribute('aria-pressed', !!settings[k]); }));
+    $('#vol').oninput = (e) => { setSetting('volume', +e.target.value); previewVolume(); };
     $('#musicVol').oninput = (e) => setSetting('musicVol', +e.target.value);
     $('#ambVol').oninput = (e) => setSetting('ambVol', +e.target.value);
   },
@@ -4175,6 +4176,9 @@ function applyLook() {
   if (Math.round(r.width) !== W || Math.round(r.height) !== H) { resize(); updateHUD(); return; }
   loadArt(essentialArt()); sprites.clear(); tableDirty = true; relayout(true); markDirty(); updateHUD();
 }
+// Dragging the master volume plays a card cue now and then, so the level can be judged by ear.
+let lastPreview = 0;
+function previewVolume() { const t = now(); if (t - lastPreview >= 140) { lastPreview = t; sfx('place', 2); } }
 function setSetting(k, v) {
   if ((k === 'back' || k === 'table') && !isOpen(k[0], v)) return;
   if (k === 'sound') { settings.sound = !!v; if (v) initAudio(); }

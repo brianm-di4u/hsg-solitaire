@@ -263,4 +263,36 @@ export const tests = [
       t.expect(!(await cuesNow(t)).some((c) => c.name === 'spray'), 'skipped: no whoosh over the win sheet');
     },
   },
+  {
+    name: 'w3d S5-06 the volume slider plays a cue as it moves, switches and the menu tick, the stock hint chimes',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { sound: true, music: false, ambience: false });
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EMPTY_K, { stock: ['AC', '3D'], t0: ['KS'] }) });
+      await t.page.mouse.click(5, 5); await cuesNow(t, true);
+      await t.page.click('#bMenu');
+      t.equal((await cuesNow(t, true)).map((c) => c.name), ['tick'], 'opening the menu ticks');
+      await t.page.click('[data-a="settings"]');
+      await cuesNow(t, true);
+      await t.page.click('[data-tog="fourColor"]');
+      t.equal((await cuesNow(t, true)).map((c) => c.name), ['tick'], 'a switch ticks');
+      await t.page.click('[data-set="cardSize"][data-val="large"]');
+      t.equal((await cuesNow(t, true)).map((c) => c.name), ['tick'], 'a choice ticks');
+      // the slider: two quick moves are one preview, a later move another
+      const slide = (v) => t.page.evaluate((v) => { const e = document.getElementById('vol'); e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); }, v);
+      await slide(0.3); await slide(0.35);
+      let l = await cuesNow(t, true);
+      t.equal(l.map((c) => c.name), ['place'], 'moving the master volume plays a card cue, once for a quick run of moves');
+      t.equal((await t.state()).settings.volume, 0.35, 'and the volume is what the slider says');
+      await t.page.evaluate(() => { window.__w = performance.now(); });
+      await t.page.waitForFunction(() => performance.now() - window.__w > 200); // the preview is rate-limited to one per 140 ms
+      await slide(0.4);
+      t.equal((await cuesNow(t, true)).map((c) => c.name), ['place'], 'a later move previews again');
+      // the stock hint
+      await t.game('scene', 'game'); await cuesNow(t, true);
+      const h = await t.game('act', 'hint');
+      t.expect(h.stock, 'the hint points at the stock');
+      t.equal((await cuesNow(t)).map((c) => c.name), ['hint'], 'and the stock hint sounds');
+    },
+  },
 ];
