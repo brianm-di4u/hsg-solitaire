@@ -94,7 +94,7 @@ export const tests = [
       await shot(t, 'S6-06', 'title-notice');
       await t.checkLayout();
       await baseSettings(t);
-      await t.game('newGame', { mode: 'klondike' });
+      await t.seed(11); await t.game('newGame', { mode: 'klondike' }); // a seeded deal: an unseeded one has no tableau or waste move about one time in eleven
       t.equal((await t.state()).storageOK, false, 'the game knows');
       await t.page.evaluate(() => { const e = document.getElementById('toast'); e.textContent = ''; });
       await firstMove(t);
