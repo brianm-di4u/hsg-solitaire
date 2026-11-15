@@ -132,6 +132,7 @@
   #title .wrap:has(#tCont:not([hidden])){padding-top:clamp(110px,22vh,240px)}
   #tCont{min-width:min(320px,100%);min-height:52px;border-radius:999px;font-size:1.05rem}
   @media (max-aspect-ratio:3/4){ #title .wrap{padding-top:clamp(120px,17vh,200px)} #title .tag{margin-bottom:14px} }
+  @media (max-width:520px){ #title .tag{background:none;padding:0;text-shadow:0 1px 2px #000,0 0 10px rgba(0,0,0,.95),0 0 3px rgba(0,0,0,.9)} } /* no plate behind the tagline on a phone: the painting is dark enough under it */
   /* Short screens on their side: the painting keeps its place but gives the height back, so every game's Play chip is above the fold.
      Under 700 px high the hero and the hands shrink; under 520 px the tiles become four plain columns (name and chips) in a row. */
   @media (orientation:landscape) and (max-height:700px){
@@ -3914,7 +3915,11 @@ function paintHands(scope = '#tiles') {
   document.querySelectorAll(scope + ' canvas[data-hand]').forEach((c) => {
     const w = c.clientWidth, h = c.clientHeight; if (!w) return; const dpr = Math.min(2, window.devicePixelRatio || 1);
     c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const hand = HANDS[c.dataset.hand], ch = h * .92, cw = Math.round(ch / 1.4), n = hand.length;
+    const hand = HANDS[c.dataset.hand], n = hand.length; let ch = h * .92, cw = Math.round(ch / 1.4);
+    { // the fan must fit the canvas: shrink it until the outer cards' corners, turned about the hand's pivot, are inside the width
+      const reach = () => Math.max(...hand.flatMap((_, i) => { const a = (i - (n - 1) / 2) * .2, dx = (i - (n - 1) / 2) * cw * .32; return [[-1, 0], [1, 0], [-1, 1], [1, 1]].map(([sx, sy]) => Math.abs(dx + sx * cw / 2 * Math.cos(a) + sy * ch * Math.sin(a))); }));
+      const k = (w / 2 - 4) / reach(); if (k < 1) { ch *= k; cw = Math.round(ch / 1.4); }
+    }
     hand.forEach((k, i) => {
       const a = (i - (n - 1) / 2) * .2; g.save(); g.translate(w / 2 + (i - (n - 1) / 2) * cw * .32, h * .98 + ch * .1); g.rotate(a);
       g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 6; g.shadowOffsetY = 2; g.fillStyle = '#000'; rrect(g, -cw / 2, -ch, cw, ch, cw * .075); g.fill(); g.shadowColor = 'transparent';

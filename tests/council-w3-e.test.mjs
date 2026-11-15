@@ -111,4 +111,30 @@ export const tests = [
       await shot(t, 'S4-07', 'marble-mark');
     },
   },
+  {
+    name: 'w3e S4-23 on a small phone the card hands fit their tiles and the tagline has no plate',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { sound: false, tips: false });
+      for (const [w, h] of [[320, 568], [360, 640], [390, 844]]) {
+        await t.page.setViewportSize({ width: w, height: h });
+        await t.game('scene', 'title'); await t.waitForStable();
+        const r = await t.page.evaluate(() => ({
+          hands: [...document.querySelectorAll('#tiles canvas')].map((c) => { // painted pixels in the first and last column of each hand's canvas
+            const g = c.getContext('2d'), d = g.getImageData(0, 0, c.width, c.height).data; let edge = 0;
+            for (let y = 0; y < c.height; y++) for (const x of [0, c.width - 1]) if (d[(y * c.width + x) * 4 + 3] > 8) edge++;
+            return { edge, painted: d.some((v, i) => i % 4 === 3 && v > 8) };
+          }),
+          plate: getComputedStyle(document.getElementById('tTag')).backgroundColor,
+        }));
+        t.expect(r.hands.length === 4 && r.hands.every((x) => x.painted), w + 'x' + h + ': four hands are painted');
+        t.expect(r.hands.every((x) => x.edge === 0), w + 'x' + h + ': no hand is cut off at its canvas edge: ' + r.hands.map((x) => x.edge));
+        t.expect(r.plate === 'rgba(0, 0, 0, 0)', w + 'x' + h + ': no plate behind the tagline on a phone: ' + r.plate);
+        if (w === 320) { fs.mkdirSync(SHOTS, { recursive: true }); await t.page.screenshot({ path: path.join(SHOTS, 'S4-23-title-320x568-mobile.png') }); }
+      }
+      await t.page.setViewportSize({ width: 1280, height: 800 });
+      await t.game('scene', 'title'); await t.waitForStable();
+      t.expect(await t.page.evaluate(() => getComputedStyle(document.getElementById('tTag')).backgroundColor) !== 'rgba(0, 0, 0, 0)', 'a wide screen keeps its tagline plate');
+    },
+  },
 ];
