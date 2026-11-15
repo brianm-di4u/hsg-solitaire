@@ -176,6 +176,36 @@ export const tests = [
     },
   },
   {
+    name: 'w3a S1-06 the lit rim is drawn on the canvas over a legal pile, and not away from it',
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced' });
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['6C'], t1: ['5H'], t2: [], t3: [], t4: [], t5: [], t6: [] } });
+      await t.waitForStable();
+      const lay = await t.game('getLayout');
+      const src = lay.piles.t1.cards[0], dst = lay.piles.t0.cards[0];
+      // brass pixels in a strip above the target card, where the held card does not cover the rim
+      const brass = (b) => t.page.evaluate((b) => {
+        const cv = document.querySelector('#cv'), c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height;
+        const x = c.getContext('2d'); x.drawImage(cv, 0, 0); const k = cv.width / cv.getBoundingClientRect().width;
+        const d = x.getImageData(Math.max(0, Math.round(b.x * k)), Math.max(0, Math.round(b.y * k)), Math.round(b.w * k), Math.round(b.h * k)).data;
+        let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 235 && d[i + 1] > 195 && d[i + 2] < 175 && d[i + 2] > 90) n++; return n;
+      }, b);
+      const strip = { x: dst.x - 8, y: dst.y - 8, w: dst.w + 16, h: 12 };
+      const sx = src.x + src.w / 2, sy = src.y + 14;
+      await t.page.mouse.move(sx, sy); await t.page.mouse.down();
+      await t.page.mouse.move(sx, sy + 200, { steps: 6 });
+      await t.waitForStable();
+      t.equal((await t.state()).dropTarget, null, 'no pile is lit while the card is held away');
+      t.equal(await brass(strip), 0, 'and no brass is drawn above the target');
+      await t.page.mouse.move(dst.x + dst.w / 2, dst.y + dst.h * .55, { steps: 8 });
+      await t.page.waitForFunction(() => window.__game.getState().dropTarget === 't0', null, { timeout: 8000 });
+      let over = 0; const until = Date.now() + 8000;
+      while (Date.now() < until) { over = await brass(strip); if (over > 30) break; await t.page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r()))); }
+      await t.page.mouse.up();
+      t.expect(over > 30, 'brass pixels show above the target once the pile is lit (' + over + ')');
+    },
+  },
+  {
     name: 'w3a S1-10 a press or a key while Finish is playing cards home cuts the run short',
     async run(t) {
       await baseSettings(t, { motion: 'full' });
