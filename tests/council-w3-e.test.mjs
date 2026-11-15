@@ -68,7 +68,7 @@ export const tests = [
     async run(t) {
       await t.game('unlockAll');
       await baseSettings(t, { sound: false, tips: false, motion: 'reduced', table: 'felt' });
-      const marks = async () => { await t.page.waitForFunction(() => window.__game.placeMarks()); return t.game('placeMarks'); };
+      const marks = async () => { await t.page.waitForFunction(() => { const m = window.__game.placeMarks(); return m && m.emblem; }); return t.game('placeMarks'); }; // waits for the table layer to be redrawn with a mark
       // the mark is painted: gold along the arc, plain felt between the arcs and outside them
       const ringContrast = (e, dark) => t.page.evaluate(([e, dark]) => {
         const c = document.getElementById('tbl'), k = c.width / c.clientWidth, g = c.getContext('2d');
