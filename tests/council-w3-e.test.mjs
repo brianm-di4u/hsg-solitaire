@@ -253,44 +253,58 @@ export const tests = [
       const labels = () => t.page.evaluate(() => [...document.querySelectorAll('#mirror button')].map((b) => b.getAttribute('data-key') + ' = ' + b.textContent));
       const press = (key) => t.page.evaluate((k) => document.querySelector('#mirror [data-key="' + k + '"]').click(), key);
       const sr = () => t.page.evaluate(() => document.getElementById('sr').textContent);
+      // The list is rebuilt on the next frame after the table changes, and the live region is rewritten as events arrive:
+      // every step waits for the state it expects instead of reading straight after the act.
+      const has = (k, txt) => t.page.waitForFunction(([k, txt]) => [...document.querySelectorAll('#mirror button')].some((b) => b.getAttribute('data-key') === k && b.textContent.includes(txt)), [k, txt], { timeout: 10000 }).catch(async () => { t.expect(false, k + ' says "' + txt + '": ' + (await labels()).filter((x) => x.startsWith(k + ' ')).join()); });
+      const held = (want) => t.page.waitForFunction((w) => { const h = window.__game.getState().held; return w ? !!h && h.from === w.from && h.index === w.index : !h; }, want, { timeout: 10000 });
+      const sayWait = (re) => t.page.waitForFunction((s) => new RegExp(s).test(document.getElementById('sr').textContent), re.source, { timeout: 10000 });
       await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EMPTY_K, { stock: ['2D', '3D'], waste: ['4H'], f0: ['AS'], t0: ['#9C', '6H'], t1: ['7S'], t2: ['KD', 'QC'] }) });
-      let l = await labels(), has = (k, txt) => t.expect(l.some((x) => x.startsWith(k + ' = ') && x.includes(txt)), k + ' says "' + txt + '": ' + l.filter((x) => x.startsWith(k + ' ')).join());
-      has('stock', 'Stock, 2 cards. Press to draw'); has('waste', 'Waste, Four of hearts'); has('f0', 'Foundation 1, Ace of spades on top'); has('f1', 'Foundation 2, empty');
-      has('t0:1', 'Column 1: Six of hearts, 1 face down. Press to pick up'); has('t1:0', 'Column 2: Seven of spades'); has('t2:0', 'Column 3: King of diamonds, with 1 card on it'); has('t2:1', 'Column 3: Queen of clubs'); has('t3', 'Column 4, empty');
+      await has('stock', 'Stock, 2 cards. Press to draw'); await has('waste', 'Waste, Four of hearts'); await has('f0', 'Foundation 1, Ace of spades on top'); await has('f1', 'Foundation 2, empty');
+      await has('t0:1', 'Column 1: Six of hearts, 1 face down. Press to pick up'); await has('t1:0', 'Column 2: Seven of spades'); await has('t2:0', 'Column 3: King of diamonds, with 1 card on it'); await has('t2:1', 'Column 3: Queen of clubs'); await has('t3', 'Column 4, empty');
       t.expect(await t.page.evaluate(() => { const m = document.getElementById('mirror'); return !m.hidden && m.getAttribute('role') === 'group' && m.getAttribute('aria-hidden') == null && [...m.querySelectorAll('button')].every((b) => b.tabIndex === -1); }), 'a visible-to-readers group whose buttons are out of the Tab order');
       // pick up the six, and the list now says where it can be dropped
-      await press('t0:1');
+      await press('t0:1'); await held({ from: 't0', index: 1 });
       t.equal((await t.game('getState')).held, { from: 't0', index: 1 }, 'pressing a card in the list picks it up');
-      l = await labels(); has('t1:0', 'Press to drop Six of hearts here');
-      await press('t1:0');
+      await has('t1:0', 'Press to drop Six of hearts here');
+      await press('t1:0'); await held(null); await has('t1:1', 'Column 2: Six of hearts');
       const st = await t.game('getState');
       t.equal([st.piles.t1, st.piles.t0, st.moves], [['7S', '6H'], ['9C'], 1], 'pressing a column drops it there: the move is made');
-      l = await labels(); has('t1:1', 'Column 2: Six of hearts'); t.expect(!l.some((x) => x.startsWith('t1:0 =')) || l.some((x) => x.startsWith('t1:0 =') && x.includes('with 1 card on it')), 'and the list follows the move');
+      t.expect(!(await labels()).some((x) => x.startsWith('t1:0 =')) || (await labels()).some((x) => x.startsWith('t1:0 =') && x.includes('with 1 card on it')), 'and the list follows the move');
       // a refused drop says why, to the same live region
-      await press('waste'); await press('t1:1');
+      await press('waste'); await held({ from: 'waste', index: 0 });
+      await press('t1:1'); await sayWait(/Build down: a four goes on a five/);
       t.expect(/Build down: a four goes on a five/.test(await sr()), 'a drop the rules refuse is explained: ' + await sr());
-      await press('waste'); // put it back
+      await press('waste'); await held(null); // put it back
       // the stock, by its button
       await press('stock');
+      await t.page.waitForFunction(() => window.__game.getState().piles.waste.slice(-1)[0] === '3D', null, { timeout: 10000 });
       t.equal((await t.game('getState')).piles.waste.slice(-1), ['3D'], 'pressing the stock draws a card');
       // keyboard on a list button keeps the screen reader's place
+      await has('t2:1', 'Column 3: Queen of clubs');
       await t.page.evaluate(() => document.querySelector('#mirror [data-key="t2:1"]').focus());
-      await t.page.keyboard.press('Enter');
-      t.expect(await t.page.evaluate(() => { const a = document.activeElement; return a.closest('#mirror') && a.dataset.pile === 't2'; }), 'focus stays in the list, on the same column, after the list is rebuilt');
-      await t.page.evaluate(() => document.querySelector('#mirror [data-key="t2:1"]').click()); // put the queen back
+      await t.page.waitForFunction(() => document.activeElement && document.activeElement.dataset.key === 't2:1');
+      await t.page.keyboard.press('Enter'); await held({ from: 't2', index: 1 });
+      await t.page.waitForFunction(() => { const a = document.activeElement; return !!a && !!a.closest('#mirror') && a.dataset.pile === 't2'; }, null, { timeout: 10000 });
+      t.expect(true, 'focus stays in the list, on the same column, after the list is rebuilt');
+      await t.page.evaluate(() => { const b = document.querySelector('#mirror [data-key="t2:1"]') || document.querySelector('#mirror [data-pile="t2"]'); b.click(); }); // put the queen back
+      await held(null);
       // S reads the table
-      await t.page.focus('#cv'); await t.page.keyboard.press('s');
+      await t.page.focus('#cv'); await t.page.waitForFunction(() => document.activeElement && document.activeElement.id === 'cv');
+      await t.page.keyboard.press('s'); await sayWait(/Foundations: /);
       const sum = await sr();
       t.expect(/Stock, 1 card/.test(sum) && /Waste, Three of diamonds/.test(sum) && /Foundations: Ace of spades, empty/.test(sum) && /Columns: 1, 1 face down, Nine of clubs|Columns: 1, empty|Columns: 1,/.test(sum) && /3, King of diamonds|3, 1 face down|3, /.test(sum), 'S announces stock, waste, foundations and columns: ' + sum);
       // the title hides the list
       await t.game('scene', 'title');
-      t.expect(await t.page.evaluate(() => document.getElementById('mirror').hidden), 'the list is hidden on the title');
+      await t.page.waitForFunction(() => document.getElementById('mirror').hidden, null, { timeout: 10000 });
+      t.expect(true, 'the list is hidden on the title');
       await t.game('scene', 'game');
       // FreeCell and Spider have their own piles
       await t.game('newGame', { mode: 'freecell' }); await t.waitForStable();
-      l = await labels(); has('c0', 'Free cell 1, empty'); t.expect(l.filter((x) => /^t\d+:/.test(x)).length >= 8, 'FreeCell: a button for the cards of every column');
+      await has('c0', 'Free cell 1, empty');
+      await t.page.waitForFunction(() => document.querySelectorAll('#mirror [data-key^="t"]').length >= 8, null, { timeout: 10000 });
+      t.expect((await labels()).filter((x) => /^t\d+:/.test(x)).length >= 8, 'FreeCell: a button for the cards of every column');
       await t.game('newGame', { mode: 'spider', opts: { suits: 1 } }); await t.waitForStable();
-      l = await labels(); has('stock', 'deals left. Press to deal a row');
+      await has('stock', 'deals left. Press to deal a row');
     },
   },
   {
