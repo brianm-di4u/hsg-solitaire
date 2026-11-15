@@ -157,4 +157,20 @@ export const tests = [
       await t.checkLayout();
     },
   },
+  {
+    name: 'w3c S4-22 help and the code no longer claim a trivia bank or style guide that is not in the repo',
+    async run(t) {
+      await baseSettings(t);
+      await t.game('scene', 'help');
+      const txt = await t.page.evaluate(() => document.querySelector('#sheet').textContent);
+      t.expect(!/sourced trivia bank/.test(txt), 'the old claim is gone');
+      t.expect(/50 hand-picked items, each with its source named on the card/.test(txt), 'the facts are described as they are');
+      const root = path.resolve(HERE, '..');
+      t.expect(!fs.existsSync(path.join(root, 'research', 'trivia-bank.json')) && !fs.existsSync(path.join(root, 'research', 'visual-style-guide.md')), 'those files really are not here');
+      const doc = fs.readFileSync(path.join(root, 'research', 'town-content.md'), 'utf8');
+      t.expect(/painted images in `assets\/`/.test(doc) && /six tables/.test(doc) && /not in this repo/.test(doc), 'town-content.md says what shipped');
+      const src = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+      t.expect(!/subset of research\/trivia-bank\.json/.test(src), 'the source comment no longer points at it');
+    },
+  },
 ];

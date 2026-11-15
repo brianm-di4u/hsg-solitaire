@@ -18,6 +18,9 @@ npm run setup   # installs Playwright and Chromium for the test harness
 npm test        # runs tests/*.test.mjs; screenshots land in screenshots/
 ```
 
+There is no `src/` folder: the hand-written `index.html` is the source, and there is no build step. The images in `assets/`
+are the game's own painted art; its working files are in `art-src/`.
+
 Design docs: `PRD.md`, `MECHANICS.md`, `DEV-PLAN.md`, `REPORT.md`, `VISUAL-PLAN.md`, `VISUAL-REPORT.md`.
 
 ## Vendored from the collection
@@ -26,7 +29,7 @@ This repo was split out of the original Hot Springs Games monorepo (kept offline
 corpus, `LESSONS.md` and the session brief. Copies kept here so the game builds and tests on its own:
 
 - `shared/test-harness/`: the Playwright screenshot test runner (`run.mjs`, `art-pack.mjs`, `sheets.mjs`, `gallery.mjs`).
-- `shared/tools/inline.mjs`: bundles `src/` into the single-file `index.html`.
+- `shared/tools/inline.mjs`: the collection's bundler (this game does not use it; its `index.html` is edited directly).
 
 Older docs in this repo refer to monorepo paths such as `games/solitaire/` and `shared/...`; here the game
 folder is the repo root.

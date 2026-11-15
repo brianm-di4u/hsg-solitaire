@@ -6,9 +6,17 @@ new research or from memory. **All hex colors are estimates** (`research/visual-
 `shared/design/README.md`), so the in-game card backs are labelled "inspired by", never as exact
 reproductions.
 
+> **Where this file is current (November 2026).** Sections 1 to 3 describe the first builds. Since then the twelve card
+> backs and six tables are painted images in `assets/` (not drawn in code; the code-drawn versions remain only as a
+> fallback if an image fails to load), and the title shows a painted hero, so the code-drawn skyline in section 3
+> appears only if that painting is missing. Section 11 is the current list of six tables. The research notes
+> (`visual-style-guide.md`, `trivia-bank.json` and the rest of the corpus) live in the collection's offline monorepo
+> and are not in this repo; only `interiors-1920s.md` and `ref-photos/` are copied here. The game has no `src/`
+> folder: `index.html` is the source.
+
 ## 1. Card backs (12)
 
-Each back is drawn in code from a motif recipe in `visual-style-guide.md` → *Motif and pattern library*
+Each back was first drawn in code from a motif recipe in `visual-style-guide.md` → *Motif and pattern library*
 and *Architecture by building*. The caption shown in the back picker is in quotes.
 
 | # | Back id | Name in game | What it draws | Colors (est.) | Source |
@@ -32,7 +40,7 @@ Art Deco neon (7 and 8), Ouachita pines (9), steam curls (10), Lake Ouachita at 
 (3, 6), Superior (5) and Hale (4). The Maurice, Buckstaff, Ozark and Lamar appear in the title-screen
 skyline instead (§3).
 
-## 2. Tables (5)
+## 2. Tables (5 in the first builds; six now, see section 11)
 
 | Id | Name | Look | Source |
 |---|---|---|---|
@@ -90,7 +98,7 @@ reduced motion on, the cards fade instead.
 ## 8. Fact cards on win (from `research/trivia-bank.json`)
 
 The win screen shows one "Did you know?" card: the question, the answer, the one-line explanation, and the
-source name. The cards rotate through 52 hand-picked items with `confidence: "confirmed"`, taken
+source name. The cards rotate through 50 hand-picked items with `confidence: "confirmed"`, taken
 mostly from Places & Landmarks, Nature & Lakes, Legends & Oddities and History. Items about sensitive
 history (disease treatment, segregation, violence) and fishing regulations were left out, because a light win
 screen is the wrong place for them. The inlined subset is generated from the bank, keeping `id`, `question`,
