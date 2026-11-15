@@ -88,4 +88,33 @@ export const tests = [
       await t.checkLayout();
     },
   },
+  {
+    name: 'w3c S3-07 the Score cell shows the speed bonus a win would add, only when there is one',
+    async run(t) {
+      await baseSettings(t, { scoring: 'timed', showTimer: true });
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 311, moves: 30 }));
+      await t.page.waitForFunction(() => !document.getElementById('sBonus').hidden);
+      const shown = await t.page.evaluate(() => document.getElementById('sBonus').textContent);
+      const n = +shown.replace('+', '');
+      t.expect(/^\+\d+$/.test(shown) && n <= 1000 && n >= 900, 'a number up to 1000 (' + shown + ')');
+      await shot(t, 'S3-07', 'bonus');
+      await t.checkLayout();
+      const before = n;
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      const ticket = await t.page.locator('#sheet').textContent();
+      const got = +(/time bonus \+(\d+)/.exec(ticket) || [0, -1])[1];
+      t.expect(got <= before && got >= before - 30, 'the ticket pays about what the header showed (' + before + ' then ' + got + ')');
+      await t.game('scene', 'game');
+      t.expect(await t.page.locator('#sBonus').isHidden(), 'a finished game shows no bonus');
+      for (const o of [{ scoring: 'standard' }, { scoring: 'none' }, { scoring: 'timed', showTimer: false }]) {
+        await t.game('setSettings', Object.assign({ scoring: 'timed', showTimer: true }, o));
+        await t.game('setState', Object.assign(nearWinKlondike(), { deal: 312 }));
+        t.expect(await t.page.locator('#sBonus').isHidden(), 'no bonus for ' + JSON.stringify(o));
+      }
+      await t.game('setSettings', { scoring: 'timed', showTimer: true });
+      await t.game('newGame', { mode: 'spider', suits: 1 });
+      t.expect(await t.page.locator('#sBonus').isHidden(), 'Spider has no speed bonus, so none is shown');
+    },
+  },
 ];
