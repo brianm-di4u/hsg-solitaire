@@ -49,6 +49,23 @@ export const tests = [
     },
   },
   {
+    name: 'w3b S2-19 a points-only win is not recorded as a best score, so it can never stand in front of a Timed one',
+    async run(t) {
+      await baseSettings(t, { scoring: 'standard' });
+      // a high points score, as a long game with many moves home would have: more than a slow Timed win could ever reach
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 311, moves: 30, score: 5000 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      t.equal([(await t.game('stats')).klondike1.won, (await t.game('stats')).klondike1.bestScore], [1, 0], 'Standard: the win counts, but no best score is kept for it');
+      await t.game('setSettings', { scoring: 'timed' });
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 312, moves: 30, score: 100 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      const best = (await t.game('stats')).klondike1.bestScore;
+      t.expect(best > 1000 && best < 5000, 'Timed: its own win sets the best score (' + best + ')');
+    },
+  },
+  {
     name: 'w3b S2-19 Settings has a Scoring row, it is saved, and a damaged value falls back to Timed',
     async run(t) {
       await baseSettings(t);
