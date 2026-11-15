@@ -243,4 +243,24 @@ export const tests = [
       t.expect(l.length >= 1 && l.length <= 2, 'reduced motion: one cue, not thirteen at once: ' + l.length);
     },
   },
+  {
+    name: 'w3d S5-05 the win ceremony has a shimmer as the cards gather and a whoosh when they spray, and a skip cuts the whoosh',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { sound: true, motion: 'full' });
+      const win = async () => { await t.game('setState', nearWinKlondike()); await cuesNow(t, true); await t.game('act', 'move', 't0', 'f3'); await t.page.waitForFunction(() => window.__game.getState().ceremony, null, { timeout: 15000 }); };
+      await win();
+      await t.page.waitForFunction(() => window.__game.cuesPlayed().some((c) => c.name === 'spray'), null, { timeout: 15000 });
+      const l = await cuesNow(t), g = l.find((c) => c.name === 'gather'), p = l.find((c) => c.name === 'spray');
+      t.expect(l.findIndex((c) => c.name === 'win') < l.findIndex((c) => c.name === 'gather'), 'the fanfare, then the shimmer: ' + l.map((c) => c.name));
+      t.expect(p.at - g.at >= 1550 && p.at - g.at < 6000, 'the whoosh comes when the rosette has held (gather 950 + hold 650 ms): ' + (p.at - g.at) + ' ms');
+      await t.game('act', 'skip'); await t.waitForStable(9000);
+      // a press that ends the ceremony early takes the whoosh with it
+      await win();
+      await t.page.waitForFunction(() => window.__game.cuesPlayed().some((c) => c.name === 'gather'));
+      await t.game('act', 'key', 'Enter');
+      await t.page.waitForTimeout(2000); // negative check: the whoosh is due 1.6 s after the gather; a slower machine only makes this pass more easily
+      t.expect(!(await cuesNow(t)).some((c) => c.name === 'spray'), 'skipped: no whoosh over the win sheet');
+    },
+  },
 ];
