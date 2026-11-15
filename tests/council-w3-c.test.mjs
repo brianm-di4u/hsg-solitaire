@@ -117,4 +117,44 @@ export const tests = [
       t.expect(await t.page.locator('#sBonus').isHidden(), 'Spider has no speed bonus, so none is shown');
     },
   },
+  {
+    name: 'w3c S4-03 the win sheet, the dead end, the toasts and the plaques speak in the spa attendant\'s voice',
+    async run(t) {
+      await baseSettings(t);
+      await t.game('scene', 'title');
+      const subs = await t.page.evaluate(() => [...document.querySelectorAll('.tile .tsub')].map((e) => e.textContent));
+      t.equal(subs.length, 4, 'every plaque has its own line');
+      t.expect(new Set(subs).size === 4 && subs.every((x) => x.length > 8 && x.length < 45), 'four different short lines: ' + subs.join(' | '));
+      await t.game('newGame', { mode: 'klondike', draw: 1 });
+      await t.game('scene', 'stuck');
+      t.equal(await t.page.locator('#sheet h2').textContent(), 'The waters have gone still', 'the dead-end title');
+      await shot(t, 'S4-03', 'stuck');
+      await t.game('scene', 'win');
+      t.equal(await t.page.locator('#sheet h2').textContent(), 'Your bath is drawn', 'the win title');
+      await t.game('scene', 'game');
+      await t.game('setState', { mode: 'spider', opts: { suits: 1 }, piles: { stock: ['#AC'], t0: [], t1: ['5H'], t2: ['5H'], t3: ['5H'], t4: ['5H'], t5: ['5H'], t6: ['5H'], t7: ['5H'], t8: ['5H'], t9: [] } });
+      await t.game('act', 'draw');
+      t.equal(await toastText(t), 'Every column needs a card before the next row', 'the Spider toast');
+      await t.game('newGame', { mode: 'klondike', draw: 1 });
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: { stock: ['#AC'], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['KS'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] } });
+      await t.game('act', 'hint');
+      t.equal(await toastText(t), 'Hint: the stock has something for you', 'the stock hint');
+    },
+  },
+  {
+    name: 'w3c S4-03 the line under the title changes each time the title comes up, the first being the plain description',
+    async run(t) {
+      await baseSettings(t);
+      await t.reload();
+      const first = await t.page.locator('#tTag').textContent();
+      t.expect(/four classic games, twelve Hot Springs card backs/.test(first), 'the first line says what the game is');
+      const seen = [first];
+      for (let i = 0; i < 3; i++) { await t.game('scene', 'game'); await t.game('scene', 'title'); seen.push(await t.page.locator('#tTag').textContent()); }
+      t.equal(new Set(seen).size, 4, 'four visits, four lines: ' + seen.join(' | '));
+      await t.game('scene', 'game'); await t.game('scene', 'title');
+      t.equal(await t.page.locator('#tTag').textContent(), first, 'and it comes round again');
+      await shot(t, 'S4-03', 'title');
+      await t.checkLayout();
+    },
+  },
 ];
