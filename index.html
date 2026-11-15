@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#101813">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Spa City Solitaire</title>
 <meta name="description" content="Klondike, FreeCell, Spider and Yukon patience with card backs drawn from Hot Springs, Arkansas. Part of the open-source Hot Springs Games collection (MIT).">
 <!--
@@ -3929,6 +3933,18 @@ window.__game = {
   stats() { return JSON.parse(JSON.stringify(stats)); },
   art() { return { on: ART_ON, wanted: [...artWant], loaded: Object.keys(art) }; },
 };
+
+// A phone can add the game to its home screen and run it without the browser bar. The manifest is built here so the
+// page stays one file; its start page is this page, and the icon is drawn, not shipped.
+try {
+  const icon = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#101813"/><path d="M32 9 49 32 32 55 15 32z" fill="#C9A04A"/><path d="M32 17 42 32 32 47 22 32z" fill="#101813"/></svg>');
+  const here = location.href.split('#')[0].split('?')[0];
+  const man = { name: 'Spa City Solitaire', short_name: 'Spa Solitaire', start_url: here, scope: here.slice(0, here.lastIndexOf('/') + 1), display: 'standalone',
+    orientation: 'any', background_color: '#101813', theme_color: '#101813', icons: [{ src: icon, sizes: 'any', type: 'image/svg+xml', purpose: 'any' }] };
+  const lk = document.createElement('link'); lk.rel = 'manifest'; lk.id = 'manifest';
+  lk.href = URL.createObjectURL(new Blob([JSON.stringify(man)], { type: 'application/manifest+json' }));
+  document.head.appendChild(lk);
+} catch (e) { /* a browser without Blob URLs just stays in the tab */ }
 
 buildTitle();
 document.documentElement.classList.toggle('lh', !!settings.leftHanded);
