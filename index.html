@@ -1341,6 +1341,45 @@ function bestDestination(from, idx) {
   if (run.length === 1) for (let i = 0; i < d.cells; i++) if (canDrop(run, 'c' + i, from)) return 'c' + i;
   return null;
 }
+// Why a card will not go: the words for a drop the rules refuse. '' where there is nothing to say (the same pile, the stock, a pile that is no target).
+const rankWord = (r) => RANK_NAME[r].toLowerCase();
+function refusalReason(run, to, from) {
+  if (!run.length || to === from) return '';
+  const k = kindOf(to), p = S.piles[to], U = card(run[0]);
+  if (k === 'stock' || k === 'waste') return '';
+  if (k === 'found') {
+    if (def().runs) return '';
+    if (run.length > 1) return 'Only one card at a time goes home';
+    if (!p.length) return 'An Ace starts a foundation';
+    const T = card(p[p.length - 1]);
+    return T.s !== U.s ? 'Foundations build up by suit' : 'Foundations go up one card at a time';
+  }
+  if (k === 'cell') return run.length > 1 ? 'A free cell holds one card' : 'That free cell is taken';
+  if (!p.length) return def().empty === 'king' && U.r !== 13 ? 'Only a King fills an empty column' : capacityReason(run, to);
+  const T = card(p[p.length - 1]);
+  if (!S.up[p[p.length - 1]]) return 'That card is face down';
+  if (U.r !== T.r - 1) return T.r === 1 ? 'Nothing goes on an Ace' : 'Build down: a ' + rankWord(U.r) + ' goes on a ' + rankWord(U.r + 1);
+  if (def().build !== 'any' && isRed(T.s) === isRed(U.s)) return 'Colors alternate: it needs a ' + (isRed(U.s) ? 'black ' : 'red ') + rankWord(U.r + 1);
+  return capacityReason(run, to);
+}
+function capacityReason(run, to) {
+  const n = def().capacity ? capacity(to) : Infinity;
+  return run.length > n ? 'Only ' + n + (n > 1 ? ' cards' : ' card') + ' can move with these free cells' : '';
+}
+// A card tapped that has nowhere to go: a word on what is in the way.
+function tapReason(from, idx) {
+  const p = S.piles[from];
+  if (!canPick(from, idx)) return !S.up[p[idx]] ? 'That card is face down' : runTooLong(from, idx) ? 'Not enough free cells for that run' : def().lift === 'suit' ? 'Only a run of one suit, in order, moves together' : 'Only a run that builds down in alternating colors moves together';
+  if (idx < p.length - 1) return 'No column takes that run yet';
+  return def().cells ? 'No free cell or column for that card' : 'No pile takes that card yet';
+}
+// A reason goes up as a toast (and so to screen readers), the same one not twice inside REASON_GAP_MS.
+const REASON_GAP_MS = 3000; let lastReason = { msg: '', at: -1e9 };
+function explain(msg) {
+  if (!msg) return false;
+  const t = now(); if (msg === lastReason.msg && t - lastReason.at < REASON_GAP_MS) return true;
+  lastReason = { msg, at: t }; toast(msg); return true;
+}
 function tapAt(from, idx) {
   if (!S || S.won) return { ok: false };
   if (from === 'stock') return stockAction();
@@ -1348,7 +1387,7 @@ function tapAt(from, idx) {
   if (idx == null) idx = p.length - 1;
   if (idx < 0) return { ok: false, reason: 'empty' };
   const to = bestDestination(from, idx);
-  if (!to) { sfx('nope'); shake(from, idx); return { ok: false, reason: 'no destination' }; }
+  if (!to) { sfx('nope'); shake(from, idx); explain(tapReason(from, idx)); return { ok: false, reason: 'no destination' }; }
   return tryMove(from, idx, to, 'tap');
 }
 
@@ -3290,10 +3329,10 @@ cv.addEventListener('pointermove', (e) => {
   drag.x = p.x - drag.ox; drag.y = p.y - drag.oy; markDirty();
 });
 // The pile a held run would land on: the legal one it overlaps most. frame() lights it while the card is held; finishDrag drops there.
-function dropTarget(dr) {
+function dropTarget(dr, any) { // any: the pile the card overlaps most whether or not it would be taken (to say why it was not)
   const { cw, ch } = L; let best = null, bestA = 0;
   for (const id in L.piles) {
-    if (id === dr.from || !canDrop(dr.run, id, dr.from)) continue;
+    if (id === dr.from || (!any && !canDrop(dr.run, id, dr.from))) continue;
     const b = L.piles[id]; const zx = b.x, zy = b.y, zh = b.zoneH || ch;
     const ix = Math.max(0, Math.min(dr.x + cw, zx + cw) - Math.max(dr.x, zx)), iy = Math.max(0, Math.min(dr.y + ch, zy + zh) - Math.max(dr.y, zy));
     if (ix * iy > bestA) { bestA = ix * iy; best = id; }
@@ -3313,7 +3352,7 @@ function finishDrag() {
   deferLand = true; // the drop glide below sets the card's real landing time
   if (best) { tryMove(dr.from, dr.index, best); }
   else if (Math.hypot(dr.x - dr.x0, dr.y - dr.y0) < DRAG_TAP_REACH * (dr.touch ? 10 : 6)) { if (tapMode() === 'tap') tapAt(dr.from, dr.index); } // a wobbly tap is still a tap
-  else if (!overSource(dr)) sfx('nope'); // putting a card back where it came from is not a mistake
+  else if (!overSource(dr)) { sfx('nope'); const to = dropTarget(dr, true); if (to) explain(refusalReason(dr.run, to, dr.from)); } // putting a card back where it came from is not a mistake
   dr.run.forEach((u) => {
     const d = D[u], T = targets[u]; if (!T) return; const dist = Math.hypot(T.x - d.sx, T.y - d.sy);
     d.tx = T.x; d.ty = T.y; d.t0 = t; d.dur = reducedMotion() ? 0 : clamp(170 + dist * .25, 200, 320); d.arc = 0; d.spin = 0; d.back = true;
@@ -3384,7 +3423,7 @@ function gameKey(e) {
       if (held) {
         if (held.from === cursor.pile) { held = null; announce('Put back'); break; }
         const r = tryMove(held.from, held.index, cursor.pile);
-        if (r.ok) { held = null; setCursorAfterMove(); } else { sfx('nope'); announce('Can\'t place there'); }
+        if (r.ok) { held = null; setCursorAfterMove(); } else { sfx('nope'); if (!explain(refusalReason(S.piles[held.from].slice(held.index), cursor.pile, held.from))) announce('Can\'t place there'); }
       } else if (cursor.pile === 'stock') stockAction();
       else if (P.length && canPick(cursor.pile, cursor.depth)) { held = { from: cursor.pile, index: cursor.depth }; sfx('pick'); announce('Picked up ' + describeRun(P.slice(cursor.depth)) + '. Move to a pile and press Enter.'); }
       else { sfx('nope'); announce('Can\'t pick that up'); }

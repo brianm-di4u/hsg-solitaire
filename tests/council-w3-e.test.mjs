@@ -185,4 +185,65 @@ export const tests = [
       t.expect(!a.wanted && !a.running && a.painted === 0, 'the ambient layer is off: ' + JSON.stringify(a));
     },
   },
+  {
+    name: 'w3e S2-03 a refused drop or tap says why, once, and keyboard players hear it too',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced' });
+      await t.page.evaluate(() => { window.__toasts = []; new MutationObserver(() => window.__toasts.push(document.getElementById('toast').textContent)).observe(document.getElementById('toast'), { childList: true, characterData: true, subtree: true }); });
+      const said = () => t.page.evaluate(() => window.__toasts.slice());
+      const fresh = () => t.page.evaluate(() => { window.__toasts.length = 0; });
+      const K = (piles) => ({ mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EMPTY_K, piles) });
+      const spot = async (pile, i = 0) => { const lay = await t.game('getLayout'), p = lay.piles[pile], c = p.cards.length ? p.cards[Math.min(i, p.cards.length - 1)] : p; return { x: c.x + (c.w || lay.cardW) / 2, y: c.y + 14, lay }; };
+      const drop = async (from, to, i = 0) => {
+        const a = await spot(from, i), b = await spot(to, 99);
+        if (t.viewport === 'mobile') await t.touchDrag([a.x, a.y], [b.x, b.y + 10], { steps: 8 });
+        else { await t.page.mouse.move(a.x, a.y); await t.page.mouse.down(); await t.page.mouse.move(b.x, b.y + 10, { steps: 8 }); await t.page.mouse.up(); }
+        await t.waitForStable();
+      };
+      await t.game('setState', K({ t0: ['6H'], t1: ['7D'], t2: ['8S'], t4: ['5C'], t5: ['3S'] }));
+      await fresh(); await drop('t0', 't1');
+      t.equal(await said(), ['Colors alternate: it needs a black seven'], 'red on red says the colors alternate');
+      await shot(t, 'S2-03', 'reason');
+      await drop('t0', 't1');
+      t.equal((await said()).length, 1, 'the same refusal again straight away stays quiet');
+      await drop('t0', 't2');
+      t.equal((await said()).slice(1), ['Build down: a six goes on a seven'], 'a wrong rank says one rank lower');
+      await drop('t4', 't3');
+      t.equal((await said()).slice(2), ['Only a King fills an empty column'], 'a six on an empty column wants a King');
+      await drop('t5', 'f0');
+      t.equal((await said()).slice(3), ['An Ace starts a foundation'], 'a three on an empty foundation wants an Ace');
+      t.equal((await t.game('getState')).moves, 0, 'nothing moved');
+      // the same refusal speaks again once three seconds have passed
+      await t.page.evaluate(() => { const o = performance.now.bind(performance); performance.now = () => o() + 3100; });
+      await fresh(); await drop('t0', 't1');
+      t.equal((await said()).length, 1, 'after three seconds the same refusal speaks again');
+      await t.page.evaluate(() => { delete performance.now; });
+      // a tap with nowhere to go
+      await t.game('setState', K({ t0: ['6H'], t1: ['9C', '4D'], t6: ['#9C', '4H'] }));
+      await fresh(); await t.game('act', 'tap', 't0', 0);
+      t.equal((await said()).slice(-1), ['No pile takes that card yet'], 'a tapped card with no home says so');
+      await fresh(); await t.page.evaluate(() => { const o = performance.now.bind(performance); performance.now = () => o() + 6200; });
+      await t.game('act', 'tap', 't6', 0);
+      t.equal((await said()).slice(-1), ['That card is face down'], 'a face-down card says so');
+      await t.page.evaluate(() => { delete performance.now; });
+      // FreeCell: cells and columns all taken; and a run that the free cells cannot carry to an empty column
+      const FC = (cells, tabs) => ({ mode: 'freecell', opts: {}, piles: Object.assign({ c0: [], c1: [], c2: [], c3: [], f0: [], f1: [], f2: [], f3: [], t0: [], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [], t7: [] }, cells, tabs) });
+      await t.game('setState', FC({ c0: ['2C'], c1: ['2D'], c2: ['2H'], c3: ['2S'] }, { t0: ['9S'], t1: ['KC'], t2: ['KD'], t3: ['KH'], t4: ['QC'], t5: ['QD'], t6: ['QH'], t7: ['JC'] }));
+      await fresh(); await t.page.evaluate(() => { const o = performance.now.bind(performance); performance.now = () => o() + 9300; });
+      await t.game('act', 'tap', 't0', 0);
+      t.equal((await said()).slice(-1), ['No free cell or column for that card'], 'FreeCell with every cell and column taken says so');
+      await t.page.evaluate(() => { delete performance.now; });
+      await t.game('setState', FC({ c0: ['2C'], c1: ['2D'], c2: ['2H'] }, { t0: ['9S', '8H', '7S'], t1: ['KC'], t2: ['KD'], t3: ['KH'], t4: ['QC'], t5: ['QD'], t6: ['QH'] }));
+      await fresh(); await drop('t0', 't7', 0);
+      t.equal((await said()).slice(-1), ['Only 2 cards can move with these free cells'], 'a run too long for the free cells says how many can move');
+      // the keyboard: pick up with Enter, move to the wrong pile, Enter again
+      await t.game('setState', K({ t0: ['6H'], t1: ['7D'] }));
+      await t.page.evaluate(() => { const o = performance.now.bind(performance); performance.now = () => o() + 12400; });
+      await t.page.focus('#cv'); await fresh();
+      const goTo = async (pile) => { for (let i = 0; i < 20 && (await t.game('getState')).cursor.pile !== pile; i++) await t.page.keyboard.press('ArrowRight'); t.equal((await t.game('getState')).cursor.pile, pile, 'the cursor reached ' + pile); };
+      await goTo('t0'); await t.page.keyboard.press('Enter'); await goTo('t1'); await t.page.keyboard.press('Enter');
+      t.expect((await said()).includes('Colors alternate: it needs a black seven'), 'the keyboard drop says why too: ' + JSON.stringify(await said()));
+      await t.page.evaluate(() => { delete performance.now; });
+    },
+  },
 ];
