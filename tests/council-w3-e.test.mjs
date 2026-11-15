@@ -39,4 +39,28 @@ export const tests = [
       t.expect(names.includes('hint'), 'the hint toward the stock chimes: ' + names.join());
     },
   },
+  {
+    name: 'w3e S6-08 on a short screen on its side every game has its Play chips above the fold',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { sound: false, tips: false });
+      for (const [w, h, name] of [[844, 390, 'phone'], [667, 375, 'small-phone'], [1280, 600, 'laptop']]) {
+        await t.page.setViewportSize({ width: w, height: h });
+        await t.game('scene', 'title'); await t.waitForStable();
+        const r = await t.page.evaluate(() => {
+          const vh = innerHeight, chips = [...document.querySelectorAll('#tiles .chip')].map((c) => c.getBoundingClientRect());
+          return { n: chips.length, lowest: Math.round(Math.max(...chips.map((c) => c.bottom))), vh, wide: document.documentElement.scrollWidth > innerWidth };
+        });
+        t.equal(r.n, 8, w + 'x' + h + ': eight Play chips');
+        t.expect(r.lowest <= r.vh, w + 'x' + h + ': the lowest chip ends at ' + r.lowest + ', inside the ' + r.vh + ' px screen');
+        t.expect(!r.wide, w + 'x' + h + ': nothing sideways');
+        fs.mkdirSync(SHOTS, { recursive: true });
+        await t.page.screenshot({ path: path.join(SHOTS, 'S6-08-title-' + w + 'x' + h + '-' + (w < 900 ? 'mobile' : 'desktop') + '.png') });
+      }
+      // a tall phone keeps its title as it was: the painting, the name, and the tiles' hands
+      await t.page.setViewportSize({ width: 390, height: 844 });
+      await t.game('scene', 'title'); await t.waitForStable();
+      t.expect(await t.page.evaluate(() => getComputedStyle(document.querySelector('#tiles canvas')).display !== 'none'), 'portrait still shows the card hands');
+    },
+  },
 ];

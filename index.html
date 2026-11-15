@@ -132,6 +132,19 @@
   #title .wrap:has(#tCont:not([hidden])){padding-top:clamp(110px,22vh,240px)}
   #tCont{min-width:min(320px,100%);min-height:52px;border-radius:999px;font-size:1.05rem}
   @media (max-aspect-ratio:3/4){ #title .wrap{padding-top:clamp(120px,17vh,200px)} #title .tag{margin-bottom:14px} }
+  /* Short screens on their side: the painting keeps its place but gives the height back, so every game's Play chip is above the fold.
+     Under 700 px high the hero and the hands shrink; under 520 px the tiles become four plain columns (name and chips) in a row. */
+  @media (orientation:landscape) and (max-height:700px){
+    #title .wrap,#title .wrap:has(#tCont:not([hidden])){padding-top:clamp(70px,16vh,110px)}
+    #title .tag{margin-bottom:10px} .tile canvas{height:clamp(52px,9vh,70px)} .tile p{font-size:.76rem;line-height:1.25}
+  }
+  @media (orientation:landscape) and (max-height:520px){
+    #title .wrap,#title .wrap:has(#tCont:not([hidden])){padding-top:clamp(44px,12vh,60px);padding-bottom:16px}
+    #title h1{font-size:clamp(1.6rem,5vw,2.2rem)} #title .tag{display:none} #tTop{margin-bottom:8px}
+    .tiles{grid-template-columns:repeat(4,1fr);gap:8px}
+    .tile canvas,.tile .tsub,.tile p{display:none} .tile h2{font-size:1.1rem}
+    .row{margin-top:10px} .credit{margin-top:12px}
+  }
   .chips{display:flex;flex-wrap:wrap;gap:6px}
   .chip{min-height:44px;min-width:44px;padding:0 12px;border-radius:var(--radius-pill);border:1px solid var(--color-primary);
     background:transparent;color:var(--color-primary);font-weight:600;cursor:pointer;flex:1 0 auto;white-space:nowrap}
