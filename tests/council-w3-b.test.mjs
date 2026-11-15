@@ -232,4 +232,48 @@ export const tests = [
       t.equal((await t.game('meta')).seenFacts.length, 50, 'the collection survives a reload');
     },
   },
+  {
+    name: 'w3b S3-10 Hint leads with the first move of a winning line; following hints wins a deal that needs search; a deal with no line still gets hints',
+    async run(t) {
+      await baseSettings(t, { autoFoundation: 'safe', motion: 'reduced', tips: false });
+      // deals chosen by the solver itself, so the test does not depend on luck: Klondike deals that need a real search, and one it cannot win
+      const picks = await t.page.evaluate(() => {
+        const G = window.__game, hard = [], none = [], yukon = [];
+        for (let d = 1; d <= 80 && (hard.length < 2 || !none.length); d++) {
+          const deal = d * 7919, r = G.solve('klondike', { draw: 1 }, deal, 2000);
+          if (r.result === 'won' && r.used >= 150 && hard.length < 2) hard.push(deal);
+          else if (r.result === 'dead' && !none.length) none.push(deal);
+        }
+        for (let d = 1; d <= 80 && !yukon.length; d++) { const r = G.solve('yukon', {}, d * 7919, 2000); if (r.result === 'won' && r.used >= 80) yukon.push(d * 7919); }
+        return { hard, none, yukon };
+      });
+      t.expect(picks.hard.length === 2 && picks.none.length === 1 && picks.yukon.length === 1, 'found deals to use (' + JSON.stringify(picks) + ')');
+      const follow = (deal, mode = 'klondike') => t.page.evaluate(async ([deal, mode]) => {
+        const G = window.__game; await G.newGame({ mode, draw: 1, deal });
+        let firstSolver = null, k = 0, last;
+        for (; k < 300; k++) {
+          const st = G.getState(); if (st.won) break;
+          const h = G.act('hint'); if (!h.ok || h.stuck) { last = h; break; }
+          if (firstSolver === null) firstSolver = !!(h.move ? h.move.solver : h.stock);
+          if (h.move) G.act('move', h.move.from, h.move.to, st.piles[h.move.from].length - h.move.index); else G.act('draw');
+        }
+        return { won: G.getState().won || G.getState().scene === 'win', steps: k, firstSolver, ok: !last };
+      }, [deal, mode]);
+      for (const deal of picks.hard) {
+        const r = await follow(deal);
+        t.expect(r.firstSolver, 'deal ' + deal + ': the first hint comes from the solver line');
+        t.expect(r.won, 'deal ' + deal + ': taking every hint wins it (' + r.steps + ' hints)');
+        await t.game('scene', 'game');
+      }
+      const yk = await follow(picks.yukon[0], 'yukon');
+      t.expect(yk.firstSolver && yk.won, 'Yukon deal ' + picks.yukon[0] + ': solver hint first, and taking every hint wins it (' + yk.steps + ' hints)');
+      await t.game('scene', 'game');
+      const none = await follow(picks.none[0]);
+      t.equal(none.firstSolver, false, 'a deal with no winning line gets the old kind of hint');
+      t.expect(none.steps > 0, 'and still gets hints (' + none.steps + ')');
+      await t.game('scene', 'game');
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: picks.hard[0] });
+      await t.game('act', 'hint'); await shot(t, 'S3-10', 'hint');
+    },
+  },
 ];
