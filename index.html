@@ -3667,10 +3667,18 @@ function audioList() {
   const barSeconds = {}; for (const k in SCORES) barSeconds[k] = +(60 / SCORES[k].bpm * (SCORES[k].beats || 4)).toFixed(3);
   return { music: Object.keys(SCORES), ambience: Object.keys(SCENES), cues: CUE_NAMES.slice(), barSeconds };
 }
-function audioRender(name, seconds, wantWav) {
-  const ship = DEFAULT_SETTINGS;
+// `over` sets the volume controls to render at (volume, musicVol, ambVol); each one left out is the shipped default.
+// 'mix' is the busiest moment: the title piece, the bed, and the loudest cues struck together every second.
+function audioRender(name, seconds, wantWav, over) {
+  const ship = Object.assign({}, DEFAULT_SETTINGS, over);
   return measureAudio((oc, dest) => {
     const m = oc.createGain(); m.gain.value = ship.volume; m.connect(makeLimiter(oc, dest));
+    if (name === 'mix') {
+      const k = makeAudioKit(oc, m, { seed: 7, music: ship.musicVol, ambience: ship.ambVol }), c = makeCues(oc, m);
+      k.music.play(SCORES.title, { at: 0, fade: .02 }); k.amb.play(SCENES.bathhouse, { at: 0, fade: .02 });
+      for (let i = 1; i < seconds - 1; i++) { c.play('win', 1, i); c.play('found', 8, i + .03); c.play('place', 5, i + .05); c.play('deal', 1, i + .07); }
+      k.scheduleUntil(seconds); return null;
+    }
     if (CUE_NAMES.includes(name)) { const c = makeCues(oc, m); for (let i = 0; i < seconds - 1; i++) c.play(name, name === 'found' ? 1 + i % 8 : 1 + i % 5, .1 + i); return null; }
     const k = makeAudioKit(oc, m, { seed: 7, music: ship.musicVol, ambience: ship.ambVol });
     if (SCORES[name]) k.music.play(SCORES[name], { at: 0, fade: .02 }); else if (SCENES[name]) k.amb.play(SCENES[name], { at: 0, fade: .02 }); else throw new Error('no audio named ' + name);
