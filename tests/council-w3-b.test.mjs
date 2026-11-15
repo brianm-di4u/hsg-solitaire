@@ -66,4 +66,40 @@ export const tests = [
       t.equal((await t.state()).settings.scoring, 'timed', 'a damaged value is replaced by the default');
     },
   },
+  {
+    name: 'w3b S4-06 Help folds into sections with the hand of each game; the key caps are brass; the sheet has a pattern',
+    async run(t) {
+      await baseSettings(t);
+      await t.game('newGame', { mode: 'spider', suits: 1 });
+      await t.game('scene', 'help');
+      const info = await t.page.evaluate(() => {
+        const ds = [...document.querySelectorAll('#sheet details.hp')];
+        const kbd = document.querySelector('#sheet kbd');
+        const inked = (c) => { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++; return n; };
+        return {
+          titles: ds.map((d) => d.querySelector('summary').textContent.trim()), open: ds.map((d) => d.open),
+          hands: ds.filter((d) => d.querySelector('canvas')).map((d) => inked(d.querySelector('canvas'))),
+          kbdFont: kbd ? getComputedStyle(kbd).fontFamily : '', kbdBorder: kbd ? getComputedStyle(kbd).borderBottomColor : '',
+          pattern: getComputedStyle(document.querySelector('#sheet')).backgroundImage, goal: document.querySelector('#sheet').textContent.includes('Goal:'),
+        };
+      });
+      t.equal(info.titles, ['Klondike', 'FreeCell', 'Spider', 'Yukon', 'Controls', 'Scoring', 'About the art & facts'], 'one fold for each game and each topic');
+      t.equal(info.open, [false, false, true, false, false, false, false], 'the game being played starts open');
+      t.expect(info.hands.length === 4 && info.hands.every((n) => n > 400), 'each game shows its hand, drawn (' + info.hands.join(', ') + ' pixels)');
+      t.expect(/Josefin/.test(info.kbdFont), 'key caps use the display face, not the monospace one');
+      t.expect(info.pattern.includes('gradient'), 'the sheet has its lattice');
+      t.expect(info.goal, 'the goal is stated up top');
+      await shot(t, 'S4-06', 'help-folded');
+      await t.page.locator('#sheet details.hp').nth(4).locator('summary').click();
+      t.expect(await t.page.locator('#sheet details.hp').nth(4).evaluate((d) => d.open), 'a click opens Controls');
+      t.expect(await t.page.locator('#sheet kbd').first().isVisible(), 'and the key caps show');
+      await t.page.locator('#sheet details.hp').nth(4).locator('summary').focus();
+      await t.page.keyboard.press('Enter');
+      t.expect(!(await t.page.locator('#sheet details.hp').nth(4).evaluate((d) => d.open)), 'Enter folds it again');
+      await t.page.locator('#sheet details.hp').nth(4).locator('summary').click();
+      await shot(t, 'S4-06', 'help-controls');
+      await t.checkLayout();
+      await t.game('scene', 'stats'); await shot(t, 'S4-06', 'stats');
+    },
+  },
 ];
