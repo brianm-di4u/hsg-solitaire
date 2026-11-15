@@ -730,7 +730,7 @@ function autoplay(delayBase) {
       const f = foundationFor(u);
       if (f && (mode === 'all' || safeToAutoplay(u))) {
         if (!settings.autoNoted) { settings.autoNoted = true; saveSettings(); toast('Moved the ' + describeCard(u).replace(/^./, (c) => c.toLowerCase()) + ' up. Turn this off in Settings.'); } // said once, the first time a card moves by itself
-        rawMove(id, S.piles[id].length - 1, f, d + 1); d += 90; moved = true; settleTableau(d); break;
+        rawMove(id, S.piles[id].length - 1, f, d + 1); cueOnLand('found', card(u).r, 0, u, true); d += 90; moved = true; settleTableau(d); break;
       }
     }
   }
@@ -1287,7 +1287,7 @@ function autoComplete() {
       const u = top(id); if (u < 0 || !S.up[u]) continue;
       const f = foundationFor(u); if (f && (!best || card(u).r < card(best.u).r)) best = { id, u, f };
     }
-    if (best) { rawMove(best.id, S.piles[best.id].length - 1, best.f, d + 1); d += 70; moved = true; stall = 0; settleTableau(d); }
+    if (best) { rawMove(best.id, S.piles[best.id].length - 1, best.f, d + 1); cueOnLand('found', card(best.u).r, 0, best.u, true); d += 70; moved = true; stall = 0; settleTableau(d); }
     if (!moved && def().stock === 'draw') {
       const st = S.piles.stock, w = S.piles.waste;
       if (stall > st.length + w.length + 2) break;
@@ -1300,7 +1300,7 @@ function autoComplete() {
   S.moves++;
   sfx('deal');
   if (!S.won && isWon()) { S.won = true; finishRun = d > 300; onWin(d); }
-  relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
+  relayout(); flushLandCues(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   return { ok: true };
 }
 

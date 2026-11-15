@@ -215,4 +215,32 @@ export const tests = [
       t.equal(await heard(t), ['course'], 'a finished course of 21 baths: the course cue, once');
     },
   },
+  {
+    name: 'w3d S5-03 cards that go home by themselves each sound their rung of the ladder, spaced, on both Auto-move and Finish',
+    async run(t) {
+      const gaps = (l) => l.slice(1).map((c, i) => c.wait - l[i].wait);
+      await baseSettings(t, { sound: true, autoFoundation: 'all', motion: 'full' });
+      // Auto-move: a move by hand, then five spades climb to the foundation on their own
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EMPTY_K, { t0: ['5S', '4S', '3S', '2S', 'AS'], t1: ['KD'], t2: ['QS'] }) });
+      await cuesNow(t, true);
+      await t.game('act', 'move', 't2', 't1');
+      let l = (await cuesNow(t)).filter((c) => c.name === 'found');
+      t.equal(l.map((c) => c.arg), [1, 2, 3, 4, 5], 'each card sounds its own rank: the ladder climbs');
+      t.expect(gaps(l).every((g) => g >= 0.058), 'no two closer than 60 ms: ' + gaps(l).map((g) => g.toFixed(3)));
+      t.expect(l[0].wait > 0.1, 'the first waits for the player move to settle: ' + l[0].wait.toFixed(3));
+      // Finish: thirteen cards home, one cue each
+      const run = ['K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2', 'A'], sorted = (x) => run.slice().reverse().map((r) => r + x);
+      const fin = () => t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EMPTY_K, { f0: sorted('C'), f1: sorted('D'), f2: sorted('H'), t0: run.map((r) => r + 'S') }) });
+      await t.game('setSettings', { autoFoundation: 'off' }); await fin(); await cuesNow(t, true);
+      await t.game('act', 'autoComplete');
+      l = (await cuesNow(t)).filter((c) => c.name === 'found');
+      t.equal(l.map((c) => c.arg), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], 'Finish: a cue per card, climbing');
+      t.expect(gaps(l).every((g) => g >= 0.058), 'Finish: spaced');
+      // reduced motion: the cards arrive together, so they sound as one
+      await t.game('setSettings', { motion: 'reduced' }); await t.waitForStable(9000); await fin(); await cuesNow(t, true);
+      await t.game('act', 'autoComplete');
+      l = (await cuesNow(t)).filter((c) => c.name === 'found');
+      t.expect(l.length >= 1 && l.length <= 2, 'reduced motion: one cue, not thirteen at once: ' + l.length);
+    },
+  },
 ];
