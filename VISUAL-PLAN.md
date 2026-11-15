@@ -73,7 +73,7 @@ Library of Congress). Two findings already change the art:
 - **Fast first paint and progressive loading.** The game is playable with vector art before any image decodes.
   The essential set is the current table cut, the current back, 12 courts, the brass hardware and the fonts.
   Everything else (other tables, backs, ceremony art) loads when it is first needed.
-- **Download budget.** First load ≤ 1.5 MB; the whole `assets/` folder ≤ 6 MB.
+- **Download budget.** First load ≤ 1.6 MB (1.5 MB until wave 3 of the council work, raised by the owner on 14 November 2026); the whole `assets/` folder ≤ 6 MB.
 - **Low-end fallback.** `?art=0` and a missing image both give the vector look. Reduced motion skips flights,
   flips and the ceremony. A frame-time watchdog turns off particles and the skylight glow animation if frames
   run long (more than 24 ms on average).
