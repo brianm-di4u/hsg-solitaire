@@ -118,7 +118,7 @@ sends the player round in circles:
   ranked list, minus moves and draws that return to an earlier position. If the only way on is back through
   an earlier position, the hint says "No useful moves found. Try Undo or a new deal".
 
-Pressing H again cycles through the hints.
+Pressing H again cycles through the hints. A press of the Hint button, H or the gamepad's X searches a few milliseconds at a time between frames (the searches are generators that yield every 40 positions), so the table never holds still for a hard position; the `hint` hook asks for the whole search at once and gets the same answer.
 
 **Auto-complete.** Klondike and Yukon offer it when no face-down tableau cards remain. FreeCell offers it
 when every column and cell is in descending order with no blockers. The loop plays foundation moves (and
@@ -149,6 +149,10 @@ counts as one undo step.
     - U, Z or Ctrl+Z undoes; Y or Ctrl+Y redoes
     - H shows a hint; A auto-completes
     - N starts a new deal; ? opens help; P or Esc (with nothing held) opens the menu
+  - **Gamepad:** a pad presses these same keys. D-pad and left stick are the arrow keys (held, they repeat), A is
+    Enter, B is Esc while a card is held and U otherwise, X is H, Y is D, Start is P. In a dialog or on the
+    title the D-pad steps between the controls, A presses the one in focus, B and Start close the dialog and
+    left/right move a slider. It starts polling (25 times a second) when the browser reports a pad.
   - **Feedback:** a `role="status"` live region announces picks, drops, flips and wins in words, for
     example "Seven of hearts to column 3".
 
@@ -259,3 +263,5 @@ this browser".
 | `setSettings(obj)` | merge settings, re-layout and redraw |
 | `freecellDeal(n)` | the 8 columns of deal `n` in notation (a test vector helper) |
 | `stats()` | the stats object |
+| `pad()`, `sky()`, `skyDue(t)`, `scoreFx()`, `glideOf(pile)`, `hintYields(reset)`, `hintCurrent()` | (wave 4) the gamepad poll count, the title sky loop (`running`, `frames`, `gap`), the sky's 30-a-second throttle, the floating score texts, the glide time of a pile's top card, how often the last hint search yielded, the hint on show |
+| `canvasFilter()`, `tableBlur(id, px)`, `backMean(seed)` | (wave 4) whether canvas filters exist, set a table's blur and redraw, the mean colour of the Skylight back for a deck seed |

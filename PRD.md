@@ -91,8 +91,11 @@ The cards are a standard 52-card deck, and Spider uses two decks (104 cards). Ra
   time bonus.
 
 ### 4.5 Common
-- **Unlimited undo and redo.** Undo restores the score too. Any undo marks the game "assisted", shown with a
-  small mark in stats but not penalized.
+- **Unlimited undo and redo.** Undo restores the score too. Any undo or hint marks the game "assisted", shown
+  beside the deal number as a small tag ("undo used", "hint used", "undo + hint") and in stats, but not penalized.
+  Settings has an option, off by default, "Undo costs points": each Undo then takes 15 points off the score.
+  A score change of 5 points or more floats up from the pile where it happened (not with reduced motion or with
+  scoring set to None).
 - **Hint:** H or the Hint button shows the best move with a glow. Pressing it again cycles to the next move.
 - **Auto-complete:** shown when the game can no longer be lost (§3 in MECHANICS). It plays out the rest of
   the cards with animation.
