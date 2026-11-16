@@ -199,6 +199,7 @@ All sound is WebAudio synthesis, so there are no files:
 Master volume and mute are in settings. The AudioContext is created on the first user gesture. A profile made
 from the wave-4 build on has the master slider on a squared curve (half way is a quarter of the gain, slider
 starting at 0.75); a profile that already existed keeps the straight line it had. There is no control for it.
+Redo plays the cue of the move it puts back (a card home sings its rank, a finished Spider run is the run cue).
 
 ## 9. Accessibility
 

@@ -170,4 +170,33 @@ export const tests = [
       }
     },
   },
+  // ------------------------------------------------------------------------------------------ S5-14
+  {
+    name: 'w4c S5-14 Redo plays the cue of the move it puts back: a rank note for a card home, a thud for a column, the run cue for a Spider run',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced', tips: false });
+      const E = { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: [], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] };
+      const redoCue = async () => { await t.game('act', 'undo'); await cuesNow(t, true); await t.game('act', 'redo'); const c = await cuesNow(t, true); return c.filter((x) => ['found', 'place', 'run', 'undo'].includes(x.name)).map((x) => [x.name, x.arg]); };
+      // a card home: the deuce of clubs goes up on its ace
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, E, { f0: ['AC'], t0: ['2C'], t1: ['KH', '9S'] }) });
+      await t.game('act', 'move', 't0', 'f0');
+      t.equal(await redoCue(), [['found', 2]], 'Redo of a card going home plays the foundation note for its rank (a deuce)');
+      // a column move: the nine of spades on the red ten is a plain place
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, E, { t0: ['TH'], t1: ['KS', '9S'] }) });
+      await t.game('act', 'move', 't1', 't0');
+      t.equal(await redoCue(), [['place', 1]], 'Redo of a column move is the plain thud');
+      // a higher rank: the queen of hearts home reaches for a higher note than the deuce
+      const base = { f1: ['AH', '2H', '3H', '4H', '5H', '6H', '7H', '8H', '9H', 'TH', 'JH'], t0: ['QH'], t1: ['KS'] };
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, E, base) });
+      await t.game('act', 'move', 't0', 'f1');
+      t.equal(await redoCue(), [['found', 12]], 'a queen sings the twelfth step');
+      // Spider: a run that completes and leaves
+      const run = ['KS', 'QS', 'JS', 'TS', '9S', '8S', '7S', '6S', '5S', '4S', '3S', '2S'];
+      await t.game('setState', { mode: 'spider', opts: { suits: 1 }, piles: { stock: [], t0: run, t1: ['AS'], t2: ['KH'] } });
+      await t.game('act', 'move', 't1', 't0');
+      t.equal((await t.state()).runs, 1, 'the Spider run left the table');
+      t.equal(await redoCue(), [['run', undefined]], 'Redo of a finished Spider run plays the run cue');
+    },
+  },
 ];

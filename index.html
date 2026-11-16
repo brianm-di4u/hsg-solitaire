@@ -910,10 +910,16 @@ function undo() {
   sfx('undo'); announce(charged ? 'Undone, ' + UNDO_COST + ' points off' : 'Undone'); relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   return { ok: true };
 }
+// What a Redo sounds like: the move it puts back, not a plain thud. A card that goes home sings its rank, a Spider run that leaves is the run cue.
+function redoCue(was, runs) {
+  for (const id in S.piles) if (kindOf(id) === 'found' && S.piles[id].length > was[id]) return S.runs > runs ? ['run'] : def().runs ? ['place', 1] : ['found', card(S.piles[id][S.piles[id].length - 1]).r];
+  return ['place', 1];
+}
 function redo() {
   if (!redoStack.length || !S) return { ok: false };
+  const was = {}, runs = S.runs; for (const id in S.piles) if (kindOf(id) === 'found') was[id] = S.piles[id].length;
   undoStack.push(snapshot()); restore(redoStack.pop()); scoreFx = [];
-  sfx('place'); announce('Redone'); relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
+  sfx(...redoCue(was, runs)); announce('Redone'); relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   if (!S.won && isWon()) { S.won = true; onWin(0); }
   return { ok: true };
 }
