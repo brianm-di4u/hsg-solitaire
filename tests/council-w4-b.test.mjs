@@ -212,4 +212,62 @@ export const tests = [
       await t.checkLayout(); await shot(t, 'S3-11', 'settings-switch');
     },
   },
+  // ------------------------------------------------------------------------------------------ S3-14
+  {
+    name: 'w4b S3-14 a score change of 5 points or more floats up from the pile where it happened; penalties are red; none with reduced motion or no score',
+    async run(t) {
+      await baseSettings(t, { motion: 'full', scoring: 'standard', tips: false });
+      // a frozen clock that moves only through advance(), so how far a float has risen is exactly what the test says
+      await t.page.evaluate(() => { const base = performance.now(); window.__off = 0; performance.now = () => base + window.__off; });
+      const advance = (ms) => t.page.evaluate((m) => { window.__off += m; }, ms);
+      const floats = () => t.game('scoreFx');
+      const K = (piles, extra) => Object.assign({ mode: 'klondike', opts: { draw: 1 }, score: 200, piles: Object.assign({ stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: [], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] }, piles) }, extra);
+      const move = async (from, to) => { t.expect((await t.game('act', 'move', from, to, 1)).ok, from + ' to ' + to + ' is legal'); };
+      await t.game('setState', K({ f0: ['AC'], t0: ['2C'], t1: ['#9H', '8S'], t2: ['9D'], t3: ['3D'], t4: ['8C'], waste: ['7H'], t6: ['KS'] }));
+      await move('t0', 'f0');
+      t.equal((await floats()).map((f) => f.text + '@' + f.pile + (f.neg ? '-' : '')), ['+10@f0'], 'a card home: +10 at the foundation');
+      await move('t1', 't2');
+      t.equal((await floats()).map((f) => f.text + '@' + f.pile), ['+10@f0', '+5@t1'], 'turning a card over: +5 at its column');
+      await move('waste', 't4');
+      t.equal((await floats()).map((f) => f.text + '@' + f.pile).slice(2), ['+5@t4'], 'waste to a column: +5 at the column');
+      await move('f0', 't3');
+      const last = (await floats()).slice(-1)[0];
+      t.equal([last.text, last.neg, last.pile], ['−15', true, 't3'], 'a card back from a foundation: a red minus 15 at the column');
+      // the float is painted: gold digits near the foundation a little way into its life (and red ones for the penalty)
+      await t.game('setState', K({ f0: ['AC'], t0: ['2C'], t6: ['KS'] }));
+      await move('t0', 'f0');
+      await advance(170 + 300); await t.waitFrames(3);
+      const lay = await t.game('getLayout'), f0 = lay.piles.f0;
+      const count = (rgb, box) => t.page.evaluate(([rgb, b]) => {
+        const cv = document.getElementById('cv'), r = cv.getBoundingClientRect(), k = cv.width / r.width, g = cv.getContext('2d');
+        const d = g.getImageData(Math.max(0, Math.round((b.x - r.left) * k)), Math.max(0, Math.round((b.y - r.top) * k)), Math.round(b.w * k), Math.round(b.h * k)).data; let n = 0;
+        for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - rgb[0]) < 14 && Math.abs(d[i + 1] - rgb[1]) < 14 && Math.abs(d[i + 2] - rgb[2]) < 14) n++;
+        return n;
+      }, [rgb, box]);
+      const box = { x: f0.x - 10, y: f0.y - 6, w: f0.w + 20, h: f0.h * .8 };
+      const gold = await count([248, 231, 166], box); t.log('gold pixels near the foundation: ' + gold);
+      t.expect(gold >= 15, 'gold digits are painted above the foundation: ' + gold);
+      await shot(t, 'S3-14', 'plus-ten');
+      await advance(1000); await t.waitFrames(3);
+      t.equal(await floats(), [], 'the float is gone a second later');
+      t.expect(await t.game('isIdle'), 'and the table is idle again');
+      // a float does not outlive the game it belongs to, or the move that is taken back
+      await t.game('setState', K({ f0: ['AC'], t0: ['2C'], t6: ['KS'] }));
+      await move('t0', 'f0'); t.expect((await floats()).length === 1, 'a float is up');
+      await t.game('act', 'undo'); t.equal(await floats(), [], 'taking the move back takes its float away');
+      await move('t0', 'f0'); await t.game('newGame', { mode: 'klondike' }); t.equal(await floats(), [], 'a new deal starts with none');
+      // no float with reduced motion, and none with scoring set to None
+      for (const extra of [{ motion: 'reduced' }, { motion: 'full', scoring: 'none' }]) {
+        await t.game('setSettings', extra);
+        await t.game('setState', K({ f0: ['AC'], t0: ['2C'], t6: ['KS'] }));
+        await move('t0', 'f0');
+        t.equal(await floats(), [], 'no float with ' + JSON.stringify(extra));
+      }
+      // small changes are left to the number in the bar: a Spider move costs 1 point
+      await t.game('setSettings', { motion: 'full', scoring: 'standard' });
+      await t.game('newGame', { mode: 'spider', suits: 1 });
+      const lm = await t.game('legalMoves'); t.expect(lm.length > 0 && (await t.game('act', 'move', lm[0].from, lm[0].to, lm[0].count)).ok, 'a Spider move is made');
+      t.equal(await floats(), [], 'a one-point move has no float');
+    },
+  },
 ];

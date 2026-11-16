@@ -709,18 +709,26 @@ function restore(sn) {
 }
 function pushUndo() { undoStack.push(snapshot()); redoStack.length = 0; }
 
-const addScore = (n) => { S.score = Math.max(0, S.score + n); };
+// A score change of 5 points or more also floats up from the pile it happened at (S3-14), so the points can be learned by playing. Not with reduced motion,
+// and not when scoring is None; the change shown is the one the score really made (it never goes below 0).
+let scoreFx = [];
+const SCORE_FX_MIN = 5, SCORE_FX_LIFE = 1000;
+const addScore = (n, pile) => {
+  const before = S.score; S.score = Math.max(0, S.score + n);
+  const d = S.score - before;
+  if (pile && Math.abs(d) >= SCORE_FX_MIN && settings.scoring !== 'none' && !reducedMotion()) scoreFx.push({ text: (d > 0 ? '+' : '−') + Math.abs(d), neg: d < 0, pile, t0: now() + 170 });
+};
 
 function scoreMove(from, to, n) {
   const fk = kindOf(from), tk = kindOf(to);
   if (S.mode === 'spider') return;
   if (S.mode === 'freecell') {
-    if (tk === 'found') addScore(10 * n); else if (fk === 'found') addScore(-10 * n);
+    if (tk === 'found') addScore(10 * n, to); else if (fk === 'found') addScore(-10 * n, to);
     return;
   }
-  if (tk === 'found') addScore(10);
-  else if (fk === 'waste' && tk === 'tab') addScore(5);
-  else if (fk === 'found' && tk === 'tab') addScore(-15);
+  if (tk === 'found') addScore(10, to);
+  else if (fk === 'waste' && tk === 'tab') addScore(5, to);
+  else if (fk === 'found' && tk === 'tab') addScore(-15, to);
 }
 
 function rawMove(from, idx, to, delay) {
@@ -746,7 +754,7 @@ function settleTableau(delayBase) {
       const id = 't' + i; const p = S.piles[id];
       if (p.length && !S.up[p[p.length - 1]]) {
         const u = p[p.length - 1]; S.up[u] = true; flipQueue.push(u);
-        if (S.mode === 'klondike' || S.mode === 'yukon') addScore(5);
+        if (S.mode === 'klondike' || S.mode === 'yukon') addScore(5, id);
         changed = true;
       }
       if (def().runs && endsInRun(p)) {
@@ -754,7 +762,7 @@ function settleTableau(delayBase) {
         const run = p.splice(p.length - 13); run.reverse();
         S.piles['f' + f].push(...run);
         run.forEach((u, j) => { animDelay[u] = d + j * 28; });
-        d += 400; S.runs++; addScore(100); changed = true; sfx('run');
+        d += 400; S.runs++; addScore(100, 'f' + f); changed = true; sfx('run');
         { syncShared(); const a = earn({ wins: meta.totalWins, w: null, run: true }); if (a.length) { save('meta', meta); setTimeout(() => achToast(a), 900); } }
         announce('Completed a run of ' + SUIT_NAME[card(run[0]).s]);
       }
@@ -861,7 +869,7 @@ function stockAction() {
       announce('Drew ' + describeCard(top('waste')));
     } else {
       S.recycles++;
-      if (S.recycles > 1) addScore(S.opts.draw === 3 ? -20 : -50);
+      if (S.recycles > 1) addScore(S.opts.draw === 3 ? -20 : -50, 'stock');
       while (w.length) { const u = w.pop(); st.push(u); S.up[u] = false; }
       sfx('deal'); announce('Waste turned back to the stock');
     }
@@ -885,7 +893,7 @@ const UNDO_COST = 15;
 function chargeUndo() { const cut = (sn) => { sn.score = Math.max(0, sn.score - UNDO_COST); }; cut(S); undoStack.forEach(cut); redoStack.forEach(cut); }
 function undo() {
   if (!undoStack.length || !S || S.won) return { ok: false };
-  redoStack.push(snapshot()); restore(undoStack.pop());
+  redoStack.push(snapshot()); restore(undoStack.pop()); scoreFx = [];
   S.usedUndo = true; S.assisted = true; hintState = null;
   const charged = settings.undoCost && settings.scoring !== 'none'; if (charged) chargeUndo();
   sfx('undo'); announce(charged ? 'Undone, ' + UNDO_COST + ' points off' : 'Undone'); relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
@@ -893,7 +901,7 @@ function undo() {
 }
 function redo() {
   if (!redoStack.length || !S) return { ok: false };
-  undoStack.push(snapshot()); restore(redoStack.pop());
+  undoStack.push(snapshot()); restore(redoStack.pop()); scoreFx = [];
   sfx('place'); announce('Redone'); relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   if (!S.won && isWon()) { S.won = true; onWin(0); }
   return { ok: true };
@@ -1535,7 +1543,7 @@ function newGame(o = {}) {
 function startDeal(mode, opts, deal, daily, winnable, grade) {
   abandonCurrent();
   clearTimeout(winTimer); winTimer = 0; finishRun = false;
-  S = newState(mode, opts, deal, daily); musicHush = false;
+  S = newState(mode, opts, deal, daily); musicHush = false; scoreFx = [];
   if (winnable) S.winnable = true;
   if (winnable && grade) S.grade = grade;
   undoStack = []; redoStack = []; hintState = null; held = null; drag = null; cascade = null; cursor = { pile: null, depth: 0 }; clearStuck();
@@ -1626,7 +1634,7 @@ function ceremony() { winTimer = 0; finishRun = false; musicHush = true; syncAud
 function skipFinish() {
   finishRun = false; const t = now();
   for (let u = 0; u < S.cards.length; u++) if (D[u]) { D[u].t0 = Math.min(D[u].t0, t - 1e5); D[u].f0 = Math.min(D[u].f0, t - 1e5); }
-  landFx = []; clearTimeout(winTimer); winTimer = setTimeout(ceremony, 250); markDirty();
+  landFx = []; scoreFx = []; clearTimeout(winTimer); winTimer = setTimeout(ceremony, 250); markDirty();
 }
 
 // --- Save current game ---
@@ -2933,10 +2941,23 @@ function glints(x, y, n, spread, t0) {
     fx.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - spread * .3, t0: t0 + Math.random() * 60, life: 420 + Math.random() * 380, r: 1.2 + Math.random() * 2.4 });
   }
 }
+function drawScoreFx(t) {
+  scoreFx = scoreFx.filter((q) => t < q.t0 + SCORE_FX_LIFE);
+  ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; ctx.font = '700 ' + clamp(L.cw * .3, 13, 24) + 'px ' + SERIF;
+  for (const q of scoreFx) {
+    if (t < q.t0 || !L.piles[q.pile]) continue;
+    const k = (t - q.t0) / SCORE_FX_LIFE, b = L.piles[q.pile], c = b.cards.length ? b.cards[b.cards.length - 1] : { x: b.x, y: b.y, w: L.cw, h: L.ch };
+    const x = c.x + c.w / 2, y = c.y + c.h * .08 - L.ch * .4 * k;
+    ctx.globalAlpha = k < .15 ? k / .15 : 1 - ((k - .15) / .85) ** 2; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(20,10,0,.75)'; ctx.strokeText(q.text, x, y);
+    ctx.fillStyle = q.neg ? '#FF8F7E' : '#F8E7A6'; ctx.fillText(q.text, x, y);
+  }
+  ctx.restore();
+}
 function drawFx(t) {
   if (landFx.length) {
     landFx = landFx.filter((q) => { if (t < q.at) return true; const d = D[q.u]; if (d) glints(d.tx + L.cw / 2, d.ty + L.ch * .3, 14, L.cw * 1.4, q.at); return false; });
   }
+  if (scoreFx.length) drawScoreFx(t);
   if (!fx.length) return;
   fx = fx.filter((p) => t < p.t0 + p.life);
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -2985,7 +3006,7 @@ const markDirty = startLoop;
 function tweensActive(t) {
   if (!S) return false;
   for (let u = 0; u < S.cards.length; u++) { const d = D[u]; if (d && (t < d.t0 + d.dur || t < d.f0 + FLIP_MS)) return true; }
-  return landFx.length > 0 || fx.length > 0;
+  return landFx.length > 0 || fx.length > 0 || scoreFx.length > 0;
 }
 let frozenAt = null, modalAnimUntil = 0;
 const fstat = { n: 0, sum: 0, max: 0, xs: [] }; // CPU time spent drawing frames, for the performance tests
@@ -4496,7 +4517,7 @@ function paintPickers() {
 }
 function saveSettings() { save('settings', settings); }
 function applyLook() {
-  steam = []; fx = []; landFx = [];
+  steam = []; fx = []; landFx = []; scoreFx = [];
   document.documentElement.classList.toggle('lh', !!settings.leftHanded); const r = stage.getBoundingClientRect();
   if (Math.round(r.width) !== W || Math.round(r.height) !== H) { resize(); updateHUD(); return; }
   loadArt(essentialArt()); sprites.clear(); tableDirty = true; relayout(true); markDirty(); updateHUD();
@@ -4553,7 +4574,7 @@ window.__game = {
     for (const id in s.piles || {}) { if (!st.piles[id]) continue; for (const n of s.piles[id]) { const c = parseNote(n); st.piles[id].push(st.cards.length); st.cards.push({ s: c.s, r: c.r }); st.up.push(c.up); } }
     if (s.grade) { st.winnable = true; st.grade = s.grade; }
     if (s.score != null) st.score = s.score; if (s.moves != null) st.moves = s.moves;
-    S = st; undoStack = []; redoStack = []; held = null; drag = null; cascade = null; hintState = null; lastWin = null; clearStuck();
+    S = st; scoreFx = []; undoStack = []; redoStack = []; held = null; drag = null; cascade = null; hintState = null; lastWin = null; clearStuck();
     clearTimeout(winTimer); winTimer = 0; finishRun = false;
     closeModal(); showTitle(false); relayout(true); updateHUD(); markDirty();
     return true;
@@ -4565,6 +4586,7 @@ window.__game = {
   ambient: () => ({ fps: AMB.fps, running: !!ambTimer, wanted: ambientWanted(), frames: ambFrames, painted: (() => { const d = actx.getImageData(0, 0, amb.width, amb.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; })() }),
   canvasFilter: () => CANVAS_FILTER,
   glideOf(pile) { const p = S.piles[pile], d = p.length ? D[p[p.length - 1]] : null; return d ? d.dur : null; },
+  scoreFx: () => scoreFx.map((q) => ({ text: q.text, neg: q.neg, pile: q.pile, age: Math.round(now() - q.t0) })),
   pad: () => ({ connected: !!padFound(), polls: PAD.polls }),
   tableBlur(id, px) { TABLE_LOOK[id].blur = px; tableDirty = true; markDirty(); return true; },
   backMean(seed) { // the mean colour of the skylight back drawn with a deck seed
