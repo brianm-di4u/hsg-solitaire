@@ -128,7 +128,8 @@ Title ──► Game ──► Win dialog ──► (New deal | Replay | Title)
   won), Continue (when a game is saved), Stats, Settings and Help.
 - **Game:**
   - **Top bar:** Menu button, mode name and variant, and a status strip with score, moves and time
-    (hideable timer).
+    (hideable timer). A thin jade line along the bottom of the bar fills as cards go home (Spider: cards in
+    finished runs); a screen reader reads it as "n of 52 cards home".
   - **Middle:** the table canvas.
   - **Bottom toolbar:** New, Undo, Redo, Hint and Auto (enabled only when available), at least 44 × 44 px.
     The deal number appears under the status strip.

@@ -54,6 +54,9 @@
   #bar{height:var(--bar-h);flex:none;display:flex;align-items:center;gap:10px;padding:0 10px;position:relative;z-index:1;
     background:var(--lac-2) linear-gradient(var(--lac-1),var(--lac-2));color:var(--lac-ink);
     border-bottom:2px solid var(--brass);border-image:var(--brass-rule) 1;box-shadow:0 3px 10px rgba(0,0,0,.45)}
+  #goal{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(0,0,0,.5);pointer-events:none}
+  #goal i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3E9C80,#8FE0C2);transition:width .35s ease}
+  @media (prefers-reduced-motion: reduce){ #goal i{transition:none} }
   #ttl{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15}
   #modeName{font-family:var(--font-display);font-weight:400;font-size:1.12rem;letter-spacing:.03em;color:var(--brass-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #modeSub{font-family:var(--font-deco);font-size:.74rem;letter-spacing:.04em;color:var(--lac-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -350,6 +353,7 @@
       <span id="sScoreW">Score<small id="sBonus" hidden></small><b id="sScore">0</b></span><span>Moves<b id="sMoves">0</b></span><span id="sTimeW">Time<b id="sTime">0:00</b></span>
     </div>
     <button class="ib" id="bHelp" aria-label="How to play" title="How to play (?)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.3-.9.8-.9 1.4v.6M12 17h.01"/></svg></button>
+    <div id="goal" role="progressbar" aria-label="Cards home" aria-valuemin="0" aria-valuemax="52" aria-valuenow="0" aria-valuetext="0 of 52 cards home"><i></i></div>
   </header>
   <main id="stage">
     <canvas id="tbl" aria-hidden="true"></canvas>
@@ -4195,6 +4199,7 @@ function updateHUD() {
   $('#modeName').textContent = MODES[S.mode].name + (variantLabel(S.mode, S.opts) ? ' (' + variantLabel(S.mode, S.opts) + ')' : '');
   $('#modeSub').textContent = (S.daily ? (S.winnable ? 'Daily ' : 'Daily deal ') + S.daily : 'Deal #' + S.deal) + (S.winnable ? ' · ' + (Object.hasOwn(GRADE_RANK, S.grade) ? S.grade : 'winnable') : '');
   $('#assistTag').hidden = !S.assisted; $('#assistTag').textContent = S.usedUndo && S.usedHint ? 'undo + hint' : S.usedUndo ? 'undo used' : S.usedHint ? 'hint used' : 'assisted'; // quiet words for what happened; the win ticket still says assisted
+  updateGoal();
   $('#sScore').textContent = S.score; $('#sMoves').textContent = S.moves; updateTime();
   $('#sScoreW').style.display = settings.scoring === 'none' ? 'none' : '';
   $('#sTimeW').style.display = settings.showTimer ? '' : 'none';
@@ -4202,6 +4207,13 @@ function updateHUD() {
   const ac = canAutoComplete(); const b = $('#bAuto'); b.disabled = !ac; b.classList.toggle('glow', ac);
   $('#bHint').disabled = S.won;
   syncMirror();
+}
+// How far from a win: the cards on the foundations (Spider: in finished runs) as a thin jade line under the bar, and as words for the pointer and a screen reader.
+function homeCount() { let n = 0; for (const id in S.piles) if (kindOf(id) === 'found') n += S.piles[id].length; return n; }
+function updateGoal() {
+  const n = homeCount(), all = S.cards.length, g = $('#goal'), text = n + ' of ' + all + ' cards home';
+  g.setAttribute('aria-valuemax', all); g.setAttribute('aria-valuenow', n); g.setAttribute('aria-valuetext', text); g.title = 'Home ' + n + '/' + all;
+  g.firstElementChild.style.width = (100 * n / all) + '%';
 }
 function updateTime() {
   if (!S) return;
