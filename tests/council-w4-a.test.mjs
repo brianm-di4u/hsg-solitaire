@@ -165,4 +165,30 @@ export const tests = [
       await t.page.setViewportSize(t.vp);
     },
   },
+  {
+    name: 'w4a C4-09 on a very short phone on its side every Play chip is above the fold, with Continue showing too',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { tips: false });
+      await t.seed(31); await t.game('newGame', { mode: 'spider', suits: 1 });
+      await t.game('act', 'draw'); // a game in progress, so the title offers Continue
+      await t.page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+      for (const [w, h] of [[568, 320], [640, 360], [667, 375], [844, 390], [1280, 600]]) {
+        await t.page.setViewportSize({ width: w, height: h });
+        await t.game('scene', 'title');
+        await t.page.waitForFunction(() => !document.getElementById('tCont').hidden);
+        await t.waitForStable();
+        const r = await t.page.evaluate(() => {
+          const chips = [...document.querySelectorAll('#tiles .chip')].map((c) => c.getBoundingClientRect()), cont = document.getElementById('tCont').getBoundingClientRect();
+          return { n: chips.length, lowest: Math.round(Math.max(...chips.map((c) => c.bottom))), cont: Math.round(cont.height), vh: innerHeight, wide: document.documentElement.scrollWidth > innerWidth };
+        });
+        t.equal(r.n, 8, w + 'x' + h + ': eight Play chips');
+        t.expect(r.lowest <= r.vh, w + 'x' + h + ' with Continue: the lowest chip ends at ' + r.lowest + ', inside the ' + r.vh + ' px screen');
+        t.expect(!r.wide, w + 'x' + h + ': nothing sideways');
+        t.expect(r.cont >= 44, w + 'x' + h + ': Continue is still a full-size target (' + r.cont + ' px)');
+        if (h <= 340) await shot(t, 'C4-09', 'title-' + w + 'x' + h);
+      }
+      await t.page.setViewportSize(t.vp);
+    },
+  },
 ];

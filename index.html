@@ -149,6 +149,11 @@
     .tile canvas,.tile .tsub,.tile p{display:none} .tile h2{font-size:1.1rem}
     .row{margin-top:10px} .credit{margin-top:12px}
   }
+  /* Under 340 px high with Continue showing the last chip was 12 px under the fold: a tighter top and a plainer Continue give about 30 px back. */
+  @media (orientation:landscape) and (max-height:340px){
+    #title .wrap,#title .wrap:has(#tCont:not([hidden])){padding-top:28px;padding-bottom:10px}
+    #tCont{min-height:44px} #tTop{margin-bottom:6px} .row{margin-top:8px} .credit{margin-top:8px}
+  }
   .chips{display:flex;flex-wrap:wrap;gap:6px}
   .chip{min-height:44px;min-width:44px;padding:0 12px;border-radius:var(--radius-pill);border:1px solid var(--color-primary);
     background:transparent;color:var(--color-primary);font-weight:600;cursor:pointer;flex:1 0 auto;white-space:nowrap}
