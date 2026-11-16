@@ -238,4 +238,17 @@ export const tests = [
       await t.checkLayout();
     },
   },
+  {
+    name: 'w4a C4-12 the ambient table layer repaints at 10 a second at most',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'full' });
+      await t.game('newGame', { mode: 'klondike' });
+      await t.page.waitForFunction(() => window.__game.ambient().running);
+      t.equal((await t.game('ambient')).fps, 10, 'the layer is set to ten repaints a second');
+      // A timer cannot fire faster than it was set, however idle the machine: over any window the count has a ceiling.
+      const rate = await t.page.evaluate(() => new Promise((done) => { const f0 = window.__game.ambient().frames, t0 = performance.now(); setTimeout(() => done((window.__game.ambient().frames - f0) / ((performance.now() - t0) / 1000)), 1500); }));
+      t.expect(rate <= 11.5, 'no more than about 10 frames a second: ' + rate.toFixed(1));
+      t.expect((await t.game('ambient')).painted > 0, 'and it still paints');
+    },
+  },
 ];

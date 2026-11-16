@@ -3190,7 +3190,8 @@ function drawSteam(t) {
 // Ambient life under the cards: slow steam lifts from the two brass corners at the foot of the table and a pool of lamplight drifts across the felt, so the
 // table is never quite still. A small canvas of its own (half size: the shapes are soft), painted AMB.fps times a second, and only while a deal is on
 // the table in a visible tab with no dialog or ceremony over it, motion not reduced and the effects not in low mode. Nothing waits on it.
-const AMB = { fps: 20, scale: .5, wisps: 8, life: 22, lampSecs: 48, wispAlpha: .13, lampAlpha: .07 }; // a wisp rises for `life` seconds; the lamp crosses the table in `lampSecs`
+// fps was 20: the drift is slow enough that half the repaints look the same, and they cost half the main-thread time
+const AMB = { fps: 10, scale: .5, wisps: 8, life: 22, lampSecs: 48, wispAlpha: .13, lampAlpha: .07 }; // a wisp rises for `life` seconds; the lamp crosses the table in `lampSecs`
 const amb = $('#amb'), actx = amb.getContext('2d');
 let ambTimer = 0, ambFrames = 0;
 const ambientWanted = () => !!S && !titleOn && !modalKind && !document.hidden && !reducedMotion() && !lowFx && !cascade && W > 0;
@@ -4480,7 +4481,7 @@ window.__game = {
   meta() { return JSON.parse(JSON.stringify(meta)); },
   fxLevel() { return lowFx ? 'low' : 'full'; },
   audioList, audioRender, audioState,
-  ambient: () => ({ running: !!ambTimer, wanted: ambientWanted(), frames: ambFrames, painted: (() => { const d = actx.getImageData(0, 0, amb.width, amb.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; })() }),
+  ambient: () => ({ fps: AMB.fps, running: !!ambTimer, wanted: ambientWanted(), frames: ambFrames, painted: (() => { const d = actx.getImageData(0, 0, amb.width, amb.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; })() }),
   placeMarks: () => (placeDrawn ? JSON.parse(JSON.stringify(placeDrawn)) : null),
   cuesPlayed(clear) { const r = CUE_LOG.slice(); if (clear) CUE_LOG.length = 0; return r; },
   frameStats(reset) {

@@ -148,7 +148,7 @@ export const tests = [
       t.expect(a.painted > 0, 'the ambient layer has paint on it: ' + a.painted);
       await t.page.waitForFunction((n) => window.__game.ambient().frames >= n + 4, a.frames);
       const rate = await t.page.evaluate(() => new Promise((done) => { const f0 = window.__game.ambient().frames, t0 = performance.now(); setTimeout(() => done((window.__game.ambient().frames - f0) / ((performance.now() - t0) / 1000)), 1000); }));
-      t.expect(rate <= 22 && rate > 3, 'about 20 frames a second at most, never a full-rate loop: ' + rate.toFixed(1));
+      t.expect(rate <= 11.5 && rate > 0, 'about 10 frames a second at most (C4-12: it was 20), never a full-rate loop: ' + rate.toFixed(1));
       t.expect(await t.page.evaluate(() => { const r = document.getElementById('cv').getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2).id; }) === 'cv', 'it never takes a press from the table');
       t.expect((await t.game('isIdle')) === true, 'it does not keep the game from being idle');
       const m = await t.frameCost(1500); t.log('frame cost with the ambient layer running: ' + JSON.stringify(m));
