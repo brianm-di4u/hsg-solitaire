@@ -2470,8 +2470,8 @@ function drawLitTable(ctx, id, W, H, band) {
 }
 // The place marks on the empty felt under the columns. On a tall phone the Spa City sunburst sits low on the table and the rooflines of
 // Bathhouse Row run along its foot; on a wider screen the sunburst fills the band below the deepest column of the deal when that band is at
-// least PLACE_MIN_FREE of the table's height. They are painted on the table layer, under the cards, so a column that grows covers them.
-const PLACE_MIN_FREE = .22;
+// least PLACE_MIN_FREE of the table's height (the mark shrinks with the band). They are painted on the table layer, under the cards, so a column that grows covers them.
+const PLACE_MIN_FREE = .09; // was .22: at 1280x800 the free band is 10% of the table in FreeCell and 13% in Yukon, so both get a smaller mark; under 9% there is still none
 let placeDrawn = null; // what the last table layer painted, for the tests
 const DEAL_DEPTH = { klondike: [6, 0], freecell: [0, 6], spider: [5, 0], yukon: [6, 5] }; // [face-down, face-up] cards above the last one in the deepest column at the deal
 function placeBand() {
@@ -2494,8 +2494,8 @@ function feltEmblem(ctx, cx, cy, r, ink, light, boost = 1) { // boost: a little 
   ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 0); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, r * .82, Math.PI, 0); ctx.stroke();
   for (let i = 0; i <= 12; i++) { const a = Math.PI + i / 12 * Math.PI, r0 = r * .3, r1 = r * (i % 2 ? .7 : .8); ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); ctx.stroke(); }
   ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy); ctx.stroke();
-  ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.font = Math.round(r * .25) + 'px ' + DISPLAY; ctx.fillText('Spa City', cx, cy + r * .12);
-  ctx.font = '600 ' + Math.round(r * .1) + 'px ' + DECO; ctx.fillText('H O T   S P R I N G S ,   A R K .', cx, cy + r * .12 + r * .317);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top'; if (r >= 45) { ctx.font = Math.round(r * .25) + 'px ' + DISPLAY; ctx.fillText('Spa City', cx, cy + r * .12); } // a small mark is the sunburst alone
+  if (r >= 70) { ctx.font = '600 ' + Math.round(r * .1) + 'px ' + DECO; ctx.fillText('H O T   S P R I N G S ,   A R K .', cx, cy + r * .12 + r * .317); } // the small line would be under 7 px: left off a small mark
   ctx.restore();
 }
 // Bathhouse Row as one flat shape: eight buildings of the row's own names (Superior, Hale, Maurice, Fordyce, Quapaw with its dome, Ozark with its towers,

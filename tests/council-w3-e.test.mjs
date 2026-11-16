@@ -93,14 +93,14 @@ export const tests = [
         t.expect(roof > 5, 'the rooflines are painted: ' + roof);
       } else t.expect(!m.skyline, 'a wide table has no rooflines');
       await shot(t, 'S4-07', 'felt-mark');
-      // a table where the free band is small gets no mark, and a mark is never drawn into a band under 22% of the table
+      // a table where the free band is small gets no mark, and a mark is never drawn into a band under 9% of the table (wave 4, C4-08: it was 22%)
       for (const [w, h] of [[1280, 800], [1280, 600], [1000, 700], [390, 844], [500, 800]]) {
         await t.page.setViewportSize({ width: w, height: h });
         for (const mode of ['klondike', 'freecell', 'spider', 'yukon']) {
           await t.game('newGame', { mode, opts: mode === 'spider' ? { suits: 1 } : {} }); await t.waitForStable();
           await t.page.waitForFunction(() => window.__game.placeMarks());
           const q = await t.game('placeMarks'), H = await t.page.evaluate(() => document.getElementById('stage').clientHeight);
-          if (h <= w * 1.4 && q.emblem) t.expect(q.band.bottom - q.band.top >= H * .22 - 1, w + 'x' + h + ' ' + mode + ': the mark only where the band is at least 22% of the table');
+          if (h <= w * 1.4 && q.emblem) t.expect(q.band.bottom - q.band.top >= H * .09 - 1, w + 'x' + h + ' ' + mode + ': the mark only where the band is at least 9% of the table');
           if (q.emblem) t.expect(q.emblem.cy + q.emblem.r * .6 <= q.band.bottom + 1 && q.emblem.cy - q.emblem.r >= 0, w + 'x' + h + ' ' + mode + ': the mark is on the table');
         }
       }

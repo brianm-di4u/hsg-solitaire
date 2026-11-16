@@ -133,4 +133,36 @@ export const tests = [
       } finally { await B.close(); }
     },
   },
+  {
+    name: 'w4a C4-08 FreeCell and Yukon at desktop size carry a smaller Spa City mark, and a band under 9% still gets none',
+    async run(t) {
+      await t.game('unlockAll');
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced', table: 'felt' });
+      const marks = async () => { await t.page.waitForFunction(() => window.__game.placeMarks()); return t.game('placeMarks'); };
+      const stageH = () => t.page.evaluate(() => document.getElementById('stage').clientHeight);
+      const sizes = t.viewport === 'desktop' ? [[1280, 800]] : [[390, 844]];
+      for (const [w, h] of sizes) {
+        await t.page.setViewportSize({ width: w, height: h });
+        for (const mode of ['klondike', 'freecell', 'yukon', 'spider']) {
+          await t.game('newGame', { mode, opts: mode === 'spider' ? { suits: 1 } : {} }); await t.waitForStable();
+          const q = await marks(), H = await stageH(), band = q.band.bottom - q.band.top;
+          t.expect(q.emblem, w + 'x' + h + ' ' + mode + ': the empty felt has the mark (band ' + Math.round(band / H * 100) + '% of the table)');
+          if (q.emblem && t.viewport === 'desktop') t.expect(q.emblem.cy - q.emblem.r >= q.band.top - 1 && q.emblem.cy + q.emblem.r * .6 <= q.band.bottom + 1, mode + ': and it sits inside the band');
+          if (t.viewport === 'desktop' && (mode === 'freecell' || mode === 'yukon')) {
+            t.expect(band >= H * .09 && band < H * .22, mode + ': this is the band that had no mark before, 9% to 22% (' + Math.round(band / H * 100) + '%)');
+            t.expect(q.emblem.r < 50, mode + ': and the mark is a smaller one (radius ' + Math.round(q.emblem.r) + ' px)');
+            await shot(t, 'C4-08', mode + '-mark');
+          }
+        }
+      }
+      // under 9% there is still no mark: Yukon at 1280x720 deals columns that reach the foot of the table
+      await t.page.setViewportSize({ width: 1280, height: 720 });
+      await t.game('newGame', { mode: 'yukon' }); await t.waitForStable();
+      await t.page.waitForFunction(() => window.__game.placeMarks());
+      const q = await t.game('placeMarks'), H = await stageH();
+      t.expect(q.band.bottom - q.band.top < H * .09, 'this band is under 9% (' + Math.round((q.band.bottom - q.band.top) / H * 100) + '%)');
+      t.expect(!q.emblem, 'and it has no mark');
+      await t.page.setViewportSize(t.vp);
+    },
+  },
 ];
