@@ -4249,7 +4249,17 @@ function drawSky(t) {
   if (c.width !== Math.round(w * sd) || c.height !== Math.round(h * sd)) { c.width = Math.round(w * sd); c.height = Math.round(h * sd); }
   const g = c.getContext('2d'); g.setTransform(sd, 0, 0, sd, 0, 0); drawSkyline(g, w, h, t / 1000, darkScheme());
 }
-function skyLoop(t) { skyRaf = 0; if (!titleOn) return; drawSky(t); if (!reducedMotion()) skyRaf = requestAnimationFrame(skyLoop); }
+// The title sky is repainted every frame, so it rests while a dialog covers it (closing the dialog starts it again), and on a touch screen it is repainted
+// 30 times a second, not 60: a phone stays cooler and the drifting steam looks the same.
+const SKY_TOUCH_GAP = 33; // ms between sky frames on a touch screen
+let skyLast = 0, skyFrames = 0;
+const skyGap = () => (window.matchMedia && matchMedia('(pointer: coarse)').matches ? SKY_TOUCH_GAP : 0);
+function skyDue(t) { if (skyLast && t >= skyLast && t - skyLast < skyGap() - 2) return false; skyLast = t; return true; }
+function skyLoop(t) {
+  skyRaf = 0; if (!titleOn || modalKind) return;
+  if (skyDue(t)) { skyFrames++; drawSky(t); }
+  if (!reducedMotion()) skyRaf = requestAnimationFrame(skyLoop);
+}
 function showTitle(on) {
   titleOn = on; $('#title').classList.toggle('on', on); syncMirror(); if (on) tabNoteHide();
   if (on) { musicHush = false; tipHide(); }
@@ -4274,7 +4284,7 @@ function closeModal(back) {
   clockMark = now(); syncAudio();
   if (back && modalReturn && modalReturn !== was) { const r = modalReturn; modalReturn = null; openModal(r); return; }
   modalReturn = null; setTimeout(tipShow, 500);
-  if (titleOn) { const b = $('#tiles .chip'); if (b) b.focus({ preventScroll: true }); } else cv.focus({ preventScroll: true });
+  if (titleOn) { const b = $('#tiles .chip'); if (b) b.focus({ preventScroll: true }); if (!skyRaf && !reducedMotion()) skyRaf = requestAnimationFrame(skyLoop); } else cv.focus({ preventScroll: true });
 }
 function trapFocus(e) {
   const f = [...sheet.querySelectorAll('button, input, [tabindex="0"]')].filter((x) => !x.disabled && x.offsetParent !== null);
@@ -4587,6 +4597,8 @@ window.__game = {
   canvasFilter: () => CANVAS_FILTER,
   glideOf(pile) { const p = S.piles[pile], d = p.length ? D[p[p.length - 1]] : null; return d ? d.dur : null; },
   scoreFx: () => scoreFx.map((q) => ({ text: q.text, neg: q.neg, pile: q.pile, age: Math.round(now() - q.t0) })),
+  sky: () => ({ running: !!skyRaf, frames: skyFrames, gap: skyGap() }),
+  skyDue: (t) => skyDue(t),
   pad: () => ({ connected: !!padFound(), polls: PAD.polls }),
   tableBlur(id, px) { TABLE_LOOK[id].blur = px; tableDirty = true; markDirty(); return true; },
   backMean(seed) { // the mean colour of the skylight back drawn with a deck seed

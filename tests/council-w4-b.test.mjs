@@ -270,4 +270,29 @@ export const tests = [
       t.equal(await floats(), [], 'a one-point move has no float');
     },
   },
+  // ------------------------------------------------------------------------------------------ S6-11
+  {
+    name: 'w4b S6-11 the title sky rests while a dialog covers it and starts again when it closes; on a touch screen it repaints every other frame',
+    async run(t) {
+      await baseSettings(t, { motion: 'full' });
+      await t.game('scene', 'title');
+      await t.page.waitForFunction(() => window.__game.sky().running && window.__game.sky().frames > 2, null, { timeout: 10000 });
+      const coarse = await t.page.evaluate(() => matchMedia('(pointer: coarse)').matches);
+      t.equal(coarse, t.viewport === 'mobile', 'the phone size is a touch screen and the desktop is not');
+      // a dialog over the title: the sky loop stops (a state, so it needs no waiting for a time), and nothing is painted behind it
+      await t.game('scene', 'settings');
+      await t.page.waitForFunction(() => !window.__game.sky().running, null, { timeout: 10000 });
+      const rested = (await t.game('sky')).frames;
+      await t.waitFrames(5);
+      t.equal((await t.game('sky')).frames, rested, 'no sky frame is painted behind the dialog');
+      // closing it by its own button starts the sky again
+      await t.page.click('#sheet [data-close]');
+      await t.page.waitForFunction((n) => window.__game.sky().running && window.__game.sky().frames > n, rested, { timeout: 10000 });
+      t.expect((await t.game('getState')).scene === 'title', 'the title is showing again and the sky moves');
+      // the cap: asked at the times of 60 frames a second (16 ms apart), a touch screen repaints every other one and a desktop every one
+      const due = await t.page.evaluate(() => { const g = window.__game, b = 1e9, out = []; for (let i = 0; i < 8; i++) out.push(g.skyDue(b + i * 16)); return out; });
+      t.equal(due, coarse ? [true, false, true, false, true, false, true, false] : [true, true, true, true, true, true, true, true], 'the sky is due on ' + (coarse ? 'every other frame' : 'every frame'));
+      t.expect((await t.game('sky')).gap === (coarse ? 33 : 0), 'the gap is 33 ms on a touch screen and 0 otherwise');
+    },
+  },
 ];
