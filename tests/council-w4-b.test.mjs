@@ -79,4 +79,76 @@ export const tests = [
       t.equal((await tag()).text, 'hint used', 'a Hint alone says so');
     },
   },
+  // ------------------------------------------------------------------------------------------ S1-15
+  // A simulated pad: nobody here has a controller, so a real one needs trying by hand. The test holds a button until the game has acted on it, then lets go and
+  // waits until the game has polled the pad again (the game counts its polls), so it waits for the game and never for a time.
+  {
+    name: 'w4b S1-15 a gamepad moves the cursor, picks up, puts back, undoes, hints, draws and opens the menu, and steps through a dialog',
+    initScript: () => {
+      const pad = { id: 'Test pad (simulated)', index: 0, connected: true, mapping: 'standard', axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
+      window.__pad = pad; navigator.getGamepads = () => [pad, null, null, null];
+    },
+    async run(t) {
+      const BTN = { A: 0, B: 1, X: 2, Y: 3, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
+      const polled = async (n) => { const p0 = await t.game('pad'); await t.page.waitForFunction((k) => window.__game.pad().polls >= k, p0.polls + n, { timeout: 8000 }); };
+      const press = async (name, cond, arg) => {
+        await t.page.evaluate((i) => { window.__pad.buttons[i] = { pressed: true, value: 1 }; }, BTN[name]);
+        try { await t.page.waitForFunction(cond, arg, { timeout: 8000 }); } catch (e) { t.fail('the game did not answer the ' + name + ' button: ' + String(cond).slice(0, 100)); } finally {
+          await t.page.evaluate((i) => { window.__pad.buttons[i] = { pressed: false, value: 0 }; }, BTN[name]);
+          await polled(2); // the game has seen the button up, so the next press is a new press
+        }
+      };
+      await baseSettings(t, { motion: 'reduced', tips: false });
+      await t.seed(11); await t.game('newGame', { mode: 'klondike', draw: 1 });
+      t.expect((await t.game('pad')).connected, 'the game sees the pad');
+      await press('RIGHT', () => window.__game.getState().cursor.pile === 't1');
+      await press('RIGHT', () => window.__game.getState().cursor.pile === 't2');
+      await press('LEFT', () => window.__game.getState().cursor.pile === 't1');
+      // the left stick does the same as the D-pad
+      await t.page.evaluate(() => { window.__pad.axes[0] = 0.9; });
+      await t.page.waitForFunction(() => window.__game.getState().cursor.pile === 't2');
+      await t.page.evaluate(() => { window.__pad.axes[0] = 0; }); await polled(2);
+      // held, the D-pad repeats: the cursor walks along the row until it is let go
+      await t.page.evaluate(() => { window.__pad.buttons[15] = { pressed: true, value: 1 }; });
+      await t.page.waitForFunction(() => window.__game.getState().cursor.pile === 't5', null, { timeout: 8000 });
+      await t.page.evaluate(() => { window.__pad.buttons[15] = { pressed: false, value: 0 }; }); await polled(2);
+      await press('LEFT', () => window.__game.getState().cursor.pile === 't4');
+      await t.game('act', 'key', '2'); // back to the second column for the pick-up below
+      // A picks up what is under the cursor, B puts it back
+      await press('A', () => window.__game.getState().held !== null);
+      await press('B', () => window.__game.getState().held === null);
+      // Y draws from the stock; B, with nothing held, undoes it
+      const s0 = await t.state();
+      await press('Y', (n) => window.__game.getState().stockCount < n, s0.stockCount);
+      await press('B', () => window.__game.getState().undoDepth === 0);
+      t.equal((await t.state()).stockCount, s0.stockCount, 'B undid the draw');
+      // X asks for a hint
+      await press('X', () => !document.getElementById('assistTag').hidden);
+      // Start opens the menu; the D-pad steps through its buttons; A presses the one in focus; B goes back
+      await press('START', () => window.__game.getState().modal === 'menu');
+      const focus = () => t.page.evaluate(() => document.activeElement && (document.activeElement.dataset.a || document.activeElement.id || document.activeElement.tagName));
+      const f0 = await focus();
+      await press('DOWN', (f) => { const e = document.activeElement; return (e && (e.dataset.a || e.id || e.tagName)) !== f; }, f0);
+      await shot(t, 'S1-15', 'menu-focus');
+      await press('UP', (f) => { const e = document.activeElement; return (e && (e.dataset.a || e.id || e.tagName)) === f; }, f0);
+      await press('DOWN', (f) => { const e = document.activeElement; return (e && (e.dataset.a || e.id || e.tagName)) !== f; }, f0);
+      await press('A', () => window.__game.getState().modal === 'help');
+      await t.page.evaluate(() => { const d = document.querySelector('table.keys').closest('details'); d.open = true; d.scrollIntoView(); });
+      t.expect(/Gamepad/.test(await t.page.textContent('table.keys')), 'How to play lists the gamepad buttons');
+      await t.checkLayout(); await shot(t, 'S1-15', 'help-gamepad');
+      await press('B', () => window.__game.getState().modal === 'menu');
+      await press('START', () => window.__game.getState().modal === null);
+      // on a slider, left and right move it
+      await t.game('scene', 'settings'); await t.page.focus('#vol');
+      const v0 = await t.page.$eval('#vol', (e) => +e.value);
+      await press('LEFT', (v) => +document.getElementById('vol').value < v, v0);
+      await press('B', () => window.__game.getState().modal === null);
+      // on the title the D-pad moves between the Play buttons
+      await t.game('scene', 'title');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'title');
+      await t.page.evaluate(() => { document.activeElement && document.activeElement.blur(); });
+      await press('DOWN', () => !!document.activeElement && document.activeElement.closest('#title') !== null && document.activeElement.tagName === 'BUTTON');
+      await shot(t, 'S1-15', 'title-focus');
+    },
+  },
 ];
