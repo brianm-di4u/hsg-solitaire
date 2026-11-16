@@ -254,19 +254,24 @@ export const tests = [
       const board = { mode: 'klondike', opts: { draw: 1 }, piles: { stock: ['2C', '3C'], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['6C'], t1: ['5H'], t2: [], t3: [], t4: [], t5: [], t6: [] } };
       const reset = async () => { await t.game('setState', board); await t.waitForStable(); };
       const where = async () => (await t.state()).piles;
-      const gap = (ms) => t.page.evaluate((ms) => { const t0 = performance.now(); return new Promise((res) => { const f = () => (performance.now() - t0 >= ms ? res() : requestAnimationFrame(f)); f(); }); }, ms);
+      // The double-tap window is measured on the game's clock. Around the clicks it is frozen and moves only through advance(), so how long the test's own
+      // round trips take cannot turn two quick clicks into two slow ones.
+      const freeze = () => t.page.evaluate(() => { const base = performance.now(); window.__off = 0; performance.now = () => base + window.__off; });
+      const advance = (ms) => t.page.evaluate((m) => { window.__off += m; }, ms);
+      const thaw = async () => { await t.page.evaluate(() => { delete performance.now; }); await t.waitForStable(); };
       await reset();
       await clickCard(t, 't1', 0);
       t.equal((await where()).t0, ['6C', '5H'], 'tap: one click moves the card');
       await t.game('setSettings', { tapMove: 'double' });
-      await reset();
+      await reset(); await freeze();
       await clickCard(t, 't1', 0);
-      await gap(500);
+      await advance(500);
       await clickCard(t, 't1', 0);
-      await gap(500);
+      await advance(500);
       t.equal((await where()).t1, ['5H'], 'double-tap: two slow clicks are two single clicks and move nothing');
       await clickCard(t, 't1', 0); await clickCard(t, 't1', 0);
       t.equal((await where()).t0, ['6C', '5H'], 'double-tap: two quick clicks move it');
+      await thaw();
       await reset();
       await clickCard(t, 'stock'); await t.page.waitForFunction(() => window.__game.getState().piles.waste.length === 1);
       t.equal((await where()).waste.length, 1, 'double-tap: one click on the stock still draws');

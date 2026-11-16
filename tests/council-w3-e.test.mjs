@@ -190,9 +190,11 @@ export const tests = [
     async run(t) {
       await baseSettings(t, { sound: false, tips: false, motion: 'reduced' });
       await t.page.evaluate(() => { window.__toasts = []; new MutationObserver(() => window.__toasts.push(document.getElementById('toast').textContent)).observe(document.getElementById('toast'), { childList: true, characterData: true, subtree: true }); });
-      // A clock that moves with drawn frames and with advance() only, so the 3 s repeat guard does not depend on how fast the machine is.
-      await t.page.evaluate(() => { const o = performance.now.bind(performance), base = o(); let frames = 0; window.__off = 0; const tick = () => { frames++; requestAnimationFrame(tick); }; requestAnimationFrame(tick); performance.now = () => base + frames * 16 + window.__off; });
+      // A frozen clock that moves only through advance(): the 3 s repeat guard cannot lapse between two drops however slow the machine is.
+      await t.page.evaluate(() => { const base = performance.now(); window.__off = 0; performance.now = () => base + window.__off; });
       const advance = (ms) => t.page.evaluate((m) => { window.__off += m; }, ms);
+      // Animations run on the same clock, so settling steps it in small advances until the game says it is idle (a state, not a delay).
+      const settle = async () => { for (let i = 0; i < 400; i++) { if (await t.game('isIdle')) return; await advance(50); } t.fail('the table never settled'); };
       const said = () => t.page.evaluate(() => window.__toasts.slice());
       const fresh = () => t.page.evaluate(() => { window.__toasts.length = 0; });
       const K = (piles) => ({ mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EMPTY_K, piles) });
@@ -201,7 +203,7 @@ export const tests = [
         const a = await spot(from, i), b = await spot(to, 99);
         if (t.viewport === 'mobile') await t.touchDrag([a.x, a.y], [b.x, b.y + 10], { steps: 8 });
         else { await t.page.mouse.move(a.x, a.y); await t.page.mouse.down(); await t.page.mouse.move(b.x, b.y + 10, { steps: 8 }); await t.page.mouse.up(); }
-        await t.waitForStable();
+        await settle();
       };
       await t.game('setState', K({ t0: ['6H'], t1: ['7D'], t2: ['8S'], t4: ['5C'], t5: ['3S'] }));
       await fresh(); await drop('t0', 't1');
@@ -254,7 +256,9 @@ export const tests = [
       // every step waits for the state it expects instead of reading straight after the act.
       const has = (k, txt) => t.page.waitForFunction(([k, txt]) => [...document.querySelectorAll('#mirror button')].some((b) => b.getAttribute('data-key') === k && b.textContent.includes(txt)), [k, txt], { timeout: 10000 }).catch(async () => { t.expect(false, k + ' says "' + txt + '": ' + (await labels()).filter((x) => x.startsWith(k + ' ')).join()); });
       const held = (want) => t.page.waitForFunction((w) => { const h = window.__game.getState().held; return w ? !!h && h.from === w.from && h.index === w.index : !h; }, want, { timeout: 10000 });
-      const sayWait = (re) => t.page.waitForFunction((s) => new RegExp(s).test(document.getElementById('sr').textContent), re.source, { timeout: 10000 });
+      const sayWait = (re, timeout = 10000) => t.page.waitForFunction((s) => new RegExp(s).test(document.getElementById('sr').textContent), re.source, { timeout });
+      // This sparse table is a dead end, so the "No more moves" sheet may open at any moment and takes the keys: put it away whenever it is up.
+      const putStuckAway = async () => { if ((await t.game('getState')).modal === 'stuck') { await t.page.keyboard.press('Escape'); await t.page.waitForFunction(() => !window.__game.getState().modal, null, { timeout: 10000 }); } };
       await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EMPTY_K, { stock: ['2D', '3D'], waste: ['4H'], f0: ['AS'], t0: ['#9C', '6H'], t1: ['7S'], t2: ['KD', 'QC'] }) });
       await has('stock', 'Stock, 2 cards. Press to draw'); await has('waste', 'Waste, Four of hearts'); await has('f0', 'Foundation 1, Ace of spades on top'); await has('f1', 'Foundation 2, empty');
       await has('t0:1', 'Column 1: Six of hearts, 1 face down. Press to pick up'); await has('t1:0', 'Column 2: Seven of spades'); await has('t2:0', 'Column 3: King of diamonds, with 1 card on it'); await has('t2:1', 'Column 3: Queen of clubs'); await has('t3', 'Column 4, empty');
@@ -278,16 +282,21 @@ export const tests = [
       t.equal((await t.game('getState')).piles.waste.slice(-1), ['3D'], 'pressing the stock draws a card');
       // keyboard on a list button keeps the screen reader's place
       await has('t2:1', 'Column 3: Queen of clubs');
-      await t.page.evaluate(() => document.querySelector('#mirror [data-key="t2:1"]').focus());
-      await t.page.waitForFunction(() => document.activeElement && document.activeElement.dataset.key === 't2:1');
+      // The list is rebuilt after the draw: wait until the same button has stood through three frames with the game idle, then set and check the focus in one retrying step.
+      await t.page.waitForFunction(() => { const b = document.querySelector('#mirror [data-key="t2:1"]'); if (!b) return false; if (window.__mb !== b) { window.__mb = b; window.__mbN = 0; return false; } return ++window.__mbN >= 3 && window.__game.isIdle(); }, null, { timeout: 10000 });
+      for (let i = 0, ok = false; i < 8 && !ok; i++) { await putStuckAway(); ok = await t.page.waitForFunction(() => { const b = document.querySelector('#mirror [data-key="t2:1"]'); if (!b) return false; if (document.activeElement !== b) b.focus(); return document.activeElement === b && !window.__game.getState().modal; }, null, { timeout: 2000 }).then(() => true, () => false); }
       await t.page.keyboard.press('Enter'); await held({ from: 't2', index: 1 });
       await t.page.waitForFunction(() => { const a = document.activeElement; return !!a && !!a.closest('#mirror') && a.dataset.pile === 't2'; }, null, { timeout: 10000 });
       t.expect(true, 'focus stays in the list, on the same column, after the list is rebuilt');
       await t.page.evaluate(() => { const b = document.querySelector('#mirror [data-key="t2:1"]') || document.querySelector('#mirror [data-pile="t2"]'); b.click(); }); // put the queen back
       await held(null);
       // S reads the table
-      await t.page.focus('#cv'); await t.page.waitForFunction(() => document.activeElement && document.activeElement.id === 'cv');
-      await t.page.keyboard.press('s'); await sayWait(/Foundations: /);
+      let heard = false; // a press that lands while the list is still being rebuilt is lost: press again, until the table is read out
+      for (let i = 0; i < 8 && !heard; i++) {
+        await putStuckAway(); await t.page.focus('#cv'); await t.page.waitForFunction(() => document.activeElement && document.activeElement.id === 'cv');
+        await t.page.keyboard.press('s'); heard = await sayWait(/Foundations: /, 3000).then(() => true, () => false);
+      }
+      t.expect(heard, 'S reads the table out');
       const sum = await sr();
       t.expect(/Stock, 1 card/.test(sum) && /Waste, Three of diamonds/.test(sum) && /Foundations: Ace of spades, empty/.test(sum) && /Columns: 1, 1 face down, Nine of clubs|Columns: 1, empty|Columns: 1,/.test(sum) && /3, King of diamonds|3, 1 face down|3, /.test(sum), 'S announces stock, waste, foundations and columns: ' + sum);
       // the title hides the list
