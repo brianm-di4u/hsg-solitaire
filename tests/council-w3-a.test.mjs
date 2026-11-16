@@ -212,14 +212,18 @@ export const tests = [
       for (const how of ['pointer', 'key']) {
         await t.game('setState', finishDeal());
         await t.page.waitForFunction(() => window.__game.getState().canAutoComplete);
-        await t.page.locator('#bAuto').click();
-        const t0 = await t.page.evaluate(() => performance.now());
-        t.expect((await t.state()).finishing, 'Finish is under way (' + how + ')');
-        if (how === 'pointer') { const b = await t.page.locator('#cv').boundingBox(); await t.page.mouse.click(b.x + b.width / 2, b.y + b.height - 20); }
-        else await t.page.keyboard.press('Space');
-        await t.page.waitForFunction(() => window.__game.getState().ceremony, null, { timeout: 8000 });
-        const took = await t.page.evaluate((t0) => performance.now() - t0, t0);
-        t.expect(took < 2500, 'the ceremony starts well before the 3.9 s the full run takes (' + how + ': ' + Math.round(took) + ' ms)');
+        // Finish, the press and the wait for the ceremony all happen inside the page, so the time they take does not
+        // include the test's own round trips (which a busy machine stretches past the 3.9 s the full run takes).
+        const r = await t.page.evaluate((how) => new Promise((res) => {
+          const t0 = performance.now(); document.getElementById('bAuto').click();
+          const finishing = window.__game.getState().finishing;
+          if (how === 'pointer') document.getElementById('cv').dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'mouse', bubbles: true, clientX: 200, clientY: 200 }));
+          else window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+          const wait = () => (window.__game.getState().ceremony ? res({ finishing, took: performance.now() - t0 }) : requestAnimationFrame(wait));
+          wait();
+        }), how);
+        t.expect(r.finishing, 'Finish is under way (' + how + ')');
+        t.expect(r.took < 2500, 'the ceremony starts well before the 3.9 s the full run takes (' + how + ': ' + Math.round(r.took) + ' ms)');
         const s = await t.state();
         t.equal(s.finishing, false, 'and the run is over');
         t.equal(s.piles.f0.length + s.piles.f1.length + s.piles.f2.length + s.piles.f3.length, 52, 'every card is home');
