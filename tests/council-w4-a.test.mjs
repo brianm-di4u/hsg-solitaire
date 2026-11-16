@@ -251,4 +251,29 @@ export const tests = [
       t.expect((await t.game('ambient')).painted > 0, 'and it still paints');
     },
   },
+  {
+    name: 'w4a S2-13 starting a new game over a saved deal asks first (the title stays, nothing is abandoned by accident)',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false });
+      await t.seed(41); await t.game('newGame', { mode: 'klondike', draw: 1 });
+      await t.game('act', 'draw');
+      await t.page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+      await reloadGame(t); // the page being left writes its game once more as it unloads, so the saved text is read after the reload
+      const saved = await t.page.evaluate(([p]) => localStorage.getItem(p + 'current'), [P]);
+      t.equal(await t.page.evaluate(() => window.__game.getState().scene), 'title', 'a returning player still lands on the title');
+      await t.page.locator('#tCont').waitFor({ state: 'visible', timeout: 10000 });
+      for (const name of ['Klondike: Draw 3', 'FreeCell: Play', 'Spider: 4 suits']) {
+        await t.page.getByRole('button', { name, exact: true }).click();
+        await t.page.locator('#sheet [data-a="yes"]').waitFor({ state: 'visible', timeout: 10000 });
+        t.expect(/Abandon this deal\?/.test(await t.page.locator('#sheet').textContent()), name + ': a question first: the game in progress would be lost');
+        t.equal(await t.page.evaluate(([p]) => localStorage.getItem(p + 'current'), [P]), saved, name + ': the saved deal is untouched while it is asked');
+        await shot(t, 'S2-13', 'ask-' + name.split(':')[0].toLowerCase());
+        await t.page.getByRole('button', { name: 'Cancel', exact: true }).click();
+        await t.page.waitForFunction(() => !window.__game.getState().modal, null, { timeout: 10000 });
+      }
+      t.equal(await t.page.evaluate(([p]) => localStorage.getItem(p + 'current'), [P]), saved, 'Cancel leaves the saved deal as it was');
+      await t.page.locator('#tCont').click();
+      t.equal((await t.state()).deal, JSON.parse(saved).state.deal, 'and Continue brings it back');
+    },
+  },
 ];
