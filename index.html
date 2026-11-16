@@ -1371,7 +1371,7 @@ function checkStuck() {
 function showStuck(force) {
   const k = posKey();
   if (!force && stuckShownFor === k) return;
-  stuckShownFor = k; sfx('nope'); openModal('stuck');
+  stuckShownFor = k; sfx('nope'); const fi = pickFact('stuck:' + S.mode + ':' + S.deal + ':' + S.moves); save('meta', meta); openModal('stuck', { fact: FACTS[fi] });
 }
 function clearStuck() { clearTimeout(stuckTimer); stuckTimer = 0; stuckVerdict = null; stuckShownFor = null; lostRun++; lostVerdict = null; lostWarned = false; }
 
@@ -4503,7 +4503,8 @@ const MODALS = {
   confirm: (d) => head(d.title) + '<p>' + d.text + '</p><div class="row"><button class="btn solid" data-a="yes">' + d.yes + '</button><button class="btn" data-close data-focus>Cancel</button></div>',
   fault: () => head('Something went wrong') + '<p>The table could not be drawn as it should, so it has been redrawn. Your game is still here.</p><p>If it keeps happening, clear the saved game and start again.</p>' +
     '<div class="row"><button class="btn solid" data-close data-focus>Carry on</button><button class="btn" data-a="resetSaved">Reset saved game</button></div>',
-  stuck: () => head('The waters have gone still') + '<p>Nothing left on the table leads anywhere; the moves that remain only shuffle cards about.</p><div class="row">' +
+  stuck: (d) => head('The waters have gone still') + '<p>Nothing left on the table leads anywhere; the moves that remain only shuffle cards about.</p>' +
+    (d.fact ? '<div class="fact"><div class="k">Did you know?</div><div class="q">' + esc(d.fact[1]) + '</div><div class="a">' + esc(d.fact[2]) + '</div><div>' + esc(d.fact[3]) + '</div><div class="src">Source: ' + esc(d.fact[4]) + '</div></div>' : '') + '<div class="row">' +
     (undoStack.length ? '<button class="btn solid" data-a="undo" data-focus>Undo</button>' : '') +
     '<button class="btn' + (undoStack.length ? '' : ' solid" data-focus="1') + '" data-a="restart">Restart this deal</button><button class="btn" data-a="new">New deal</button><button class="btn" data-close>Keep looking</button></div>',
 };
