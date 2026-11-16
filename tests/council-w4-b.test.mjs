@@ -151,4 +151,34 @@ export const tests = [
       await shot(t, 'S1-15', 'title-focus');
     },
   },
+  // ------------------------------------------------------------------------------------------ S1-16
+  {
+    name: 'w4b S1-16 a card dropped almost on its place settles briskly; one dropped far away still glides back the usual time',
+    async run(t) {
+      await baseSettings(t, { motion: 'full', tapMove: 'drag' });
+      await t.seed(11); await t.game('newGame', { mode: 'klondike', draw: 1 });
+      await idle(t);
+      const lay = await t.game('getLayout'), top = lay.piles.t6.cards[lay.piles.t6.cards.length - 1];
+      const x0 = top.x + top.w / 2, y0 = top.y + top.h / 2;
+      const drag = async (dx, dy) => {
+        await t.page.mouse.move(x0, y0); await t.page.mouse.down();
+        for (let i = 1; i <= 8; i++) await t.page.mouse.move(x0 + dx * i / 8, y0 + dy * i / 8);
+        await t.page.mouse.up();
+      };
+      // out 60 px and back to within 4 px of where the card was picked up
+      await t.page.mouse.move(x0, y0); await t.page.mouse.down();
+      for (let i = 1; i <= 6; i++) await t.page.mouse.move(x0 + 10 * i, y0);
+      for (let i = 5; i >= 0; i--) await t.page.mouse.move(x0 + 10 * i + (i === 0 ? 4 : 0), y0);
+      await t.page.mouse.up();
+      const near = await t.page.evaluate(() => window.__game.glideOf('t6'));
+      t.expect(near !== null && near < 150, 'a card let go within a few pixels of its place settles in under 150 ms: ' + near);
+      await idle(t);
+      await drag(-40, 330);
+      const far = await t.page.evaluate(() => window.__game.glideOf('t6'));
+      t.log('glide ms: near ' + near + ', far ' + far);
+      t.expect(far >= 200 && far <= 320, 'a card let go far from its place glides back the usual 200 to 320 ms: ' + far);
+      await idle(t);
+      await shot(t, 'S1-16', 'table');
+    },
+  },
 ];

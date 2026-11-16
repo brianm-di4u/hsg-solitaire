@@ -2906,7 +2906,7 @@ function relayout(instant) {
     const delay = animDelay[u] || 0;
     if (Math.abs(d.tx - T.x) > .5 || Math.abs(d.ty - T.y) > .5) {
       const p = dispPos(u, t); const dist = Math.hypot(T.x - p.x, T.y - p.y);
-      d.sx = p.x; d.sy = p.y; d.tx = T.x; d.ty = T.y; d.t0 = t + (rm ? 0 : delay); d.dur = rm ? 0 : clamp(170 + dist * .3, 190, 420);
+      d.sx = p.x; d.sy = p.y; d.tx = T.x; d.ty = T.y; d.t0 = t + (rm ? 0 : delay); d.dur = rm ? 0 : glideMs(dist, .3, 190, 420);
       d.back = false; d.arc = rm ? 0 : clamp(dist * .1, 0, L.ch * .45); d.spin = rm ? 0 : clamp((T.x - p.x) / Math.max(1, W), -1, 1) * .16;
       if (!rm && T.pile && kindOf(T.pile) === 'found' && d.pile !== T.pile) landFx.push({ u, at: d.t0 + d.dur });
     }
@@ -2916,6 +2916,10 @@ function relayout(instant) {
   animDelay = {};
   startLoop();
 }
+// How long a card glides to its place. Farther is slower, between lo and hi; a card already within 20 px of its place settles in as little as 90 ms
+// instead of waiting out the floor, so a drop that lands right on the slot is not followed by a pause.
+const GLIDE_NEAR = 20, GLIDE_MIN = 90;
+const glideMs = (dist, k, lo, hi) => (dist < GLIDE_NEAR ? GLIDE_MIN + dist * (lo - GLIDE_MIN) / GLIDE_NEAR : clamp(170 + dist * k, lo, hi));
 let landFx = [], fx = [];
 function glints(x, y, n, spread, t0) {
   if (lowFx) return;
@@ -3429,7 +3433,7 @@ function finishDrag() {
   else if (!overSource(dr)) { sfx('nope'); const to = dropTarget(dr, true); if (to) explain(refusalReason(dr.run, to, dr.from)); } // putting a card back where it came from is not a mistake
   dr.run.forEach((u) => {
     const d = D[u], T = targets[u]; if (!T) return; const dist = Math.hypot(T.x - d.sx, T.y - d.sy);
-    d.tx = T.x; d.ty = T.y; d.t0 = t; d.dur = reducedMotion() ? 0 : clamp(170 + dist * .25, 200, 320); d.arc = 0; d.spin = 0; d.back = true;
+    d.tx = T.x; d.ty = T.y; d.t0 = t; d.dur = reducedMotion() ? 0 : glideMs(dist, .25, 200, 320); d.arc = 0; d.spin = 0; d.back = true;
   });
   deferLand = false; flushLandCues();
   startLoop();
@@ -4554,6 +4558,7 @@ window.__game = {
   audioList, audioRender, audioState,
   ambient: () => ({ fps: AMB.fps, running: !!ambTimer, wanted: ambientWanted(), frames: ambFrames, painted: (() => { const d = actx.getImageData(0, 0, amb.width, amb.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; })() }),
   canvasFilter: () => CANVAS_FILTER,
+  glideOf(pile) { const p = S.piles[pile], d = p.length ? D[p[p.length - 1]] : null; return d ? d.dur : null; },
   pad: () => ({ connected: !!padFound(), polls: PAD.polls }),
   tableBlur(id, px) { TABLE_LOOK[id].blur = px; tableDirty = true; markDirty(); return true; },
   backMean(seed) { // the mean colour of the skylight back drawn with a deck seed
