@@ -191,4 +191,29 @@ export const tests = [
       await t.page.setViewportSize(t.vp);
     },
   },
+  {
+    name: 'w4a C4-10 Statistics has one row for wins without Undo or Hint, and Records shows graded wins only once there are some',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false });
+      const put = (o) => t.page.evaluate(([p, o]) => { for (const k in o) localStorage.setItem(p + k, JSON.stringify(o[k])); }, [P, o]);
+      const base = { played: 4, won: 3, streak: 1, bestStreak: 2, bestTimeMs: 60000, fewestMoves: 90, bestScore: 900, totalMs: 270000, assistedWon: 1, recent: '' };
+      await put({ stats: { klondike1: base }, meta: { lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 3, daily: {}, unlock: { ids: [] } } });
+      await reloadGame(t); await baseSettings(t, { sound: false, tips: false });
+      await t.game('scene', 'stats');
+      const rows = await t.page.locator('#sheet table.st tr').allTextContents();
+      t.expect(rows.includes('Wins without Undo or Hint2 of 3'), 'one row: two of the three wins were unaided: ' + JSON.stringify(rows));
+      t.equal(rows.filter((r) => /Undo or Hint/.test(r)).length, 1, 'and the near-duplicate row is gone');
+      await shot(t, 'C4-10', 'stats');
+      await t.checkLayout();
+      await t.game('scene', 'records');
+      let txt = await t.page.locator('#sheet').textContent();
+      t.expect(!/Graded deals won/.test(txt), 'a player who never chose a grade sees no Graded line');
+      await t.page.evaluate(([p]) => { const m = JSON.parse(localStorage.getItem(p + 'meta')); m.gradeWins = { easy: 0, medium: 2, hard: 1 }; localStorage.setItem(p + 'meta', JSON.stringify(m)); }, [P]);
+      await reloadGame(t); await baseSettings(t, { sound: false, tips: false });
+      await t.game('scene', 'records');
+      txt = await t.page.locator('#sheet').textContent();
+      t.expect(/Graded deals won: Easy 0 · Medium 2 · Hard 1/.test(txt), 'once a graded deal has been won the line is there: ' + txt.slice(0, 200));
+      await shot(t, 'C4-10', 'records');
+    },
+  },
 ];

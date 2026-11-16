@@ -321,7 +321,7 @@ export const tests = [
       st = await win(79, 30);
       t.equal([st.won, st.streak, st.fewestMoves], [4, 2, 31], 'a new deal, unaided, is a record again');
       await t.game('scene', 'stats');
-      t.expect((await t.page.locator('#sheet').textContent()).includes('Wins with Undo or Hint1'), 'Statistics shows the assisted wins');
+      t.expect((await t.page.locator('#sheet').textContent()).includes('Wins without Undo or Hint3 of 4'), 'Statistics shows the unaided wins as a share of the wins (C4-10 merged the two rows)');
       await shot(t, 'S3-05', 'stats');
       await t.checkLayout();
       const d3 = await win(77, 20, false, 3);

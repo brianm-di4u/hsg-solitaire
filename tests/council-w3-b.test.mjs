@@ -186,7 +186,7 @@ export const tests = [
       await t.game('scene', 'stats');
       let txt = await t.page.locator('#sheet table.st').textContent();
       t.expect(txt.includes('Average win time1:30'), 'average win time is total time over wins (270 s over 3 wins)');
-      t.expect(txt.includes('Wins without Undo or Hint2'), 'three wins, one assisted, leaves two unaided');
+      t.expect(txt.includes('Wins without Undo or Hint2 of 3'), 'three wins, one assisted, leaves two unaided (C4-10: one row, "2 of 3")');
       t.equal(await t.page.locator('#sheet .rs i').allTextContents(), ['W', 'W', 'A', 'L'], 'the strip shows the results, oldest first');
       t.expect((await t.page.locator('#sheet .rs').getAttribute('aria-label')).includes('won with help'), 'and says them to a screen reader');
       await t.page.locator('#sheet [data-key="freecell"]').click();

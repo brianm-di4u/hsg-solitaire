@@ -4247,9 +4247,9 @@ const MODALS = {
     const rowS = (a, b) => '<tr><td>' + a + '</td><td>' + b + '</td></tr>';
     return head('Statistics') + '<div class="tabs" role="tablist">' + MODE_KEYS.map((m) => '<button class="chip' + (m === k ? ' solid" data-focus="1' : '') + '" data-key="' + m + '" role="tab" aria-selected="' + (m === k) + '">' + modeKeyLabel(m) + '</button>').join('') + '</div>' +
       '<table class="st">' + rowS('Played', st.played) + rowS('Won', st.won) + rowS('Win rate', st.played ? Math.round(100 * st.won / st.played) + '%' : 'n/a') +
-      rowS('Average win time', st.won && st.totalMs > 0 ? fmtTime(st.totalMs / st.won) : 'n/a') + rowS('Wins without Undo or Hint', Math.max(0, st.won - st.assistedWon)) +
+      rowS('Average win time', st.won && st.totalMs > 0 ? fmtTime(st.totalMs / st.won) : 'n/a') + rowS('Wins without Undo or Hint', Math.max(0, st.won - st.assistedWon) + ' of ' + st.won) +
       rowS('Current streak', st.streak) + rowS('Best streak', st.bestStreak) + rowS('Best time', st.bestTimeMs ? fmtTime(st.bestTimeMs) : 'n/a') +
-      rowS('Fewest moves', st.fewestMoves || 'n/a') + rowS('Best score', st.bestScore || 'n/a') + rowS('Wins with Undo or Hint', st.assistedWon) + rowS('Wins, all games', meta.totalWins || 0) + '</table>' +
+      rowS('Fewest moves', st.fewestMoves || 'n/a') + rowS('Best score', st.bestScore || 'n/a') + rowS('Wins, all games', meta.totalWins || 0) + '</table>' +
       (st.recent ? '<h3>Last ' + RECENT_KEPT + ' games</h3><div class="rs" role="img" aria-label="Last ' + st.recent.length + ' games, oldest first: ' + [...st.recent].map((c) => ({ W: 'won', A: 'won with help', L: 'unfinished' })[c]).join(', ') + '">' + [...st.recent].map((c) => '<i class="' + c + '">' + c + '</i>').join('') + '</div><p class="cap">Oldest on the left. W won, A won with Undo or Hint, L left unfinished.</p>' : '') +
       '<p class="cap">Streaks and bests count first wins without Undo or Hint. Replaying a deal you have won, or using Undo or Hint, still counts as a win.</p>' +
       (storageOK ? '' : '<p class="cap">Stats can\'t be saved in this browser.</p>') +
@@ -4272,7 +4272,7 @@ const MODALS = {
     const found = [...new Set(meta.seenFacts)].filter((i) => i < FACTS.length).sort((a, b) => a - b), n = ACH.filter((a) => meta.ach[a[0]]).length, nx = UNLOCKS.find((u) => !meta.unlock.ids.includes(u[0]));
     return head('Records') + '<p>Baths won: <b>' + (meta.totalWins || 0) + '</b> · Daily streak: <b>' + dailyStreak() + '</b> (best ' + dailyRun() + ')' +
       (nx ? '<br>Next to open: ' + esc(unlockName(nx[0])) + '. ' + lockNote(nx[0]) + '.' : '') +
-      '<br>Graded deals won: Easy <b>' + meta.gradeWins.easy + '</b> · Medium <b>' + meta.gradeWins.medium + '</b> · Hard <b>' + meta.gradeWins.hard + '</b></p><h3>By game</h3>' +
+      (meta.gradeWins.easy + meta.gradeWins.medium + meta.gradeWins.hard > 0 ? '<br>Graded deals won: Easy <b>' + meta.gradeWins.easy + '</b> · Medium <b>' + meta.gradeWins.medium + '</b> · Hard <b>' + meta.gradeWins.hard + '</b>' : '') + '</p><h3>By game</h3>' +
       MODE_KEYS.map((k) => { const st = statFor(k); return '<div class="rec"><b>' + esc(modeKeyLabel(k)) + '</b><small>Won ' + st.won + ' of ' + st.played + ' · streak ' + st.streak + ' (best ' + st.bestStreak + ')</small><small>' +
         (st.bestTimeMs ? 'Best ' + fmtTime(st.bestTimeMs) + ' · ' + st.fewestMoves + ' moves · score ' + st.bestScore : st.won ? 'No unaided first win yet' : 'No wins yet') + '</small></div>'; }).join('') +
       hp('Facts found: ' + found.length + ' of ' + FACTS.length, null, '<ul class="fnd">' + found.map((i) => '<li><b>' + esc(FACTS[i][2]) + '</b>' + esc(FACTS[i][1]) + '</li>').join('') + '</ul>') +
