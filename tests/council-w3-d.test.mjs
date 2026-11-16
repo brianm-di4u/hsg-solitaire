@@ -175,11 +175,11 @@ export const tests = [
       await t.game('act', 'move', 't0', 'f0');
       l = await leads(t);
       t.expect(l.length > 0 && Math.min(...l) > 0.12 && Math.min(...l) < 0.45, 'a card sent home chimes as it lands: ' + l.map((x) => x.toFixed(3)));
-      // a card dropped by hand lands after its own glide (200 to 320 ms)
+      // a card dropped by hand lands after its own glide (90 to 320 ms: S1-16 made a drop that lands within 20 px of its place settle in as little as 90 ms)
       await setup(); await leads(t);
       await dragCard(t, 't2', 0, 't1');
       l = await leads(t);
-      t.expect(l.length > 0 && Math.max(...l) > 0.12 && Math.max(...l) < 0.45, 'a dropped card sounds after its glide: ' + l.map((x) => x.toFixed(3)));
+      t.expect(l.length > 0 && Math.max(...l) > 0.07 && Math.max(...l) < 0.45, 'a dropped card sounds after its glide: ' + l.map((x) => x.toFixed(3)));
       t.equal((await t.game('getState')).piles.t1, ['6S', '5H'], 'and it went where it was dropped');
       // picking up is immediate
       await setup(); await leads(t);
