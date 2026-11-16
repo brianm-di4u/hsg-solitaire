@@ -46,7 +46,8 @@
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;overflow:hidden;background:var(--color-bg);color:var(--color-text);
-    font-family:var(--font-sans);font-size:16px;-webkit-tap-highlight-color:transparent}
+    font-family:var(--font-sans);font-size:16px;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+  body,button{touch-action:manipulation} /* a quick second tap on Undo or Hint does not zoom, a pull on the bar does not refresh; the table keeps its own touch-action */
   button{font:inherit;color:inherit}
   .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
   #app{position:fixed;inset:0;display:flex;flex-direction:column;

@@ -46,4 +46,16 @@ export const tests = [
       g = await goal(t); t.equal([g.now, g.max], [0, 104], 'Spider is out of 104');
     },
   },
+  // ------------------------------------------------------------------------------------------ S1-22
+  {
+    name: 'w4c S1-22 the bar, the buttons and the title do not double-tap zoom, and a pull on the page does not refresh',
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced', tips: false });
+      await t.game('newGame', { mode: 'klondike', draw: 1 });
+      const r = await t.page.evaluate(() => { const cs = (e) => getComputedStyle(e); return { html: cs(document.documentElement).overscrollBehaviorY, body: cs(document.body).overscrollBehaviorY, bodyTouch: cs(document.body).touchAction, undo: cs(document.getElementById('bUndo')).touchAction, hint: cs(document.getElementById('bHint')).touchAction, menu: cs(document.getElementById('bMenu')).touchAction, table: cs(document.getElementById('cv')).touchAction }; });
+      t.equal([r.html, r.body], ['none', 'none'], 'no pull-to-refresh or scroll chaining');
+      t.equal([r.bodyTouch, r.undo, r.hint, r.menu], ['manipulation', 'manipulation', 'manipulation', 'manipulation'], 'taps on the page and the buttons are plain taps');
+      t.equal(r.table, 'none', 'the table keeps its own touch handling');
+    },
+  },
 ];
