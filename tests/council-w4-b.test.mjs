@@ -181,4 +181,35 @@ export const tests = [
       await shot(t, 'S1-16', 'table');
     },
   },
+  // ------------------------------------------------------------------------------------------ S3-11
+  {
+    name: 'w4b S3-11 Undo is free as it always was; with the new setting on, each Undo costs 15 points and none of it comes back',
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced' });
+      const play = async (extra, undos) => { // one move home (+10 from 100, and the game is not won), then the undos; returns the score after each
+        await t.game('setSettings', extra);
+        await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, score: 100, piles: { stock: [], waste: [], f0: ['AC'], t0: ['2C'], t1: ['KH'] } });
+        t.expect((await t.game('act', 'move', 't0', 'f0', 1)).ok, 'the deuce goes home');
+        const out = [(await t.state()).score];
+        for (const u of undos) { await t.game('act', u); out.push((await t.state()).score); }
+        return out;
+      };
+      t.equal((await t.state()).settings.undoCost, false, 'the setting starts off');
+      t.equal(await play({ undoCost: false }, ['undo']), [110, 100], 'off: the move scored 10 and the Undo gave it back, free');
+      t.equal(await play({ undoCost: true }, ['undo', 'redo', 'undo']), [110, 85, 95, 70], 'on: each Undo takes 15 and a Redo does not refund it');
+      t.equal(await play({ undoCost: true, scoring: 'none' }, ['undo']), [110, 100], 'with scoring set to None there is nothing to charge');
+      t.equal(await play({ undoCost: true, scoring: 'standard' }, ['undo']), [110, 85], 'Standard scoring charges it too');
+      // a save from before has no such key and starts with it off
+      await t.page.evaluate(() => { const k = 'spa-solitaire:v1:settings', o = JSON.parse(localStorage.getItem(k)); delete o.undoCost; localStorage.setItem(k, JSON.stringify(o)); });
+      await reloadGame(t);
+      t.equal((await t.state()).settings.undoCost, false, 'an older save reads as off');
+      // the switch is in Settings and works
+      await t.game('scene', 'settings');
+      const sw = t.page.locator('[data-tog="undoCost"]'); await sw.scrollIntoViewIfNeeded();
+      t.equal(await sw.getAttribute('aria-pressed'), 'false', 'the switch shows off');
+      await sw.click();
+      t.equal([await sw.getAttribute('aria-pressed'), (await t.state()).settings.undoCost], ['true', true], 'pressing it turns it on and keeps it');
+      await t.checkLayout(); await shot(t, 'S3-11', 'settings-switch');
+    },
+  },
 ];
