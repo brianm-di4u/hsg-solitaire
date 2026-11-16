@@ -4050,8 +4050,8 @@ function makeCues(ctx, dest) {
         case 'tick': noise(t, .025, 'bandpass', 2600, .42, 1.5, pan); tone(t, 1100, .04, 'sine', .3, .002, pan); break; // a switch, a menu opening
         case 'flip': noise(t, .03, 'highpass', 4200, .38, 1, pan); tone(t, 1000, .02, 'sine', .1, .002, pan); break;
         case 'found': {
-          const r = arg || 1, semi = 12 * Math.floor((r - 1) / 5) + PENTA[(r - 1) % 5], f = 523.25 * Math.pow(2, semi / 12);
-          tone(t, f, .5, 'triangle', .3, .005, pan); tone(t, f * 2, .3, 'sine', .08, .005, pan); noise(t, .05, 'lowpass', 1400, .45, 1, pan); break;
+          const r = arg || 1, semi = 12 * Math.floor((r - 1) / 5) + PENTA[(r - 1) % 5], f = FOUND_BASE * Math.pow(2, semi / 12);
+          tone(t, f, .5, 'triangle', .3, .005, pan); if (f <= FOUND_PARTIAL_MAX) tone(t, f * 2, .3, 'sine', .08, .005, pan); noise(t, .05, 'lowpass', 1400, .45, 1, pan); break;
         }
         case 'deal': for (let i = 0; i < 8; i++) noise(t + i * .045, .035, 'bandpass', 2600 + i * 120, .6, 1.5); tone(t + .3, 150, .08, 'sine', .3, .004); break;
         case 'nope': tone(t, 140, .14, 'square', .38); tone(t + .07, 110, .14, 'square', .3); break;
@@ -4090,6 +4090,9 @@ function initAudio() {
   syncAudio();
 }
 const PENTA = [0, 2, 4, 7, 9];
+// The foundation cue climbs a pentatonic ladder, one step a rank. It starts at C4 (it was C5, 523.25 Hz) so that the King sits at 1.32 kHz, not 2.64 kHz, in
+// the band small speakers push hardest; the octave partial is left off where it would land above 1.5 kHz.
+const FOUND_BASE = 261.63, FOUND_PARTIAL_MAX = 750;
 const PAUSE_MODALS = ['menu', 'confirm', 'deal', 'daily', 'backs', 'stats', 'help', 'records'];
 let musicHush = false; // the win ceremony: the music steps back, then returns
 function wakeAudio() { if (AC && (AC.state === 'suspended' || AC.state === 'interrupted')) AC.resume(); } // Safari reports 'interrupted' after a call or alarm
@@ -4663,6 +4666,11 @@ window.__game = {
   meta() { return JSON.parse(JSON.stringify(meta)); },
   fxLevel() { return lowFx ? 'low' : 'full'; },
   audioList, audioRender, audioState,
+  cueTones(name, arg) { // the pitch of every tone a cue starts, from an offline context
+    const oc = new OfflineAudioContext(1, 4410, 44100), tones = [], make = oc.createOscillator.bind(oc);
+    oc.createOscillator = () => { const o = make(), set = o.frequency.setValueAtTime.bind(o.frequency); o.frequency.setValueAtTime = (v, at) => { tones.push({ f: v, type: o.type, at }); return set(v, at); }; return o; };
+    makeCues(oc, oc.destination).play(name, arg, 0); return tones;
+  },
   volumeGain: (v, curve) => volumeGain(v, curve),
   masterGain: () => (master ? +master.gain.value.toFixed(4) : null),
   dailyDealFor: (mode, opts, date) => dailyDeal(mode, Object.assign({ draw: 1, suits: 1 }, opts), date),

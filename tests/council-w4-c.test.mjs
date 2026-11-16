@@ -199,4 +199,20 @@ export const tests = [
       t.equal(await redoCue(), [['run', undefined]], 'Redo of a finished Spider run plays the run cue');
     },
   },
+  // ------------------------------------------------------------------------------------------ P-N06
+  {
+    name: 'w4c P-N06 the foundation cue climbs with the rank but stays out of the shrillest band: the King is at 1.32 kHz and no partial lands above 1.5 kHz',
+    viewports: ['desktop'],
+    async run(t) {
+      const tones = [];
+      for (let r = 1; r <= 13; r++) tones.push(await t.page.evaluate((r) => window.__game.cueTones('found', r), r));
+      const lead = tones.map((x) => x.find((y) => y.type === 'triangle').f);
+      t.expect(lead.every((f, i) => i === 0 || f > lead[i - 1]), 'the pitch still rises with every rank: ' + lead.map((f) => Math.round(f)).join(' '));
+      t.expect(Math.max(...lead) < 1400, 'the King is under 1.4 kHz: ' + Math.round(lead[12]) + ' Hz (it was 2637)');
+      t.expect(lead[0] > 250, 'and the Ace is not left in the mud: ' + Math.round(lead[0]) + ' Hz');
+      const all = tones.flat().map((x) => x.f);
+      t.expect(Math.max(...all) <= 1500, 'no tone of the cue, partials included, lands above 1.5 kHz: ' + Math.round(Math.max(...all)) + ' Hz (it was 5274)');
+      t.expect(tones[0].length === 2 && tones[12].length === 1, 'low ranks keep their bright octave partial, the top ones drop it: ' + tones[0].length + ' and ' + tones[12].length + ' tones');
+    },
+  },
 ];

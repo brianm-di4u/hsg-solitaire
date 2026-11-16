@@ -263,5 +263,6 @@ this browser".
 | `setSettings(obj)` | merge settings, re-layout and redraw |
 | `freecellDeal(n)` | the 8 columns of deal `n` in notation (a test vector helper) |
 | `stats()` | the stats object |
+| `cueTones(name, arg)`, `volumeGain(v, curve)`, `masterGain()`, `dailyDealFor(mode, opts, date)` | (wave 4, batch C) the pitch of every tone a cue starts, the gain a slider position gives on a curve, the live master gain, the deal a date gives |
 | `pad()`, `sky()`, `skyDue(t)`, `scoreFx()`, `glideOf(pile)`, `hintYields(reset)`, `hintCurrent()` | (wave 4) the gamepad poll count, the title sky loop (`running`, `frames`, `gap`), the sky's 30-a-second throttle, the floating score texts, the glide time of a pile's top card, how often the last hint search yielded, the hint on show |
 | `canvasFilter()`, `tableBlur(id, px)`, `backMean(seed)` | (wave 4) whether canvas filters exist, set a table's blur and redraw, the mean colour of the Skylight back for a deck seed |
