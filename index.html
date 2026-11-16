@@ -1191,7 +1191,13 @@ const historyKeys = () => new Set(undoStack.map((sn) => inPosition(sn, posKey)))
 
 // avoidHistory (for hints): never route through a position this game has already been in, so following
 // hints can't go round in circles; a dip such as parking a card is only hinted if it leads somewhere new.
-function analyze(budget, stopAtFirst, avoidHistory) {
+// The searches are generators that give way every HINT_SLICE positions: a Hint press runs one a few milliseconds at a time between frames (S1-23), while
+// the dead-end check and the test hook drain it in one go. Either way the answer is the same.
+const HINT_SLICE = 40; // positions between a search stopping to let the page breathe
+let hintYields = 0;
+function drain(gen) { let r; while (!(r = gen.next()).done); return r.value; }
+const analyze = (budget, stopAtFirst, avoidHistory) => drain(analyzeG(budget, stopAtFirst, avoidHistory));
+function* analyzeG(budget, stopAtFirst, avoidHistory) {
   const none = { productive: [], dead: false, exhausted: false };
   if (!S || S.won) return none;
   const root = { piles: S.piles, up: S.up, depth: 0, first: -1 };
@@ -1206,6 +1212,7 @@ function analyze(budget, stopAtFirst, avoidHistory) {
       if (visited >= budget) return { productive: found, dead: false, exhausted: false };
       const c = simChild(n, m); if (!c || seen.has(c.key)) continue;
       seen.add(c.key); visited++;
+      if (visited % HINT_SLICE === 0) { hintYields++; yield; }
       const first = n.depth ? n.first : firsts.push(m) - 1;
       if (c.pot > baseline) {
         if (!found.some((f) => f.first === first)) found.push(Object.assign({}, firsts[first], { depth: n.depth + 1, first }));
@@ -1238,10 +1245,11 @@ function stockHintText() {
 // already does when it turns cards over). Set the budget to 0 to go back to the nearest-gain search alone. Null when no line is found in
 // budget, the move does not fit the table as it stands, or it would only return to a position this game has already been in.
 const HINT_SOLVER_BUDGET = 2000; // positions
-function solverHint() {
+function* solverHintG() {
   if (!HINT_SOLVER_BUDGET || !['klondike', 'yukon', 'spider'].includes(S.mode)) return null;
   const sv = makeSolver(S, HINT_SOLVER_BUDGET);
-  if (sv.step(HINT_SOLVER_BUDGET + 1) !== 'won') return null;
+  let r; while ((r = sv.step(HINT_SLICE)) === 'more') { hintYields++; yield; }
+  if (r !== 'won') return null;
   if (S.mode !== 'spider') { // the solver plays every safe card home before it starts: so does the hint, one card at a time
     for (const from of (S.piles.waste ? ['waste'] : []).concat(Array.from({ length: def().cols }, (_, i) => 't' + i))) {
       const p = S.piles[from], u = p[p.length - 1], f = u === undefined || !S.up[u] ? null : foundationFor(u);
@@ -1260,26 +1268,56 @@ function solverHint() {
   return !c || historyKeys().has(c.key) ? null : m;
 }
 
-function hint() {
+// The whole search for a Hint, as a generator (see analyzeG): the nearest-gain search, the solver's line where it finds one, and the dead-end proof.
+function* hintSearch() {
+  const a = yield* analyzeG(HINT_BUDGET, false, true);
+  let list = a.productive, verdict, dead = false;
+  const sl = yield* solverHintG();
+  if (sl) {
+    list = [sl].concat(list.filter((m) => !(sl.stock ? m.stock || m.draws : m.from === sl.from && m.to === sl.to && m.index === sl.index)));
+    verdict = 'live';
+  } else if (!list.length && a.exhausted) {
+    // nothing new ahead; prove it's a dead end before saying so (the only way on may be back the way we came)
+    const d = yield* analyzeG(STUCK_BUDGET, true, false);
+    verdict = d.dead ? 'dead' : d.productive.length ? 'live' : 'unknown'; dead = d.dead;
+  } else if (!list.length) { verdict = 'unknown'; list = fallbackHints(); }
+  else verdict = 'live';
+  return { list, verdict, dead };
+}
+const hintSig = () => S.moves + '|' + undoStack.length + '|' + (S.piles.stock ? S.piles.stock.length : 0);
+let hintJob = null; // a Hint search still running between frames
+const HINT_SLICE_MS = 8; // how long one turn of a running search may take
+// A press of the Hint button or key searches a few milliseconds at a time, so the table never freezes (a hard FreeCell or Spider position took up to
+// a second in one go); the hook and everything that wants the answer now ask for it whole. A search that the player's next move has made out of date is dropped.
+function runHintJob(gen, job) {
+  const turn = () => {
+    if (hintJob !== job) return;
+    if (!S || S !== job.S || modalKind || titleOn || hintSig() !== job.sig) { hintJob = null; return; }
+    const end = now() + HINT_SLICE_MS; let r;
+    do r = gen.next(); while (!r.done && now() < end);
+    if (!r.done) { setTimeout(turn, 0); return; }
+    hintJob = null; hintApply(r.value, job.sig);
+  };
+  setTimeout(turn, 0);
+}
+function hint(sliced) {
   if (!S || S.won) return { ok: false };
+  if (hintJob) return { ok: true, pending: true }; // this press is already being answered
   S.usedHint = true; S.assisted = true; tipEvent('hint'); updateHUD();
-  const sig = S.moves + '|' + undoStack.length + '|' + (S.piles.stock ? S.piles.stock.length : 0);
-  if (!hintState || hintState.sig !== sig) {
-    const a = analyze(HINT_BUDGET, false, true);
-    let list = a.productive;
-    const sl = solverHint();
-    if (sl) {
-      list = [sl].concat(list.filter((m) => !(sl.stock ? m.stock || m.draws : m.from === sl.from && m.to === sl.to && m.index === sl.index)));
-      stuckVerdict = 'live';
-    } else if (!list.length && a.exhausted) {
-      // nothing new ahead; prove it's a dead end before saying so (the only way on may be back the way we came)
-      const d = analyze(STUCK_BUDGET, true, false);
-      stuckVerdict = d.dead ? 'dead' : d.productive.length ? 'live' : 'unknown';
-      if (d.dead) { hintState = null; showStuck(true); return { ok: true, move: null, stuck: true }; }
-    } else if (!list.length) { stuckVerdict = 'unknown'; list = fallbackHints(); }
-    else stuckVerdict = 'live';
-    hintState = { list, i: 0, until: 0, sig };
-  } else hintState.i = (hintState.i + 1) % Math.max(1, hintState.list.length);
+  const sig = hintSig();
+  if (hintState && hintState.sig === sig) { hintState.i = (hintState.i + 1) % Math.max(1, hintState.list.length); return hintShow(); }
+  const gen = hintSearch();
+  if (!sliced) return hintApply(drain(gen), sig);
+  hintJob = { S, sig }; runHintJob(gen, hintJob);
+  return { ok: true, pending: true };
+}
+function hintApply(r, sig) {
+  stuckVerdict = r.verdict;
+  if (r.dead) { hintState = null; showStuck(true); return { ok: true, move: null, stuck: true }; }
+  hintState = { list: r.list, i: 0, until: 0, sig };
+  return hintShow();
+}
+function hintShow() {
   const L = hintState.list;
   if (!L.length || L[hintState.i].stock || L[hintState.i].draws) {
     hintState.stockHint = !!L.length;
@@ -3533,7 +3571,7 @@ function gameKey(e) {
     case 'd': case 'D': stockAction(); break;
     case 'u': case 'U': case 'z': case 'Z': case 'Backspace': undo(); break;
     case 'y': case 'Y': redo(); break;
-    case 'h': case 'H': hint(); break;
+    case 'h': case 'H': hint(true); break;
     case 's': case 'S': announce(tableSummary()); break;
     case 'a': case 'A': if (!autoComplete().ok) toast('Finish appears once every card can go straight home'); break;
     case 'n': case 'N': confirmAbandon({ mode: S.mode }); break;
@@ -4184,7 +4222,7 @@ $('#bNew').onclick = () => { initAudio(); confirmAbandon({ mode: S ? S.mode : 'k
 const backToTable = (e) => { if (e.detail > 0 && !modalKind && !titleOn) cv.focus({ preventScroll: true }); };
 $('#bUndo').onclick = (e) => { initAudio(); undo(); backToTable(e); };
 $('#bRedo').onclick = (e) => { initAudio(); redo(); backToTable(e); };
-$('#bHint').onclick = (e) => { initAudio(); hint(); backToTable(e); };
+$('#bHint').onclick = (e) => { initAudio(); hint(true); backToTable(e); };
 $('#bAuto').onclick = (e) => { initAudio(); autoComplete(); backToTable(e); };
 $('#assistTag').onclick = (e) => { toast('Undo or Hint was used. Wins still count, flagged as assisted.'); backToTable(e); };
 $('#bMenu').onclick = () => { initAudio(); sfx('tick'); openModal('menu'); };
@@ -4574,7 +4612,7 @@ window.__game = {
     return { scene: sceneName(), modal: modalKind, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, piles: notePiles(),
       score: S.score, moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, winnable: !!S.winnable, grade: S.winnable && Object.hasOwn(GRADE_RANK, S.grade) ? S.grade : '', started: S.started, canAutoComplete: canAutoComplete(),
       undoDepth: undoStack.length, redoDepth: redoStack.length, replay: !!S.replay, finishing: !!(finishRun && winTimer), ceremony: !!cascade, held: held ? Object.assign({}, held) : null, dropTarget: drag ? dropTarget(drag) : null, cursor: Object.assign({}, cursor),
-      settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, stuck: stuckVerdict, lost: lostVerdict, storageOK };
+      settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, stuck: stuckVerdict, lost: lostVerdict, hinting: !!hintJob, storageOK };
   },
   setState(s) {
     fitHold = 1;
@@ -4599,6 +4637,8 @@ window.__game = {
   scoreFx: () => scoreFx.map((q) => ({ text: q.text, neg: q.neg, pile: q.pile, age: Math.round(now() - q.t0) })),
   sky: () => ({ running: !!skyRaf, frames: skyFrames, gap: skyGap() }),
   skyDue: (t) => skyDue(t),
+  hintYields(reset) { const n = hintYields; if (reset) hintYields = 0; return n; },
+  hintCurrent: () => (hintState && hintState.cur ? JSON.parse(JSON.stringify(hintState.cur)) : null),
   pad: () => ({ connected: !!padFound(), polls: PAD.polls }),
   tableBlur(id, px) { TABLE_LOOK[id].blur = px; tableDirty = true; markDirty(); return true; },
   backMean(seed) { // the mean colour of the skylight back drawn with a deck seed
@@ -4614,7 +4654,7 @@ window.__game = {
     const r = { frames: fstat.n, avgMs: fstat.n ? +(fstat.sum / fstat.n).toFixed(2) : 0, p50Ms: q(.5), p95Ms: q(.95), maxMs: +fstat.max.toFixed(2) };
     if (reset) { fstat.n = 0; fstat.sum = 0; fstat.max = 0; fstat.xs = []; } return r;
   },
-  isIdle() { if (frozenAt !== null) return !artPending && !artTick && !fontsPending; return !artPending && !artTick && !fontsPending && !tweensActive(now()) && !drag && !cascade && !winTimer && now() > modalAnimUntil; },
+  isIdle() { if (hintJob) return false; if (frozenAt !== null) return !artPending && !artTick && !fontsPending; return !artPending && !artTick && !fontsPending && !tweensActive(now()) && !drag && !cascade && !winTimer && now() > modalAnimUntil; },
   scene(name) {
     if (name === 'title') { closeModal(); showTitle(true); }
     else if (name === 'game') { closeModal(); if (!S) newGame({ mode: 'klondike' }); showTitle(false); }

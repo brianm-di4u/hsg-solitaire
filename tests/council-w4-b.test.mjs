@@ -295,4 +295,53 @@ export const tests = [
       t.expect((await t.game('sky')).gap === (coarse ? 33 : 0), 'the gap is 33 ms on a touch screen and 0 otherwise');
     },
   },
+  // ------------------------------------------------------------------------------------------ S1-23
+  {
+    name: 'w4b S1-23 a Hint press searches between frames and gives the same hint as the whole search',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced', autoFoundation: 'off' });
+      // a seeded walk through a Spider game (2 suits) to its first position whose search takes at least 40 yields of 40 positions (the solver alone spends 2000): the hard kind
+      const found = await t.page.evaluate(() => {
+        const g = window.__game; g.newGame({ mode: 'spider', suits: 2, deal: 11 });
+        let rng = 11 * 7919 + 13; const rnd = () => (rng = (rng * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+        for (let step = 0; step < 90; step++) {
+          const mv = g.legalMoves().filter((m) => !m.stock);
+          if (mv.length) { const m = mv[(rnd() * mv.length) | 0]; g.act('move', m.from, m.to, m.count || 1); } else g.act('draw');
+          if (step % 3 !== 2) continue;
+          const st = g.getState(), snap = { mode: 'spider', opts: st.opts, deal: st.deal, piles: st.piles, score: st.score, moves: st.moves };
+          g.setState(snap); g.hintYields(true);
+          const r = g.act('hint'), y = g.hintYields(true);
+          if (y >= 40) return { snap, y, move: r.move, stuck: !!r.stuck };
+          g.setState(snap);
+        }
+        return null;
+      });
+      t.expect(found, 'the walk reaches a position with a long search');
+      t.log('long search: ' + found.y + ' yields (each is about 40 positions)');
+      await t.game('setState', found.snap);
+      // one press of the real Hint button: it answers at once with the search still going, the page gets its turn while it runs, and it ends on the same hint
+      const r = await t.page.evaluate(() => new Promise((resolve) => {
+        const g = window.__game; let mid = null;
+        document.getElementById('bHint').click();
+        const pendingAfterClick = g.getState().hinting;
+        setTimeout(() => { mid = g.getState().hinting; }, 0); // queued behind the search's first turn
+        const wait = () => (g.getState().hinting ? requestAnimationFrame(wait) : resolve({ pendingAfterClick, mid, move: g.hintCurrent(), yields: g.hintYields(true) }));
+        wait();
+      }));
+      t.expect(r.pendingAfterClick, 'right after the press the search is still to do');
+      t.expect(r.mid === true, 'the page had its turn while the search was still running');
+      t.equal(r.move, found.move, 'and the hint it gives is the one the whole search gives');
+      t.expect(r.yields >= found.y, 'it did the same search: ' + r.yields + ' yields against ' + found.y);
+      // a move made while it searches throws that search away
+      await t.game('setState', found.snap);
+      const stale = await t.page.evaluate(() => new Promise((resolve) => {
+        const g = window.__game; document.getElementById('bHint').click();
+        g.act('draw'); // the stock row: the position changes under the search
+        const wait = () => (g.getState().hinting ? requestAnimationFrame(wait) : resolve(g.hintCurrent()));
+        wait();
+      }));
+      t.equal(stale, null, 'a search that a move has made out of date shows no hint');
+    },
+  },
 ];
