@@ -58,4 +58,28 @@ export const tests = [
       t.equal(r.table, 'none', 'the table keeps its own touch handling');
     },
   },
+  // ------------------------------------------------------------------------------------------ S4-24
+  {
+    name: 'w4c S4-24 the picker captions clear the artwork and the title credit clears the bottom edge',
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced', tips: false });
+      await t.game('unlockAll');
+      await t.seed(11); await t.game('newGame', { mode: 'klondike', draw: 1 });
+      await t.game('scene', 'backs');
+      await t.waitForStable();
+      const m = await t.page.evaluate(() => [...document.querySelectorAll('#sheet .bk')].map((b) => { const c = b.querySelector('canvas').getBoundingClientRect(), l = b.querySelector('b').getBoundingClientRect(), r = b.getBoundingClientRect(), lh = parseFloat(getComputedStyle(b.querySelector('b')).lineHeight), fs = parseFloat(getComputedStyle(b.querySelector('b')).fontSize);
+        return { name: b.querySelector('b').textContent, gap: l.top - c.bottom, below: r.bottom - l.bottom, lines: Math.round(l.height / lh), lhRatio: lh / fs }; }));
+      t.expect(m.length >= 8, 'the picker lists the backs: ' + m.length);
+      t.expect(m.every((x) => x.gap >= 5.5), 'every caption sits at least 6 px under its picture: ' + m.map((x) => x.gap.toFixed(1)).join(', '));
+      t.expect(m.every((x) => x.below >= 9.5), 'and 10 px above the bottom of its button');
+      t.expect(m.every((x) => x.lhRatio >= 1.2), 'a caption that wraps has room between its lines');
+      await shot(t, 'S4-24', 'picker');
+      await t.game('scene', 'title');
+      await t.waitForStable();
+      const c = await t.page.evaluate(() => { const r = document.querySelector('#title .credit').getBoundingClientRect(); return { bottom: r.bottom, h: innerHeight, cont: !document.getElementById('tCont').hidden }; });
+      t.expect(c.cont, 'the title shows Continue, its tallest form');
+      if (t.viewport === 'desktop') t.expect(c.h - c.bottom >= 12, 'the credit line is at least 12 px above the bottom edge at 1280x800: ' + (c.h - c.bottom).toFixed(1));
+      await shot(t, 'S4-24', 'title');
+    },
+  },
 ];
