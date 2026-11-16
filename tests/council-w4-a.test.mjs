@@ -216,4 +216,26 @@ export const tests = [
       await shot(t, 'C4-10', 'records');
     },
   },
+  {
+    name: 'w4a C4-11 the line under Move a card by says what the choice does',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false });
+      const note = () => t.page.locator('#tapNote').textContent();
+      const want = { tap: /^Tap sends a card to its best pile$/, double: /^Double-tap sends a card/, drag: /^Drag only: a tap never moves a card$/ };
+      for (const mode of ['double', 'drag', 'tap']) {
+        await t.game('setSettings', { tapMove: mode });
+        await t.game('scene', 'settings');
+        t.expect(want[mode].test(await note()), 'opened with ' + mode + ' saved, the line reads: ' + await note());
+      }
+      for (const mode of ['double', 'drag', 'tap']) {
+        await t.page.locator('[data-set="tapMove"][data-val="' + mode + '"]').click();
+        t.expect(want[mode].test(await note()), 'choosing ' + mode + ' changes the line at once: ' + await note());
+      }
+      const texts = new Set();
+      for (const mode of ['double', 'drag', 'tap']) { await t.page.locator('[data-set="tapMove"][data-val="' + mode + '"]').click(); texts.add(await note()); }
+      t.equal(texts.size, 3, 'three choices, three different lines');
+      await t.page.locator('[data-set="tapMove"][data-val="drag"]').click(); await shot(t, 'C4-11', 'settings');
+      await t.checkLayout();
+    },
+  },
 ];

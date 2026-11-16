@@ -3342,6 +3342,7 @@ function refuseDrag(pile, index) {
   if (runTooLong(pile, index)) toast('Not enough free cells for that run');
 }
 const DOUBLE_TAP_MS = 320; // two presses on the same card this close are a double-tap
+const TAP_NOTES = { tap: 'Tap sends a card to its best pile', double: 'Double-tap sends a card to its best pile', drag: 'Drag only: a tap never moves a card' }; // the line under the Settings choice
 const tapMode = () => (['tap', 'double', 'drag'].includes(settings.tapMove) ? settings.tapMove : 'tap');
 cv.addEventListener('pointerdown', (e) => {
   initAudio(); kbMode = false; kbClass(); cv.focus({ preventScroll: true });
@@ -4228,7 +4229,7 @@ const MODALS = {
     '<div class="set"><label>Court cards<small>Art Deco line art, or the painted portraits</small></label>' + seg('courts', [['deco', 'Art Deco'], ['painted', 'Painted']]) + '</div>' +
     '<div class="set"><label>Four-color suits<small>Blue diamonds, green clubs</small></label>' + tog('fourColor', 'Four-color suits') + '</div>' +
     '<div class="set"><label>Auto-move to foundations<small>Safe moves only cards nothing else needs</small></label>' + seg('autoFoundation', [['off', 'Off'], ['safe', 'Safe'], ['all', 'All']]) + '</div>' +
-    '<div class="set"><label>Move a card by<small>Tap sends a card to its best pile</small></label>' + seg('tapMove', [['tap', 'Tap'], ['double', 'Double-tap'], ['drag', 'Drag only']]) + '</div>' +
+    '<div class="set"><label>Move a card by<small id="tapNote">' + TAP_NOTES[tapMode()] + '</small></label>' + seg('tapMove', [['tap', 'Tap'], ['double', 'Double-tap'], ['drag', 'Drag only']]) + '</div>' +
     '<div class="set"><label>Scoring<small>Timed adds a bonus for a quick win. Standard is points only. None hides the score</small></label>' + seg('scoring', [['timed', 'Timed'], ['standard', 'Standard'], ['none', 'None']]) + '</div>' +
     '<div class="set"><label>Deal difficulty<small>Random deals a solver has won, picked by how much searching they took. Not FreeCell or Spider with 2 or 4 suits</small></label>' + seg('dealGrade', [['any', 'Any'], ['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']]) + '</div>' +
     '<div class="set"><label>Winnable deals only<small>A solver wins random deals first. Not FreeCell or four-suit Spider</small></label>' + tog('winnable', 'Winnable deals only') + '</div>' +
@@ -4345,7 +4346,7 @@ const BIND = {
   fault() { BIND._common(); },
   settings() {
     BIND._common();
-    sheet.querySelectorAll('[data-set]').forEach((b) => (b.onclick = () => { setSetting(b.dataset.set, b.dataset.val); sfx('tick'); sheet.querySelectorAll('[data-set="' + b.dataset.set + '"]').forEach((x) => x.setAttribute('aria-pressed', x === b)); }));
+    sheet.querySelectorAll('[data-set]').forEach((b) => (b.onclick = () => { setSetting(b.dataset.set, b.dataset.val); sfx('tick'); sheet.querySelectorAll('[data-set="' + b.dataset.set + '"]').forEach((x) => x.setAttribute('aria-pressed', x === b)); if (b.dataset.set === 'tapMove') { const n = $('#tapNote'); if (n) n.textContent = TAP_NOTES[tapMode()]; } }));
     sheet.querySelectorAll('[data-tog]').forEach((b) => (b.onclick = () => { const k = b.dataset.tog; setSetting(k, !settings[k]); sfx('tick'); b.setAttribute('aria-pressed', !!settings[k]); }));
     $('#vol').oninput = (e) => { setSetting('volume', +e.target.value); previewVolume(); };
     $('#musicVol').oninput = (e) => setSetting('musicVol', +e.target.value);
