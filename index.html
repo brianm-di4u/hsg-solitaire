@@ -311,6 +311,11 @@
     background:rgba(16,24,19,.94);color:var(--lac-ink);border:1px solid rgba(233,200,115,.6);border-radius:var(--radius-pill);padding:4px 6px 4px 16px;
     font-family:var(--font-deco);font-weight:600;font-size:.92rem;box-shadow:0 4px 14px rgba(0,0,0,.45)}
   #coach[hidden]{display:none} #coach ~ #toast{bottom:74px} #coach[hidden] ~ #toast{bottom:14px}
+  #tabNote{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:max-content;max-width:94%;display:flex;align-items:center;gap:8px;z-index:5;
+    background:rgba(16,24,19,.94);color:var(--lac-ink);border:1px solid rgba(233,200,115,.6);border-radius:22px;padding:4px 6px 4px 16px;
+    font-family:var(--font-deco);font-weight:600;font-size:.86rem;box-shadow:0 4px 14px rgba(0,0,0,.45)}
+  #tabNote[hidden]{display:none} #tabNote:not([hidden]) ~ #coach,#tabNote:not([hidden]) ~ #toast{bottom:84px} #tabNote:not([hidden]) ~ #coach:not([hidden]) ~ #toast{bottom:144px}
+  #tabNote button{min-height:44px;min-width:44px;padding:0 14px;border-radius:var(--radius-pill);border:1px solid rgba(233,200,115,.6);background:transparent;color:inherit;font:inherit;font-size:.8rem;cursor:pointer;white-space:nowrap}
   #coach button{min-height:44px;min-width:44px;padding:0 14px;border-radius:var(--radius-pill);border:1px solid rgba(233,200,115,.6);background:transparent;color:inherit;font:inherit;font-size:.8rem;cursor:pointer;white-space:nowrap}
   #bHint.pt{outline:3px solid var(--color-highlight);outline-offset:2px}
   @media (prefers-reduced-motion:no-preference){ #bHint.pt:not(.st){animation:pt 1.3s ease-in-out infinite} }
@@ -347,6 +352,7 @@
     <canvas id="cv" tabindex="0" role="application" aria-roledescription="card table"
       aria-label="Card table. Arrow keys move the cursor, Enter picks up or drops cards, H for a hint, U to undo, S to hear the table. Press question mark for help."></canvas>
     <div id="mirror" class="sr-only" role="group" aria-label="Table piles. Press a pile to pick up or drop cards." hidden></div>
+    <div id="tabNote" hidden><span>Also open in another tab: the last move made in either tab is the one kept.</span><button id="tabNoteX" type="button">Got it</button></div>
     <div id="coach" hidden><span id="coachTx"></span><button id="coachSkip" type="button">Skip tips</button></div>
     <div id="toast" aria-hidden="true"></div>
   </main>
@@ -1621,6 +1627,7 @@ function writeCurrent() {
   save('current', { state: S, undo: undoStack.slice(-400) });
 }
 function scheduleSave() {
+  tabEl.hidden = true; // this tab made the last move: its game is the one kept
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => { saveTimer = 0; writeCurrent(); }, 300);
 }
@@ -3991,6 +3998,19 @@ const TIP_GOAL = { klondike: 'Build each suit from Ace to King on the foundation
 const TIP_MS = { goal: 6500, move: 14000, hint: 9000, stock: 9000 };
 const TIP_ORDER = ['move', 'hint', 'stock'];
 let touchIn = false, tip = null, tipTimer = 0;
+// Two tabs share one saved game. When the other tab saves a different position than this one shows, say so once (no
+// locking, nothing blocked); the line goes when this tab moves, on its button, or when the title opens.
+const tabEl = $('#tabNote');
+function tabNoteHide() { tabEl.hidden = true; }
+$('#tabNoteX').onclick = () => { tabNoteHide(); cv.focus({ preventScroll: true }); };
+window.addEventListener('storage', (e) => {
+  if (newerSave || e.key !== KEY + 'current' || !e.newValue || !S || S.won || titleOn || !tabEl.hidden) return;
+  let c = null; try { c = JSON.parse(e.newValue); } catch (err) { return; }
+  const o = isObj(c) && isObj(c.state) ? c.state : null;
+  if (!o || o.won || !isObj(o.opts)) return;
+  if (o.mode === S.mode && o.deal === S.deal && o.moves === S.moves && o.opts.draw === S.opts.draw && o.opts.suits === S.opts.suits) return; // the same position: nothing to lose
+  tabEl.hidden = false; announce(tabEl.firstElementChild.textContent);
+});
 const coachEl = $('#coach');
 function tipText(id) {
   const k = kbMode ? 2 : touchIn ? 1 : 0, t = (...a) => a[k];
@@ -4124,7 +4144,7 @@ function drawSky(t) {
 }
 function skyLoop(t) { skyRaf = 0; if (!titleOn) return; drawSky(t); if (!reducedMotion()) skyRaf = requestAnimationFrame(skyLoop); }
 function showTitle(on) {
-  titleOn = on; $('#title').classList.toggle('on', on); syncMirror();
+  titleOn = on; $('#title').classList.toggle('on', on); syncMirror(); if (on) tabNoteHide();
   if (on) { musicHush = false; tipHide(); }
   syncAudio();
   if (on) {

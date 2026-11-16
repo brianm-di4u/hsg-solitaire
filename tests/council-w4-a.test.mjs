@@ -75,4 +75,62 @@ export const tests = [
       t.equal(await t.page.evaluate(([p]) => JSON.parse(localStorage.getItem(p + 'settings')).volume, [P]), 0.42, 'and saving works again');
     },
   },
+  {
+    name: 'w4a C4-03 a second tab that saves a different position gets one quiet line, in both orders',
+    async run(t) {
+      const A = t.page;
+      const B = await A.context().newPage();
+      try {
+        const open = async (p) => { await p.goto(A.url()); await p.waitForFunction(() => !!window.__game); };
+        const seen = (p) => p.evaluate(() => { window.__seen = 0; window.addEventListener('storage', () => { window.__seen++; }); });
+        const flush = (p) => p.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+        const eventsAt = (p, n) => p.waitForFunction((n) => window.__seen >= n, n, { timeout: 10000 });
+        const noteShown = (p) => p.locator('#tabNote').isVisible();
+        const moves = (p) => p.evaluate(() => window.__game.getState().moves);
+
+        await baseSettings(t, { tips: false });
+        await t.seed(21); await t.game('newGame', { mode: 'klondike', draw: 1 });
+        await A.evaluate(() => window.__game.act('draw')); await flush(A);
+        await open(B); await B.evaluate(() => window.__game.setSettings({ tips: false, sound: false }));
+        await B.locator('#tCont').click();
+        t.equal(await moves(B), 1, 'the second tab picked up the same game');
+        await seen(A); await seen(B);
+
+        // The other tab saves the same position again: nothing could be lost, so nothing is said.
+        await flush(B); await eventsAt(A, 1);
+        t.expect(!(await noteShown(A)), 'no line for a write of the position this tab already shows');
+
+        // Order 1: B moves on, A is told.
+        await B.evaluate(() => window.__game.act('draw')); await flush(B); await eventsAt(A, 2);
+        await A.locator('#tabNote').waitFor({ state: 'visible', timeout: 10000 });
+        const text = await A.locator('#tabNote').textContent();
+        t.expect(/another tab/.test(text) && /last move/.test(text), 'the line says the game is open twice and the last move is kept: ' + text);
+        t.equal(await A.locator('#sr').textContent(), await A.locator('#tabNote span').textContent(), 'a screen reader is told the same words');
+        t.expect(!(await noteShown(B)), 'the tab that wrote is not told');
+        await shot(t, 'C4-03', 'note');
+        t.expect((await A.evaluate(() => { const r = document.querySelector('#tabNote').getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight; })), 'the line is fully on screen');
+
+        // Another save while it is up does not say it again.
+        await A.evaluate(() => { document.querySelector('#sr').textContent = ''; });
+        await B.evaluate(() => window.__game.act('draw')); await flush(B); await eventsAt(A, 3);
+        t.equal(await A.locator('#sr').textContent(), '', 'it is read out once, not on every save');
+
+        // A moves: the line goes, and A's game is the one kept.
+        await A.evaluate(() => window.__game.act('draw'));
+        t.expect(!(await noteShown(A)), 'a move in this tab takes the line away');
+        await flush(A);
+        t.equal(await A.evaluate(() => JSON.parse(localStorage.getItem('spa-solitaire:v1:current')).state.moves), await moves(A), "the last mover's game is what is saved");
+
+        // Order 2: A moves on, B is told; the button puts the line away and nothing was blocked.
+        await B.evaluate(() => { window.__seen = 0; });
+        await A.evaluate(() => window.__game.act('draw')); await flush(A); await eventsAt(B, 1);
+        await B.locator('#tabNote').waitFor({ state: 'visible', timeout: 10000 });
+        await B.locator('#tabNoteX').click();
+        t.expect(!(await noteShown(B)), 'the button dismisses the line');
+        const before = await moves(B); await B.evaluate(() => window.__game.act('draw'));
+        t.equal(await moves(B), before + 1, 'play is not blocked');
+        t.equal(await B.evaluate(() => window.__game.getState().scene), 'game', 'the table is still there');
+      } finally { await B.close(); }
+    },
+  },
 ];
