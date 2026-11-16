@@ -82,4 +82,39 @@ export const tests = [
       await shot(t, 'S4-24', 'title');
     },
   },
+  // ------------------------------------------------------------------------------------------ P-N04
+  {
+    name: 'w4c P-N04 a random or daily FreeCell deal steps past 11982, and typing it in says what it is',
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced', tips: false });
+      // The random picker: the first draw is the one that would give 11982, the second any other.
+      await t.page.evaluate(() => { const seq = [11981 / 32000 + 1e-6, 0.5]; let i = 0; const orig = Math.random; window.__rand = orig; Math.random = () => (i < seq.length ? seq[i++] : orig()); });
+      await t.game('newGame', { mode: 'freecell' });
+      const d = (await t.state()).deal;
+      t.expect(d !== 11982 && d >= 1 && d <= 32000, 'the random deal is not 11982 (got ' + d + ')');
+      await t.page.evaluate(() => { Math.random = window.__rand; });
+      // The daily: a date string that hashes to 11982 is dealt as 11983; every other deal is untouched.
+      // (the date text is hashed, so any text will do: a fixed run of 300,000 of them has a fixed count, no chance in it)
+      const c = await t.page.evaluate(() => { let a = 0, b = 0; for (let i = 0; i < 300000; i++) { const d = window.__game.dailyDealFor('freecell', {}, 'day-' + i); if (d === 11982) a++; else if (d === 11983) b++; } return [a, b]; });
+      t.equal(c[0], 0, 'no daily deal is ever 11982');
+      t.expect(c[1] >= 4, 'the days that would have been 11982 are dealt as 11983 (' + c[1] + ' of them)');
+      // Typing it in is still allowed, with a plain note beside the box
+      await t.game('scene', 'deal');
+      await t.waitForStable();
+      const note = () => t.page.evaluate(() => { const n = document.getElementById('dealNote'), r = n.getBoundingClientRect(); return { hidden: n.hidden, text: n.textContent, inside: r.right <= innerWidth && r.left >= 0 }; });
+      let n = await note(); t.expect(n.hidden, 'no note for the number the game came with');
+      await t.page.fill('#dealIn', '11982');
+      n = await note(); t.expect(!n.hidden && n.inside, 'the note shows for 11982');
+      t.equal(n.text, 'Deal 11,982 is the famously unsolved FreeCell deal. You can still play it.', 'and says what it is');
+      await shot(t, 'P-N04', 'deal-note');
+      await t.page.fill('#dealIn', '11983'); n = await note(); t.expect(n.hidden, 'the note goes for another number');
+      await t.page.fill('#dealIn', '11982');
+      await t.page.press('#dealIn', 'Enter');
+      await t.page.waitForFunction(() => window.__game.getState().deal === 11982, null, { timeout: 5000 });
+      t.equal((await t.state()).deal, 11982, 'the player who types 11982 gets it');
+      // Klondike's box has no note
+      await t.game('newGame', { mode: 'klondike' }); await t.game('scene', 'deal'); await t.page.fill('#dealIn', '11982');
+      t.expect((await note()).hidden, 'only FreeCell has the note');
+    },
+  },
 ];

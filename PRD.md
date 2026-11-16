@@ -70,8 +70,9 @@ The cards are a standard 52-card deck, and Spider uses two decks (104 cards). Ra
 - **Foundations:** up by suit from A to K. Cards may be moved back from a foundation.
 - **Win:** all 52 cards are on the foundations.
 - **Score:** +10 per card to a foundation, −10 per card taken back from one, plus the time bonus on a win.
-- **Unwinnable deals:** deal 11982 is the famously unsolved one among the first 32,000. The game does not
-  block it.
+- **Unwinnable deals:** deal 11982 is the famously unsolved one among the first 32,000. A random or daily
+  FreeCell deal steps past it (a daily that would have been 11982 is 11983). Typing it into the Deal # box
+  still deals it, and the box says what it is.
 
 ### 4.4 Spider
 - **Deal:** 104 cards. Ten columns: columns 1–4 get 6 cards and columns 5–10 get 5, with only the top card

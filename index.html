@@ -1517,10 +1517,14 @@ function abandonCurrent() {
   if (S && S.started && !S.won) { syncShared(); const st = statFor(modeKey(S.mode, S.opts)); st.streak = 0; noteResult(st, 'L'); saveStats(); }
 }
 
+// The one deal among the classic 32,000 that nobody has ever won. A random or daily deal steps past it; a player who types it in still gets it.
+const FC_UNWINNABLE = 11982;
 function dailyDeal(mode, opts, date) {
   const h = fnv1a(date + '|' + modeKey(mode, opts));
-  return mode === 'freecell' ? 1 + (h % 32000) : 1 + (h % 2000000000);
+  const n = mode === 'freecell' ? 1 + (h % 32000) : 1 + (h % 2000000000);
+  return mode === 'freecell' && n === FC_UNWINNABLE ? n + 1 : n;
 }
+function randomFreecellDeal() { let n; do n = 1 + Math.floor(Math.random() * 32000); while (n === FC_UNWINNABLE); return n; }
 
 // --- Winnable deals ---
 // A deal is shown once a solver has won it (the deal, then fnv1a(tag|attempt)); positions, not time, so every machine agrees.
@@ -1546,7 +1550,7 @@ function newGame(o = {}) {
   if (o.daily) { daily = typeof o.daily === 'string' ? o.daily : todayStr(); deal = deal || dailyDeal(mode, opts, daily); } // a number the player chose, or a restart: dealt as it is
   if (!deal) {
     if (nextDeal != null) { deal = nextDeal; nextDeal = null; }
-    else deal = mode === 'freecell' ? 1 + Math.floor(Math.random() * 32000) : 1 + Math.floor(Math.random() * 2000000000);
+    else deal = mode === 'freecell' ? randomFreecellDeal() : 1 + Math.floor(Math.random() * 2000000000);
   }
   deal = mode === 'freecell' ? clamp(Math.floor(deal), 1, 1000000) : clamp(Math.floor(deal), 1, 2147483646);
   dealPending = null; showDealing(false);
@@ -4420,7 +4424,8 @@ const MODALS = {
       '<div class="row"><button class="btn" data-a="resetStats" data-key="' + k + '">Reset ' + modeKeyLabel(k) + ' stats</button></div>';
   },
   deal: (d) => head('Choose a deal') + '<p>' + (d.mode === 'freecell' || (!d.mode && S && S.mode === 'freecell') ? 'FreeCell deals 1–32,000 match the classic numbered set (1–1,000,000 allowed).' : 'Any number from 1 to 2,147,483,646 gives the same layout every time.') + '</p>' +
-    '<div class="dl"><input class="numin" id="dealIn" inputmode="numeric" aria-label="Deal number" value="' + (S ? S.deal : 1) + '"><button class="btn solid" data-a="goDeal" data-focus>Deal</button></div>',
+    '<div class="dl"><input class="numin" id="dealIn" inputmode="numeric" aria-label="Deal number" value="' + (S ? S.deal : 1) + '"><button class="btn solid" data-a="goDeal" data-focus>Deal</button></div>' +
+    '<p class="cap" id="dealNote" role="status" aria-live="polite" hidden>Deal ' + FC_UNWINNABLE.toLocaleString('en-US') + ' is the famously unsolved FreeCell deal. You can still play it.</p>',
   daily: () => {
     const day = todayStr();
     const list = [['klondike', { draw: 1 }], ['klondike', { draw: 3 }], ['freecell', {}], ['spider', { suits: 1 }], ['spider', { suits: 2 }], ['spider', { suits: 4 }], ['yukon', {}]];
@@ -4541,6 +4546,8 @@ const BIND = {
     const go = () => { const v = parseInt($('#dealIn').value.replace(/[^0-9]/g, ''), 10); if (!v) { $('#dealIn').focus(); return; } const mode = d.mode || (S ? S.mode : 'klondike'); confirmAbandon({ mode, deal: v }); };
     sheet.querySelector('[data-a="goDeal"]').onclick = go;
     $('#dealIn').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+    const note = () => { const mode = d.mode || (S ? S.mode : 'klondike'); $('#dealNote').hidden = !(mode === 'freecell' && parseInt($('#dealIn').value.replace(/[^0-9]/g, ''), 10) === FC_UNWINNABLE); };
+    $('#dealIn').oninput = note; note();
   },
   daily() {
     const list = [['klondike', { draw: 1 }], ['klondike', { draw: 3 }], ['freecell', {}], ['spider', { suits: 1 }], ['spider', { suits: 2 }], ['spider', { suits: 4 }], ['yukon', {}]];
@@ -4644,6 +4651,7 @@ window.__game = {
   meta() { return JSON.parse(JSON.stringify(meta)); },
   fxLevel() { return lowFx ? 'low' : 'full'; },
   audioList, audioRender, audioState,
+  dailyDealFor: (mode, opts, date) => dailyDeal(mode, Object.assign({ draw: 1, suits: 1 }, opts), date),
   ambient: () => ({ fps: AMB.fps, running: !!ambTimer, wanted: ambientWanted(), frames: ambFrames, painted: (() => { const d = actx.getImageData(0, 0, amb.width, amb.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; })() }),
   canvasFilter: () => CANVAS_FILTER,
   glideOf(pile) { const p = S.piles[pile], d = p.length ? D[p[p.length - 1]] : null; return d ? d.dur : null; },
