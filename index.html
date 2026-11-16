@@ -2178,18 +2178,45 @@ function neonStroke(ctx, color, width, draw) {
   ctx.restore();
 }
 
+// Safari draws no canvas filter (the assignment is ignored), so the blurred table photographs and the hue-shifted card back would come out sharper and
+// flatter than designed. Without it a blur is a downscale and a smooth upscale, and the hue shift is worked out on the pixels once.
+const CANVAS_FILTER = typeof CanvasRenderingContext2D !== 'undefined' && 'filter' in CanvasRenderingContext2D.prototype;
+function blurCover(ctx, tex, W, H, zoom, px) {
+  if (CANVAS_FILTER) { ctx.save(); ctx.filter = 'blur(' + px + 'px)'; coverImg(ctx, tex, -4, -4, W + 8, H + 8, .5, .5, zoom); ctx.restore(); return; }
+  const f = 1 + 1.5 * px, k = ctx.getTransform().a || 1, c = document.createElement('canvas');
+  c.width = Math.max(1, Math.ceil((W + 8) * k / f)); c.height = Math.max(1, Math.ceil((H + 8) * k / f));
+  coverImg(c.getContext('2d'), tex, 0, 0, c.width, c.height, .5, .5, zoom);
+  ctx.save(); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(c, -4, -4, W + 8, H + 8); ctx.restore();
+}
+function hueShifted(img, w, h, k, deg, sat) { // the picture cover-fitted to w by h, hue-rotated and then saturated as CSS would
+  const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+  const g = c.getContext('2d'); coverImg(g, img, 0, 0, c.width, c.height);
+  const co = Math.cos(deg * Math.PI / 180), si = Math.sin(deg * Math.PI / 180);
+  const R = [[.213 + co * .787 - si * .213, .715 - co * .715 - si * .715, .072 - co * .072 + si * .928], [.213 - co * .213 + si * .143, .715 + co * .285 + si * .14, .072 - co * .072 - si * .283], [.213 - co * .213 - si * .787, .715 - co * .715 + si * .715, .072 + co * .928 + si * .072]];
+  const A = [[.213 + .787 * sat, .715 - .715 * sat, .072 - .072 * sat], [.213 - .213 * sat, .715 + .285 * sat, .072 - .072 * sat], [.213 - .213 * sat, .715 - .715 * sat, .072 + .928 * sat]];
+  const M = A.map((row) => [0, 1, 2].map((j) => row[0] * R[0][j] + row[1] * R[1][j] + row[2] * R[2][j]));
+  const im = g.getImageData(0, 0, c.width, c.height), d = im.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], gr = d[i + 1], b = d[i + 2];
+    d[i] = M[0][0] * r + M[0][1] * gr + M[0][2] * b; d[i + 1] = M[1][0] * r + M[1][1] * gr + M[1][2] * b; d[i + 2] = M[2][0] * r + M[2][1] * gr + M[2][2] * b;
+  }
+  g.putImageData(im, 0, 0); return c;
+}
+
 function drawBack(ctx, id, w, h, seed) {
   const r = w * .075, m = w * .055;
   const img = artImg('back-' + id);
   if (img) {
     cardStock(ctx, w, h);
     const x0 = m, y0 = m, iw = w - 2 * m, ih = h - 2 * m;
-    ctx.save(); rrect(ctx, x0, y0, iw, ih, r * .6); ctx.clip();
+    ctx.save(); rrect(ctx, x0, y0, iw, ih, r * .6); ctx.clip(); let tint = null;
     if (id === 'skylight' && seed) {
       const s = seed >>> 0; ctx.translate(w / 2, h / 2); ctx.scale(s & 1 ? -1 : 1, s & 2 ? -1 : 1); ctx.translate(-w / 2, -h / 2);
-      ctx.filter = 'hue-rotate(' + ((s * 37) % 50 - 25) + 'deg) saturate(' + (1 + ((s >> 3) % 20) / 100) + ')';
+      const deg = (s * 37) % 50 - 25, sat = 1 + ((s >> 3) % 20) / 100;
+      if (CANVAS_FILTER) ctx.filter = 'hue-rotate(' + deg + 'deg) saturate(' + sat + ')';
+      else tint = hueShifted(img, iw, ih, Math.abs(ctx.getTransform().a) || 1, deg, sat);
     }
-    coverImg(ctx, img, x0, y0, iw, ih);
+    if (tint) ctx.drawImage(tint, x0, y0, iw, ih); else coverImg(ctx, img, x0, y0, iw, ih);
     ctx.restore();
     gildFrame(ctx, x0, y0, iw, ih, w);
     return;
@@ -2455,7 +2482,7 @@ function drawLitTable(ctx, id, W, H, band) {
   const tex = artImg('tex-' + id + (H > W * 1.1 ? '-p' : '-l')) || artImg('tex-' + id + (H > W * 1.1 ? '-l' : '-p'));
   if (!tex) return false;
   const z = look.zoom || 1; // zoom > 1 enlarges a fine pattern so it sits well below card-index scale
-  if (look.blur && W > 200) { ctx.save(); ctx.filter = 'blur(' + look.blur + 'px)'; coverImg(ctx, tex, -4, -4, W + 8, H + 8, .5, .5, z); ctx.restore(); }
+  if (look.blur && W > 200) blurCover(ctx, tex, W, H, z, look.blur);
   else coverImg(ctx, tex, 0, 0, W, H, .5, .5, z);
   if (look.tone) { ctx.fillStyle = look.tone; ctx.fillRect(0, 0, W, H); }
   const glow = look.glow && artImg(look.glow);
@@ -4482,6 +4509,14 @@ window.__game = {
   fxLevel() { return lowFx ? 'low' : 'full'; },
   audioList, audioRender, audioState,
   ambient: () => ({ fps: AMB.fps, running: !!ambTimer, wanted: ambientWanted(), frames: ambFrames, painted: (() => { const d = actx.getImageData(0, 0, amb.width, amb.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; })() }),
+  canvasFilter: () => CANVAS_FILTER,
+  tableBlur(id, px) { TABLE_LOOK[id].blur = px; tableDirty = true; markDirty(); return true; },
+  backMean(seed) { // the mean colour of the skylight back drawn with a deck seed
+    const c = document.createElement('canvas'); c.width = 90; c.height = 135; const cx = c.getContext('2d'); drawBack(cx, 'skylight', 90, 135, seed);
+    const p = cx.getImageData(0, 0, 90, 135).data, m = [0, 0, 0]; let k = 0;
+    for (let i = 0; i < p.length; i += 4) { if (p[i + 3] < 250) continue; m[0] += p[i]; m[1] += p[i + 1]; m[2] += p[i + 2]; k++; }
+    return m.map((v) => v / k);
+  },
   placeMarks: () => (placeDrawn ? JSON.parse(JSON.stringify(placeDrawn)) : null),
   cuesPlayed(clear) { const r = CUE_LOG.slice(); if (clear) CUE_LOG.length = 0; return r; },
   frameStats(reset) {
