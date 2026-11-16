@@ -2708,8 +2708,8 @@ function heroFrame(ctx, W, H) {
   ctx.restore();
 }
 // Small deco name tags on the painting (placed in the picture's own coordinates, so they follow the crop). A tag whose spot is cropped away,
-// or would sit among the title and buttons, is left out. Both names are in the game's facts: the Arlington, and the bathhouses along Central Avenue.
-const HERO_TAGS = [['ARLINGTON', 675, 100, 0, -26], ['CENTRAL AVENUE · BATHHOUSE ROW', 594, 215, -150, -22]];
+// or would sit among the title and buttons, is left out. The name is in the game's facts: the bathhouses along Central Avenue.
+const HERO_TAGS = [['CENTRAL AVENUE · BATHHOUSE ROW', 594, 215, -150, -22]];
 let heroShown = { drawn: false, tags: [] }; // what the last title frame drew over the painting (read by the tests)
 function heroLabels(ctx, img, W, H, ax, ay, dark) {
   heroShown = { drawn: true, tags: [] };
