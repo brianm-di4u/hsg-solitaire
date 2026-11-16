@@ -435,20 +435,43 @@ const KEY = 'spa-solitaire:v1:';
 let storageOK = true;
 const hadSave = (() => { try { return ['settings', 'stats', 'meta', 'current'].some((k) => localStorage.getItem(KEY + k) != null); } catch (e) { return false; } })();
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+// A save that carries a higher version number than this build knows came from a newer game (a rolled-back release, or a
+// stale copy of the page). It is left exactly as it is: nothing is read from it, written over it or removed, and this
+// visit plays from defaults in memory. Damaged or wrong-shaped saves are not newer saves and are mended as before.
+const SAVE_VERSION = 1;
+const newerSave = (() => {
+  try {
+    for (const k of ['settings', 'stats', 'meta', 'current']) {
+      const raw = localStorage.getItem(KEY + k); if (!raw) continue;
+      let o = null; try { o = JSON.parse(raw); } catch (e) { continue; }
+      if (!isObj(o)) continue;
+      for (const v of [o.v, isObj(o.state) ? o.state.v : undefined]) if (typeof v === 'number' && v > SAVE_VERSION) return true;
+    }
+  } catch (e) { /* unreadable storage is handled by load() */ }
+  return false;
+})();
 function load(name, fallback) {
+  if (newerSave) return fallback;
   let raw;
   try { raw = localStorage.getItem(KEY + name); } catch (e) { storageOK = false; return fallback; }
   if (!raw) return fallback;
   try { return JSON.parse(raw); } catch (e) { try { localStorage.removeItem(KEY + name); } catch (e2) { /* storage is read-only */ } return fallback; }
 }
 function save(name, value) {
+  if (newerSave) return;
   try { if (value == null) localStorage.removeItem(KEY + name); else localStorage.setItem(KEY + name, JSON.stringify(value)); if (!storageOK) { storageOK = true; storageNote(); } }
   catch (e) { const was = storageOK; storageOK = false; if (was) storageNote(); }
 }
 // Say so when progress can't be kept: a notice on the title while it is true, and one toast the first time. A save that works again clears it.
 let uiReady = false, storageToasted = false;
+const NEWER_NOTE = 'This visit is not being saved: your saved games come from a newer version of Spa City Solitaire.';
 function storageNote() {
   if (!uiReady) return;
+  if (newerSave) {
+    const el = $('#tStore'); el.textContent = NEWER_NOTE; el.hidden = false;
+    if (!storageToasted) { storageToasted = true; toast(NEWER_NOTE); }
+    return;
+  }
   $('#tStore').hidden = storageOK;
   if (!storageOK && !storageToasted) { storageToasted = true; toast('Progress cannot be saved in this browser.'); }
 }
