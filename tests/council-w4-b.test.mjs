@@ -57,4 +57,26 @@ export const tests = [
       t.expect(Math.max(...dRef) < 3, 'and it lands on the colours the filter gives: off by ' + dRef.map((v) => v.toFixed(1)).join(', '));
     },
   },
+  // ------------------------------------------------------------------------------------------ S1-14
+  {
+    name: 'w4b S1-14 the tag after an Undo says "undo used" in quiet words and a Hint says "hint used"',
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced' });
+      const tag = () => t.page.evaluate(() => { const b = document.getElementById('assistTag'), r = b.getBoundingClientRect(); return { text: b.textContent, hidden: b.hidden, right: r.right, left: r.left, w: innerWidth }; });
+      await t.seed(11); await t.game('newGame', { mode: 'klondike', draw: 1 });
+      t.expect((await tag()).hidden, 'a fresh deal shows no tag');
+      await t.game('act', 'draw'); await t.game('act', 'undo');
+      let g = await tag();
+      t.equal([g.hidden, g.text], [false, 'undo used'], 'an Undo shows the quiet words');
+      t.expect(g.left >= 0 && g.right <= g.w, 'the tag sits inside the screen');
+      await shot(t, 'S1-14', 'undo-used');
+      await t.game('act', 'hint');
+      g = await tag(); t.equal(g.text, 'undo + hint', 'an Undo and a Hint say both');
+      t.expect(g.left >= 0 && g.right <= g.w, 'the longer words still fit');
+      await t.checkLayout(); await shot(t, 'S1-14', 'undo-and-hint');
+      await t.game('newGame', { mode: 'klondike', draw: 1 });
+      await t.game('act', 'hint');
+      t.equal((await tag()).text, 'hint used', 'a Hint alone says so');
+    },
+  },
 ];
