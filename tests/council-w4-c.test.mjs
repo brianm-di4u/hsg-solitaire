@@ -117,4 +117,57 @@ export const tests = [
       t.expect((await note()).hidden, 'only FreeCell has the note');
     },
   },
+  // ------------------------------------------------------------------------------------------ C4-04
+  {
+    name: 'w4c C4-04 a new profile gets the squared volume curve; a profile that exists keeps the straight one',
+    viewports: ['desktop'],
+    async run(t) {
+      const gain = (v, c) => t.page.evaluate(([v, c]) => window.__game.volumeGain(v, c), [v, c]);
+      const stored = () => t.page.evaluate((p) => JSON.parse(localStorage.getItem(p + 'settings')), P);
+      // fresh: nothing stored, so the profile is new
+      await t.page.evaluate(() => localStorage.clear()); await reloadGame(t);
+      let s = (await t.state()).settings;
+      t.equal([s.volumeCurve, s.volume], ['square', 0.75], 'a new profile is on the squared curve, slider at 0.75');
+      t.equal((await stored()).volumeCurve, 'square', 'and it is written once, at the start');
+      t.equal(await gain(0.5, s.volumeCurve), 0.25, 'half way is a quarter of the gain');
+      t.equal(await gain(0.75, s.volumeCurve), 0.5625, 'the starting slider gives 0.5625, close to the old 0.6');
+      await t.page.evaluate(() => document.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'mouse', bubbles: true }))); // the first gesture starts the sound
+      await t.page.waitForFunction(() => window.__game.masterGain() !== null, null, { timeout: 8000 });
+      t.equal(await t.game('masterGain'), 0.5625, 'the real master gain is the squared value');
+      await t.game('setSettings', { volume: 0.5 });
+      t.equal(await t.game('masterGain'), 0.25, 'and follows the slider through the curve');
+      t.equal((await stored()).volumeCurve, 'square', 'the setting stays what it was');
+      // an existing wave-3 profile: settings and stats stored, no curve
+      const old = { sound: true, volume: 0.4, music: true, sfx: true };
+      await t.page.evaluate(([p, o]) => { localStorage.clear(); localStorage.setItem(p + 'settings', JSON.stringify(o)); localStorage.setItem(p + 'stats', JSON.stringify({ klondike1: { played: 3, won: 1 } })); }, [P, old]);
+      await reloadGame(t);
+      s = (await t.state()).settings;
+      t.equal([s.volumeCurve, s.volume], ['linear', 0.4], 'a profile that already exists stays on the straight line with its own slider');
+      t.equal(await gain(0.4, s.volumeCurve), 0.4, 'its loudness at the saved position is exactly what it was');
+      t.expect((await stored()).volumeCurve !== 'square', 'nothing has switched it');
+      await t.page.evaluate(() => document.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'mouse', bubbles: true })));
+      await t.page.waitForFunction(() => window.__game.masterGain() !== null, null, { timeout: 8000 });
+      t.equal(await t.game('masterGain'), 0.4, 'the real master gain is the saved slider position, not its square');
+      await t.game('setSettings', { volume: 0.5 });
+      t.equal(await t.game('masterGain'), 0.5, 'and moving the slider is as it always was');
+      await reloadGame(t);
+      t.equal((await t.state()).settings.volumeCurve, 'linear', 'a later visit does not switch it either');
+    },
+  },
+  {
+    name: 'w4c C4-04 the volume curve reaches the render: half on the squared curve is the same loudness as a quarter on the straight one, and full volume stays clear of clipping on both',
+    viewports: ['desktop'],
+    async run(t) {
+      const render = (name, secs, over) => t.page.evaluate(([n, s, o]) => window.__game.audioRender(n, s, false, o), [name, secs, over]);
+      // The title piece is seeded, so every render of it is the same sound: the levels differ only by the gain.
+      const sq = await render('title', 8, { volume: 0.5, volumeCurve: 'square' }), lin = await render('title', 8, { volume: 0.25, volumeCurve: 'linear' }), half = await render('title', 8, { volume: 0.5, volumeCurve: 'linear' });
+      t.expect(near(sq.rms / lin.rms, 1, 0.03), 'squared 0.5 and straight 0.25 render the same level: ' + sq.rms + ' and ' + lin.rms);
+      t.expect(half.rms / sq.rms > 1.8, 'straight 0.5 is about twice as loud as squared 0.5: ' + (half.rms / sq.rms).toFixed(2));
+      const MAX = { volume: 1, musicVol: 1, ambVol: 1 };
+      for (const curve of ['linear', 'square']) {
+        const mix = await render('mix', 12, Object.assign({ volumeCurve: curve }, MAX));
+        t.expect(mix.peak < 0.95, 'the busiest moment at full volume stays under 0.95 on the ' + curve + ' curve: ' + mix.peak);
+      }
+    },
+  },
 ];

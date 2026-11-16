@@ -236,7 +236,7 @@ deterministic.
 
 | Key | Value |
 |---|---|
-| `spa-solitaire:v1:settings` | `{sound, volume, motion:'auto'/'full'/'reduced', leftHanded, cardSize:'compact'/'standard'/'large', fourColor, autoFoundation:'off'/'safe'/'all', back, table, showTimer, deckSeed}` |
+| `spa-solitaire:v1:settings` | `{sound, volume, volumeCurve:'linear'/'square' (a new profile is 'square' with volume 0.75; a stored profile without the key reads 'linear'), motion:'auto'/'full'/'reduced', leftHanded, cardSize:'compact'/'standard'/'large', fourColor, autoFoundation:'off'/'safe'/'all', back, table, showTimer, deckSeed}` |
 | `spa-solitaire:v1:stats` | `{ [modeKey]: {played, won, streak, bestStreak, bestTimeMs, fewestMoves, bestScore, totalMs} }`, where modeKey is one of `klondike1 klondike3 freecell spider1 spider2 spider4 yukon` |
 | `spa-solitaire:v1:current` | `{state, undo:[≤400 snapshots]}`, written 300 ms after each move, cleared on a win |
 | `spa-solitaire:v1:meta` | `{lastMode, lastOpts, totalWins, daily:{'YYYY-MM-DD|modeKey': 'won'/'played'}, factIndex}` |
