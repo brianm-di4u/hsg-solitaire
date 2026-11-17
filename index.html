@@ -130,6 +130,7 @@
   .tile h2{margin:0;font-family:var(--font-display);font-weight:400;font-size:1.3rem;letter-spacing:.03em;color:var(--t-brass);text-align:center}
   .tile .tsub{display:block;text-align:center;font-family:var(--font-deco);font-size:.74rem;letter-spacing:.04em;color:var(--t-ink);margin-top:-4px}
   .tile p{margin:0;font-size:.8rem;color:var(--t-muted);flex:1;text-align:center;line-height:1.35}
+  @media (max-width:380px){ .tile .tsub{font-size:.64rem;letter-spacing:0} } @media (max-width:340px){ .tile .tsub{font-size:.58rem} } /* the longest plaque lines (19 letters) stay on one line on a 360 or 320 px phone */
   #title .chip{border-color:var(--t-brass);color:var(--t-brass);background:#111A15}
   #title .chip.solid{background:#D2A84E linear-gradient(#E9C873,#B8862C);color:#1B1408;border-color:#F3DA92}
   #title .btn{background:#16201B;color:var(--t-ink);border-color:rgba(233,200,115,.5)}

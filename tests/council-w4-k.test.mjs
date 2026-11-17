@@ -48,4 +48,21 @@ export const tests = [
       const s = await t.state(); t.equal([s.mode, s.deal], ['freecell', 4242], 'Enter from the title chip dealt FreeCell 4242, and no other chip was pressed after it');
     },
   },
+  {
+    name: 'w4k K-04 the plaque lines stay on one line at 390, 360 and 320 px wide',
+    viewports: ['mobile'],
+    async run(t) {
+      await baseSettings(t, { tips: false });
+      for (const [w, h] of [[390, 844], [360, 640], [320, 568]]) {
+        await t.page.setViewportSize({ width: w, height: h });
+        await t.game('scene', 'title'); await t.waitForStable();
+        const p = await t.page.evaluate(() => [...document.querySelectorAll('.tile .tsub')].map((e) => {
+          const r = document.createRange(); r.selectNodeContents(e);
+          return { text: e.textContent, lines: new Set([...r.getClientRects()].map((q) => Math.round(q.top))).size, clipped: e.scrollWidth > e.clientWidth + 1, over: e.getBoundingClientRect().right > e.closest('.tile').getBoundingClientRect().right };
+        }));
+        t.expect(p.every((x) => x.lines === 1 && !x.clipped && !x.over), w + 'x' + h + ': one line each, none cut off: ' + JSON.stringify(p.map((x) => [x.text, x.lines])));
+        await t.checkLayout(); await shot(t, 'K-04', 'plaques-' + w);
+      }
+    },
+  },
 ];
