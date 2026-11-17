@@ -322,10 +322,10 @@
     font-family:var(--font-deco);font-weight:600;font-size:.92rem;box-shadow:0 4px 14px rgba(0,0,0,.45)}
   #coach[hidden]{display:none} #coach ~ #toast{bottom:74px} #coach[hidden] ~ #toast{bottom:14px}
   #tabNote{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:max-content;max-width:94%;display:flex;align-items:center;gap:8px;z-index:5;
-    background:rgba(16,24,19,.94);color:var(--lac-ink);border:1px solid rgba(233,200,115,.6);border-radius:22px;padding:4px 6px 4px 16px;
+    background:rgba(16,24,19,.94);color:var(--lac-ink);border:1px solid rgba(233,200,115,.6);border-radius:22px;padding:4px 12px 4px 16px;
     font-family:var(--font-deco);font-weight:600;font-size:.86rem;box-shadow:0 4px 14px rgba(0,0,0,.45)}
   #tabNote[hidden]{display:none} #tabNote:not([hidden]) ~ #coach,#tabNote:not([hidden]) ~ #toast{bottom:84px} #tabNote:not([hidden]) ~ #coach:not([hidden]) ~ #toast{bottom:144px}
-  #tabNote button{min-height:44px;min-width:44px;padding:0 14px;border-radius:var(--radius-pill);border:1px solid rgba(233,200,115,.6);background:transparent;color:inherit;font:inherit;font-size:.8rem;cursor:pointer;white-space:nowrap}
+  #tabNote button{flex:none;min-height:44px;min-width:44px;padding:0 14px;border-radius:var(--radius-pill);border:1px solid rgba(233,200,115,.6);background:transparent;color:inherit;font:inherit;font-size:.8rem;cursor:pointer;white-space:nowrap}
   #coach button{min-height:44px;min-width:44px;padding:0 14px;border-radius:var(--radius-pill);border:1px solid rgba(233,200,115,.6);background:transparent;color:inherit;font:inherit;font-size:.8rem;cursor:pointer;white-space:nowrap}
   #bHint.pt{outline:3px solid var(--color-highlight);outline-offset:2px}
   @media (prefers-reduced-motion:no-preference){ #bHint.pt:not(.st){animation:pt 1.3s ease-in-out infinite} }

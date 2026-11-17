@@ -86,4 +86,17 @@ export const tests = [
       t.equal((await t.game('meta')).seenFacts.length, 1, 'and one fact is used up, not four');
     },
   },
+  {
+    name: 'w4k K-06 the two-tab notice keeps room to the right of its Got it button',
+    async run(t) {
+      await baseSettings(t, { tips: false });
+      await t.game('newGame', { mode: 'klondike', draw: 1 });
+      await t.page.evaluate(() => { document.getElementById('tabNote').hidden = false; });
+      const g = await t.page.evaluate(() => { const n = document.getElementById('tabNote').getBoundingClientRect(), b = document.getElementById('tabNoteX').getBoundingClientRect(); const l = document.getElementById('tabNoteX'); return { gap: n.right - b.right, inside: n.left >= 0 && n.right <= innerWidth, label: (() => { const r = document.createRange(); r.selectNodeContents(l); return b.right - r.getBoundingClientRect().right; })() }; });
+      t.expect(g.gap >= 10, 'at least 10 px between the button and the notice edge: ' + g.gap.toFixed(1));
+      t.expect(g.inside, 'and the notice is inside the screen');
+      t.expect(g.label >= 10, 'and the label sits at least 10 px inside its own button edge, not squeezed against it: ' + g.label.toFixed(1));
+      await t.checkLayout(); await shot(t, 'K-06', 'tab-note');
+    },
+  },
 ];
