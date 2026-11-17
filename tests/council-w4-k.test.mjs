@@ -65,4 +65,25 @@ export const tests = [
       }
     },
   },
+  {
+    name: 'w4k K-05 pressing Hint again at the same dead end shows the same fact and uses up no new one',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { tips: false, motion: 'reduced' });
+      await t.page.evaluate(([k]) => { const m = JSON.parse(localStorage.getItem(k) || '{}'); m.seenFacts = []; localStorage.setItem(k, JSON.stringify(m)); }, [MK]);
+      await t.reload();
+      await t.game('setState', DEAD);
+      const fact = () => t.page.evaluate(() => { const e = document.querySelector('#sheet .fact'); return e ? e.textContent : null; });
+      const texts = [];
+      for (let i = 0; i < 4; i++) {
+        const h = await t.game('act', 'hint'); t.equal(h.stuck, true, 'press ' + (i + 1) + ': a dead end');
+        await t.page.waitForFunction(() => window.__game.getState().modal === 'stuck');
+        texts.push(await fact());
+        await t.page.keyboard.press('Escape');
+        await t.page.waitForFunction(() => !window.__game.getState().modal);
+      }
+      t.expect(texts[0] && texts.every((x) => x === texts[0]), 'four presses, one fact: ' + JSON.stringify(texts.map((x) => x && x.slice(0, 30))));
+      t.equal((await t.game('meta')).seenFacts.length, 1, 'and one fact is used up, not four');
+    },
+  },
 ];

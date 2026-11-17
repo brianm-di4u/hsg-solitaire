@@ -708,6 +708,7 @@ let animDelay = {};          // uid → ms delay before its next tween starts (s
 let flipQueue = [];          // uids that just turned face up (for flip animation + sound)
 let hintState = null;        // {list, i, until}
 let stuckVerdict = null;     // last dead-end check: 'dead' | 'live' | 'unknown' | null
+let stuckFact = null;        // the fact the dead-end dialog showed for this position: { key, fi }
 let stuckShownFor = null;    // posKey the "no more moves" popup was last shown for
 let stuckTimer = 0;
 let nextDeal = null;         // set by __game.seed(n)
@@ -1375,7 +1376,11 @@ function checkStuck() {
 function showStuck(force) {
   const k = posKey();
   if (!force && stuckShownFor === k) return;
-  stuckShownFor = k; sfx('nope'); const fi = pickFact('stuck:' + S.mode + ':' + S.deal + ':' + S.moves); save('meta', meta); openModal('stuck', { fact: FACTS[fi] });
+  // The fact is picked once for a dead end and reused while the position stays the same, so pressing Hint again does not use up a new one each time.
+  stuckShownFor = k; sfx('nope');
+  const fk = S.mode + ':' + S.deal + ':' + k;
+  if (!stuckFact || stuckFact.key !== fk) stuckFact = { key: fk, fi: pickFact('stuck:' + S.mode + ':' + S.deal + ':' + S.moves) };
+  save('meta', meta); openModal('stuck', { fact: FACTS[stuckFact.fi] });
 }
 function clearStuck() { clearTimeout(stuckTimer); stuckTimer = 0; stuckVerdict = null; stuckShownFor = null; lostRun++; lostVerdict = null; lostWarned = false; }
 
