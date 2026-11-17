@@ -148,7 +148,10 @@ export const tests = [
       t.expect(a.painted > 0, 'the ambient layer has paint on it: ' + a.painted);
       await t.page.waitForFunction((n) => window.__game.ambient().frames >= n + 4, a.frames);
       const rate = await t.page.evaluate(() => new Promise((done) => { const f0 = window.__game.ambient().frames, t0 = performance.now(); setTimeout(() => done((window.__game.ambient().frames - f0) / ((performance.now() - t0) / 1000)), 1000); }));
-      t.expect(rate <= 11.5 && rate > 0, 'about 10 frames a second at most (C4-12: it was 20), never a full-rate loop: ' + rate.toFixed(1));
+      t.expect(rate <= 11.5, 'about 10 frames a second at most (C4-12: it was 20), never a full-rate loop: ' + rate.toFixed(1));
+      // The floor (K-01): at a set 10 a second, twelve more repaints of the game's own counter arrive inside 4 seconds, which is more than 3 a second. The wait ends on the count, so a busy machine only costs time.
+      const f0 = (await amb()).frames;
+      await t.page.waitForFunction((n) => window.__game.ambient().frames >= n + 12, f0, { timeout: 4000 }).catch(() => t.fail('the ambient layer repainted fewer than 12 times in 4 seconds (3 a second): ' + JSON.stringify(f0)));
       t.expect(await t.page.evaluate(() => { const r = document.getElementById('cv').getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2).id; }) === 'cv', 'it never takes a press from the table');
       t.expect((await t.game('isIdle')) === true, 'it does not keep the game from being idle');
       const m = await t.frameCost(1500); t.log('frame cost with the ambient layer running: ' + JSON.stringify(m));
