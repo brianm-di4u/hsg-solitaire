@@ -35,4 +35,17 @@ export const tests = [
       t.expect(h.ok === true && !h.pending, 'a later Hint answers, not pending: ' + JSON.stringify(h));
     },
   },
+  {
+    name: 'w4k K-03 Enter in the Deal # box opened from the title deals, as the Deal button does',
+    async run(t) {
+      await baseSettings(t, { tips: false, motion: 'reduced' });
+      await t.game('scene', 'title'); await t.waitForStable();
+      await t.page.locator('#tiles .chip[aria-label="FreeCell: Deal #"]').click();
+      await t.page.waitForSelector('#dealIn');
+      await t.page.fill('#dealIn', '4242');
+      await t.page.press('#dealIn', 'Enter');
+      await t.page.waitForFunction(() => { const s = window.__game.getState(); return s.deal === 4242 && s.mode === 'freecell' && !s.modal; }, null, { timeout: 5000 });
+      const s = await t.state(); t.equal([s.mode, s.deal], ['freecell', 4242], 'Enter from the title chip dealt FreeCell 4242, and no other chip was pressed after it');
+    },
+  },
 ];

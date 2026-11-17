@@ -4564,7 +4564,7 @@ const BIND = {
   deal(d) {
     const go = () => { const v = parseInt($('#dealIn').value.replace(/[^0-9]/g, ''), 10); if (!v) { $('#dealIn').focus(); return; } const mode = d.mode || (S ? S.mode : 'klondike'); confirmAbandon({ mode, deal: v }); };
     sheet.querySelector('[data-a="goDeal"]').onclick = go;
-    $('#dealIn').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+    $('#dealIn').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } }; // keydown cancelled: the Enter's keypress would otherwise land on the chip the dialog hands focus back to (on the title, Draw 1)
     const note = () => { const mode = d.mode || (S ? S.mode : 'klondike'); $('#dealNote').hidden = !(mode === 'freecell' && parseInt($('#dealIn').value.replace(/[^0-9]/g, ''), 10) === FC_UNWINNABLE); };
     $('#dealIn').oninput = note; note();
   },
