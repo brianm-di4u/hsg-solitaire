@@ -1287,6 +1287,7 @@ function* solverHintG() {
 
 // The whole search for a Hint, as a generator (see analyzeG): the nearest-gain search, the solver's line where it finds one, and the dead-end proof.
 function* hintSearch() {
+  if (hintFault) { hintFault = false; throw new Error('Hint search failed (forced by a test)'); }
   const a = yield* analyzeG(HINT_BUDGET, false, true);
   let list = a.productive, verdict, dead = false;
   const sl = yield* solverHintG();
@@ -1303,6 +1304,7 @@ function* hintSearch() {
 }
 const hintSig = () => S.moves + '|' + undoStack.length + '|' + (S.piles.stock ? S.piles.stock.length : 0);
 let hintJob = null; // a Hint search still running between frames
+let hintFault = false; // test hook: the next search throws on its first turn
 const HINT_SLICE_MS = 8; // how long one turn of a running search may take
 // A press of the Hint button or key searches a few milliseconds at a time, so the table never freezes (a hard FreeCell or Spider position took up to
 // a second in one go); the hook and everything that wants the answer now ask for it whole. A search that the player's next move has made out of date is dropped.
@@ -1311,7 +1313,8 @@ function runHintJob(gen, job) {
     if (hintJob !== job) return;
     if (!S || S !== job.S || modalKind || titleOn || hintSig() !== job.sig) { hintJob = null; return; }
     const end = now() + HINT_SLICE_MS; let r;
-    do r = gen.next(); while (!r.done && now() < end);
+    try { do r = gen.next(); while (!r.done && now() < end); }
+    catch (e) { hintJob = null; throw e; } // one failed search must not leave every later Hint answering 'pending'
     if (!r.done) { setTimeout(turn, 0); return; }
     hintJob = null; hintApply(r.value, job.sig);
   };
@@ -4667,6 +4670,7 @@ window.__game = {
   meta() { return JSON.parse(JSON.stringify(meta)); },
   fxLevel() { return lowFx ? 'low' : 'full'; },
   audioList, audioRender, audioState,
+  failNextHint() { hintFault = true; },
   cueTones(name, arg) { // the pitch of every tone a cue starts, from an offline context
     const oc = new OfflineAudioContext(1, 4410, 44100), tones = [], make = oc.createOscillator.bind(oc);
     oc.createOscillator = () => { const o = make(), set = o.frequency.setValueAtTime.bind(o.frequency); o.frequency.setValueAtTime = (v, at) => { tones.push({ f: v, type: o.type, at }); return set(v, at); }; return o; };
