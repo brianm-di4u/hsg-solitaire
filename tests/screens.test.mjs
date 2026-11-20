@@ -281,7 +281,7 @@ export const tests = [
       t.equal((await t.state()).modal, null, 'calm static emblem beat runs before win sheet');
       await t.page.keyboard.press('Enter'); // skippable immediately
       await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 3000 });
-      await t.page.waitForFunction(() => window.__game.cuesPlayed().some((c) => c.name === 'place' && c.arg === 3), null, { timeout: 2500 });
+      await t.page.waitForFunction(() => window.__game.cuesPlayed().some((c) => c.name === 'punch'), null, { timeout: 2500 });
       t.expect(true, 'Bath Ticket punch SFX fires even under reducedMotion()');
       await t.game('scene', 'game');
 

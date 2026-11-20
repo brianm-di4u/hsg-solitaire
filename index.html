@@ -438,7 +438,7 @@
 
 <div id="modal"><div class="sheet-frame" id="sheetFrame"><div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="mT"></div></div></div>
 <div id="dealing" aria-hidden="true">Finding a winnable deal…</div>
-<div id="sr" class="sr-only" role="status" aria-live="polite"></div>
+<div id="sr" class="sr-only"><span id="srA" role="status" aria-live="polite"></span><span id="srB" role="status" aria-live="polite"></span></div>
 <script>
 'use strict';
 (() => {
@@ -537,7 +537,7 @@ const WON_DEALS_KEPT = 200;
 const DEFAULT_SETTINGS = {
   sound: true, volume: 0.6, volumeCurve: 'linear', motion: 'auto', leftHanded: false, cardSize: 'standard', layout: 'fit', fourColor: false,
   autoFoundation: 'safe', back: 'skylight', table: 'felt', showTimer: true, deckSeed: 1914, courts: 'deco',
-  tapMove: 'tap', // how a press on a card moves it: tap (today's way), double-tap, or drag only
+  tapMove: 'tap', // how a press on a card moves it: tap (today's way), double-tap, select & place, or drag only
   scoring: 'standard', // standard: calm card points without a countdown (default); timed: opt-in speed bonus on a win; none: no score shown
   dealFairness: 'winnable', // unified deal fairness: winnable (Any, default), easy, medium, hard, or random (Classic Random)
   dealGrade: 'any', // synced mirror for legacy saves & test hooks: any, easy, medium or hard
@@ -876,7 +876,7 @@ function settleTableau(delayBase) {
           runArcFx.add(u);
           if (j < run.length - 1) suppressLandFx.add(u); else milestoneLandFx.add(u);
         });
-        d += 400; S.runs++; addScore(100, 'f' + f, run[run.length - 1]); changed = true; sfx('run');
+        d += 400; S.runs++; addScore(100, 'f' + f, run[run.length - 1]); changed = true; sfx('run', undefined, pilePan('f' + f));
         if (!S.replay) { syncShared(); const a = earn({ wins: meta.totalWins, w: null, run: true }); if (a.length) { save('meta', meta); setTimeout(() => achToast(a), 900); } }
         announce('Completed a run of ' + SUIT_NAME[card(run[0]).s]);
       }
@@ -906,7 +906,10 @@ function autoplay(delayBase) {
       const f = foundationFor(u);
       if (f && (mode === 'all' || safeToAutoplay(u))) {
         if (!settings.autoNoted) { settings.autoNoted = true; saveSettings(); toast('Moved the ' + describeCard(u).replace(/^./, (c) => c.toLowerCase()) + ' up. Turn this off in Settings.'); } // said once, the first time a card moves by itself
-        rawMove(id, S.piles[id].length - 1, f, d + 1); S.moves++; cueOnLand('found', card(u).r, 0, u, true); d += 90; moved = true; settleTableau(d); break;
+        rawMove(id, S.piles[id].length - 1, f, d + 1); S.moves++;
+        cueOnLand('found', card(u).r, pilePan(f), u, true);
+        if (card(u).r === 13) cueOnLand('king', 13, pilePan(f), u, true, 'king');
+        d += 90; moved = true; settleTableau(d); break;
       }
     }
   }
@@ -934,15 +937,29 @@ function startClock() {
 }
 
 function afterAction(opts = {}) {
+  const prevDown = downCount();
   let d = settleTableau(opts.delay || 0);
   if (!opts.noAutoplay) d = autoplay(d + (opts.delay ? 0 : 120));
   hintState = null;
   if (!S.won && isWon()) { S.won = true; finishRun = d > 300; onWin(d); }
   if (flipQueue.length) {
-    for (const u of flipQueue) cueOnLand('flip', undefined, undefined, u, true, 'flip');
+    for (const u of flipQueue) cueOnLand('flip', undefined, pilePan(pileOf(u)), u, true, 'flip');
     flipQueue.length = 0;
   }
+  if (!S.won && prevDown > 0 && downCount() === 0) sfx('shimmer', undefined, 0, { delay: Math.min(d + 160, 1200) / 1000, auto: true });
   relayout(); if (!deferLand) flushLandCues(); updateHUD(); scheduleSave(); scheduleStuckCheck();
+}
+
+// Spatial stereo panning across tabletop columns/piles, clamped to [-0.55, 0.55] (W6-S5-10); UI & global fanfares remain centered.
+function pilePan(id) {
+  if (!id || !L || !W || !L.piles || !L.piles[id]) return 0;
+  const b = L.piles[id];
+  return clamp(((b.x + L.cw / 2) / W) * 2 - 1, -0.55, 0.55);
+}
+function pileOf(u) {
+  if (!S || u == null || u < 0) return null;
+  for (const id in S.piles) if (S.piles[id].includes(u)) return id;
+  return null;
 }
 
 // A card's thump or chime belongs to the moment it lands, not the moment it is released: cues wait here until relayout has given the card
@@ -970,6 +987,7 @@ function flushLandCues() {
     let raw = 0;
     if (d) {
       if (c.mode === 'flip') raw = d.f0 > -1e8 ? d.f0 + FLIP_MS * .35 - t : 0;
+      else if (c.mode === 'king') raw = (d.dur > 0 ? d.t0 + d.dur - t : 0) + 85;
       else raw = d.dur > 0 ? d.t0 + d.dur - t - LAND_LEAD_MS : 0;
     }
     return { c, ord, ms: clamp(raw, 0, LAND_MAX_MS) };
@@ -980,7 +998,7 @@ function flushLandCues() {
     if (c.mode === 'flip') {
       if (c.auto && ms - lastAutoFlip < LAND_THIN_MS) continue;
       if (c.auto) lastAutoFlip = ms;
-    } else {
+    } else if (c.mode === 'land') {
       if (c.auto && ms - lastAutoLand < LAND_THIN_MS) continue;
       if (c.auto) lastAutoLand = ms;
     }
@@ -998,7 +1016,11 @@ function tryMove(from, idx, to, why = 'player') {
   else if (tk === 'found') pullbackHold.delete(run[0]);
   rawMove(from, idx, to);
   S.moves++; if (S.mode === 'spider') addScore(-1);
-  { const b = L && L.piles[to]; cueOnLand(tk === 'found' ? 'found' : 'place', tk === 'found' ? card(run[0]).r : run.length, b ? (b.x + L.cw / 2) / W * 2 - 1 : 0, run[0]); }
+  {
+    const pan = pilePan(to);
+    cueOnLand(tk === 'found' ? 'found' : 'place', tk === 'found' ? card(run[0]).r : run.length, pan, run[0]);
+    if (tk === 'found' && card(run[0]).r === 13) cueOnLand('king', 13, pan, run[0], false, 'king');
+  }
   announce(describeRun(run) + ' to ' + pileName(to));
   afterAction({ noAutoplay: fk === 'found' });
   return { ok: true };
@@ -1028,13 +1050,14 @@ function stockAction() {
           drawWaypoints[u] = { x: L.piles.waste.x + (down ? 0 : back ? (j - nSpan) * step : j * step), y: L.piles.waste.y + (down ? j * vstep : 0), delay: i * FLIP_GAP_MS };
         });
       }
-      for (let i = 0; i < n; i++) sfx('flip', undefined, undefined, { delay: i * FLIP_GAP_MS / 1000 }); // Draw 3 flips three cards: three flips
+      const wp = pilePan('waste');
+      for (let i = 0; i < n; i++) sfx('flip', undefined, wp, { delay: i * FLIP_GAP_MS / 1000 }); // Draw 3 flips three cards: three flips
       announce('Drew ' + describeCard(top('waste')));
     } else {
       S.recycles++;
       if (S.recycles > 1) addScore(S.opts.draw === 3 ? -20 : -50, 'stock');
       for (let i = 0; w.length; i++) { const u = w.pop(); st.push(u); S.up[u] = false; animDelay[u] = Math.min(i, 5) * 14; }
-      sfx('deal'); announce('Waste turned back to the stock');
+      sfx('recycle', S.recycles > 1, pilePan('stock')); announce('Waste turned back to the stock');
     }
     S.moves++; afterAction({ delay: stWasDrawn ? ((n - 1) * FLIP_GAP_MS + 160) : 1 });
     return { ok: true };
@@ -1043,7 +1066,7 @@ function stockAction() {
     const st = S.piles.stock; if (!st.length) return { ok: false, reason: 'empty' };
     let tabCards = 0, hasEmpty = false;
     for (let i = 0; i < 10; i++) { const n = S.piles['t' + i].length; tabCards += n; if (!n) hasEmpty = true; }
-    if (tabCards >= 10 && hasEmpty) { toast('Every column needs a card before the next row'); sfx('nope'); return { ok: false, reason: 'empty column' }; }
+    if (tabCards >= 10 && hasEmpty) { toast('Every column needs a card before the next row'); sfx('nope', undefined, pilePan('stock')); return { ok: false, reason: 'empty column' }; }
     pushUndo(); startClock(); stuckSuppressed = false;
     for (let i = 0; i < 10 && st.length; i++) { const u = st.pop(); S.piles['t' + i].push(u); S.up[u] = true; animDelay[u] = i * 45; }
     S.moves++; addScore(-1); sfx('deal'); announce('Dealt a new row');
@@ -1075,11 +1098,10 @@ function undo() {
 }
 // What a Redo sounds like: the move it puts back, synced to landing instead of t=0 (W6-S5-05).
 function redoCue(was, runs, prev) {
-  const panOf = (id) => { const b = L && L.piles[id]; return b ? (b.x + L.cw / 2) / W * 2 - 1 : 0; };
   for (const id in S.piles) {
     if (kindOf(id) === 'found' && S.piles[id].length > was[id]) {
       const u = S.piles[id][S.piles[id].length - 1];
-      return S.runs > runs ? ['run', undefined, panOf(id), u] : def().runs ? ['place', 1, panOf(id), u] : ['found', card(u).r, panOf(id), u];
+      return S.runs > runs ? ['run', undefined, pilePan(id), u] : def().runs ? ['place', 1, pilePan(id), u] : ['found', card(u).r, pilePan(id), u];
     }
   }
   let movedUid = -1, movedPile = null;
@@ -1092,7 +1114,7 @@ function redoCue(was, runs, prev) {
       if (movedUid >= 0) break;
     }
   }
-  return ['place', 1, movedPile ? panOf(movedPile) : 0, movedUid];
+  return ['place', 1, movedPile ? pilePan(movedPile) : 0, movedUid];
 }
 function redo() {
   if (!redoStack.length || !S) return { ok: false };
@@ -1621,7 +1643,7 @@ function showStuck(force) {
   const k = posKey();
   if (!force && stuckShownFor === k) return;
   // The fact is picked once for a dead end and reused while the position stays the same, so pressing Hint again does not use up a new one each time.
-  stuckShownFor = k; sfx('nope');
+  stuckShownFor = k; sfx('stuck');
   const fk = S.mode + ':' + S.deal + ':' + k;
   if (!stuckFact || stuckFact.key !== fk) stuckFact = { key: fk, fi: pickFact('stuck:' + S.mode + ':' + S.deal + ':' + S.moves) };
   save('meta', meta); openModal('stuck', { fact: FACTS[stuckFact.fi] });
@@ -1645,7 +1667,7 @@ function lostKick() {
     do r = sv.step(25); while (r === 'more' && now() < end);
     if (r === 'more') return void setTimeout(tick, 0);
     lostVerdict = r;
-    if (r === 'dead' && !lostWarned && !modalKind) { lostWarned = true; toast('No winning line left from here. Undo takes you back.'); }
+    if (r === 'dead' && !lostWarned && !modalKind) { lostWarned = true; sfx('woodTap'); toast('No winning line left from here. Undo takes you back.'); }
     else if (r !== 'dead') lostWarned = false;
   };
   setTimeout(tick, 0);
@@ -1660,12 +1682,11 @@ function autoComplete() {
     for (const step of plan) {
       const run = rawMove(step.from, step.index, step.to, d + 1);
       S.moves++; addScore(-1);
-      const b = L && L.piles[step.to];
-      cueOnLand('place', run.length, b ? (b.x + L.cw / 2) / W * 2 - 1 : 0, run[0], true);
+      cueOnLand('place', run.length, pilePan(step.to), run[0], true);
       d += 140;
       d = settleTableau(d);
     }
-    sfx('deal');
+    if (d > 300) sfx('deal');
     if (!S.won && isWon()) { S.won = true; finishRun = d > 300; onWin(d); }
     relayout(); flushLandCues(); updateHUD(); scheduleSave(); scheduleStuckCheck();
     return { ok: true };
@@ -1678,7 +1699,7 @@ function autoComplete() {
       const u = top(id); if (u < 0 || !S.up[u]) continue;
       const f = foundationFor(u); if (f && (!best || card(u).r < card(best.u).r)) best = { id, u, f };
     }
-    if (best) { rawMove(best.id, S.piles[best.id].length - 1, best.f, d + 1); S.moves++; cueOnLand('found', card(best.u).r, 0, best.u, true); d += 70; moved = true; stall = 0; settleTableau(d); }
+    if (best) { rawMove(best.id, S.piles[best.id].length - 1, best.f, d + 1); S.moves++; cueOnLand('found', card(best.u).r, pilePan(best.f), best.u, true); d += 70; moved = true; stall = 0; settleTableau(d); }
     if (!moved && def().stock === 'draw') {
       const st = S.piles.stock, w = S.piles.waste;
       if (stall > st.length + w.length + 2) break;
@@ -1695,7 +1716,7 @@ function autoComplete() {
       stall++; d += 40;
     } else if (!moved) break;
   }
-  sfx('deal');
+  if (d > 300) sfx('deal');
   if (!S.won && isWon()) { S.won = true; finishRun = d > 300; onWin(d); }
   relayout(); flushLandCues(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   return { ok: true };
@@ -1811,7 +1832,7 @@ function tapAt(from, idx) {
       if (cand) { pick = i; to = cand; break; }
     }
   }
-  if (!to) { sfx('nope'); shake(from, idx); explain(tapReason(from, idx)); return { ok: false, reason: 'no destination' }; }
+  if (!to) { sfx('nope', undefined, pilePan(from)); shake(from, idx); explain(tapReason(from, idx)); return { ok: false, reason: 'no destination' }; }
   return tryMove(from, pick, to, 'tap');
 }
 
@@ -1985,10 +2006,11 @@ function newGame(o = {}) {
 }
 function startDeal(mode, opts, deal, daily, winnable, grade) {
   abandonCurrent();
-  clearWinTimers(); cancelAutoCues();
-  landCues.length = 0; flipQueue.length = 0; drawWaypoints = {};
+  clearWinTimers(); cancelAutoCues(); cancelBuzz(); clearCueCooldowns();
+  landCues.length = 0; flipQueue.length = 0; drawWaypoints = {}; prevCanAuto = false;
   syncShared();
   S = newState(mode, opts, deal, daily); musicHush = false; clearTransientFx(true);
+  syncMusicIntensity();
   if (winnable) S.winnable = true;
   if (winnable && grade) S.grade = grade;
   const dk = modeKey(mode, S.opts) + ':' + deal;
@@ -2083,6 +2105,7 @@ function onWin(delay) {
   save('meta', meta); save('current', null);
   lastWin = { ach, opened: opened.map(unlockName), pb, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, scoring, bonus, moves: S.moves, ms: S.elapsedMs,
     best, totalWins: meta.totalWins, streak: clean ? st.streak : 0, assisted: S.assisted, replay, fact: FACTS[factIdx] };
+  syncMusicIntensity();
   announce(scoring === 'none' ? 'You won!' : 'You won! Score ' + S.score);
   winTimer = setTimeout(ceremony, Math.max(250, delay + 260));
 }
@@ -2163,10 +2186,11 @@ function loadSaved() {
 }
 function resumeSaved() {
   const c = loadSaved(); if (!c) return false;
-  clearWinTimers(); cancelAutoCues(); landCues.length = 0; flipQueue.length = 0; drawWaypoints = {};
+  clearWinTimers(); cancelAutoCues(); cancelBuzz(); clearCueCooldowns(); landCues.length = 0; flipQueue.length = 0; drawWaypoints = {};
   const prev = { S, undoStack, tabSuperseded };
   try {
     S = c.state; undoStack = c.undo; redoStack = []; pullbackHold.clear(); clearTransientFx(false); hintState = null; held = null; drag = null; cascade = null; fitHold = 1; clearStuck();
+    prevCanAuto = canAutoComplete();
     tabSuperseded = false; tabNoteHide();
     clockMark = now(); closeModal(); showTitle(false); tipHide(); tipGoalShown = null; relayout(true); markDirty(); updateHUD(); tipResetIdle();
   } catch (e) {
@@ -2681,6 +2705,7 @@ function dailyRun() {
 const DAILY_KEEP_DAYS = 400; // older daily entries are dropped when the save loads
 
 const SETTING_ENUMS = { motion: ['auto', 'full', 'reduced'], cardSize: ['compact', 'standard', 'large'], layout: ['fit', 'classic'], autoFoundation: ['off', 'safe', 'all'],
+  tapMove: ['tap', 'double', 'select', 'drag'],
   courts: ['deco', 'painted'], volumeCurve: ['linear', 'square'], scoring: ['standard', 'timed', 'none'], dealFairness: ['winnable', 'easy', 'medium', 'hard', 'random'], dealGrade: ['any', 'easy', 'medium', 'hard'], back: BACKS.map((b) => b.id), table: TABLES.map((x) => x.id) };
 for (const k in DEFAULT_SETTINGS) {
   const v = settings[k], d = DEFAULT_SETTINGS[k];
@@ -4140,12 +4165,22 @@ function frame(t) {
     ctx.strokeStyle = '#0B1A24'; ctx.lineWidth = 5.5; ctx.stroke();
     ctx.strokeStyle = '#4FC3FF'; ctx.lineWidth = 2.6; ctx.stroke(); ctx.restore();
   }
-  // Live Thermal Jade drop brackets when keyboard-held stack hovers a legal target pile (layered above cursor corners, beneath any drag).
-  if (kbMode && held && cursor.pile && cursor.pile !== held.from && L.piles[cursor.pile] && S.piles[held.from]) {
+  // Live Thermal Jade drop brackets when keyboard-held stack hovers a legal target pile, or while holding in Select & place pointer mode.
+  if (held && S.piles[held.from]) {
     const run = S.piles[held.from].slice(held.index);
-    if (canDrop(run, cursor.pile, held.from)) {
-      const tb = L.piles[cursor.pile], tc = tb.cards.length ? tb.cards[tb.cards.length - 1] : tb;
-      drawDropBrackets(tc.x, tc.y, cw, ch, .95);
+    if (kbMode && cursor.pile && cursor.pile !== held.from && L.piles[cursor.pile]) {
+      if (canDrop(run, cursor.pile, held.from)) {
+        const tb = L.piles[cursor.pile], tc = tb.cards.length ? tb.cards[tb.cards.length - 1] : tb;
+        drawDropBrackets(tc.x, tc.y, cw, ch, .95);
+      }
+    } else if (!kbMode && !drag && tapMode() === 'select') {
+      for (const id of pileIds(S.mode)) {
+        if (id === held.from || id === 'stock' || id === 'waste' || !L.piles[id]) continue;
+        if (canDrop(run, id, held.from)) {
+          const tb = L.piles[id], tc = tb.cards.length ? tb.cards[tb.cards.length - 1] : tb;
+          drawDropBrackets(tc.x, tc.y, cw, ch, .72);
+        }
+      }
     }
   }
   if (drag) {
@@ -4419,12 +4454,17 @@ function runTooLong(id, idx) {
 }
 function refuseDrag(pile, index) {
   if (kindOf(pile) === 'stock') return;
-  shake(pile, index); sfx('nope');
+  shake(pile, index); sfx('nope', undefined, pilePan(pile));
   explain(tapReason(pile, index));
 }
 const DOUBLE_TAP_MS = 360; // two presses on the same card this close are a double-tap (W6-S5-04)
-const TAP_NOTES = { tap: 'Tap sends a card to its best pile', double: 'Double-tap sends a card to its best pile', drag: 'Drag only: a tap never moves a card' }; // the line under the Settings choice
-const tapMode = () => (['tap', 'double', 'drag'].includes(settings.tapMove) ? settings.tapMove : 'tap');
+const TAP_NOTES = {
+  tap: 'Tap sends a card to its best pile',
+  double: 'Double-tap sends a card to its best pile',
+  select: 'Select & place: tap a card to pick it up, then tap a pile to place it',
+  drag: 'Drag only: a tap never moves a card',
+}; // the line under the Settings choice
+const tapMode = () => (['tap', 'double', 'select', 'drag'].includes(settings.tapMove) ? settings.tapMove : 'tap');
 // Top-tapered mobile touch upward clearance capped at <= min(L.ch * 0.28, 20) px over 75 ms (CD-WF4-05, preserving w3e S2-03).
 function touchClearance(dr, rawY, t) {
   if (!dr || !dr.touch || !L) return 0;
@@ -4463,11 +4503,11 @@ cv.addEventListener('pointerdown', (e) => {
   if (!S || S.won || e.button > 0) return;
   if (pd && pd.id !== e.pointerId) return;
   const p = ptr(e); const hit = hitTest(p.x, p.y);
-  held = null;
+  const wasHeld = held ? { from: held.from, index: held.index } : null;
   const rm = reducedMotion();
-  const pressLift = !rm && !!hit && hit.index >= 0 && canPick(hit.pile, hit.index);
+  const pressLift = !rm && !wasHeld && !!hit && hit.index >= 0 && canPick(hit.pile, hit.index);
   const pressStock = !rm && !!hit && hit.pile === 'stock' && S.piles.stock && S.piles.stock.length > 0;
-  pd = { x: p.x, y: p.y, hit, id: e.pointerId, touch: e.pointerType !== 'mouse', pressLift, pressStock };
+  pd = { x: p.x, y: p.y, hit, id: e.pointerId, touch: e.pointerType !== 'mouse', pressLift, pressStock, wasHeld };
   if (hadKb || pressLift || pressStock) markDirty();
   try { cv.setPointerCapture(e.pointerId); } catch (_) { /* capture is optional */ }
   e.preventDefault();
@@ -4478,6 +4518,7 @@ cv.addEventListener('pointermove', (e) => {
   if (!drag) {
     const dist = Math.hypot(p.x - pd.x, p.y - pd.y);
     if (dist < (pd.touch ? 10 : 6) || !pd.hit || pd.hit.index < 0) return;
+    held = null;
     const { pile, index } = pd.hit;
     if (!canPick(pile, index)) { pd.hit = null; pd.pressLift = false; markDirty(); refuseDrag(pile, index); return; }
     const run = S.piles[pile].slice(index);
@@ -4490,7 +4531,7 @@ cv.addEventListener('pointermove', (e) => {
     drag = { from: pile, index, run, ox, oy, x: sx, y: sy, rawY: sy, x0: sx, y0: sy, touch: pd.touch, touchOff: 0,
       t0: t, lastT: t, curLift: reducedMotion() ? 1.15 : 0, tilt: 0, vx: 0,
       fan: cs.length > index + 1 ? cs[index + 1].y - c0.y : 0 };
-    sfx('pick');
+    sfx('pick', undefined, pilePan(pile));
   }
   drag.vx = (drag.vx || 0) + (p.x - drag.ox - drag.x);
   drag.x = p.x - drag.ox;
@@ -4533,9 +4574,11 @@ function finishDrag() {
   let tapped = false, illegalDrop = false;
   if (best) { tryMove(dr.from, dr.index, best); }
   else if (Math.hypot(dr.x - dr.x0, (dr.rawY != null ? dr.rawY : dr.y) - dr.y0) < DRAG_TAP_REACH * (dr.touch ? 10 : 6)) {
-    if (tapMode() === 'tap') { const r = tapAt(dr.from, dr.index); tapped = !!(r && r.ok); }
+    const tm = tapMode();
+    if (tm === 'tap') { const r = tapAt(dr.from, dr.index); tapped = !!(r && r.ok); }
+    else if (tm === 'select' && canPick(dr.from, dr.index)) { held = { from: dr.from, index: dr.index }; sfx('pick', undefined, pilePan(dr.from)); announce('Picked up ' + describeRun(dr.run) + '. Tap a pile to place it.'); }
   } // a wobbly tap is still a tap
-  else if (!overSource(dr)) { illegalDrop = true; sfx('nope'); const to = dropTarget(dr, true); if (to) explain(refusalReason(dr.run, to, dr.from)); } // putting a card back where it came from is not a mistake
+  else if (!overSource(dr)) { illegalDrop = true; sfx('nope', undefined, pilePan(dr.from)); const to = dropTarget(dr, true); if (to) explain(refusalReason(dr.run, to, dr.from)); } // putting a card back where it came from is not a mistake
   // Apply monotonic drag-release settle ONLY to cards remaining on best or dr.from (never clobbering autoplay/Spider/wobbly-tap tweens & landFx, W6-S5-04).
   const keepPile = best || dr.from;
   if (!tapped) {
@@ -4557,14 +4600,49 @@ function finishDrag() {
 }
 cv.addEventListener('pointerup', (e) => {
   if (!pd || pd.id !== e.pointerId) return;
-  const hit = pd.hit, hadPress = pd.pressLift || pd.pressStock; pd = null;
+  const hit = pd.hit, hadPress = pd.pressLift || pd.pressStock, wasHeld = pd.wasHeld; pd = null;
   if (drag) { finishDrag(); return; }
   if (hadPress) markDirty();
-  if (!hit) return;
-  if (hit.pile === 'stock') { stockAction(); return; }
-  if (hit.index < 0) return;
+  if (!hit) { if (held) { sfx('place', 1, pilePan(held.from)); held = null; announce('Put back'); markDirty(); } return; }
+  if (hit.pile === 'stock') { held = null; stockAction(); return; }
   const m = tapMode();
+  // Tap-to-drop while held is active (both in Select & place and after a keyboard pickup, OQ-WF5-02).
+  if (wasHeld && held) {
+    if (hit.pile === held.from) {
+      if (m === 'select' && hit.index >= 0 && hit.index !== held.index && canPick(hit.pile, hit.index)) {
+        held = { from: hit.pile, index: hit.index };
+        sfx('pick', undefined, pilePan(hit.pile));
+        announce('Picked up ' + describeRun(S.piles[hit.pile].slice(hit.index)) + '. Tap a pile to place it.');
+      } else {
+        sfx('place', 1, pilePan(held.from)); held = null; announce('Put back');
+      }
+      markDirty(); return;
+    }
+    const h = held; held = null;
+    const r = tryMove(h.from, h.index, hit.pile, 'tap');
+    if (r.ok) { markDirty(); return; }
+    if (m === 'select') {
+      held = h; sfx('nope', undefined, pilePan(hit.pile));
+      if (!explain(refusalReason(S.piles[h.from].slice(h.index), hit.pile, h.from))) announce('Can\'t place there');
+      markDirty(); return;
+    }
+    sfx('nope', undefined, pilePan(hit.pile));
+    if (!explain(refusalReason(S.piles[h.from].slice(h.index), hit.pile, h.from))) announce('Can\'t place there');
+    markDirty(); return;
+  }
+  if (hit.index < 0) return;
   if (m === 'drag') return;
+  if (m === 'select') {
+    if (canPick(hit.pile, hit.index)) {
+      held = { from: hit.pile, index: hit.index };
+      sfx('pick', undefined, pilePan(hit.pile));
+      announce('Picked up ' + describeRun(S.piles[hit.pile].slice(hit.index)) + '. Tap a pile to place it.');
+      markDirty();
+    } else {
+      sfx('nope', undefined, pilePan(hit.pile)); shake(hit.pile, hit.index); explain(tapReason(hit.pile, hit.index));
+    }
+    return;
+  }
   if (m === 'double') {
     const t = now();
     if (!(lastTap && lastTap.pile === hit.pile && lastTap.index === hit.index && t - lastTap.t < DOUBLE_TAP_MS)) {
@@ -4623,6 +4701,7 @@ function gameKey(e) {
     case 'ArrowRight': kbMode = true; setCursor(row[(i + 1) % row.length]); break;
     case 'ArrowUp':
       kbMode = true;
+      if (e.shiftKey) { announce(inspectColumn(cursor.pile)); break; }
       if (!inTop && !held && P.length && cursor.depth > 0 && S.up[P[cursor.depth - 1]] && canPick(cursor.pile, cursor.depth - 1)) { cursor.depth--; announcePile(cursor.pile); }
       else if (!inTop) { const x = L.piles[cursor.pile].x; let best = R.top[0], bd = 1e9; for (const id of R.top) { const dd = Math.abs(L.piles[id].x - x); if (dd < bd) { bd = dd; best = id; } } setCursor(best); }
       break;
@@ -4632,14 +4711,14 @@ function gameKey(e) {
       else if (P.length && cursor.depth < P.length - 1) { cursor.depth++; announcePile(cursor.pile); }
       break;
     case 'Enter': case ' ': kbMode = true; if (activatePile(cursor.pile, cursor.depth) === 'moved') setCursorAfterMove(); break;
-    case 'Escape': if (held) { held = null; announce('Put back'); break; } openModal('menu'); break;
+    case 'Escape': if (held) { sfx('place', 1, pilePan(held.from)); held = null; announce('Put back'); break; } openModal('menu'); break;
     case 't': case 'T': kbMode = true; held = null; tapAt(cursor.pile, P.length ? cursor.depth : -1); setCursorAfterMove(); break;
     case 'f': case 'F': {
       kbMode = true; held = null;
       const ck = kindOf(cursor.pile), u = ck !== 'stock' && ck !== 'found' ? top(cursor.pile) : -1;
       const f = u >= 0 && S.up[u] && canPick(cursor.pile, P.length - 1) ? foundationFor(u) : null;
       if (f && tryMove(cursor.pile, P.length - 1, f).ok) { /* moved */ }
-      else { sfx('nope'); announce('No foundation move'); }
+      else { sfx('nope', undefined, pilePan(cursor.pile)); announce('No foundation move'); }
       setCursorAfterMove(); break;
     }
     case 'd': case 'D': stockAction(); break;
@@ -4647,6 +4726,7 @@ function gameKey(e) {
     case 'y': case 'Y': redo(); break;
     case 'h': case 'H': hint(true); break;
     case 's': case 'S': announce(tableSummary()); break;
+    case 'i': case 'I': kbMode = true; announce(inspectColumn(cursor.pile)); break;
     case 'a': case 'A': if (!autoComplete().ok) toast('Finish appears once every card can go straight home'); break;
     case 'n': case 'N': confirmAbandon({ mode: S.mode }); break;
     case '?': openModal('help'); break;
@@ -4663,14 +4743,14 @@ function kbClass() { cv.classList.toggle('kb', kbMode); }
 function activatePile(pile, depth) {
   initAudio(); const P = S.piles[pile];
   if (held) {
-    if (held.from === pile) { held = null; announce('Put back'); return 'put back'; }
+    if (held.from === pile) { sfx('place', 1, pilePan(pile)); held = null; announce('Put back'); return 'put back'; }
     const h = held; held = null; // the list is redrawn by the move, so nothing is held while it happens
     const r = tryMove(h.from, h.index, pile);
     if (r.ok) return 'moved';
-    held = h; sfx('nope'); if (!explain(refusalReason(S.piles[h.from].slice(h.index), pile, h.from))) announce('Can\'t place there');
+    held = h; sfx('nope', undefined, pilePan(pile)); if (!explain(refusalReason(S.piles[h.from].slice(h.index), pile, h.from))) announce('Can\'t place there');
   } else if (pile === 'stock') stockAction();
-  else if (P.length && canPick(pile, depth)) { held = { from: pile, index: depth }; sfx('pick'); announce('Picked up ' + describeRun(P.slice(depth)) + '. Move to a pile and press Enter.'); }
-  else { sfx('nope'); announce('Can\'t pick that up'); }
+  else if (P.length && canPick(pile, depth)) { held = { from: pile, index: depth }; sfx('pick', undefined, pilePan(pile)); announce('Picked up ' + describeRun(P.slice(depth)) + '. Move to a pile and press Enter.'); }
+  else { sfx('nope', undefined, pilePan(pile)); announce('Can\'t pick that up'); }
   return '';
 }
 function setCursorAfterMove() { if (cursor.pile && S.piles[cursor.pile]) { const p = S.piles[cursor.pile]; cursor.depth = Math.max(0, p.length - 1); } }
@@ -4684,22 +4764,44 @@ const cardsWord = (n) => n + (n === 1 ? ' card' : ' cards');
 function pileSpeech(id) {
   const p = S.piles[id], k = kindOf(id), name = pileName(id).replace(/^./, (c) => c.toUpperCase()), n = p.length;
   if (k === 'stock') return S.mode === 'spider' ? (n ? 'Stock, ' + (n / 10) + (n === 10 ? ' deal' : ' deals') + ' left. Press to deal a row' : 'Stock, empty') : n ? 'Stock, ' + cardsWord(n) + '. Press to draw' : S.piles.waste.length ? 'Stock, empty. Press to turn the waste back' : 'Stock, empty';
-  if (k === 'waste') return n ? 'Waste, ' + describeCard(top(id)) + (n > 1 ? ', ' + cardsWord(n) : '') : 'Waste, empty';
+  if (k === 'waste') {
+    if (!n) return 'Waste, empty';
+    if (S.opts.draw === 3 && n > 1) {
+      const vis = p.slice(Math.max(0, n - 3)).reverse();
+      return 'Waste, ' + describeCard(vis[0]) + ' on top, showing ' + vis.slice(1).map(describeCard).join(', ') + ' beneath, ' + cardsWord(n);
+    }
+    return 'Waste, ' + describeCard(top(id)) + (n > 1 ? ', ' + cardsWord(n) : '');
+  }
   if (k === 'found') return !n ? name + ', empty' : def().runs ? name + ', ' + (n === 13 ? 'a finished run' : cardsWord(n)) : name + ', ' + describeCard(top(id)) + ' on top';
   if (k === 'cell') return name + (n ? ', ' + describeCard(top(id)) : ', empty');
   return n ? name + ', ' + cardsWord(n) : name + ', empty';
 }
-// the list: [key, pile, depth, label] in reading order. A column is a button for each card that can be lifted, from the bottom of its run to the top card.
+// the list: [key, pile, depth, label] in reading order. Strictly actionable (CD-WF5-04): one button per pile/pickable run.
 function mirrorItems() {
-  const out = [], hold = held ? ' Press to drop ' + describeRun(S.piles[held.from].slice(held.index)) + ' here.' : '';
+  const out = [];
+  const heldRun = held && S.piles[held.from] ? S.piles[held.from].slice(held.index) : null;
+  const heldDesc = heldRun ? describeRun(heldRun) : '';
+  const dropHint = (id) => {
+    if (!heldRun) return '';
+    if (held.from === id) return '. Held — press to put back.';
+    if (id === 'stock' || id === 'waste') return '';
+    return canDrop(heldRun, id, held.from) ? '. Press to drop ' + heldDesc + ' here.' : '. Not a legal drop for ' + heldDesc + '.';
+  };
   for (const id of pileIds(S.mode)) {
     const p = S.piles[id];
-    if (kindOf(id) !== 'tab' || !p.length) { out.push([id, id, Math.max(0, p.length - 1), pileSpeech(id) + (held && id !== 'stock' && id !== 'waste' ? '.' + hold : '')]); continue; }
-    const down = p.filter((u) => !S.up[u]).length, name = pileName(id).replace(/^./, (c) => c.toUpperCase());
+    if (kindOf(id) !== 'tab' || !p.length) { out.push([id, id, Math.max(0, p.length - 1), pileSpeech(id) + dropHint(id)]); continue; }
+    const down = p.filter((u) => !S.up[u]).length, firstUp = p.findIndex((u) => S.up[u]);
+    const name = pileName(id).replace(/^./, (c) => c.toUpperCase());
+    let firstPickIdx = -1;
+    for (let i = 0; i < p.length; i++) if (S.up[p[i]] && (i === p.length - 1 || canPick(id, i))) { firstPickIdx = i; break; }
+    const buriedUp = firstUp >= 0 && firstPickIdx > firstUp ? firstPickIdx - firstUp : 0;
     for (let i = 0; i < p.length; i++) {
       if (!S.up[p[i]] || (i < p.length - 1 && !canPick(id, i))) continue;
       const on = p.length - 1 - i;
-      out.push([id + ':' + i, id, i, name + ': ' + describeCard(p[i]) + (on ? ', with ' + cardsWord(on) + ' on it' : '') + (down && p.findIndex((u) => S.up[u]) === i ? ', ' + down + ' face down' : '') + (held ? '.' + hold : '. Press to pick up')]);
+      const isHeldHere = held && held.from === id && held.index === i;
+      const suffix = held ? (isHeldHere ? '. Held — press to put back.' : dropHint(id)) : '. Press to pick up';
+      const buriedNote = buriedUp && i === firstPickIdx ? ', ' + buriedUp + ' buried face up (press I to inspect)' : '';
+      out.push([id + ':' + i, id, i, name + ': ' + describeCard(p[i]) + (on ? ', with ' + cardsWord(on) + ' on it' : '') + (down && firstUp === i ? ', ' + down + ' face down' : '') + buriedNote + suffix]);
     }
   }
   return out;
@@ -4718,13 +4820,34 @@ mirror.addEventListener('click', (e) => {
   const r = activatePile(pile, +b.dataset.depth); cursor.pile = pile; cursor.depth = Math.max(0, S.piles[pile].length - 1); if (r === 'moved') setCursorAfterMove();
   markDirty(); syncMirror();
 });
-// S: the whole table in a few sentences.
+// Full ordered bottom-to-top open-information column description (CD-WF5-04, W6-S5-10).
+function columnSpeech(id) {
+  const p = S.piles[id], num = +id.slice(1) + 1;
+  if (!p.length) return num + ', empty';
+  const down = p.filter((u) => !S.up[u]).length;
+  const up = p.filter((u) => S.up[u]);
+  const upList = up.length === 1
+    ? describeCard(up[0]) + ' on top'
+    : up.slice(0, -1).map(describeCard).join(', ') + ', ' + describeCard(up[up.length - 1]) + ' on top';
+  return num + ', ' + (down ? down + ' face down, ' : '') + upList;
+}
+// I / Shift+ArrowUp: inspect every card in the current column or pile bottom to top.
+function inspectColumn(pile) {
+  if (!S) return '';
+  const id = pile && S.piles[pile] ? pile : (cursor.pile && S.piles[cursor.pile] ? cursor.pile : 't0');
+  if (kindOf(id) !== 'tab') return pileSpeech(id).replace(/\. Press to .*$/, '');
+  const p = S.piles[id], num = +id.slice(1) + 1;
+  if (!p.length) return 'Column ' + num + ', empty';
+  const down = p.filter((u) => !S.up[u]).length, up = p.filter((u) => S.up[u]);
+  return 'Column ' + num + ': ' + (down ? down + ' face down; ' : '') + 'bottom to top: ' + up.map(describeCard).join(', ');
+}
+// S: the whole table in a few sentences, exposing every open-information face-up card bottom to top.
 function tableSummary() {
   const part = (ids) => ids.map((id) => pileSpeech(id).replace(/\. Press to .*$/, '')).join('; ');
   const ids = pileIds(S.mode), kind = (k) => ids.filter((id) => kindOf(id) === k);
   return [part(kind('stock').concat(kind('waste'))), kind('found').length ? 'Foundations: ' + kind('found').map((id) => S.piles[id].length ? (def().runs ? cardsWord(S.piles[id].length) : describeCard(top(id))) : 'empty').join(', ') : '',
     kind('cell').length ? 'Free cells: ' + kind('cell').map((id) => S.piles[id].length ? describeCard(top(id)) : 'empty').join(', ') : '',
-    'Columns: ' + kind('tab').map((id) => { const p = S.piles[id], down = p.filter((u) => !S.up[u]).length; return (+id.slice(1) + 1) + ', ' + (p.length ? (down ? down + ' face down, ' : '') + describeCard(top(id)) + ' on top' : 'empty'); }).join('; ')].filter(Boolean).join('. ');
+    'Columns: ' + kind('tab').map(columnSpeech).join('; ')].filter(Boolean).join('. ');
 }
 window.addEventListener('keydown', (e) => {
   if (modalKind) { if (e.key === 'Escape') { e.preventDefault(); if (modalKind === 'win') closeModal(); else closeModal(true); } else if (e.key === 'Tab') trapFocus(e); return; }
@@ -4732,7 +4855,8 @@ window.addEventListener('keydown', (e) => {
   const ae = document.activeElement;
   if (ae && ae !== cv && ae !== document.body) {
     if (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT') return;
-    if (e.key !== 'Escape' && e.key !== 'Backspace' && !/^[?hHuUzZnNaAsSdDyYpP]$/.test(e.key)) return;
+    if ((e.key === 'i' || e.key === 'I') && mirror.contains(ae) && ae.dataset.pile) { e.preventDefault(); announce(inspectColumn(ae.dataset.pile)); return; }
+    if (e.key !== 'Escape' && e.key !== 'Backspace' && !/^[?hHuUzZnNaAsSdDyYpPiI]$/.test(e.key)) return;
   }
   if (gameKey(e)) e.preventDefault();
 });
@@ -4788,30 +4912,50 @@ function makeLimiter(ctx, dest) {
   c.attack.value = LIMITER.attack; c.release.value = LIMITER.release; c.connect(dest); return c;
 }
 const SCORES = {
-  // Title: the painted Bathhouse Row at dusk. Slow, a flute over a pad in B flat. 16 bars of 4 s, about 64 s.
+  // Title: painted Bathhouse Row at dusk — warm promenade mallet over a pad in B flat (key 58). 16 bars of 4 s, ~64 s (CD-WF4-01).
   title: {
     bpm: 60, key: 58, sevenths: [1, 4], form: 'AABA', sections: { A: [0, 3, 0, 4], B: [5, 3, 1, 4] },
-    pad: { gain: 0.05 }, bass: { inst: 'bass', pattern: 'root', gain: 0.1 },
-    lead: { inst: 'flute', gain: 0.1, oct: 1, vary: 0.35, rest: 0.22 },
-    lp: 3000, delay: 0.22,
+    pad: { gain: 0.048 }, bass: { inst: 'bass', pattern: 'root', gain: 0.095 },
+    lead: { inst: 'mallet', gain: 0.105, oct: 1, vary: 0.35, rest: 0.22 },
+    lp: 2900, delay: 0.22,
   },
-  // Table: a spa-town rag played slowly. Soft piano, an oom-pah bass and a long room echo, in E flat. 32 bars of 3.5 s, about 113 s.
+  // Table: a spa-town parlor rag played slowly in E flat (key 63) with ii7-V7 bridge turnaround and whisper jazz brushes above intensity > 0.5 (W6-S5-06).
   table: {
     bpm: 68, swing: 0.1, key: 63, sevenths: [1, 4], form: 'AABA',
-    sections: { A: [0, 5, 1, 4, 0, 2, 3, 4], B: [3, 3, 0, 5, 1, 4, [0, 2]] },
-    pad: { gain: 0.035 }, bass: { inst: 'bass', pattern: 'two', gain: 0.1 }, comp: { inst: 'piano', at: [1, 3], gain: 0.026 },
-    lead: { inst: 'piano', gain: 0.09, oct: 1, vary: 0.35, rest: 0.18 },
+    sections: { A: [0, 5, 1, 4, 0, 2, 3, 4], B: [3, 3, 0, 5, 1, 4, 1, 4] },
+    pad: { gain: 0.044 }, bass: { inst: 'bass', pattern: 'two', gain: 0.125 }, comp: { inst: 'piano', at: [1, 3], gain: 0.034 },
+    lead: { inst: 'piano', gain: 0.115, oct: 1, vary: 0.35, rest: 0.18 },
+    perc2: { b: [1, 3], gain: 0.14 },
     lp: 3800, delay: 0.14,
   },
 };
-// A quiet bathhouse room: a low wash of water, a thin layer of steam, drips, the odd vent and a slow surge.
+// Three 0 KB venue-paired ambient soundscapes (~-41 dBFS RMS, peak < 0.07, OQ-WF4-02):
+// bathhouse (marble, pool), parlor (felt, midnight, quapaw), valley (outdoor Title & linen).
 const SCENES = {
   bathhouse: {
     beds: [
-      { type: 'lowpass', freq: 520, gain: 0.05, lfo: { rate: 0.07, depth: 0.5 }, flfo: { rate: 0.05, depth: 140 } },
-      { type: 'bandpass', freq: 2400, q: 0.6, gain: 0.011, pan: 0.3, lfo: { rate: 0.11, depth: 0.8 } },
+      { type: 'lowpass', freq: 520, gain: 0.088, lfo: { rate: 0.07, depth: 0.45 }, flfo: { rate: 0.05, depth: 140 } },
+      { type: 'bandpass', freq: 2400, q: 0.6, gain: 0.019, pan: 0.3, lfo: { rate: 0.11, depth: 0.7 } },
     ],
-    spots: [{ make: 'drip', every: [1.5, 5], gain: 0.04 }, { make: 'hiss', every: [9, 20], gain: 0.03 }, { make: 'swell', every: [14, 30], gain: 0.03 }],
+    spots: [{ make: 'drip', every: [2.0, 5.5], gain: 0.052 }, { make: 'hiss', every: [9, 20], gain: 0.042 }, { make: 'swell', every: [14, 28], gain: 0.046 }],
+  },
+  parlor: {
+    beds: [
+      { type: 'lowpass', freq: 380, gain: 0.102, lfo: { rate: 0.05, depth: 0.35 }, flfo: { rate: 0.04, depth: 90 } },
+      { type: 'bandpass', freq: 920, q: 0.8, gain: 0.022, pan: -0.25, lfo: { rate: 0.08, depth: 0.5 } },
+    ],
+    spots: [{ make: 'bell', every: [11, 22], gain: 0.042, pan: [-0.45, 0.45] }, { make: 'swell', every: [12, 24], gain: 0.048 }],
+  },
+  valley: {
+    beds: [
+      { type: 'lowpass', freq: 440, gain: 0.095, lfo: { rate: 0.06, depth: 0.45 }, flfo: { rate: 0.045, depth: 120 } },
+      { type: 'bandpass', freq: 1350, q: 0.7, gain: 0.024, pan: 0.28, lfo: { rate: 0.09, depth: 0.65 } },
+    ],
+    spots: [
+      { make: 'bird', every: [5.5, 13], gain: 0.042, notParam: 'night', pan: [-0.55, 0.55] },
+      { make: 'cricket', every: [4.5, 11], gain: 0.036, param: 'night', pan: [-0.55, 0.55] },
+      { make: 'swell', every: [11, 22], gain: 0.045 },
+    ],
   },
 };
 function makeAudioKit(ctx, out, opt = {}) {
@@ -4828,7 +4972,7 @@ function makeAudioKit(ctx, out, opt = {}) {
   { const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = rnd() * 2 - 1; }
   const noise = (t, dur) => { const s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true; s.start(t, rr(0, 1.9)); if (dur) s.stop(t + dur); return s; };
 
-  let mLevel = opt.music ?? 0.5, aLevel = opt.ambience ?? 0.5, inten = 0, held = false, timer = 0;
+  let mLevel = opt.music ?? 0.5, aLevel = opt.ambience ?? 0.5, inten = 0, held = false, timer = 0, lastTrans = null;
   const musicBus = gain(mLevel, out), ambBus = gain(aLevel, out);
   const dead = [];   // { at, nodes }: sub-buses to disconnect once their fade-out has finished
   const retire = (bus, nodes, at, fade) => {
@@ -4844,7 +4988,7 @@ function makeAudioKit(ctx, out, opt = {}) {
     flute:  { waves: ['sine'], parts: [[2, 0.07]], sus: true, a: 0.06, r: 0.3, vib: 5 },
     brass:  { waves: ['sawtooth', 'square'], det: 5, sus: true, a: 0.03, r: 0.12, lp: 1900 },
     mallet: { waves: ['sine'], parts: [[3, 0.16], [4.2, 0.05]], a: 0.004, decay: 1.1 },
-    piano:  { waves: ['triangle'], parts: [[2, 0.22], [3, 0.07]], a: 0.004, decay: 0.75 },
+    piano:  { waves: ['triangle'], parts: [[2, 0.22], [3, 0.07], [4, 0.035]], a: 0.004, decay: 0.75 },
     pluck:  { waves: ['sawtooth'], a: 0.003, decay: 0.38, lp: 3400, lpTo: 500 },
     bass:   { waves: ['triangle'], parts: [[2, 0.12]], a: 0.008, decay: 0.55, lp: 800 },
     tuba:   { waves: ['sawtooth'], sus: true, a: 0.02, r: 0.08, lp: 420 },
@@ -4896,7 +5040,7 @@ function makeAudioKit(ctx, out, opt = {}) {
       const fb = gain(0.3, d), wet = gain(score.delay ?? 0.18, lp); inp.connect(d); d.connect(fb); d.connect(wet); nodes.push(d, fb, wet);
     }
     bus.gain.setValueAtTime(0.0001, at); bus.gain.linearRampToValueAtTime(1, at + Math.max(fade, 0.02));
-    return { score, bus, lp, inp, nodes, bars: buildBars(score), t: at, bar: 0, mem: {}, rh: {}, prev: 4, dir: 1, sigs: new Set(), pitches: new Set(), notes: 0 };
+    return { score, bus, lp, inp, nodes, bars: buildBars(score), t: at, startedAt: at, bar: 0, mem: {}, rh: {}, prev: 4, dir: 1, sigs: new Set(), pitches: new Set(), notes: 0, brushes: 0 };
   }
   function genMotif(m, B, spbar, spb) {
     const s = m.score, L = s.lead, classes = L.classes || [0, 1, 2, 4, 5], lo = L.lo ?? -2, hi = L.hi ?? 9;
@@ -4937,6 +5081,9 @@ function makeAudioKit(ctx, out, opt = {}) {
     return v;
   }
   function playBar(m, t0) {
+    if (m.bar > 0 && m.bar % m.bars.length === 0) {
+      for (const k of Object.keys(m.mem)) if (rnd() < 0.4) delete m.mem[k]; // evolve ~40% of cached bars on each full chorus wrap (WF-4 §4.4)
+    }
     const s = m.score, spb = s.spb || 2, beats = s.beats || 4, spbar = spb * beats, sc = s.scale || [0, 2, 4, 5, 7, 9, 11];
     const beat = 60 / (s.bpm * (1 + 0.06 * inten)), step = beat / spb, barDur = beat * beats;
     const B = m.bars[m.bar % m.bars.length], nextB = m.bars[(m.bar + 1) % m.bars.length];
@@ -4957,7 +5104,7 @@ function makeAudioKit(ctx, out, opt = {}) {
       }
     }
     if (s.comp) for (const b of s.comp.at || [1, 3]) { const st = Math.round(b * spb); for (const d of chord) voice(m, at(st), fold(deg(d), s.key + 12 * (s.comp.oct || 0)), beat * (s.comp.len || 0.4), INST[s.comp.inst || 'piano'], (s.comp.gain ?? 0.04), s.comp.pan || 0, false); }
-    for (const P of [s.perc, inten > 0.5 ? s.perc2 : null]) if (P) for (const key of Object.keys(DRUM)) for (const b of P[key] || []) DRUM[key](m, at(Math.round(b * spb)), (P.gain ?? 0.5) * 0.3);
+    for (const P of [s.perc, inten > 0.5 ? s.perc2 : null]) if (P) for (const key of Object.keys(DRUM)) for (const b of P[key] || []) { DRUM[key](m, at(Math.round(b * spb)), (P.gain ?? 0.5) * 0.3); if (key === 'b') m.brushes++; }
     if (s.lead) {
       const L = s.lead, key = B.label + ':' + B.i; let mot = m.mem[key];
       if (!mot) mot = m.mem[key] = genMotif(m, B, spbar, spb); else if (rnd() < (L.vary ?? 0.3)) mot = varyMotif(m, mot, B, spbar);
@@ -4971,6 +5118,18 @@ function makeAudioKit(ctx, out, opt = {}) {
     play(score, o = {}) {
       const at = o.at ?? ctx.currentTime + 0.03, fade = o.fade ?? 1.2;
       if (cur && cur.score === score) return;
+      if (cur && score) {
+        // Zero-clash Title <-> Table breath: fade departing score briskly (0.05 s if started <250 ms ago, else 0.45 s) + 0.35 s breath (W6-S5-06).
+        const age = at - cur.startedAt;
+        const outFade = o.outFade != null ? o.outFade : (age < 0.25 ? 0.05 : 0.45);
+        const breath = o.breath != null ? o.breath : 0.35;
+        const inFade = o.inFade != null ? o.inFade : 0.65;
+        const enterAt = at + outFade + breath;
+        retire(cur.bus, cur.nodes, at, outFade);
+        lastTrans = { outFade, breath, retireEnd: +(at + outFade).toFixed(4), enterAt: +enterAt.toFixed(4), age: +age.toFixed(4) };
+        cur = mStart(score, enterAt, inFade);
+        return;
+      }
       if (cur) retire(cur.bus, cur.nodes, at, fade);
       cur = score ? mStart(score, at, fade) : null;
     },
@@ -4978,18 +5137,20 @@ function makeAudioKit(ctx, out, opt = {}) {
     level(v) { mLevel = v; if (!held) { const t = ctx.currentTime; musicBus.gain.cancelScheduledValues(t); musicBus.gain.setValueAtTime(musicBus.gain.value, t); musicBus.gain.setTargetAtTime(v, t, 0.05); } },
     duck(db = 6, ms = 400) { if (held) return; const t = ctx.currentTime; musicBus.gain.cancelScheduledValues(t); musicBus.gain.setTargetAtTime(mLevel * 10 ** (-db / 20), t, 0.02); musicBus.gain.setTargetAtTime(mLevel, t + ms / 1000, 0.25); },
     intensity(x) { inten = Math.max(0, Math.min(1, x)); },
+    getIntensity() { return +inten.toFixed(4); },
+    get lastTransition() { return lastTrans; },
     get score() { return cur && cur.score; },
-    info() { return cur ? { bars: cur.bar, formBars: cur.bars.length, distinctBars: cur.sigs.size, notes: cur.notes, pitches: cur.pitches.size } : null; },
+    info() { return cur ? { bars: cur.bar, formBars: cur.bars.length, distinctBars: cur.sigs.size, notes: cur.notes, pitches: cur.pitches.size, brushes: cur.brushes } : null; },
   };
 
   //               lfo: { rate (Hz), depth 0..1 } (slow swell of the bed's level), flfo: { rate, depth (Hz) },
   // Beds are continuous; spots are sparse one-shots at random gaps so the place never loops audibly.
   const SPOT = {
-    drip: (dst, t, v) => { const f = rr(1100, 2300), o = ctx.createOscillator(), e = gain(0.0001, dst); o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.55, t + 0.03); o.frequency.exponentialRampToValueAtTime(f * 1.5, t + 0.09); e.gain.setValueAtTime(v, t); e.gain.exponentialRampToValueAtTime(0.0001, t + 0.12); o.connect(e); o.start(t); o.stop(t + 0.14); },
+    drip: (dst, t, v) => { const f = rr(1100, 2300), o = ctx.createOscillator(), e = gain(0.0001, dst); o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.55, t + 0.03); o.frequency.exponentialRampToValueAtTime(f * 1.5, t + 0.09); e.gain.setValueAtTime(0.0001, t); e.gain.linearRampToValueAtTime(v, t + 0.003); e.gain.exponentialRampToValueAtTime(0.0001, t + 0.12); o.connect(e); o.start(t); o.stop(t + 0.14); },
     bird: (dst, t, v) => { const n = 2 + ((rnd() * 3) | 0), base = rr(2600, 4200); for (let i = 0; i < n; i++) { const s = t + i * rr(0.09, 0.16), o = ctx.createOscillator(), e = gain(0.0001, dst); o.frequency.setValueAtTime(base * rr(0.9, 1.1), s); o.frequency.exponentialRampToValueAtTime(base * rr(1.15, 1.5), s + 0.06); e.gain.setValueAtTime(0.0001, s); e.gain.linearRampToValueAtTime(v * 0.7, s + 0.015); e.gain.exponentialRampToValueAtTime(0.0001, s + 0.08); o.connect(e); o.start(s); o.stop(s + 0.1); } },
     hiss: (dst, t, v) => { const d = rr(0.7, 1.8), e = gain(0.0001, lowpass(rr(3500, 6000), dst, 'highpass')); e.gain.setValueAtTime(0.0001, t); e.gain.linearRampToValueAtTime(v * 0.6, t + d * 0.3); e.gain.exponentialRampToValueAtTime(0.0001, t + d); noise(t, d + 0.05).connect(e); },
-    bell: (dst, t, v) => { const f = rr(700, 1100); for (const [mult, pg, dec] of [[1, 1, 2.2], [2.76, 0.4, 1.3], [5.4, 0.18, 0.7]]) { const o = ctx.createOscillator(), e = gain(0.0001, dst); o.frequency.value = f * mult; e.gain.setValueAtTime(v * pg * 0.6, t); e.gain.exponentialRampToValueAtTime(0.0001, t + dec); o.connect(e); o.start(t); o.stop(t + dec + 0.05); } },
-    cricket: (dst, t, v) => { const f = rr(4200, 5200), n = 3 + ((rnd() * 4) | 0); for (let i = 0; i < n; i++) { const s = t + i * 0.055, o = ctx.createOscillator(), e = gain(0.0001, dst); o.frequency.value = f; e.gain.setValueAtTime(v * 0.35, s); e.gain.exponentialRampToValueAtTime(0.0001, s + 0.03); o.connect(e); o.start(s); o.stop(s + 0.04); } },
+    bell: (dst, t, v) => { const f = rr(700, 1100); for (const [mult, pg, dec] of [[1, 1, 2.2], [2.76, 0.4, 1.3], [5.4, 0.18, 0.7]]) { const o = ctx.createOscillator(), e = gain(0.0001, dst); o.frequency.value = f * mult; e.gain.setValueAtTime(0.0001, t); e.gain.linearRampToValueAtTime(v * pg * 0.6, t + 0.004); e.gain.exponentialRampToValueAtTime(0.0001, t + dec); o.connect(e); o.start(t); o.stop(t + dec + 0.05); } },
+    cricket: (dst, t, v) => { const f = rr(4200, 5200), n = 3 + ((rnd() * 4) | 0); for (let i = 0; i < n; i++) { const s = t + i * 0.055, o = ctx.createOscillator(), e = gain(0.0001, dst); o.frequency.value = f; e.gain.setValueAtTime(0.0001, s); e.gain.linearRampToValueAtTime(v * 0.35, s + 0.0025); e.gain.exponentialRampToValueAtTime(0.0001, s + 0.03); o.connect(e); o.start(s); o.stop(s + 0.04); } },
     swell: (dst, t, v) => { const d = rr(2.5, 5), e = gain(0.0001, lowpass(rr(500, 900), dst, 'bandpass', 0.6)); e.gain.setValueAtTime(0.0001, t); e.gain.linearRampToValueAtTime(v, t + d * 0.45); e.gain.linearRampToValueAtTime(0.0001, t + d); noise(t, d + 0.05).connect(e); },
   };
   let scene = null;
@@ -5030,13 +5191,14 @@ function makeAudioKit(ctx, out, opt = {}) {
         if (sp.next < now - 0.05) sp.next = now + rr(0.2, sp.d.every[1]);
         let guard = 0;
         while (sp.next < T && guard++ < 400) {
-          const on = sp.d.param ? (params[sp.d.param] ?? 0) : 1;
+          const on = sp.d.param ? (params[sp.d.param] ?? 0) : (sp.d.notParam ? 1 - (params[sp.d.notParam] ?? 0) : 1);
           if (on > 0 && rnd() < on) { const p = sp.d.pan || [-0.5, 0.5], dst = panTo(rr(p[0], p[1]), scene.bus), v = (sp.d.gain ?? 0.05) * rr(0.6, 1); if (typeof sp.d.make === 'function') sp.d.make(ctx, dst, sp.next, rnd, v); else SPOT[sp.d.make](dst, sp.next, v); }
           sp.next += rr(sp.d.every[0], sp.d.every[1]);
         }
       }
     }
     for (let i = dead.length - 1; i >= 0; i--) if (dead[i].at < now) { for (const n of dead[i].nodes) { try { if (n.stop) n.stop(); } catch (e) { /* already stopped */ } try { n.disconnect(); } catch (e) { /* already gone */ } } dead.splice(i, 1); }
+    if (timer && ((held && !dead.length) || (!cur && !scene && !dead.length))) { clearInterval(timer); timer = 0; }
   }
 
   return {
@@ -5047,6 +5209,7 @@ function makeAudioKit(ctx, out, opt = {}) {
     hold(tc = 0.08) { held = true; const t = ctx.currentTime; musicBus.gain.cancelScheduledValues(t); ambBus.gain.cancelScheduledValues(t); musicBus.gain.setValueAtTime(musicBus.gain.value, t); ambBus.gain.setValueAtTime(ambBus.gain.value, t); musicBus.gain.setTargetAtTime(0, t, tc); ambBus.gain.setTargetAtTime(0, t, tc); },
     release(tc = 0.3) { held = false; const t = ctx.currentTime; musicBus.gain.cancelScheduledValues(t); ambBus.gain.cancelScheduledValues(t); musicBus.gain.setValueAtTime(musicBus.gain.value, t); ambBus.gain.setValueAtTime(ambBus.gain.value, t); musicBus.gain.setTargetAtTime(mLevel, t, tc); ambBus.gain.setTargetAtTime(aLevel, t, tc); },
     get held() { return held; },
+    get active() { return !!timer; },
   };
 }
 
@@ -5072,66 +5235,152 @@ async function measureAudio(build, seconds, o = {}) {
   return res;
 }
 
+const ROOM_WET = { marble: 0.095, pool: 0.095, quapaw: 0.075, linen: 0.075, felt: 0.06, midnight: 0.06 };
 function makeCues(ctx, dest) {
   const sr = ctx.sampleRate, nb = ctx.createBuffer(1, sr * 2, sr), nd = nb.getChannelData(0);
   for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
   const rnd = Math.random, cents = () => (rnd() < .5 ? -1 : 1) * (10 + rnd() * 20), dbg = () => Math.pow(10, -rnd() * 2 / 20);
-  let lastPlace = 0, curDst = dest;
-  const out = (pan) => { if (!pan || !ctx.createStereoPanner) return curDst; const p = ctx.createStereoPanner(); p.pan.value = clamp(pan, -.7, .7); p.connect(curDst); return p; };
+  let lastPlace = 0, curDst = dest, roomTarget = 0.06;
+  // Zero-FFT 2-tap damped early-reflection DelayNode room glue (24/38 ms, LP 2.2 kHz, <=10% wet, tonal chimes only; CD-WF4-04).
+  const roomIn = ctx.createGain(), roomLp = ctx.createBiquadFilter(), roomWet = ctx.createGain();
+  roomLp.type = 'lowpass'; roomLp.frequency.value = 2200; roomLp.Q.value = 0.7;
+  roomWet.gain.value = roomTarget;
+  const tap1 = ctx.createDelay(0.1), tap2 = ctx.createDelay(0.1);
+  tap1.delayTime.value = 0.024; tap2.delayTime.value = 0.038;
+  const tap1g = ctx.createGain(), tap2g = ctx.createGain();
+  tap1g.gain.value = 0.55; tap2g.gain.value = 0.42;
+  roomIn.connect(roomLp); roomLp.connect(tap1); roomLp.connect(tap2);
+  if (ctx.createStereoPanner) {
+    const p1 = ctx.createStereoPanner(), p2 = ctx.createStereoPanner();
+    p1.pan.value = -0.35; p2.pan.value = 0.35;
+    tap1.connect(tap1g); tap1g.connect(p1); p1.connect(roomWet);
+    tap2.connect(tap2g); tap2g.connect(p2); p2.connect(roomWet);
+  } else {
+    tap1.connect(tap1g); tap1g.connect(roomWet);
+    tap2.connect(tap2g); tap2g.connect(roomWet);
+  }
+  roomWet.connect(dest);
+
+  const out = (pan) => { if (!pan || !ctx.createStereoPanner) return curDst; const p = ctx.createStereoPanner(); p.pan.value = clamp(pan, -.55, .55); p.connect(curDst); return p; };
   function noise(t, dur, type, freq, gain, q, pan) {
     const s = ctx.createBufferSource(); s.buffer = nb; s.loop = true; const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq * (1 + (rnd() - .5) * .16); f.Q.value = q || 1;
-    const g = ctx.createGain(); g.gain.setValueAtTime(gain * dbg(), t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
-    s.connect(f); f.connect(g); g.connect(out(pan)); s.start(t, rnd() * 1.8); s.stop(t + dur + .02); return f;
+    const g = ctx.createGain(), end = Math.max(dur, .008);
+    g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(gain * dbg(), t + .003); g.gain.exponentialRampToValueAtTime(.0008, t + end);
+    s.connect(f); f.connect(g); g.connect(out(pan)); s.start(t, rnd() * 1.8); s.stop(t + end + .02); return f;
   }
   // noise that swells in and fades out while its band sweeps from f0 to f1 (peak: how far through the swell is loudest)
   function swell(t, dur, f0, f1, gain, peak, pan) {
     const s = ctx.createBufferSource(); s.buffer = nb; s.loop = true; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.5;
     f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur);
-    const g = ctx.createGain(); g.gain.setValueAtTime(.001, t); g.gain.exponentialRampToValueAtTime(gain * dbg(), t + dur * peak); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+    const g = ctx.createGain(); g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(gain * dbg(), t + Math.max(.003, dur * peak)); g.gain.exponentialRampToValueAtTime(.0008, t + dur);
     s.connect(f); f.connect(g); g.connect(out(pan)); s.start(t, rnd() * 1.8); s.stop(t + dur + .02);
   }
-  function tone(t, freq, dur, type, gain, attack, pan) {
-    const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, t); o.detune.value = cents();
-    const g = ctx.createGain(); g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(gain * dbg(), t + (attack || .005)); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
-    o.connect(g); g.connect(out(pan)); o.start(t); o.stop(t + dur + .05); return o;
+  // Linear attack + optional lowpass (mandatory on sawtooth) + optional pitch drop + optional 2-tap room glue send (CD-WF4-04, CD-WF4-06).
+  function tone(t, freq, dur, type, gain, attack, pan, lp, freqTo, wet) {
+    const safeType = type === 'square' ? 'triangle' : type;
+    const o = ctx.createOscillator(); o.type = safeType; o.frequency.setValueAtTime(freq, t); o.detune.value = cents();
+    if (freqTo) o.frequency.exponentialRampToValueAtTime(freqTo, t + Math.max(.015, dur * .72));
+    const a = attack || .005, end = Math.max(dur, a + .01);
+    const g = ctx.createGain(); g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(gain * dbg(), t + a); g.gain.exponentialRampToValueAtTime(.0001, t + end);
+    let tail = g;
+    if (lp || safeType === 'sawtooth') {
+      const fl = ctx.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = lp || 1900; fl.Q.value = 0.7;
+      o.connect(fl); fl.connect(g);
+    } else o.connect(g);
+    tail.connect(out(pan));
+    if (wet) tail.connect(roomIn);
+    o.start(t); o.stop(t + end + .05); return o;
   }
   return {
+    setRoom(tableId) {
+      roomTarget = clamp(ROOM_WET[tableId] ?? 0.06, 0, 0.1);
+      try { const t = ctx.currentTime; roomWet.gain.cancelScheduledValues(t); roomWet.gain.setTargetAtTime(roomTarget, t, 0.05); } catch (_) { roomWet.gain.value = roomTarget; }
+    },
+    flushRoom() {
+      try {
+        const t = ctx.currentTime;
+        roomWet.gain.cancelScheduledValues(t);
+        roomWet.gain.setValueAtTime(Math.max(roomWet.gain.value, 0.0001), t);
+        roomWet.gain.linearRampToValueAtTime(0.0001, t + 0.015);
+        roomWet.gain.setValueAtTime(0.0001, t + 0.05);
+        roomWet.gain.linearRampToValueAtTime(roomTarget, t + 0.08);
+      } catch (_) { /* context closed */ }
+    },
+    get roomWet() { return +roomTarget.toFixed(4); },
     play(name, arg, t, pan, bus) {
       curDst = bus || dest;
       try {
         switch (name) {
-        case 'pick': noise(t, .05, 'bandpass', 3200, .4, 1.2, pan); tone(t, 420, .045, 'sine', .2, .003, pan); break;
+        case 'pick': noise(t, .05, 'bandpass', 3200, .42, 1.2, pan); tone(t, 420, .045, 'sine', .2, .003, pan); break;
         case 'place': {
           const n = clamp(arg || 1, 1, 6), v = lastPlace ^ 1; lastPlace = v; // two filter centres, never the same one twice running
-          noise(t, .07, 'lowpass', v ? 1600 : 1200, .42, 1, pan);
-          tone(t, 170 * (1 - .035 * (n - 1)), .09 + .012 * n, 'sine', .21 * (1 + .1 * (n - 1)), .004, pan);
+          noise(t, .07, 'lowpass', v ? 1600 : 1200, .44, 1, pan);
+          tone(t, 170 * (1 - .035 * (n - 1)), .09 + .012 * n, 'sine', .22 * (1 + .09 * (n - 1)), .004, pan);
           noise(t + .004, .025, 'bandpass', 2400, .2, 1, pan); break;
         }
-        case 'tick': noise(t, .025, 'bandpass', 2600, .42, 1.5, pan); tone(t, 1100, .04, 'sine', .3, .002, pan); break; // a switch, a menu opening
-        case 'flip': noise(t, .03, 'highpass', 4200, .38, 1, pan); tone(t, 1000, .02, 'sine', .1, .002, pan); break;
+        // Turned-brass mechanical detent (W6-S5-10): warm click + damped G5 brass ping (<=1.6 kHz).
+        case 'tick': noise(t, .02, 'bandpass', 2200, .4, 1.8, pan); tone(t, 783.99, .05, 'triangle', .32, .002, pan, 1600); tone(t, 1567.98, .025, 'sine', .08, .002, pan); break;
+        // Linen-cardstock brush for modal opens & unlocked cosmetic picks (W6-S5-10).
+        case 'brush': swell(t, .085, 900, 2100, .38, .4, pan); tone(t + .005, 311.13, .055, 'sine', .16, .004, pan, 900); break;
+        // Muted brass latch stop on locked cosmetics (W6-S5-10).
+        case 'latch': noise(t, .026, 'bandpass', 1400, .42, 2.0, pan); tone(t, 233.08, .065, 'triangle', .28, .003, pan, 650, 185); break;
+        // Eb/Bb leaded-glass clink on Skylight Reshuffle (W6-S5-10).
+        case 'glass': [622.25, 932.33, 1244.51].forEach((f, i) => tone(t + i * .032, f, .24, 'sine', .22 - i * .03, .003, pan, 1600, 0, true)); noise(t, .022, 'bandpass', 3200, .24, 3.0, pan); break;
+        case 'flip': noise(t, .03, 'highpass', 4200, .4, 1, pan); tone(t, 932.33, .022, 'sine', .1, .002, pan); break;
+        // Bb/Eb pentatonic foundation ladder: C4..F6 (King = 1396.91 Hz < 1400 Hz, max partial 1396.92 <= 1500 Hz, CD-WF4-01 & w4c P-N06).
         case 'found': {
           const r = arg || 1, semi = 12 * Math.floor((r - 1) / 5) + PENTA[(r - 1) % 5], f = FOUND_BASE * Math.pow(2, semi / 12);
-          tone(t, f, .5, 'triangle', .3, .005, pan); if (f <= FOUND_PARTIAL_MAX) tone(t, f * 2, .3, 'sine', .08, .005, pan); noise(t, .05, 'lowpass', 1400, .45, 1, pan); break;
+          tone(t, f, .5, 'triangle', .3, .005, pan, 0, 0, true);
+          if (f <= FOUND_PARTIAL_MAX) tone(t, f * 2, .3, 'sine', .08, .005, pan, 0, 0, true);
+          noise(t, .05, 'lowpass', 1400, .45, 1, pan); break;
         }
-        case 'deal': for (let i = 0; i < 8; i++) noise(t + i * .045, .035, 'bandpass', 2600 + i * 120, .6, 1.5); tone(t + .3, 150, .08, 'sine', .3, .004); break;
-        case 'nope': tone(t, 140, .14, 'square', .38); tone(t + .07, 110, .14, 'square', .3); break;
-        case 'undo': { const f = noise(t, .22, 'bandpass', 3000, 1.2, 2); f.frequency.exponentialRampToValueAtTime(500, t + .2); tone(t + .1, 330, .1, 'sine', .28, .004); break; }
-        case 'hint': tone(t, 880, .18, 'sine', .32); tone(t + .08, 1320, .2, 'sine', .24); break;
-        case 'run': [523, 659, 784].forEach((f, i) => tone(t + i * .07, f, .4, 'triangle', .3)); noise(t + .14, .3, 'highpass', 5000, .1); break;
-        case 'ach': tone(t, 659.25, .5, 'sine', .24, .01); tone(t + .11, 987.77, .5, 'sine', .24, .01); tone(t + .24, 1318.5, .7, 'triangle', .12, .01); break;
-        case 'best': tone(t, 987.77, .4, 'sine', .3, .008, pan); tone(t + .11, 1479.98, .6, 'sine', .3, .008, pan); tone(t + .11, 2959.96, .3, 'sine', .07, .008, pan); noise(t + .1, .3, 'highpass', 6000, .08, 1, pan); break;
-        case 'streak': { // an arpeggio up the key of the ach cue, one note longer for each win in the row (3 to 5)
-          const n = clamp(arg || 3, 2, 5), up = [659.25, 830.61, 987.77, 1318.5, 1661.22];
-          for (let i = 0; i < n; i++) tone(t + i * .085, up[i], i === n - 1 ? .7 : .35, i === n - 1 ? 'triangle' : 'sine', .26, .008, pan);
-          noise(t + (n - 1) * .085, .3, 'highpass', 6000, .06, 1, pan); break;
+        // Warm Eb/Bb consonant fifth bloom when a King completes a suit (<=1.5 kHz, separate cue preserving w4c P-N06).
+        case 'king': [466.16, 622.25, 932.33].forEach((f, i) => tone(t + i * .05, f, .55 + i * .06, i === 1 ? 'triangle' : 'sine', .2 - i * .02, .012, pan, 1450, 0, true)); break;
+        // Midway / final face-down reveal shimmer (Eb5-Bb5-Eb6, <=1.5 kHz).
+        case 'shimmer': [622.25, 932.33, 1244.51].forEach((f, i) => tone(t + i * .065, f, .36, 'sine', .18, .008, pan, 1500, 0, true)); break;
+        // Finish-ready ascending brass chime (Bb4-Eb5-G5, <=1.5 kHz).
+        case 'ready': [466.16, 622.25, 783.99].forEach((f, i) => tone(t + i * .06, f, .34, 'triangle', .22, .006, pan, 1500, 0, true)); break;
+        // Quiet low wood-tap on dead-branch warning (lostKick).
+        case 'woodTap': tone(t, 185, .075, 'triangle', .24, .003, pan, 450, 128); noise(t, .035, 'bandpass', 600, .24, 1.4, pan); break;
+        case 'deal': for (let i = 0; i < 8; i++) noise(t + i * .045, .035, 'bandpass', 2600 + i * 120, .6, 1.5); tone(t + .3, 155.56, .08, 'sine', .3, .004); break;
+        // Acoustic muted wood-and-felt double-thud refusal (replaces raw square buzzer, CD-WF4-06).
+        case 'nope':
+          tone(t, 135, .095, 'triangle', .38, .004, pan, 420, 102); noise(t, .045, 'bandpass', 550, .42, 1.4, pan);
+          tone(t + .075, 114, .11, 'triangle', .32, .004, pan, 380, 92); noise(t + .075, .05, 'bandpass', 480, .34, 1.4, pan); break;
+        // Bath Ticket mechanical brass perforation punch + cotton-rag paper shear at 650 ms (always audible, CD-WF4-03).
+        case 'punch':
+          noise(t, .024, 'bandpass', 3200, .44, 2.2, pan);
+          noise(t + .008, .055, 'bandpass', 900, .54, 1.3, pan);
+          tone(t + .004, 220, .065, 'triangle', .28, .003, pan, 600, 135); break;
+        // Calm descending still-water parlor cadence for "The waters have gone still" (W6-S5-06).
+        case 'stuck':
+          tone(t, 466.16, .42, 'sine', .32, .015, pan, 1100, 0, true);
+          tone(t + .14, 392.00, .45, 'sine', .28, .015, pan, 1000, 0, true);
+          tone(t + .30, 311.13, .65, 'triangle', .24, .02, pan, 900, 0, true);
+          noise(t + .04, .3, 'bandpass', 720, .18, 1.4, pan); break;
+        // Klondike waste turn-over reverse riffle + subtle low Eb/Bb brass clink on penalized Pass 2+ (W6-S5-06).
+        case 'recycle':
+          swell(t, .22, 2400, 850, .48, .35, pan);
+          for (let i = 0; i < 3; i++) noise(t + i * .038, .03, 'bandpass', 2200 - i * 250, .38, 1.4, pan);
+          if (arg) { tone(t + .11, 466.16, .24, 'triangle', .26, .005, pan, 1400, 0, true); tone(t + .14, 311.13, .3, 'sine', .24, .006, pan, 1100, 0, true); }
+          break;
+        case 'undo': { const f = noise(t, .22, 'bandpass', 2800, .96, 2, pan); f.frequency.exponentialRampToValueAtTime(480, t + .2); tone(t + .09, 311.13, .12, 'sine', .3, .005, pan); break; }
+        case 'hint': tone(t, 783.99, .2, 'sine', .32, .006, pan, 0, 0, true); tone(t + .085, 932.33, .24, 'sine', .26, .006, pan, 0, 0, true); break;
+        case 'run': [622.25, 783.99, 932.33].forEach((f, i) => tone(t + i * .07, f, .42, 'triangle', .3, .006, pan, 0, 0, true)); noise(t + .14, .28, 'bandpass', 2600, .14, 1.2, pan); break;
+        case 'ach': tone(t, 622.25, .48, 'sine', .28, .01, pan, 0, 0, true); tone(t + .11, 932.33, .48, 'sine', .26, .01, pan, 0, 0, true); tone(t + .24, 1244.51, .68, 'triangle', .16, .01, pan, 0, 0, true); break;
+        case 'best': [466.16, 698.46, 932.33, 1244.51].forEach((f, i) => tone(t + i * .09, f, i === 3 ? .62 : .38, i === 3 ? 'triangle' : 'sine', i === 3 ? .22 : .28, .008, pan, 0, 0, true)); noise(t + .2, .26, 'bandpass', 2600, .09, 1.2, pan); break;
+        case 'streak': { // Eb-major arpeggio up the Bb/Eb universe, one note longer per streak win (3 to 5), all <= 1.4 kHz
+          const n = clamp(arg || 3, 2, 5), up = [622.25, 783.99, 932.33, 1244.51, 1396.91];
+          for (let i = 0; i < n; i++) tone(t + i * .085, up[i], i === n - 1 ? .68 : .35, i === n - 1 ? 'triangle' : 'sine', .27, .008, pan, 0, 0, true);
+          noise(t + (n - 1) * .085, .28, 'bandpass', 2800, .08, 1.2, pan); break;
         }
-        case 'course': { // a whole course of baths: a long E major chord over a low E
-          [329.63, 415.3, 493.88, 659.25].forEach((f, i) => { tone(t + i * .07, f, 1.8, 'triangle', .14, .02, pan); tone(t + i * .07, f * 2, 1.2, 'sine', .04, .02, pan); });
-          tone(t, 164.81, 1.8, 'sine', .22, .03, pan); noise(t + .2, 1.2, 'highpass', 5000, .05, 1, pan); break;
+        case 'course': { // a whole course of 21 baths: warm Eb major chord over low Eb3 (all partials <= 1.25 kHz)
+          [311.13, 392.00, 466.16, 622.25].forEach((f, i) => { tone(t + i * .07, f, 1.8, 'triangle', .15, .02, pan, 0, 0, true); tone(t + i * .07, f * 2, 1.15, 'sine', .045, .02, pan, 0, 0, true); });
+          tone(t, 155.56, 1.8, 'sine', .24, .03, pan, 0, 0, true); noise(t + .2, 1.1, 'bandpass', 2400, .07, 1.1, pan); break;
         }
-        case 'gather': swell(t, .95, 1200, 6500, .5, .85, pan); [1318.5, 1661.22, 1975.53, 2637.02].forEach((f, i) => tone(t + .25 + i * .17, f, .35, 'sine', .1, .01, pan)); break; // the cards drawn into the rosette
-        case 'spray': swell(t, 1.2, 500, 3800, .75, .3, pan); noise(t, .5, 'highpass', 4500, .1, 1, pan); break; // the rosette thrown open
-        case 'win': [392, 523.25, 659.25, 783.99].forEach((f, i) => { tone(t + i * .12, f, 1.1, 'sawtooth', .08, .03); tone(t + i * .12, f, 1.2, 'triangle', .19, .02); }); noise(t + .4, 1.4, 'highpass', 2500, .17); break;
+        case 'gather': swell(t, .95, 700, 2800, .5, .85, pan); [622.25, 783.99, 932.33, 1244.51].forEach((f, i) => tone(t + .22 + i * .17, f, .38, 'sine', .14, .01, pan, 0, 0, true)); break; // harmonizes live with win
+        case 'spray': swell(t, 1.2, 500, 3400, .72, .3, pan); noise(t, .48, 'bandpass', 2800, .14, 1.1, pan); break; // the rosette thrown open
+        case 'win': [466.16, 622.25, 783.99, 932.33].forEach((f, i) => { tone(t + i * .12, f, 1.1, 'sawtooth', .08, .03, pan, 1900, 0, true); tone(t + i * .12, f, 1.2, 'triangle', .18, .02, pan, 0, 0, true); }); noise(t + .4, 1.2, 'bandpass', 2200, .14, 1.1, pan); break;
         }
       } finally {
         curDst = dest;
@@ -5139,8 +5388,22 @@ function makeCues(ctx, dest) {
     },
   };
 }
-const CUE_NAMES = ['pick', 'place', 'flip', 'found', 'deal', 'nope', 'undo', 'hint', 'run', 'ach', 'win', 'best', 'streak', 'course', 'gather', 'spray', 'tick'];
+const CUE_NAMES = ['pick', 'place', 'flip', 'found', 'deal', 'nope', 'undo', 'hint', 'run', 'ach', 'win', 'best', 'streak', 'course', 'gather', 'spray', 'tick', 'punch', 'stuck', 'recycle'];
 for (const ev of ['pointerdown', 'click', 'keydown']) document.addEventListener(ev, (e) => { initAudio(); if (e.pointerType) touchIn = e.pointerType !== 'mouse'; }, { passive: true, capture: true }); // the first gesture of any kind starts the audio
+// Single delegated Bathhouse Row UI audio handler (replaces 3 inline ticks; preserves single ['tick'] in w3d S5-06).
+const MODAL_BRUSH_IDS = new Set(['bHelp', 'tDaily', 'tBacks', 'tRec', 'tStats', 'tSet', 'tHelp']);
+const MODAL_BRUSH_ACTIONS = new Set(['settings', 'backs', 'stats', 'records', 'help', 'daily', 'deal']);
+const SKIP_UI_AUDIO_IDS = new Set(['bUndo', 'bRedo', 'bHint', 'bAuto']);
+document.addEventListener('click', (e) => {
+  if (!e || e.target === cv || mirror.contains(e.target)) return;
+  const el = e.target.closest('button, summary');
+  if (!el || el.disabled || SKIP_UI_AUDIO_IDS.has(el.id) || el.dataset.a === 'undo') return;
+  if (el.dataset.tog === 'sound' && !settings.sound) { Promise.resolve().then(() => { if (settings.sound) sfx('tick'); }); return; }
+  if (el.dataset.a === 'reseed') { sfx('glass'); return; }
+  if (el.classList.contains('bk')) { sfx(el.classList.contains('lk') ? 'latch' : 'brush'); return; }
+  if (MODAL_BRUSH_IDS.has(el.id) || MODAL_BRUSH_ACTIONS.has(el.dataset.a)) { sfx('brush'); return; }
+  sfx('tick');
+}, true);
 function makeAutoCueBus() {
   if (!AC || !master) return null;
   const g = AC.createGain();
@@ -5158,6 +5421,7 @@ function cancelAutoCues() {
     setTimeout(() => { try { old.disconnect(); } catch (_) { /* already gone */ } }, 60);
   } catch (_) { /* context closed */ }
   autoCueBus = makeAutoCueBus();
+  if (cues && cues.flushRoom) cues.flushRoom();
 }
 function updateMasterGain(instant) {
   masterTarget = volumeGain(settings.volume, settings.volumeCurve);
@@ -5184,50 +5448,98 @@ function initAudio() {
   } catch (e) { AC = null; master = null; autoCueBus = null; kit = null; cues = null; return; }
   syncAudio();
 }
-const PENTA = [0, 2, 4, 7, 9];
-// The foundation cue climbs a pentatonic ladder, one step a rank. It starts at C4 (it was C5, 523.25 Hz) so that the King sits at 1.32 kHz, not 2.64 kHz, in
-// the band small speakers push hardest; the octave partial is left off where it would land above 1.5 kHz.
+// Bb/Eb harmonic universe pentatonic intervals {C, Eb, F, G, Bb} on C4 (CD-WF4-01): King = F6 (1396.91 Hz < 1400 Hz, max partial 1396.92 <= 1500 Hz).
+const PENTA = [0, 3, 5, 7, 10];
 const FOUND_BASE = 261.63, FOUND_PARTIAL_MAX = 750;
-const PAUSE_MODALS = ['menu', 'confirm', 'deal', 'daily', 'backs', 'stats', 'help', 'records'];
+const PAUSE_MODALS = ['menu', 'confirm', 'deal', 'daily', 'backs', 'stats', 'help', 'records', 'stuck'];
 let musicHush = false; // the win ceremony: the music steps back, then returns
+function venueAmbienceKey() {
+  if (titleOn) return 'valley';
+  if (settings.table === 'marble' || settings.table === 'pool') return 'bathhouse';
+  if (settings.table === 'linen') return 'valley';
+  return 'parlor';
+}
+function computeMusicIntensity() {
+  if (!S || S.won || titleOn) return 0;
+  const all = S.cards ? S.cards.length : 52;
+  const homeRatio = all > 0 ? homeCount() / all : 0;
+  const initDown = typeof S.initDown === 'number' ? S.initDown : (S.mode === 'spider' ? 44 : S.mode === 'freecell' ? 0 : 21);
+  const revealedRatio = initDown > 0 ? clamp((initDown - downCount()) / initDown, 0, 1) : homeRatio;
+  return clamp(0.45 * revealedRatio + 0.25 * homeRatio + (canAutoComplete() ? 0.25 : 0), 0, 0.70);
+}
+function syncMusicIntensity() {
+  const val = computeMusicIntensity();
+  if (kit) kit.music.intensity(val);
+  return val;
+}
 function wakeAudio() { if (AC && (AC.state === 'suspended' || AC.state === 'interrupted')) AC.resume(); } // Safari reports 'interrupted' after a call or alarm
 function syncAudio(opt = {}) {
   if (!AC || !kit) return;
   if (!document.hidden) wakeAudio();
+  if (cues && cues.setRoom) cues.setRoom(settings.table);
   kit.music.level(settings.musicVol); kit.amb.level(settings.ambVol);
+  kit.amb.set('night', darkScheme() ? 1 : 0);
+  syncMusicIntensity();
   const wantMusic = settings.sound && settings.music && !musicHush ? (titleOn ? SCORES.title : SCORES.table) : null;
-  const wantAmb = settings.sound && settings.ambience ? SCENES.bathhouse : null;
-  const mFade = opt.manual ? 0.2 : (musicHush ? 1.2 : !wantMusic && !settings.sound ? 0.1 : 2.5);
-  const aFade = opt.manual ? 0.2 : (!wantAmb && !settings.sound ? 0.1 : 2.5);
+  const wantAmb = settings.sound && settings.ambience ? SCENES[venueAmbienceKey()] : null;
+  const mFade = opt.manual ? 0.2 : (musicHush ? 1.2 : !wantMusic && !settings.sound ? 0.1 : 1.2);
+  const aFade = opt.manual ? 0.2 : (!wantAmb && !settings.sound ? 0.1 : 1.6);
   kit.music.play(wantMusic, { fade: mFade });
   kit.amb.play(wantAmb, { fade: aFade });
   const paused = document.hidden || PAUSE_MODALS.includes(modalKind);
   if (paused && !kit.held) kit.hold(document.hidden ? 0.015 : 0.08); else if (!paused && kit.held) kit.release();
+  if (document.hidden || !settings.sound) kit.stop();
+  else if (!paused && (wantMusic || wantAmb)) kit.start();
 }
-// Haptics: a short pulse on the cues a thumb should feel. Only after a touch (a laptop with a mouse never buzzes), never with reduced motion, and with its own switch.
-const BUZZ = { pick: 10, place: 12, found: [10, 40, 10], nope: 25 };
+// Haptics: short touch-gated pulses with tracked cancelable timers & hidden/motion re-checks inside go() (W6-S5-10).
+const BUZZ = { pick: 10, place: 12, found: [10, 40, 10], nope: 25, flip: 6, undo: 10, run: [12, 35, 18], punch: 16, spray: [15, 40, 20] };
+const buzzTimers = new Set();
+function cancelBuzz() {
+  for (const id of buzzTimers) clearTimeout(id);
+  buzzTimers.clear();
+}
 function buzz(name, waitSec, auto) {
   const p = BUZZ[name]; if (!p || auto || !settings.haptics || !touchIn || !navigator.vibrate || document.hidden || reducedMotion()) return;
-  const go = () => { try { navigator.vibrate(p); } catch (_) { /* vibration is optional */ } };
-  if (waitSec) setTimeout(go, waitSec * 1000); else go();
+  const go = () => {
+    if (!settings.haptics || !touchIn || !navigator.vibrate || document.hidden || reducedMotion()) return;
+    try { navigator.vibrate(p); } catch (_) { /* vibration is optional */ }
+  };
+  if (waitSec) {
+    const id = setTimeout(() => { buzzTimers.delete(id); go(); }, waitSec * 1000);
+    buzzTimers.add(id);
+  } else go();
 }
 // o.delay: seconds to wait before the cue sounds (a card's landing). o.auto: the game moved the card, so no buzz & routed through cancellable autoCueBus.
 const CUE_LOG = []; // the last cues asked for, for the test hook (kept whether or not sound is on)
+const COOLDOWN_CUES = new Set(['undo', 'nope', 'tick', 'hint', 'flip']);
+const CUE_COOLDOWN_MS = 45;
+const lastCueAt = {};
+let cuesDropped = 0;
+function clearCueCooldowns() { for (const k in lastCueAt) delete lastCueAt[k]; }
 function sfx(name, arg, pan, o) {
-  const wait = (o && o.delay) || 0, isAuto = !!(o && o.auto);
-  if (CUE_LOG.push({ name, arg, wait, auto: isAuto, at: Math.round(now()) }) > 80) CUE_LOG.shift();
+  const wait = (o && o.delay) || 0, isAuto = !!(o && o.auto), tNow = now();
+  // 45 ms per-cue direct-call cooldown prevents 30 Hz key-repeat limiter pumping (W6-S5-10).
+  if (!wait && COOLDOWN_CUES.has(name)) {
+    if (tNow - (lastCueAt[name] || -1e9) < CUE_COOLDOWN_MS) { cuesDropped++; return; }
+    lastCueAt[name] = tNow;
+  }
+  const cPan = pan ? +clamp(pan, -.55, .55).toFixed(3) : 0;
+  if (CUE_LOG.push({ name, arg, wait, pan: cPan, auto: isAuto, at: Math.round(tNow) }) > 80) CUE_LOG.shift();
   buzz(name, wait, isAuto);
   if (!settings.sound || !settings.sfx || !AC || document.hidden) return;
   wakeAudio();
-  cues.play(name, arg, AC.currentTime + wait, pan, isAuto ? (autoCueBus || (autoCueBus = makeAutoCueBus())) : master);
-  if (name === 'run' || name === 'win') kit.music.duck(6, 500);
+  cues.play(name, arg, AC.currentTime + wait, cPan, isAuto ? (autoCueBus || (autoCueBus = makeAutoCueBus())) : master);
+  if (kit) {
+    if (name === 'run' || name === 'win') kit.music.duck(6, 500);
+    else if (name === 'ach') kit.music.duck(4.5, 550);
+  }
 }
 // Test hooks: render one piece, scene or cue by itself on an OfflineAudioContext at the shipped levels, without
 function audioList() {
   const barSeconds = {}; for (const k in SCORES) barSeconds[k] = +(60 / SCORES[k].bpm * (SCORES[k].beats || 4)).toFixed(3);
   return { music: Object.keys(SCORES), ambience: Object.keys(SCENES), cues: CUE_NAMES.slice(), barSeconds };
 }
-// `over` sets the volume controls to render at (volume, musicVol, ambVol); each one left out is the shipped default.
+// `over` sets the volume controls to render at (volume, musicVol, ambVol, intensity, night); each one left out is the shipped default.
 // 'mix' is the busiest moment: the title piece, the bed, and the loudest cues struck together every second (see below).
 function audioRender(name, seconds, wantWav, over) {
   const ship = Object.assign({}, DEFAULT_SETTINGS, over);
@@ -5244,19 +5556,38 @@ function audioRender(name, seconds, wantWav, over) {
     }
     if (CUE_NAMES.includes(name)) { const c = makeCues(oc, m); for (let i = 0; i < seconds - 1; i++) c.play(name, name === 'found' ? 1 + i % 8 : 1 + i % 5, .1 + i); return null; }
     const k = makeAudioKit(oc, m, { seed: 7, music: ship.musicVol, ambience: ship.ambVol });
+    if (over && typeof over.intensity === 'number') k.music.intensity(over.intensity);
+    if (over && typeof over.night === 'number') k.amb.set('night', over.night, 0.01);
     if (SCORES[name]) k.music.play(SCORES[name], { at: 0, fade: .02 }); else if (SCENES[name]) k.amb.play(SCENES[name], { at: 0, fade: .02 }); else throw new Error('no audio named ' + name);
     k.scheduleUntil(seconds); return () => k.music.info();
   }, seconds, { wav: !!wantWav });
 }
 function audioState() {
   const i = kit && kit.music.info();
-  return { ready: !!AC, ctx: AC ? AC.state : null, held: !!(kit && kit.held), music: kit && kit.music.score ? Object.keys(SCORES).find((k) => SCORES[k] === kit.music.score) : null,
-    ambience: kit && kit.amb.scene ? 'bathhouse' : null, bars: i ? i.bars : 0, hush: musicHush };
+  return {
+    ready: !!AC, ctx: AC ? AC.state : null, held: !!(kit && kit.held),
+    music: kit && kit.music.score ? Object.keys(SCORES).find((k) => SCORES[k] === kit.music.score) : null,
+    ambience: kit && kit.amb.scene ? (Object.keys(SCENES).find((k) => SCENES[k] === kit.amb.scene) || null) : null,
+    bars: i ? i.bars : 0, brushes: i ? i.brushes : 0, hush: musicHush,
+    intensity: kit ? kit.music.getIntensity() : computeMusicIntensity(),
+    roomWet: cues ? cues.roomWet : +(ROOM_WET[settings.table] ?? 0.06).toFixed(4),
+    lastTransition: kit ? kit.music.lastTransition : null,
+    timerActive: !!(kit && kit.active),
+    dropped: cuesDropped,
+  };
 }
 
 // 13. UI chrome: HUD, toast, title, dialogs
-const sr = $('#sr'), toastEl = $('#toast');
-function announce(msg) { sr.textContent = ''; sr.textContent = msg; }
+// Alternating two aria-live="polite" nodes so repeated identical announcements ("Undone", repeated S) never drop (W6-S5-10).
+const sr = $('#sr'), srA = $('#srA'), srB = $('#srB'), toastEl = $('#toast');
+let srFlip = 0;
+function announce(msg) {
+  if (!srA.isConnected || !srB.isConnected) { sr.textContent = ''; sr.append(srA, srB); }
+  srFlip ^= 1;
+  const on = srFlip ? srA : srB, off = srFlip ? srB : srA;
+  off.textContent = '';
+  on.textContent = msg;
+}
 let toastTimer = 0;
 function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('on'), 2400); announce(msg); }
 function achToast(names) { sfx('ach'); toast('Achievement: ' + names[0] + (names.length > 1 ? ' and ' + (names.length - 1) + ' more' : '')); }
@@ -5295,6 +5626,7 @@ function tipText(id) {
   if (id === 'move') {
     const m = tapMode();
     if (m === 'drag' && k < 2) return 'Drag a card to where it fits.';
+    if (m === 'select' && k < 2) return t('Click a card to select it, then click a pile.', 'Tap a card to select it, then tap a pile.', '');
     return t(m === 'double' ? 'Double-click a card to send it where it fits, or drag.' : 'Click a card to send it where it fits, or drag.', m === 'double' ? 'Double-tap a card to send it where it fits.' : 'Tap a card to send it where it fits.', 'Arrows move; Enter picks up and drops cards.');
   }
   if (id === 'hint') return t('Stuck? Hint shows a move; Undo takes one back.', 'Stuck? Tap Hint to see a move, or Undo.', 'Stuck? Press H for a hint, U to undo.');
@@ -5386,6 +5718,7 @@ function tipEvent(ev) {
 $('#coachOk').onclick = () => { if (tip) tipDone(tip); if (!modalKind && !titleOn) cv.focus({ preventScroll: true }); };
 coachEl.onclick = (e) => { if (tip && !e.target.closest('button')) tipDone(tip); };
 $('#coachSkip').onclick = () => { setSetting('tips', false); toast('Tips off. Settings brings them back.'); if (!modalKind && !titleOn) cv.focus({ preventScroll: true }); };
+let prevCanAuto = false;
 function updateHUD() {
   if (!S) return;
   $('#modeName').textContent = MODES[S.mode].name + (variantLabel(S.mode, S.opts) ? ' (' + variantLabel(S.mode, S.opts) + ')' : '');
@@ -5397,6 +5730,9 @@ function updateHUD() {
   $('#sTimeW').style.display = settings.showTimer ? '' : 'none';
   $('#bUndo').disabled = !undoStack.length || S.won; $('#bRedo').disabled = !redoStack.length || S.won;
   const ac = canAutoComplete(); const b = $('#bAuto'); b.disabled = !ac; b.classList.toggle('glow', ac);
+  if (!prevCanAuto && ac && S.started && !S.won) sfx('ready');
+  prevCanAuto = ac;
+  syncMusicIntensity();
   $('#bHint').disabled = S.won;
   const ae = document.activeElement;
   if (!modalKind && !titleOn && ae && ae.disabled && $('#tools').contains(ae)) cv.focus({ preventScroll: true });
@@ -5433,7 +5769,7 @@ function updateTime() {
 }
 setInterval(() => { tickClock(); updateTime(); ambientSync(); }, 500);
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { tickClock(); if (!titleOn || saveTimer) flushSave(); } else clockMark = now();
+  if (document.hidden) { cancelBuzz(); tickClock(); if (!titleOn || saveTimer) flushSave(); } else clockMark = now();
   if (AC) {
     clearTimeout(suspendTimer); suspendTimer = 0;
     syncAudio();
@@ -5457,7 +5793,7 @@ $('#bRedo').onclick = (e) => { initAudio(); redo(); backToTable(e); };
 $('#bHint').onclick = (e) => { initAudio(); hint(true); backToTable(e); };
 $('#bAuto').onclick = (e) => { initAudio(); autoComplete(); backToTable(e); };
 $('#assistTag').onclick = (e) => { toast('Undo or Hint was used. Wins still count, flagged as assisted.'); backToTable(e); };
-$('#bMenu').onclick = () => { initAudio(); sfx('tick'); openModal('menu'); };
+$('#bMenu').onclick = () => { initAudio(); openModal('menu'); };
 $('#bHelp').onclick = () => { initAudio(); openModal('help'); };
 
 // --- Title screen ---
@@ -5543,7 +5879,7 @@ function syncInert() {
   setInert(titleEl, !titleOn || !!modalKind);
 }
 function showTitle(on) {
-  if (on) { cancelDrag(); clearWinTimers(); cancelAutoCues(); if (cascade) { if (cascade.timer) clearTimeout(cascade.timer); cascade = null; } }
+  if (on) { cancelDrag(); clearWinTimers(); cancelAutoCues(); cancelBuzz(); if (cascade) { if (cascade.timer) clearTimeout(cascade.timer); cascade = null; } }
   if (on && saveTimer) flushSave();
   titleOn = on; titleEl.classList.toggle('on', on); syncInert(); syncMirror(); if (on) tabNoteHide();
   if (on) { musicHush = false; tipHide(); loadArt(['title-hero']); }
@@ -5615,7 +5951,7 @@ function openModal(kind, data) {
   if (kind === 'win') {
     clearWinTimers(); myEpoch = winEpoch;
     modalAnimUntil = reducedMotion() ? 0 : now() + 1250;
-    if (lastWin && !lastWin.replay && (lastWin.totalWins || 0) > 0) trackWinTimer(() => { if (modalKind === 'win') sfx('place', 3); }, reducedMotion() ? 150 : 650); // the ticket punch (always audible regardless of reducedMotion; omitted on 0-win/replay tickets)
+    if (lastWin && !lastWin.replay && (lastWin.totalWins || 0) > 0) trackWinTimer(() => { if (modalKind === 'win') sfx('punch'); }, reducedMotion() ? 150 : 650); // bespoke Bath Ticket punch SFX (always audible regardless of reducedMotion; omitted on 0-win/replay tickets)
   }
   sheet.innerHTML = (MODALS[kind] || (() => ''))(data || {});
   modalEl.classList.add('on'); syncAudio();
@@ -5634,8 +5970,29 @@ function openModal(kind, data) {
 }
 modalEl.addEventListener('pointerdown', (e) => { if (e.target === modalEl && modalKind !== 'win') closeModal(true); });
 
-const seg = (key, opts, wrap) => '<div class="seg' + (wrap ? ' seg-wrap' : '') + '" role="group">' + opts.map(([v, l]) => '<button type="button" data-set="' + key + '" data-val="' + v + '" aria-pressed="' + (String(settings[key]) === String(v)) + '">' + l + '</button>').join('') + '</div>';
-const tog = (key, label) => '<button type="button" class="tog" role="switch" data-tog="' + key + '" aria-checked="' + !!settings[key] + '" aria-label="' + label + '"></button>';
+const pctText = (v) => Math.round(clamp(+v || 0, 0, 1) * 100) + '%';
+const seg = (key, opts, wrap, descId) => '<div class="seg' + (wrap ? ' seg-wrap' : '') + '" role="group" aria-labelledby="lbl-' + key + '"' + (descId ? ' aria-describedby="' + descId + '"' : '') + '>' + opts.map(([v, l]) => '<button type="button" data-set="' + key + '" data-val="' + v + '" aria-pressed="' + (String(settings[key]) === String(v)) + '">' + l + '</button>').join('') + '</div>';
+const tog = (key, label, descId) => '<button type="button" class="tog" role="switch" data-tog="' + key + '" aria-checked="' + !!settings[key] + '" aria-labelledby="lbl-' + key + '"' + (descId ? ' aria-describedby="' + descId + '"' : '') + ' aria-label="' + label + '"></button>';
+function bindTablist(root, onSelect) {
+  const list = root && root.querySelector('[role="tablist"]');
+  if (!list) return;
+  const tabs = [...list.querySelectorAll('[role="tab"]')];
+  if (!tabs.length) return;
+  list.addEventListener('keydown', (e) => {
+    const i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    let next = -1;
+    if (e.key === 'ArrowRight') next = (i + 1) % tabs.length;
+    else if (e.key === 'ArrowLeft') next = (i - 1 + tabs.length) % tabs.length;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = tabs.length - 1;
+    if (next < 0) return;
+    e.preventDefault();
+    tabs.forEach((t, ix) => t.setAttribute('tabindex', ix === next ? '0' : '-1'));
+    tabs[next].focus({ preventScroll: true });
+    if (onSelect) onSelect(tabs[next]);
+  });
+}
 const timerNote = () => settings.scoring === 'timed'
   ? (settings.showTimer ? 'Timed scoring counts elapsed time for the win speed bonus' : 'Clock hidden; Timed scoring still counts elapsed time for the win speed bonus')
   : 'Display elapsed time in the bar (does not affect score)';
@@ -5654,39 +6011,39 @@ const MODALS = {
     '<button class="btn" data-a="new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="11" height="15" rx="2"/><path d="M9 21h9a2 2 0 0 0 2-2V8"/></svg>New deal</button><button class="btn" data-a="restart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M4 4v4h4"/></svg>Restart this deal</button><button class="btn" data-a="deal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/></svg>Choose deal number…</button><button class="btn" data-a="daily"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Daily deals</button>' +
     '<button class="btn" data-a="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10l8-6 8 6v10"/><path d="M9 20v-6h6v6"/></svg>Change game</button><button class="btn" data-a="backs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="9" height="13" rx="1.5"/><rect x="11" y="7" width="9" height="13" rx="1.5"/><path d="M15.5 11.5l-2 2 2 2 2-2z"/></svg>Backs &amp; tables</button><button class="btn" data-a="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Settings</button><button class="btn" data-a="stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V11M12 20V5M19 20v-7"/></svg>Statistics</button><button class="btn" data-a="records"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M12 13v4M8 20h8"/></svg>Records</button></div>',
   settings: () => head('Settings') +
-    '<div class="set"><label>Sound<small>Master switch for all sound</small></label>' + tog('sound', 'Sound') + '</div>' +
-    '<div class="set"><label for="vol">Master volume</label><input type="range" id="vol" min="0" max="1" step="0.05" value="' + settings.volume + '"></div>' +
-    '<div class="set"><label>Sound effects<small>Card clicks and chimes</small></label>' + tog('sfx', 'Sound effects') + '</div>' +
-    '<div class="set"><label>Music<small>Soft table tunes</small></label>' + tog('music', 'Music') + '</div>' +
-    '<div class="set"><label for="musicVol">Music volume</label><input type="range" id="musicVol" min="0" max="1" step="0.05" value="' + settings.musicVol + '"></div>' +
-    '<div class="set"><label>Ambience<small>Soft parlor, bathhouse &amp; valley soundscapes</small></label>' + tog('ambience', 'Ambience') + '</div>' +
-    '<div class="set"><label for="ambVol">Ambience volume</label><input type="range" id="ambVol" min="0" max="1" step="0.05" value="' + settings.ambVol + '"></div>' +
-    (navigator.vibrate ? '<div class="set"><label>Vibration<small>Short buzzes on touch devices</small></label>' + tog('haptics', 'Vibration') + '</div>' : '') +
-    '<div class="set"><label>Motion<small>Auto follows your system setting</small></label>' + seg('motion', [['auto', 'Auto'], ['full', 'Full'], ['reduced', 'Reduced']]) + '</div>' +
-    '<div class="set"><label>Left-handed layout<small>Stock and free cells on the left</small></label>' + tog('leftHanded', 'Left-handed layout') + '</div>' +
-    '<div class="set"><label>Card size<small>Large also enlarges the corner index</small></label>' + seg('cardSize', [['compact', 'Compact'], ['standard', 'Standard'], ['large', 'Large']]) + '</div>' +
-    '<div class="set"><label>Table layout<small>Fit screen moves piles beside the columns on wide screens for bigger cards</small></label>' + seg('layout', [['fit', 'Fit screen'], ['classic', 'Classic']]) + '</div>' +
-    '<div class="set"><label>Court cards<small>Art Deco line art, or the painted portraits</small></label>' + seg('courts', [['deco', 'Art Deco'], ['painted', 'Painted']]) + '</div>' +
-    '<div class="set"><label>Four-color suits<small>Blue diamonds, green clubs</small></label>' + tog('fourColor', 'Four-color suits') + '</div>' +
-    '<div class="set"><label>Auto-move to foundations<small>Safe moves only cards nothing else needs</small></label>' + seg('autoFoundation', [['off', 'Off'], ['safe', 'Safe'], ['all', 'All']]) + '</div>' +
-    '<div class="set"><label>Move a card by<small id="tapNote">' + TAP_NOTES[tapMode()] + '</small></label>' + seg('tapMove', [['tap', 'Tap'], ['double', 'Double-tap'], ['drag', 'Drag only']]) + '</div>' +
-    '<div class="set"><label>Scoring<small>Standard is calm points with no countdown. Timed adds a speed bonus on a win. None hides the score</small></label>' + seg('scoring', [['standard', 'Standard'], ['timed', 'Timed'], ['none', 'None']]) + '</div>' +
-    '<div class="set set-wide"><label>Deal fairness<small>Winnable deals are verified before play across all seven games. Choose a challenge tier, or Classic Random for an unchecked shuffle.</small></label>' + seg('dealFairness', [['winnable', 'Winnable (Any)'], ['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard'], ['random', 'Classic Random']], true) + '</div>' +
-    '<div class="set"><label>Show timer<small id="timerNote">' + timerNote() + '</small></label>' + tog('showTimer', 'Show timer') + '</div>' +
-    '<div class="set"><label>Show tips<small>Short hints while you play</small></label>' + tog('tips', 'Show tips') + '</div>' +
+    '<div class="set"><label id="lbl-sound">Sound<small id="desc-sound">Master switch for all sound</small></label>' + tog('sound', 'Sound', 'desc-sound') + '</div>' +
+    '<div class="set"><label for="vol" id="lbl-vol">Master volume</label><input type="range" id="vol" min="0" max="1" step="0.05" value="' + settings.volume + '" aria-valuetext="' + pctText(settings.volume) + '"></div>' +
+    '<div class="set"><label id="lbl-sfx">Sound effects<small id="desc-sfx">Card clicks and chimes</small></label>' + tog('sfx', 'Sound effects', 'desc-sfx') + '</div>' +
+    '<div class="set"><label id="lbl-music">Music<small id="desc-music">Soft table tunes</small></label>' + tog('music', 'Music', 'desc-music') + '</div>' +
+    '<div class="set"><label for="musicVol" id="lbl-musicVol">Music volume</label><input type="range" id="musicVol" min="0" max="1" step="0.05" value="' + settings.musicVol + '" aria-valuetext="' + pctText(settings.musicVol) + '"></div>' +
+    '<div class="set"><label id="lbl-ambience">Ambience<small id="desc-ambience">Soft parlor, bathhouse &amp; valley soundscapes</small></label>' + tog('ambience', 'Ambience', 'desc-ambience') + '</div>' +
+    '<div class="set"><label for="ambVol" id="lbl-ambVol">Ambience volume</label><input type="range" id="ambVol" min="0" max="1" step="0.05" value="' + settings.ambVol + '" aria-valuetext="' + pctText(settings.ambVol) + '"></div>' +
+    (navigator.vibrate ? '<div class="set"><label id="lbl-haptics">Vibration<small id="desc-haptics">Short buzzes on touch devices</small></label>' + tog('haptics', 'Vibration', 'desc-haptics') + '</div>' : '') +
+    '<div class="set"><label id="lbl-motion">Motion<small id="desc-motion">Auto follows your system setting</small></label>' + seg('motion', [['auto', 'Auto'], ['full', 'Full'], ['reduced', 'Reduced']], false, 'desc-motion') + '</div>' +
+    '<div class="set"><label id="lbl-leftHanded">Left-handed layout<small id="desc-leftHanded">Stock and free cells on the left</small></label>' + tog('leftHanded', 'Left-handed layout', 'desc-leftHanded') + '</div>' +
+    '<div class="set"><label id="lbl-cardSize">Card size<small id="desc-cardSize">Large also enlarges the corner index</small></label>' + seg('cardSize', [['compact', 'Compact'], ['standard', 'Standard'], ['large', 'Large']], false, 'desc-cardSize') + '</div>' +
+    '<div class="set"><label id="lbl-layout">Table layout<small id="desc-layout">Fit screen moves piles beside the columns on wide screens for bigger cards</small></label>' + seg('layout', [['fit', 'Fit screen'], ['classic', 'Classic']], false, 'desc-layout') + '</div>' +
+    '<div class="set"><label id="lbl-courts">Court cards<small id="desc-courts">Art Deco line art, or the painted portraits</small></label>' + seg('courts', [['deco', 'Art Deco'], ['painted', 'Painted']], false, 'desc-courts') + '</div>' +
+    '<div class="set"><label id="lbl-fourColor">Four-color suits<small id="desc-fourColor">Blue diamonds, green clubs</small></label>' + tog('fourColor', 'Four-color suits', 'desc-fourColor') + '</div>' +
+    '<div class="set"><label id="lbl-autoFoundation">Auto-move to foundations<small id="desc-autoFoundation">Safe moves only cards nothing else needs</small></label>' + seg('autoFoundation', [['off', 'Off'], ['safe', 'Safe'], ['all', 'All']], false, 'desc-autoFoundation') + '</div>' +
+    '<div class="set set-wide"><label id="lbl-tapMove">Move a card by<small id="tapNote">' + TAP_NOTES[tapMode()] + '</small></label>' + seg('tapMove', [['tap', 'Tap'], ['double', 'Double-tap'], ['select', 'Select & place'], ['drag', 'Drag only']], true, 'tapNote') + '</div>' +
+    '<div class="set"><label id="lbl-scoring">Scoring<small id="desc-scoring">Standard is calm points with no countdown. Timed adds a speed bonus on a win. None hides the score</small></label>' + seg('scoring', [['standard', 'Standard'], ['timed', 'Timed'], ['none', 'None']], false, 'desc-scoring') + '</div>' +
+    '<div class="set set-wide"><label id="lbl-dealFairness">Deal fairness<small id="desc-dealFairness">Winnable deals are verified before play across all seven games. Choose a challenge tier, or Classic Random for an unchecked shuffle.</small></label>' + seg('dealFairness', [['winnable', 'Winnable (Any)'], ['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard'], ['random', 'Classic Random']], true, 'desc-dealFairness') + '</div>' +
+    '<div class="set"><label id="lbl-showTimer">Show timer<small id="timerNote">' + timerNote() + '</small></label>' + tog('showTimer', 'Show timer', 'timerNote') + '</div>' +
+    '<div class="set"><label id="lbl-tips">Show tips<small id="desc-tips">Short hints while you play</small></label>' + tog('tips', 'Show tips', 'desc-tips') + '</div>' +
     '<div class="row" style="margin-top:8px"><button class="btn" data-a="tipsAgain">Show tips again</button></div>' +
     '<div class="row"><button class="btn" data-a="backs">Card backs &amp; tables…</button></div>' +
     (storageOK ? '' : '<p class="cap">Settings and stats can\'t be saved in this browser.</p>'),
   backs: () => head('Card backs &amp; tables') + '<div class="backs" id="bkGrid">' +
     BACKS.map((b) => { const lk = !isOpen('b', b.id); return '<button class="bk' + (lk ? ' lk" aria-disabled="true' : '') + '" data-back="' + b.id + '" aria-pressed="' + (settings.back === b.id) + '"><canvas width="168" height="236"></canvas><b>' + b.name + '</b>' + (lk ? '<small>' + lockNote('b:' + b.id) + '</small>' : '') + '</button>'; }).join('') +
-    '</div><p class="cap" id="bkCap"></p><div class="row" style="margin-top:6px"><button class="btn" data-a="reseed">Reshuffle the skylight glass</button></div>' +
+    '</div><p class="cap" id="bkCap" aria-live="polite"></p><div class="row" style="margin-top:6px"><button class="btn" data-a="reseed">Reshuffle the skylight glass</button></div>' +
     '<h3>Tables</h3><div class="backs">' + TABLES.map((t) => { const lk = !isOpen('t', t.id); return '<button class="bk tbl' + (lk ? ' lk" aria-disabled="true' : '') + '" data-table="' + t.id + '" aria-pressed="' + (settings.table === t.id) + '"><canvas width="240" height="144"></canvas><b>' + t.name + '</b>' + (lk ? '<small>' + lockNote('t:' + t.id) + '</small>' : '') + '</button>'; }).join('') + '</div>' +
-    '<p class="cap" id="tblCap">' + esc(tableInfo().cap || '') + '</p>',
+    '<p class="cap" id="tblCap" aria-live="polite">' + esc(tableInfo().cap || '') + '</p>',
   stats: (d) => {
     const k = d.key || (S ? modeKey(S.mode, S.opts) : 'klondike1'); const st = statFor(k);
     const rowS = (a, b) => '<tr><td>' + a + '</td><td>' + b + '</td></tr>';
-    return head('Statistics') + '<div class="tabs" role="tablist">' + MODE_KEYS.map((m) => '<button class="chip' + (m === k ? ' solid" data-focus="1' : '') + '" data-key="' + m + '" role="tab" aria-selected="' + (m === k) + '">' + modeKeyLabel(m) + '</button>').join('') + '</div>' +
-      '<table class="st">' + rowS('Played', st.played) + rowS('Won', st.won) + rowS('Win rate', st.played ? Math.min(100, Math.round(100 * st.won / st.played)) + '%' : 'n/a') +
+    return head('Statistics') + '<div class="tabs" role="tablist" aria-label="Game variants">' + MODE_KEYS.map((m) => '<button id="tab-' + m + '" class="chip' + (m === k ? ' solid" data-focus="1' : '') + '" data-key="' + m + '" role="tab" aria-selected="' + (m === k) + '" aria-controls="statsPanel" tabindex="' + (m === k ? '0' : '-1') + '">' + modeKeyLabel(m) + '</button>').join('') + '</div>' +
+      '<div id="statsPanel" role="tabpanel" aria-labelledby="tab-' + k + '"><table class="st">' + rowS('Played', st.played) + rowS('Won', st.won) + rowS('Win rate', st.played ? Math.min(100, Math.round(100 * st.won / st.played)) + '%' : 'n/a') +
       rowS('Average win time', st.won && st.totalMs > 0 ? fmtTime(st.totalMs / st.won) : 'n/a') + rowS('Wins without Undo or Hint', Math.max(0, st.won - st.assistedWon) + ' of ' + st.won) +
       rowS('Current streak', st.streak) + rowS('Best streak', st.bestStreak) + rowS('Best time', st.bestTimeMs ? fmtTime(st.bestTimeMs) : 'n/a') +
       rowS('Fewest moves', st.fewestMoves || 'n/a') +
@@ -5695,7 +6052,7 @@ const MODALS = {
       (st.recent ? '<h3>Last ' + RECENT_KEPT + ' games</h3><div class="rs" role="img" aria-label="Last ' + st.recent.length + ' games, oldest first: ' + [...st.recent].map((c) => ({ W: 'won', A: 'won with help', L: 'unfinished' })[c]).join(', ') + '">' + [...st.recent].map((c) => '<i class="' + c + '">' + c + '</i>').join('') + '</div><p class="cap">Oldest on the left. W won, A won with Undo or Hint, L left unfinished.</p>' : '') +
       '<p class="cap">Streaks and bests count first wins without Undo or Hint. Replaying a deal you have won, or using Undo or Hint, still counts as a win.</p>' +
       (storageOK ? '' : '<p class="cap">Stats can\'t be saved in this browser.</p>') +
-      '<div class="row"><button class="btn" data-a="resetStats" data-key="' + k + '">Reset ' + modeKeyLabel(k) + ' stats</button></div>';
+      '<div class="row"><button class="btn" data-a="resetStats" data-key="' + k + '">Reset ' + modeKeyLabel(k) + ' stats</button></div></div>';
   },
   deal: (d) => head('Choose a deal') + '<p>' + (d.mode === 'freecell' || (!d.mode && S && S.mode === 'freecell') ? 'FreeCell deals 1–32,000 match the classic numbered set (1–1,000,000 allowed).' : 'Any number from 1 to 2,147,483,646 gives the same layout every time.') + '</p>' +
     '<div class="dl"><input class="numin" id="dealIn" inputmode="numeric" aria-label="Deal number" value="' + (S ? S.deal : 1) + '"><button class="btn solid" data-a="goDeal" data-focus>Deal</button></div>' +
@@ -5737,7 +6094,7 @@ const MODALS = {
     '<tr><td><kbd>T</kbd> / <kbd>F</kbd></td><td>Auto-move the cursor card / send it to a foundation</td></tr>' +
     '<tr><td><kbd>D</kbd></td><td>Draw or deal from the stock</td></tr>' +
     '<tr><td><kbd>U</kbd> <kbd>Ctrl</kbd>+<kbd>Z</kbd> · <kbd>Y</kbd></td><td>Undo · Redo (unlimited)</td></tr>' +
-    '<tr><td><kbd>S</kbd></td><td>Hear the whole table. Screen readers can also move through the piles one by one.</td></tr>' +
+    '<tr><td><kbd>S</kbd> · <kbd>I</kbd></td><td>Hear the whole table · Inspect the current column (or <kbd>Shift</kbd>+<kbd>↑</kbd>). Screen readers can also move through the piles one by one.</td></tr>' +
     '<tr><td><kbd>H</kbd> · <kbd>A</kbd> · <kbd>N</kbd></td><td>Hint (press again for the next) · Auto-complete · New deal</td></tr>' +
     '<tr><td><kbd>Esc</kbd> · <kbd>?</kbd></td><td>Menu (or put cards back) · This help</td></tr>' +
     '<tr><td>Gamepad</td><td>D-pad or left stick moves the cursor · <b>A</b> picks up or drops · <b>B</b> puts back, or undoes · <b>X</b> hint · <b>Y</b> draw · <b>Start</b> menu. In a dialog the D-pad moves between buttons and <b>A</b> presses one.</td></tr></table>') +
@@ -5754,7 +6111,7 @@ const MODALS = {
       (noScore ? '' : '<div class="big">' + w.score + '</div>') +
       '<div class="grid"' + (noScore ? ' style="grid-template-columns:1fr 1fr"' : '') + '><div>Time<b>' + fmtTime(w.ms) + '</b>' + (w.best.time ? '<span class="best">best</span>' : '') + '</div><div>Moves<b>' + w.moves + '</b>' + (w.best.moves ? '<span class="best">best</span>' : '') + '</div>' + (noScore ? '' : '<div>Score<b>' + w.score + '</b>' + (w.best.score ? '<span class="best">best</span>' : '') + '</div>') + '</div>' +
       '<div class="meta">' + esc(modeKeyLabel(k)) + ' · ' + (w.daily ? 'Daily ' + w.daily : 'Deal #' + w.deal) + (w.bonus ? ' · time bonus +' + w.bonus : '') + (w.replay ? ' · replay' : '') + (w.assisted ? ' · assisted' : '') + '</div>' +
-      '<div class="course" aria-label="Course progress ' + filled + ' of 21">' + Array.from({ length: 21 }, (_, i) => '<i class="' + (i < filled ? 'f' : '') + (punched && i === filled - 1 ? ' new' : '') + ((i + 1) % 7 === 0 ? ' m' : '') + '"' + ((i + 1) % 7 === 0 ? ' title="' + (i + 1) + ' baths"' : '') + '></i>').join('') + '</div>' +
+      '<div class="course" role="img" aria-label="Course progress ' + filled + ' of 21">' + Array.from({ length: 21 }, (_, i) => '<i class="' + (i < filled ? 'f' : '') + (punched && i === filled - 1 ? ' new' : '') + ((i + 1) % 7 === 0 ? ' m' : '') + '"' + ((i + 1) % 7 === 0 ? ' title="' + (i + 1) + ' baths"' : '') + '></i>').join('') + '</div>' +
       '<div class="meta">Course of 21 baths: ' + filled + ' of 21' + (courses > 0 ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : '') + '</div></div>' +
       (w.pb || w.streak >= 3 || (w.ach || []).length || (w.opened || []).length ? '<div class="earn" role="status">' + (w.pb ? '<div class="pb">New personal best</div>' : '') + (w.streak >= 3 ? '<div>' + w.streak + ' wins in a row</div>' : '') + ((w.ach || []).length ? '<div>' + (w.ach.length > 1 ? 'Achievements' : 'Achievement') + ': ' + w.ach.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + ((w.opened || []).length ? '<div>Unlocked: ' + w.opened.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + '</div>' : '') +
       '<div class="fact"><div class="k">Did you know?</div><div class="q">' + esc(f[1]) + '</div><div class="a">' + esc(f[2]) + '</div><div>' + esc(f[3]) + '</div><div class="src">Source: ' + esc(f[4]) + '</div></div>' +
@@ -5770,7 +6127,7 @@ const MODALS = {
 };
 const ACTIONS = {
   resetSaved: () => { // a table that will not come right: forget it and go back to the title
-    clearTimeout(saveTimer); saveTimer = 0; clearWinTimers(); cancelAutoCues(); landCues.length = 0; flipQueue.length = 0; drawWaypoints = {}; clearStuck(); tipHide(); pullbackHold.clear(); clearTransientFx(false);
+    clearTimeout(saveTimer); saveTimer = 0; clearWinTimers(); cancelAutoCues(); cancelBuzz(); clearCueCooldowns(); prevCanAuto = false; landCues.length = 0; flipQueue.length = 0; drawWaypoints = {}; clearStuck(); tipHide(); pullbackHold.clear(); clearTransientFx(false);
     S = null; undoStack = []; redoStack = []; held = null; drag = null; cascade = null; hintState = null;
     save('current', null); closeModal(); showTitle(true); toast('Saved game cleared.');
   },
@@ -5792,15 +6149,17 @@ const BIND = {
   settings() {
     BIND._common();
     const syncTimerNote = () => { const tn = $('#timerNote'); if (tn) tn.textContent = timerNote(); };
-    sheet.querySelectorAll('[data-set]').forEach((b) => (b.onclick = () => { setSetting(b.dataset.set, b.dataset.val); sfx('tick'); sheet.querySelectorAll('[data-set="' + b.dataset.set + '"]').forEach((x) => x.setAttribute('aria-pressed', x === b)); if (b.dataset.set === 'tapMove') { const n = $('#tapNote'); if (n) n.textContent = TAP_NOTES[tapMode()]; } if (b.dataset.set === 'scoring') syncTimerNote(); }));
-    sheet.querySelectorAll('[data-tog]').forEach((b) => (b.onclick = () => { const k = b.dataset.tog; setSetting(k, !settings[k]); sfx('tick'); b.setAttribute('aria-checked', String(!!settings[k])); if (k === 'showTimer') syncTimerNote(); }));
-    $('#vol').oninput = (e) => { setSetting('volume', +e.target.value); previewVolume(); };
-    $('#musicVol').oninput = (e) => setSetting('musicVol', +e.target.value);
-    $('#ambVol').oninput = (e) => setSetting('ambVol', +e.target.value);
+    sheet.querySelectorAll('[data-set]').forEach((b) => (b.onclick = () => { setSetting(b.dataset.set, b.dataset.val); sheet.querySelectorAll('[data-set="' + b.dataset.set + '"]').forEach((x) => x.setAttribute('aria-pressed', x === b)); if (b.dataset.set === 'tapMove') { const n = $('#tapNote'); if (n) n.textContent = TAP_NOTES[tapMode()]; } if (b.dataset.set === 'scoring') syncTimerNote(); }));
+    sheet.querySelectorAll('[data-tog]').forEach((b) => (b.onclick = () => { const k = b.dataset.tog; setSetting(k, !settings[k]); b.setAttribute('aria-checked', String(!!settings[k])); if (k === 'showTimer') syncTimerNote(); }));
+    $('#vol').oninput = (e) => { setSetting('volume', +e.target.value); e.target.setAttribute('aria-valuetext', pctText(e.target.value)); previewVolume(); };
+    $('#musicVol').oninput = (e) => { setSetting('musicVol', +e.target.value); e.target.setAttribute('aria-valuetext', pctText(e.target.value)); };
+    $('#ambVol').oninput = (e) => { setSetting('ambVol', +e.target.value); e.target.setAttribute('aria-valuetext', pctText(e.target.value)); };
   },
   backs() {
     BIND._common();
-    const cap = $('#bkCap'); const show = (id) => { const b = BACKS.find((x) => x.id === id); cap.textContent = b.name + ': ' + (isOpen('b', id) ? b.cap : lockNote('b:' + id)); };
+    const cap = $('#bkCap'), tcap = $('#tblCap');
+    const show = (id) => { const b = BACKS.find((x) => x.id === id); cap.textContent = b.name + ': ' + (isOpen('b', id) ? b.cap : lockNote('b:' + id)); };
+    const showTbl = (id) => { const t = TABLES.find((x) => x.id === id); tcap.textContent = isOpen('t', id) ? (t.cap || t.name) : t.name + ': ' + lockNote('t:' + id); };
     loadArt([...BACKS.map((b) => 'back-' + b.id), ...TABLES.flatMap((t) => tableArt(t.id, true)), ...courtSet('deco'), ...courtSet('painted'), ...LATE_ART, 'title-hero']);
     paintPickers();
     sheet.querySelectorAll('[data-back]').forEach((b) => {
@@ -5809,7 +6168,8 @@ const BIND = {
     });
     show(settings.back);
     sheet.querySelectorAll('[data-table]').forEach((b) => {
-      b.onclick = () => { if (!isOpen('t', b.dataset.table)) { $('#tblCap').textContent = TABLES.find((x) => x.id === b.dataset.table).name + ': ' + lockNote('t:' + b.dataset.table); return; } setSetting('table', b.dataset.table); sheet.querySelectorAll('[data-table]').forEach((x) => x.setAttribute('aria-pressed', x === b)); $('#tblCap').textContent = tableInfo().cap || ''; };
+      b.onclick = () => { if (!isOpen('t', b.dataset.table)) { showTbl(b.dataset.table); return; } setSetting('table', b.dataset.table); sheet.querySelectorAll('[data-table]').forEach((x) => x.setAttribute('aria-pressed', x === b)); showTbl(b.dataset.table); };
+      b.onfocus = () => showTbl(b.dataset.table);
     });
   },
   stats(d) {
@@ -5817,6 +6177,7 @@ const BIND = {
       if (b.dataset.a === 'resetStats') b.onclick = () => openModal('confirm', { title: 'Reset statistics?', text: 'This clears every ' + modeKeyLabel(b.dataset.key) + ' statistic.', yes: 'Reset', onYes: () => { syncShared(); const rk = b.dataset.key; delete stats[rk]; const active = liveDeal(); if (active && modeKey(active.mode, active.opts) === rk) statFor(rk).played = 1; saveStats(); openModal('stats', { key: rk }); } });
       else b.onclick = () => openModal('stats', { key: b.dataset.key });
     });
+    bindTablist(sheet, (tab) => { if (tab && tab.dataset.key) openModal('stats', { key: tab.dataset.key }); });
     void d;
   },
   deal(d) {
@@ -5924,9 +6285,10 @@ function setSetting(k, v) {
   } else if (k in DEFAULT_SETTINGS) settings[k] = typeof DEFAULT_SETTINGS[k] === 'boolean' ? !!v : v;
   saveSettings();
   if (k === 'tips' && !settings.tips) tipHide();
-  if (k === 'motion') syncMotion();
+  if (k === 'haptics' && !settings.haptics) cancelBuzz();
+  if (k === 'motion') { if (reducedMotion()) cancelBuzz(); syncMotion(); }
   if (k === 'scoring') updateHUD();
-  if (['sound', 'music', 'ambience', 'musicVol', 'ambVol'].includes(k)) syncAudio({ manual: k === 'sound' || k === 'music' || k === 'ambience' });
+  if (['sound', 'music', 'ambience', 'musicVol', 'ambVol', 'table'].includes(k)) syncAudio({ manual: k === 'sound' || k === 'music' || k === 'ambience' });
   if (['leftHanded', 'cardSize', 'layout', 'fourColor', 'back', 'table', 'showTimer', 'deckSeed', 'courts'].includes(k)) applyLook();
 }
 
@@ -5969,7 +6331,8 @@ window.__game = {
     if (s.score != null) st.score = s.score; if (s.moves != null) st.moves = s.moves;
     if (s.recycles != null) st.recycles = s.recycles;
     S = st; clearTransientFx(false); undoStack = []; redoStack = []; pullbackHold.clear(); held = null; drag = null; cascade = null; hintState = null; lastWin = null; clearStuck();
-    clearWinTimers(); cancelAutoCues(); landCues.length = 0; flipQueue.length = 0; drawWaypoints = {};
+    clearWinTimers(); cancelAutoCues(); cancelBuzz(); clearCueCooldowns(); landCues.length = 0; flipQueue.length = 0; drawWaypoints = {};
+    prevCanAuto = canAutoComplete();
     closeModal(); showTitle(false); tipHide(); tipGoalShown = null; relayout(true); updateHUD(); markDirty();
     return true;
   },
@@ -6037,7 +6400,7 @@ window.__game = {
     }
     return { w, h, large: !!large, topBoxes, botBoxes, ranks, courtFocus: Object.assign({}, COURT_FOCUS) };
   },
-  cuesPlayed(clear) { const r = CUE_LOG.slice(); if (clear) CUE_LOG.length = 0; return r; },
+  cuesPlayed(clear) { const r = CUE_LOG.slice(); if (clear) { CUE_LOG.length = 0; clearCueCooldowns(); } return r; },
   frameStats(reset) {
     const xs = fstat.xs.slice().sort((a, b) => a - b), q = (f) => xs.length ? +xs[Math.min(xs.length - 1, Math.floor(xs.length * f))].toFixed(2) : 0;
     const r = { frames: fstat.n, avgMs: fstat.n ? +(fstat.sum / fstat.n).toFixed(2) : 0, p50Ms: q(.5), p95Ms: q(.95), maxMs: +fstat.max.toFixed(2) };
