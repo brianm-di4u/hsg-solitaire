@@ -891,9 +891,11 @@ function stockAction() {
   }
   if (d.stock === 'spider') {
     const st = S.piles.stock; if (!st.length) return { ok: false, reason: 'empty' };
-    for (let i = 0; i < 10; i++) if (!S.piles['t' + i].length) { toast('Every column needs a card before the next row'); sfx('nope'); return { ok: false, reason: 'empty column' }; }
+    let tabCards = 0, hasEmpty = false;
+    for (let i = 0; i < 10; i++) { const n = S.piles['t' + i].length; tabCards += n; if (!n) hasEmpty = true; }
+    if (tabCards >= 10 && hasEmpty) { toast('Every column needs a card before the next row'); sfx('nope'); return { ok: false, reason: 'empty column' }; }
     pushUndo(); startClock();
-    for (let i = 0; i < 10; i++) { const u = st.pop(); S.piles['t' + i].push(u); S.up[u] = true; animDelay[u] = i * 45; }
+    for (let i = 0; i < 10 && st.length; i++) { const u = st.pop(); S.piles['t' + i].push(u); S.up[u] = true; animDelay[u] = i * 45; }
     S.moves++; addScore(-1); sfx('deal'); announce('Dealt a new row');
     afterAction({ delay: 460 });
     return { ok: true };
@@ -1040,11 +1042,12 @@ const makeSolver = (() => {
   }
   function spiderMoves(s, ms) {
     tabMoves(s, ms, 1);
-    if (s.st.length && s.t.every((p) => p.length)) ms.push([-1, 0, 0, 0]);
+    let tabCards = 0; for (let i = 0; i < s.t.length; i++) tabCards += s.t[i].length;
+    if (s.st.length && (tabCards < 10 || s.t.every((p) => p.length))) ms.push([-1, 0, 0, 0]);
   }
   function spiderApply(s, m) {
     const o = clone(s);
-    if (m[0] < 0) { o.t.forEach((p) => p.push(o.st.pop())); o.t.forEach((p, i) => clear(o, i)); }
+    if (m[0] < 0) { o.t.forEach((p) => { if (o.st.length) p.push(o.st.pop()); }); o.t.forEach((p, i) => clear(o, i)); }
     else { o.t[m[3]].push(...o.t[m[1]].splice(m[2])); clear(o, m[3]); clear(o, m[1]); }
     return o;
   }
@@ -1157,8 +1160,10 @@ function simStock() {
   }
   if (d.stock === 'spider') {
     if (!st.length) return false;
-    for (let i = 0; i < 10; i++) if (!S.piles['t' + i].length) return false;
-    for (let i = 0; i < 10; i++) { const u = st.pop(); S.piles['t' + i].push(u); S.up[u] = true; }
+    let tabCards = 0, hasEmpty = false;
+    for (let i = 0; i < 10; i++) { const n = S.piles['t' + i].length; tabCards += n; if (!n) hasEmpty = true; }
+    if (tabCards >= 10 && hasEmpty) return false;
+    for (let i = 0; i < 10 && st.length; i++) { const u = st.pop(); S.piles['t' + i].push(u); S.up[u] = true; }
     simSettle();
     return true;
   }
@@ -1897,7 +1902,22 @@ function indexBottom(w, h, large) {
   const base = h * .02 + size * .86;
   return { full: base + desc, cap: base - asc * .1 + 1 };
 }
-function drawFace(ctx, c, w, h, large) {
+function drawWasteMicroSuit(ctx, c, w, h, large, col) {
+  const small = w < 58, ms = w * (small ? .195 : .17), cx = w * (small ? .145 : .138);
+  const ib = indexBottom(w, h, large), cy = ib.full + Math.max(2, h * .018) + ms * .5;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(w * .03, ib.full, w * .22, h - ib.full - h * .04); ctx.clip();
+  const rr = ms * .95, g = ctx.createRadialGradient(cx, cy, rr * .45, cx, cy, rr);
+  g.addColorStop(0, 'rgba(250,245,234,.96)'); g.addColorStop(1, 'rgba(250,245,234,0)');
+  ctx.fillStyle = g; ctx.fillRect(cx - rr, cy - rr, rr * 2, rr * 2);
+  ctx.save(); ctx.translate(cx, cy);
+  suitPath(ctx, c.s, -ms * .45, -ms / 2, ms * .9, ms);
+  ctx.strokeStyle = 'rgba(250,245,234,.92)'; ctx.lineWidth = Math.max(1.2, w * .018); ctx.lineJoin = 'round'; ctx.stroke();
+  ctx.restore();
+  drawSuit(ctx, c.s, cx, cy, ms, col);
+  ctx.restore();
+}
+function drawFace(ctx, c, w, h, large, wastePip) {
   const col = suitColor(c.s);
   cardStock(ctx, w, h);
   const small = w < 58;
@@ -1912,23 +1932,29 @@ function drawFace(ctx, c, w, h, large) {
   const ss = w * ssK;
   drawSuit(ctx, c.s, w - w * .07 - ss * .45, h * .03 + ss / 2 + rs * .1, ss, col);
   const tallCourt = c.r > 10 && !small && artImg(courtArt(c)); // painted courts fill the card instead
-  if (c.r > 10 && settings.courts !== 'painted' && artImg(courtArt(c))) { drawDecoCourt(ctx, c, w, h, small, rs, ss, col); return; }
-  if (!small && !tallCourt) {
-    ctx.save(); ctx.translate(w, h); ctx.rotate(Math.PI);
-    const bs = w * .19; ctx.font = '700 ' + bs + 'px ' + SERIF; ctx.fillStyle = col;
-    ctx.save(); ctx.translate(w * .06, bs * .9 + h * .015); if (lab === '10') ctx.scale(.84, 1); ctx.fillText(lab, 0, 0); ctx.restore();
-    drawSuit(ctx, c.s, w * .06 + bs * .36, bs * .9 + h * .015 + bs * .52, bs * .62, col); // the suit under the rank, as on a printed deck
-    ctx.restore();
+  if (c.r > 10 && settings.courts !== 'painted' && artImg(courtArt(c))) {
+    drawDecoCourt(ctx, c, w, h, small, rs, ss, col);
+  } else {
+    if (!small && !tallCourt) {
+      ctx.save(); ctx.translate(w, h); ctx.rotate(Math.PI);
+      const bs = w * .19; ctx.font = '700 ' + bs + 'px ' + SERIF; ctx.fillStyle = col;
+      ctx.save(); ctx.translate(w * .06, bs * .9 + h * .015); if (lab === '10') ctx.scale(.84, 1); ctx.fillText(lab, 0, 0); ctx.restore();
+      drawSuit(ctx, c.s, w * .06 + bs * .36, bs * .9 + h * .015 + bs * .52, bs * .62, col); // the suit under the rank, as on a printed deck
+      ctx.restore();
+    }
+    if (c.r > 10) drawCourtPanel(ctx, c, w, h, small);
+    else if (c.r === 1) drawAce(ctx, c, w, h, small);
+    else if (small) drawSuit(ctx, c.s, w * .5, h * .64, w * .52, col);
+    else {
+      const ps = w * (c.r >= 9 ? .17 : .19);
+      const xs = { L: w * .3, C: w * .5, R: w * .7 };
+      for (const [cl, f] of PIPS[c.r]) {
+        const y = h * (.37 + f * .44) + ps * .1;
+        drawSuit(ctx, c.s, xs[cl], y, ps, col, f > .5);
+      }
+    }
   }
-  if (c.r > 10) { drawCourtPanel(ctx, c, w, h, small); return; }
-  if (c.r === 1) { drawAce(ctx, c, w, h, small); return; }
-  if (small) { drawSuit(ctx, c.s, w * .5, h * .64, w * .52, col); return; }
-  const ps = w * (c.r >= 9 ? .17 : .19);
-  const xs = { L: w * .3, C: w * .5, R: w * .7 };
-  for (const [cl, f] of PIPS[c.r]) {
-    const y = h * (.37 + f * .44) + ps * .1;
-    drawSuit(ctx, c.s, xs[cl], y, ps, col, f > .5);
-  }
+  if (wastePip) drawWasteMicroSuit(ctx, c, w, h, large, col);
 }
 function cardStock(ctx, w, h) {
   rrect(ctx, .5, .5, w - 1, h - 1, w * .075);
@@ -3076,7 +3102,7 @@ function sprite(key, draw) {
   }
   return c;
 }
-const faceSprite = (u) => { const c = card(u); return sprite('f' + c.s + c.r + (settings.fourColor ? 'q' : '') + (L.largeIdx ? 'L' : ''), (g, w, h) => drawFace(g, c, w, h, L.largeIdx)); };
+const faceSprite = (u, wastePip) => { const c = card(u); return sprite('f' + c.s + c.r + (settings.fourColor ? 'q' : '') + (L.largeIdx ? 'L' : '') + (wastePip ? 'w' : ''), (g, w, h) => drawFace(g, c, w, h, L.largeIdx, wastePip)); };
 const backSprite = () => sprite('b' + settings.back + settings.deckSeed, (g, w, h) => drawBack(g, settings.back, w, h, settings.deckSeed));
 const tableInfo = () => TABLES.find((t) => t.id === settings.table) || TABLES[0];
 
@@ -3141,13 +3167,13 @@ function placeholder(id, b) {
   }
 }
 const FLIP_MS = 220;
-function drawCardAt(u, x, y, t, lift = 0, rot = 0) {
+function drawCardAt(u, x, y, t, lift = 0, rot = 0, wastePip = false) {
   const { cw, ch } = L; const d = D[u];
   let showUp = S.up[u], sx = 1, fk = -1;
   if (d && t < d.f0 + FLIP_MS && t >= d.f0) { fk = (t - d.f0) / FLIP_MS; sx = Math.abs(Math.cos(fk * Math.PI)); showUp = fk >= .5 ? S.up[u] : !S.up[u]; lift = Math.max(lift, Math.sin(fk * Math.PI) * .7); }
   else if (d && t < d.f0) showUp = !S.up[u];
   const sh = shakes[u]; if (sh) { const p = (t - sh) / 260; if (p >= 1) delete shakes[u]; else x += Math.sin(p * Math.PI * 6) * (1 - p) * cw * .06; }
-  const img = showUp ? faceSprite(u) : backSprite();
+  const img = showUp ? faceSprite(u, wastePip) : backSprite();
   if (lift < .01 && !rot && sx > .999) { // resting card: crisp, pixel-aligned fast path
     x = Math.round(x * DPR) / DPR; y = Math.round(y * DPR) / DPR;
     const shd = shadowSprite(false), p = shd.pad;
@@ -3239,15 +3265,18 @@ function frame(t) {
   if (cascade) for (const u of cascade.gone) skip.add(u);
   const moving = [];
   for (const id of pileIds(S.mode)) {
-    for (const u of S.piles[id]) {
+    const p = S.piles[id], wasteRow = id === 'waste' && L.arr === 'top' && S.opts.draw === 3;
+    for (let idx = 0; idx < p.length; idx++) {
+      const u = p[idx];
       if (skip.has(u)) continue;
       const d = D[u]; if (!d) continue;
-      if (t < d.t0 + d.dur && (d.sx !== d.tx || d.sy !== d.ty)) { moving.push(u); continue; }
-      drawCardAt(u, d.tx, d.ty, t);
+      const wastePip = wasteRow && idx >= p.length - 3 && idx < p.length - 1;
+      if (t < d.t0 + d.dur && (d.sx !== d.tx || d.sy !== d.ty)) { moving.push({ u, wastePip }); continue; }
+      drawCardAt(u, d.tx, d.ty, t, 0, 0, wastePip);
     }
   }
-  moving.sort((a, b) => D[a].t0 - D[b].t0);
-  for (const u of moving) { const p = dispPos(u, t); drawCardAt(u, p.x, p.y, t, p.lift, p.rot); }
+  moving.sort((a, b) => D[a.u].t0 - D[b.u].t0);
+  for (const m of moving) { const p = dispPos(m.u, t); drawCardAt(m.u, p.x, p.y, t, p.lift, p.rot, m.wastePip); }
   if (S.mode === 'spider' && L.piles.stock && S.piles.stock.length) {
     const b = L.piles.stock, n = S.piles.stock.length / 10;
     ctx.fillStyle = 'rgba(20,18,31,.82)'; const bw = cw * .42, bh = cw * .3; rrect(ctx, b.x + cw - bw - 3, b.y + ch - bh - 3, bw, bh, bh / 2); ctx.fill();
@@ -4493,7 +4522,7 @@ const MODALS = {
     '<p><b>Goal:</b> move every card to the foundations, building each up by suit from Ace to King (Spider: complete eight King-to-Ace runs).</p>' +
     hp('Klondike', 'klondike', '<p>Build down in alternating colors. Move any face-up run. Only a King may fill an empty column. Tap the stock to draw one card (or three); when it runs out, tap it again to turn the waste over. Unlimited passes.</p>') +
     hp('FreeCell', 'freecell', '<p>All cards are dealt face up. Four free cells each hold one card. Build down in alternating colors; any card may fill an empty column. You can move as many cards at once as your free cells and empty columns allow: (free cells + 1) × 2<sup>empty columns</sup>.</p>') +
-    hp('Spider', 'spider', '<p>Build down regardless of suit, but only a same-suit run moves together. A full King-to-Ace run of one suit leaves the table by itself. Tap the stock to deal ten more cards, one per column, once every column has at least one card.</p>') +
+    hp('Spider', 'spider', '<p>Build down regardless of suit, but only a same-suit run moves together. A full King-to-Ace run of one suit leaves the table by itself. Tap the stock to deal ten more cards, one per column, once every column has at least one card (or anytime fewer than ten cards remain on the table).</p>') +
     hp('Yukon', 'yukon', '<p>No stock. Build down in alternating colors. Any face-up card can move together with every card on top of it, even if they aren\'t in order. Only a King may fill an empty column.</p>') +
     hp('Controls', null, '<table class="keys">' +
     '<tr><td>Drag</td><td>Move cards. Drop anywhere over the target pile.</td></tr>' +

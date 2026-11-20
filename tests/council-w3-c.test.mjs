@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { baseSettings, nearWinKlondike } from './_util.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SHOTS = path.resolve(HERE, '..', '..', '_council', 'hsg-solitaire', 'wave-3', 'shots');
+const SHOTS = process.env.HS_ARTIFACT_DIR ? path.resolve(process.env.HS_ARTIFACT_DIR, 'wave-3', 'shots') : path.resolve(HERE, '..', 'screenshots', 'council-waves', 'wave-3', 'shots');
 const shot = async (t, id, name) => { fs.mkdirSync(SHOTS, { recursive: true }); await t.waitForStable(); await t.page.screenshot({ path: path.join(SHOTS, id + '-' + name + '-' + t.viewport + '.png') }); };
 const KEY = 'spa-solitaire:v1:settings';
 const toastText = (t) => t.page.evaluate(() => document.getElementById('toast').textContent);
@@ -134,7 +134,7 @@ export const tests = [
       await t.game('scene', 'win');
       t.equal(await t.page.locator('#sheet h2').textContent(), 'Your bath is drawn', 'the win title');
       await t.game('scene', 'game');
-      await t.game('setState', { mode: 'spider', opts: { suits: 1 }, piles: { stock: ['#AC'], t0: [], t1: ['5H'], t2: ['5H'], t3: ['5H'], t4: ['5H'], t5: ['5H'], t6: ['5H'], t7: ['5H'], t8: ['5H'], t9: [] } });
+      await t.game('setState', { mode: 'spider', opts: { suits: 1 }, piles: { stock: ['#AC'], t0: [], t1: ['5H', '5H'], t2: ['5H', '5H'], t3: ['5H'], t4: ['5H'], t5: ['5H'], t6: ['5H'], t7: ['5H'], t8: ['5H'], t9: [] } });
       await t.game('act', 'draw');
       t.equal(await toastText(t), 'Every column needs a card before the next row', 'the Spider toast');
       await t.game('newGame', { mode: 'klondike', draw: 1 });

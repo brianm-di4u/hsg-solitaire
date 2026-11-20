@@ -1,4 +1,27 @@
 // Rules tests: deals, legality, stock, Spider runs, FreeCell vectors, determinism (PRD AC 1–11, 20, 21).
+import { inflateSync } from 'node:zlib';
+
+function decodePng(buf) {
+  let pos = 8, w = 0, h = 0, ct = 6; const idat = [];
+  while (pos < buf.length) {
+    const len = buf.readUInt32BE(pos), type = buf.toString('ascii', pos + 4, pos + 8);
+    if (type === 'IHDR') { w = buf.readUInt32BE(pos + 8); h = buf.readUInt32BE(pos + 12); ct = buf[pos + 17]; }
+    else if (type === 'IDAT') idat.push(buf.subarray(pos + 8, pos + 8 + len));
+    else if (type === 'IEND') break;
+    pos += len + 12;
+  }
+  const bpp = ct === 6 ? 4 : 3, stride = w * bpp, raw = inflateSync(Buffer.concat(idat)), out = Buffer.alloc(h * stride);
+  const paeth = (a, b, c) => { const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c); return pa <= pb && pa <= pc ? a : pb <= pc ? b : c; };
+  for (let y = 0; y < h; y++) {
+    const f = raw[y * (stride + 1)], s0 = y * (stride + 1) + 1, d0 = y * stride;
+    for (let x = 0; x < stride; x++) {
+      const v = raw[s0 + x], a = x >= bpp ? out[d0 + x - bpp] : 0, b = y > 0 ? out[d0 - stride + x] : 0, c = y > 0 && x >= bpp ? out[d0 - stride + x - bpp] : 0;
+      out[d0 + x] = (v + (f === 1 ? a : f === 2 ? b : f === 3 ? ((a + b) >> 1) : f === 4 ? paeth(a, b, c) : 0)) & 255;
+    }
+  }
+  return { w, h, bpp, data: out };
+}
+
 const FC1 = ['JD 2D 9H JC 5D 7H 7C 5H', 'KD KC 9S 5S AD QC KH 3H', '2S KS 9D QD JS AS AH 3C', '4C 5C TS QH 4H AC 4D 7S',
   '3S TD 4S TH 8H 2C JH 7D', '6D 8S 8D QS 6C 3D 8C TC', '6S 9C 2H 6H'];
 const FC617 = ['7D AD 5C 3S 5S 8C 2D AH', 'TD 7S QD AC 6D 8H AS KH', 'TH QC 3H 9D 6S 8D 3D TC', 'KD 5H 9S 3C 8S 7H 4D JS',
@@ -40,6 +63,81 @@ export const tests = [
       t.equal([s.piles.stock.length, s.piles.waste.length], [24, 0], 'empty stock recycles the waste');
       await t.game('act', 'draw');
       await t.shot('rules-02-draw3');
+    },
+  },
+  {
+    name: 'rules-02b klondike draw 3 covered waste micro suit pips (CD-WF3-02)',
+    async run(t) {
+      const sampleBox = async (pile, idx, kind) => {
+        const L = await t.game('getLayout'), c = L.piles[pile].cards[idx];
+        const x = Math.round(c.x + c.w * .04), y = Math.round(c.y + L.idxFull + 1);
+        const width = Math.max(2, Math.round(c.w * .21)), height = Math.max(2, Math.round(c.h * .24));
+        const png = decodePng(await t.page.screenshot({ clip: { x, y, width, height } }));
+        const match = (R, G, B) => kind === 'red' ? R > 130 && R - G > 60 && R - B > 60
+          : kind === 'blue' ? B > 120 && B - R > 50
+          : kind === 'green' ? G > 75 && G - R > 25 && G - B > 15
+          : R < 90 && G < 90 && B < 90;
+        let count = 0; const mask = [];
+        for (let i = 0; i < png.data.length; i += png.bpp) {
+          const m = match(png.data[i], png.data[i + 1], png.data[i + 2]) ? 1 : 0;
+          if (m) count++;
+          mask.push(m);
+        }
+        return { arr: L.arr, count, mask };
+      };
+      await t.game('setSettings', { autoFoundation: 'off', fourColor: false, leftHanded: false, layout: 'fit', motion: 'reduced' });
+      const basePiles = { stock: ['#9S'], waste: ['2D', '3C', '2H'], f0: [], f1: [], f2: [], f3: [], t0: ['2D'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] };
+      await t.game('setState', { mode: 'klondike', opts: { draw: 3 }, piles: basePiles });
+      await t.waitForStable();
+      const d0 = await sampleBox('waste', 0, 'red');
+      const c1 = await sampleBox('waste', 1, 'dark');
+      const top2 = await sampleBox('waste', 2, 'red');
+      const tab0 = await sampleBox('t0', 0, 'red');
+      t.equal(d0.arr, 'top', 'top-row layout active on ' + t.viewport);
+      t.expect(d0.count >= 12, 'covered waste[0] 2D shows red micro suit pip (' + d0.count + ' px)');
+      t.expect(c1.count >= 12, 'covered waste[1] 3C shows dark micro suit pip (' + c1.count + ' px)');
+      t.equal(top2.count, 0, 'uncovered top waste[2] 2H omits micro suit pip');
+      t.equal(tab0.count, 0, 'vertical tableau t0[0] 2D omits micro suit pip (CD-WF3-02)');
+      // Same-color suit shape distinction (Heart vs Diamond in 2-color mode — zero color-only cue)
+      await t.game('setState', { mode: 'klondike', opts: { draw: 3 }, piles: Object.assign({}, basePiles, { waste: ['2H', '3C', '2D'] }) });
+      await t.waitForStable();
+      const h0 = await sampleBox('waste', 0, 'red');
+      t.expect(h0.count >= 12, 'covered waste[0] 2H shows red micro suit pip (' + h0.count + ' px)');
+      let diff = 0; for (let i = 0; i < Math.min(d0.mask.length, h0.mask.length); i++) if (d0.mask[i] !== h0.mask[i]) diff++;
+      t.expect(diff >= 4, 'covered 2D vs 2H render distinct vector suit silhouettes (' + diff + ' differing px)');
+      // Covered Art Deco court cards keep crisp micro suit pip contrast
+      await t.game('setState', { mode: 'klondike', opts: { draw: 3 }, piles: Object.assign({}, basePiles, { waste: ['QH', 'KS', '2C'] }) });
+      await t.waitForStable();
+      const qh = await sampleBox('waste', 0, 'red'), ks = await sampleBox('waste', 1, 'dark');
+      t.expect(qh.count >= 12, 'covered Art Deco QH shows legible red micro heart (' + qh.count + ' px)');
+      t.expect(ks.count >= 12, 'covered Art Deco KS shows legible dark micro spade (' + ks.count + ' px)');
+      await t.shot('rules-02b-draw3-courts');
+      // Four-color mode: blue Diamond & green Club micro pips
+      await t.game('setSettings', { fourColor: true });
+      await t.game('setState', { mode: 'klondike', opts: { draw: 3 }, piles: basePiles });
+      await t.waitForStable();
+      const b0 = await sampleBox('waste', 0, 'blue'), g1 = await sampleBox('waste', 1, 'green');
+      t.expect(b0.count >= 12, 'four-color covered waste[0] 2D shows blue micro diamond (' + b0.count + ' px)');
+      t.expect(g1.count >= 12, 'four-color covered waste[1] 3C shows green micro club (' + g1.count + ' px)');
+      // Left-handed top-row Draw 3 still exposes the left strip with micro suit pips
+      await t.game('setSettings', { fourColor: false, leftHanded: true });
+      await t.game('setState', { mode: 'klondike', opts: { draw: 3 }, piles: basePiles });
+      await t.waitForStable();
+      const lh0 = await sampleBox('waste', 0, 'red');
+      t.expect(lh0.count >= 12, 'left-handed covered waste[0] 2D shows red micro diamond (' + lh0.count + ' px)');
+      await t.game('setSettings', { leftHanded: false });
+      // Side-rail vertical waste (L.arr === 'side') must omit left micro suit pip (CD-WF3-02)
+      if (t.viewport === 'desktop') {
+        await t.page.setViewportSize({ width: 844, height: 390 });
+        await t.page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+        await t.game('setState', { mode: 'klondike', opts: { draw: 3 }, piles: basePiles });
+        await t.waitForStable();
+        const side0 = await sampleBox('waste', 0, 'red');
+        t.equal(side0.arr, 'side', '844x390 landscape uses side-rail vertical waste');
+        t.equal(side0.count, 0, 'side-rail vertical waste[0] 2D omits stacked left micro suit pip (CD-WF3-02)');
+        await t.page.setViewportSize({ width: t.vp.width, height: t.vp.height });
+        await t.page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      }
     },
   },
   {
@@ -120,6 +218,37 @@ export const tests = [
       t.equal((await t.game('act', 'draw')).ok, false, 'deal refused with an empty column');
       t.equal((await t.game('act', 'move', 't2', 't1')).ok, true, 'any card fills the empty column');
       t.equal((await t.game('act', 'draw')).ok, true, 'deal allowed once columns are filled');
+    },
+  },
+  {
+    name: 'rules-08b spider allows stock deal with fewer than 10 tableau cards',
+    viewports: ['desktop'],
+    async run(t) {
+      const doneRun = ['AS', '2S', '3S', '4S', '5S', '6S', '7S', '8S', '9S', 'TS', 'JS', 'QS', 'KS'];
+      // Authentic 104-card Spider endgame: 7 runs home (91), 3 tableau cards (<10) across 10 columns, 10 cards in stock
+      await t.game('setState', {
+        mode: 'spider', opts: { suits: 1 },
+        piles: {
+          stock: ['#AS', '#2S', '#3S', '#4S', '#5S', '#6S', '#7S', '#8S', '#TS', '#QS'],
+          f0: doneRun, f1: doneRun, f2: doneRun, f3: doneRun, f4: doneRun, f5: doneRun, f6: doneRun, f7: [],
+          t0: ['KS'], t1: ['JS'], t2: ['9S'], t3: [], t4: [], t5: [], t6: [], t7: [], t8: [], t9: [],
+        },
+      });
+      t.equal((await t.game('act', 'checkStuck')).verdict, 'live', '3-card Spider endgame with 10 in stock is not declared stuck');
+      const h = await t.game('act', 'hint');
+      t.equal([h.ok, !!h.stuck, !!h.stock], [true, false, true], 'hint recommends dealing the stock row rather than dead-ending');
+      t.equal((await t.game('act', 'draw')).ok, true, 'stock deal succeeds with 3 tableau cards and 7 empty columns');
+      const s = await t.state();
+      t.equal(s.stockCount, 0, 'all 10 stock cards dealt');
+      t.equal(s.piles.t0, ['KS', 'QS'], 't0 received top stock card face up');
+      t.equal(s.piles.t1, ['JS', 'TS'], 't1 received second stock card face up');
+      t.equal(s.piles.t2, ['9S', '8S'], 't2 received third stock card face up');
+      for (let i = 3; i < 10; i++) t.equal(s.piles['t' + i].length, 1, 'empty column t' + i + ' received 1 card');
+      // Exact boundary: 9 tableau cards (<10) with an empty column is allowed; 10 tableau cards (>=10) with an empty column is refused
+      await t.game('setState', { mode: 'spider', opts: { suits: 1 }, piles: { stock: Array(10).fill('#5S'), t0: [], t1: ['5S'], t2: ['5S'], t3: ['5S'], t4: ['5S'], t5: ['5S'], t6: ['5S'], t7: ['5S'], t8: ['5S'], t9: ['5S'] } });
+      t.equal((await t.game('act', 'draw')).ok, true, '9 tableau cards with 1 empty column allows stock deal');
+      await t.game('setState', { mode: 'spider', opts: { suits: 1 }, piles: { stock: Array(10).fill('#5S'), t0: [], t1: ['5S', '5S'], t2: ['5S'], t3: ['5S'], t4: ['5S'], t5: ['5S'], t6: ['5S'], t7: ['5S'], t8: ['5S'], t9: ['5S'] } });
+      t.equal((await t.game('act', 'draw')).ok, false, '10 tableau cards with 1 empty column still refuses stock deal');
     },
   },
   {
