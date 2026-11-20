@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { baseSettings } from './_util.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SHOTS = path.resolve(HERE, '..', '..', '_council', 'hsg-solitaire', 'wave-4', 'shots');
+const SHOTS = process.env.HS_ARTIFACT_DIR ? path.resolve(process.env.HS_ARTIFACT_DIR, 'wave-4', 'shots') : path.resolve(HERE, '..', 'screenshots', 'council-waves', 'wave-4', 'shots');
 const shot = async (t, id, name) => { fs.mkdirSync(SHOTS, { recursive: true }); await t.waitForStable(); await t.page.screenshot({ path: path.join(SHOTS, id + '-' + name + '-' + t.viewport + '.png') }); };
 
 const P = 'spa-solitaire:v1:';
@@ -84,6 +84,11 @@ export const tests = [
         const open = async (p) => { await p.goto(A.url()); await p.waitForFunction(() => !!window.__game); };
         const seen = (p) => p.evaluate(() => { window.__seen = 0; window.addEventListener('storage', () => { window.__seen++; }); });
         const flush = (p) => p.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+        const hideTab = (p) => p.evaluate(() => {
+          Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+          document.dispatchEvent(new Event('visibilitychange'));
+          delete document.hidden;
+        });
         const eventsAt = (p, n) => p.waitForFunction((n) => window.__seen >= n, n, { timeout: 10000 });
         const noteShown = (p) => p.locator('#tabNote').isVisible();
         const moves = (p) => p.evaluate(() => window.__game.getState().moves);
@@ -115,6 +120,11 @@ export const tests = [
         await B.evaluate(() => window.__game.act('draw')); await flush(B); await eventsAt(A, 3);
         t.equal(await A.locator('#sr').textContent(), '', 'it is read out once, not on every save');
 
+        // W6-S6-01: hiding or closing a superseded tab without moving never overwrites the newer save.
+        const bMoves = await moves(B);
+        await hideTab(A); await flush(A);
+        t.equal(await A.evaluate(() => JSON.parse(localStorage.getItem('spa-solitaire:v1:current')).state.moves), bMoves, 'hiding/closing a superseded tab preserves the active tab save');
+
         // A moves: the line goes, and A's game is the one kept.
         await A.evaluate(() => window.__game.act('draw'));
         t.expect(!(await noteShown(A)), 'a move in this tab takes the line away');
@@ -127,10 +137,97 @@ export const tests = [
         await B.locator('#tabNote').waitFor({ state: 'visible', timeout: 10000 });
         await B.locator('#tabNoteX').click();
         t.expect(!(await noteShown(B)), 'the button dismisses the line');
+        const aMoves = await moves(A);
+        await hideTab(B); await flush(B);
+        t.equal(await B.evaluate(() => JSON.parse(localStorage.getItem('spa-solitaire:v1:current')).state.moves), aMoves, 'dismissing the banner still keeps hide/close from overwriting the active tab');
         const before = await moves(B); await B.evaluate(() => window.__game.act('draw'));
         t.equal(await moves(B), before + 1, 'play is not blocked');
         t.equal(await B.evaluate(() => window.__game.getState().scene), 'game', 'the table is still there');
+
+        // Title-idle tab (S still non-null in memory after Change game) superseded by B never overwrites B on hide/close.
+        await A.evaluate(() => { window.__seen = 0; window.__game.scene('title'); });
+        await A.waitForFunction(() => window.__game.getState().scene === 'title', null, { timeout: 10000 });
+        await B.evaluate(() => {
+          window.__game.newGame({ mode: 'freecell', deal: 42 });
+          const m = window.__game.legalMoves()[0];
+          window.__game.act('move', m.from, m.to, m.count);
+        });
+        await flush(B); await eventsAt(A, 1);
+        t.expect(!(await noteShown(A)), 'Title stays clean while marking the idle tab superseded');
+        await hideTab(A); await flush(A);
+        const savedAfterTitle = await B.evaluate(() => JSON.parse(localStorage.getItem('spa-solitaire:v1:current')).state);
+        t.equal([savedAfterTitle.mode, savedAfterTitle.deal, savedAfterTitle.moves], ['freecell', 42, 1], 'hiding/closing a Title-idle tab never overwrites the active tab save');
       } finally { await B.close(); }
+    },
+  },
+  {
+    name: 'w4a W6-S6-01 immediate Change game within 300 ms shows Continue, and superseded/Title-idle hide/close preserves newer saves',
+    async run(t) {
+      await baseSettings(t, { tips: false, motion: 'reduced' });
+      await t.seed(27); await t.game('newGame', { mode: 'klondike', draw: 1 });
+      await idle(t);
+      // Clear current so only the <300 ms pending saveTimer from the move below can populate it.
+      const quick = await t.page.evaluate(([p]) => {
+        localStorage.removeItem(p + 'current');
+        window.__game.act('draw');
+        document.getElementById('bMenu').click();
+        document.querySelector('#sheet [data-a="title"]').click();
+        const saved = localStorage.getItem(p + 'current');
+        return {
+          scene: window.__game.getState().scene,
+          contHidden: document.getElementById('tCont').hidden,
+          savedMoves: saved ? JSON.parse(saved).state.moves : -1,
+        };
+      }, [P]);
+      t.equal(quick.scene, 'title', 'Menu -> Change game returns to Title');
+      t.equal(quick.contHidden, false, 'Continue is visible immediately even within 300 ms of a move');
+      t.equal(quick.savedMoves, 1, 'pending saveTimer flushed synchronously before Title checked loadSaved()');
+
+      // Resume and verify simulated cross-tab superseding protects newer save on hide/close in active, dismissed, and Title-idle states.
+      await t.page.locator('#tCont').click(); await idle(t);
+      t.equal((await t.state()).moves, 1, 'Continue resumes the flushed move');
+      const newerActive = await t.page.evaluate(([p]) => {
+        const cur = JSON.parse(localStorage.getItem(p + 'current'));
+        cur.state.moves = 4;
+        const raw = JSON.stringify(cur);
+        localStorage.setItem(p + 'current', raw);
+        window.dispatchEvent(new StorageEvent('storage', { key: p + 'current', newValue: raw, storageArea: localStorage }));
+        const noteVisible = !document.getElementById('tabNote').hidden;
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+        document.dispatchEvent(new Event('visibilitychange'));
+        delete document.hidden;
+        window.dispatchEvent(new Event('pagehide'));
+        const afterHide = JSON.parse(localStorage.getItem(p + 'current')).state.moves;
+        document.getElementById('tabNoteX').click();
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+        document.dispatchEvent(new Event('visibilitychange'));
+        delete document.hidden;
+        window.dispatchEvent(new Event('pagehide'));
+        const afterDismissHide = JSON.parse(localStorage.getItem(p + 'current')).state.moves;
+        return { noteVisible, afterHide, afterDismissHide };
+      }, [P]);
+      t.equal(newerActive, { noteVisible: true, afterHide: 4, afterDismissHide: 4 }, 'superseded active tab (with or without banner dismissed) never overwrites newer save');
+
+      // Making a move reclaims save ownership; then returning to Title and receiving a newer save stays superseded on hide/close.
+      const titleGuarded = await t.page.evaluate(([p]) => {
+        window.__game.act('draw');
+        window.dispatchEvent(new Event('pagehide'));
+        const ownMoves = JSON.parse(localStorage.getItem(p + 'current')).state.moves;
+        window.__game.scene('title');
+        const other = JSON.parse(localStorage.getItem(p + 'current'));
+        other.state.deal = 999; other.state.moves = 7;
+        const raw = JSON.stringify(other);
+        localStorage.setItem(p + 'current', raw);
+        window.dispatchEvent(new StorageEvent('storage', { key: p + 'current', newValue: raw, storageArea: localStorage }));
+        const noteHiddenOnTitle = document.getElementById('tabNote').hidden;
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+        document.dispatchEvent(new Event('visibilitychange'));
+        delete document.hidden;
+        window.dispatchEvent(new Event('pagehide'));
+        const finalState = JSON.parse(localStorage.getItem(p + 'current')).state;
+        return { ownMoves, noteHiddenOnTitle, finalDeal: finalState.deal, finalMoves: finalState.moves };
+      }, [P]);
+      t.equal(titleGuarded, { ownMoves: 2, noteHiddenOnTitle: true, finalDeal: 999, finalMoves: 7 }, 'Title-idle tab stays quiet and never overwrites a newer save on hide/close');
     },
   },
   {

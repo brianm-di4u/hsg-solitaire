@@ -78,11 +78,17 @@ export const tests = [
       const good = JSON.parse(await stored(t, CUR));
       const bad = {
         'empty state': { state: { mode: 'klondike' }, undo: [] },
+        'empty deck (0 cards)': (() => { const c = JSON.parse(JSON.stringify(good)); c.state.cards = []; c.state.up = []; for (const id in c.state.piles) c.state.piles[id] = []; return c; })(),
+        'truncated deck (51 cards)': (() => { const c = JSON.parse(JSON.stringify(good)); c.state.cards.pop(); c.state.up.pop(); for (const id in c.state.piles) c.state.piles[id] = c.state.piles[id].filter((u) => u < 51); return c; })(),
         'old version': Object.assign({}, good, { state: Object.assign({}, good.state, { v: 0 }) }),
         'missing pile': (() => { const c = JSON.parse(JSON.stringify(good)); delete c.state.piles.t3; return c; })(),
+        'extra pile': (() => { const c = JSON.parse(JSON.stringify(good)); c.state.piles.extra = []; return c; })(),
         'duplicate card': (() => { const c = JSON.parse(JSON.stringify(good)); c.state.piles.t0[0] = c.state.piles.t1[0]; return c; })(),
         'no opts': (() => { const c = JSON.parse(JSON.stringify(good)); delete c.state.opts; return c; })(),
         'nan score': (() => { const c = JSON.parse(JSON.stringify(good)); c.state.score = 'x'; return c; })(),
+        'negative moves': (() => { const c = JSON.parse(JSON.stringify(good)); c.state.moves = -1; return c; })(),
+        'negative score': (() => { const c = JSON.parse(JSON.stringify(good)); c.state.score = -10; return c; })(),
+        'non-boolean up': (() => { const c = JSON.parse(JSON.stringify(good)); c.state.up[0] = 1; return c; })(),
         'array state': { state: [], undo: [] },
       };
       for (const [name, val] of Object.entries(bad)) {
@@ -95,9 +101,82 @@ export const tests = [
       }
       await plant(t, CUR, JSON.stringify(good).slice(0, 200));
       t.expect(!(await t.page.isVisible('#tCont')), 'truncated JSON: Continue hidden');
+
+      // Corrupted undo snapshots (out-of-range/duplicate indices, bad up, negative counters) are stripped rather than crashing Undo.
+      const badUndo = {
+        'undo out-of-range index': (() => { const c = JSON.parse(JSON.stringify(good)); c.undo[0].piles.t0[0] = 99; return c; })(),
+        'undo duplicate index': (() => { const c = JSON.parse(JSON.stringify(good)); c.undo[0].piles.t0[0] = c.undo[0].piles.t1[0]; return c; })(),
+        'undo non-boolean up': (() => { const c = JSON.parse(JSON.stringify(good)); c.undo[0].up[0] = 1; return c; })(),
+        'undo negative moves': (() => { const c = JSON.parse(JSON.stringify(good)); c.undo[0].moves = -1; return c; })(),
+      };
+      for (const [name, val] of Object.entries(badUndo)) {
+        await plant(t, CUR, JSON.stringify(val));
+        t.expect(await t.page.isVisible('#tCont'), name + ': valid state still offers Continue');
+        await t.page.click('#tCont'); await t.waitForStable();
+        const s = await t.state();
+        t.equal([s.moves, s.undoDepth], [1, 0], name + ': corrupted undo stack stripped safely');
+        t.equal((await t.game('act', 'undo')).ok, false, name + ': Undo does not crash');
+        await t.game('scene', 'title'); await settle(t);
+      }
+
       await plant(t, CUR, JSON.stringify(good));
       await t.page.click('#tCont'); await t.waitForStable();
       t.equal((await t.state()).moves, 1, 'a good save still resumes');
+      t.equal((await t.state()).undoDepth, 1, 'a good save keeps its valid undo snapshot');
+      await t.game('act', 'undo');
+      t.equal((await t.state()).moves, 0, 'and Undo restores the prior move cleanly');
+    },
+  },
+  {
+    name: 'w1a W6-S6-02 without CANVAS_FILTER over file:// hueShifted falls back without faulting Title or gameplay',
+    fileUrl: true,
+    initScript: () => { delete CanvasRenderingContext2D.prototype.filter; },
+    async run(t) {
+      await t.page.waitForFunction(() => window.__game && window.__game.isIdle(), null, { timeout: 20000 });
+      t.equal(await t.game('canvasFilter'), false, 'CANVAS_FILTER is disabled');
+      t.equal((await t.state()).scene, 'title', 'Title rendered cleanly with no fault modal');
+      await t.page.waitForFunction(() => window.__game.art().loaded.includes('back-skylight'), null, { timeout: 15000 });
+      await baseSettings(t, { motion: 'reduced', tips: false });
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 11 });
+      await t.waitForStable();
+      await t.game('act', 'draw');
+      await t.waitForStable();
+      const s = await t.state();
+      t.equal([s.scene, s.modal, s.moves], ['game', null, 1], 'gameplay renders and draws without SecurityError or fault dialog');
+    },
+  },
+  {
+    name: 'w1a W6-S6-02 persistent render throw caps automatic fault() retries instead of spinning at 60 fps',
+    allowConsoleErrors: true,
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced', tips: false });
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 11 });
+      await t.waitForStable();
+      await t.page.evaluate(() => {
+        window.__renderThrows = 0;
+        window.__origClearRect = CanvasRenderingContext2D.prototype.clearRect;
+        CanvasRenderingContext2D.prototype.clearRect = function () {
+          window.__renderThrows++;
+          throw new Error('persistent draw boom');
+        };
+      });
+      try {
+        await t.game('act', 'draw');
+        await t.page.waitForFunction(() => window.__game.getState().modal === 'fault', null, { timeout: 8000 });
+        await t.page.waitForTimeout(350);
+        const count1 = await t.page.evaluate(() => window.__renderThrows);
+        await t.page.waitForTimeout(200);
+        const count2 = await t.page.evaluate(() => window.__renderThrows);
+        t.expect(count1 >= 1 && count1 <= 4, 'automatic fault() redraws stop after <=3 retries (total throws: ' + count1 + ')');
+        t.equal(count2, count1, 'render exception loop completely halted (no ongoing 60 fps spin)');
+      } finally {
+        await t.page.evaluate(() => {
+          if (window.__origClearRect) CanvasRenderingContext2D.prototype.clearRect = window.__origClearRect;
+        });
+      }
+      await t.page.locator('#sheet [data-a="resetSaved"]').click();
+      t.equal((await t.state()).scene, 'title', 'Reset saved game cleanly returns to Title');
     },
   },
   // ---- S6-02 ----

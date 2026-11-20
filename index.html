@@ -1615,6 +1615,7 @@ function startDeal(mode, opts, deal, daily, winnable, grade) {
   if (winnable) S.winnable = true;
   if (winnable && grade) S.grade = grade;
   undoStack = []; redoStack = []; hintState = null; held = null; drag = null; cascade = null; cursor = { pile: null, depth: 0 }; clearStuck();
+  tabSuperseded = false; tabNoteHide();
   syncShared(); meta.lastMode = mode; meta.lastOpts = { draw: S.opts.draw, suits: S.opts.suits }; save('meta', meta);
   closeModal(); showTitle(false); tipHide(); setTimeout(tipShow, 1400);
   dealAnimation(); updateHUD(); scheduleSave();
@@ -1706,13 +1707,14 @@ function skipFinish() {
 }
 
 // --- Save current game ---
-let saveTimer = 0;
+let saveTimer = 0, tabSuperseded = false;
 function writeCurrent() {
-  if (!S || S.won) return;
+  if (!S || S.won || tabSuperseded || newerSave) return;
   tickClock();
   save('current', { state: S, undo: undoStack.slice(-400) });
 }
 function scheduleSave() {
+  tabSuperseded = false;
   tabEl.hidden = true; // this tab made the last move: its game is the one kept
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => { saveTimer = 0; writeCurrent(); }, 300);
@@ -1721,25 +1723,32 @@ function scheduleSave() {
 function flushSave() { clearTimeout(saveTimer); saveTimer = 0; writeCurrent(); }
 // A save is only trusted when it has exactly the shape the game writes: a hand-edited, truncated or older-format
 // save is dropped (never assigned to S) so Continue and new games keep working.
+function validPiles(piles, mode, n) {
+  const ids = pileIds(mode);
+  if (!isObj(piles) || Object.keys(piles).length !== ids.length) return false;
+  const seen = new Uint8Array(n); let count = 0;
+  for (const id of ids) {
+    if (!Array.isArray(piles[id])) return false;
+    for (const u of piles[id]) { if (!Number.isInteger(u) || u < 0 || u >= n || seen[u]) return false; seen[u] = 1; count++; }
+  }
+  return count === n;
+}
 function validSave(c) {
   const isArr = Array.isArray; const num = (v) => typeof v === 'number' && isFinite(v);
   const s = c.state;
   if (!isObj(s) || s.v !== 1 || !MODES[s.mode] || !isObj(s.opts) || ![1, 3].includes(s.opts.draw) || ![1, 2, 4].includes(s.opts.suits)) return false;
-  if (!['deal', 'score', 'moves', 'elapsedMs', 'recycles', 'runs'].every((k) => num(s[k])) || (s.daily != null && typeof s.daily !== 'string')) return false;
-  if (!isArr(s.cards) || !isArr(s.up) || s.up.length !== s.cards.length || !isObj(s.piles)) return false;
-  const n = s.cards.length;
+  if (!['deal', 'score', 'moves', 'elapsedMs', 'recycles', 'runs'].every((k) => num(s[k]) && s[k] >= 0) || (s.daily != null && typeof s.daily !== 'string')) return false;
+  const n = s.mode === 'spider' ? 104 : 52;
+  if (!isArr(s.cards) || s.cards.length !== n || !isArr(s.up) || s.up.length !== n || !s.up.every((b) => typeof b === 'boolean')) return false;
   if (!s.cards.every((k) => isObj(k) && Number.isInteger(k.s) && k.s >= 0 && k.s < 4 && Number.isInteger(k.r) && k.r >= 1 && k.r <= 13)) return false;
-  const seen = new Uint8Array(n); let count = 0;
-  for (const id of pileIds(s.mode)) {
-    if (!isArr(s.piles[id])) return false;
-    for (const u of s.piles[id]) { if (!Number.isInteger(u) || u < 0 || u >= n || seen[u]) return false; seen[u] = 1; count++; }
-  }
-  if (count !== n || Object.keys(s.piles).length !== pileIds(s.mode).length) return false;
-  return true;
+  return validPiles(s.piles, s.mode, n);
 }
 function validSnapshot(sn, c) {
-  if (!isObj(sn) || !isObj(sn.piles) || !Array.isArray(sn.up) || sn.up.length !== c.state.cards.length) return false;
-  return pileIds(c.state.mode).every((id) => Array.isArray(sn.piles[id])) && ['score', 'moves', 'recycles', 'runs'].every((k) => typeof sn[k] === 'number' && isFinite(sn[k]));
+  const n = c.state.cards.length;
+  if (!isObj(sn) || !Array.isArray(sn.up) || sn.up.length !== n || !sn.up.every((b) => typeof b === 'boolean')) return false;
+  if (!['score', 'moves', 'recycles', 'runs'].every((k) => typeof sn[k] === 'number' && isFinite(sn[k]) && sn[k] >= 0)) return false;
+  if (sn.won !== undefined && typeof sn.won !== 'boolean') return false;
+  return validPiles(sn.piles, c.state.mode, n);
 }
 function loadSaved() {
   const c = load('current', null);
@@ -1752,12 +1761,13 @@ function loadSaved() {
 function resumeSaved() {
   const c = loadSaved(); if (!c) return false;
   clearTimeout(winTimer); winTimer = 0; finishRun = false;
-  const prev = { S, undoStack };
+  const prev = { S, undoStack, tabSuperseded };
   try {
     S = c.state; undoStack = c.undo; redoStack = []; hintState = null; held = null; drag = null; cascade = null; fitHold = 1; clearStuck();
+    tabSuperseded = false; tabNoteHide();
     clockMark = now(); closeModal(); showTitle(false); relayout(true); dealAnimation(); updateHUD();
   } catch (e) {
-    S = prev.S; undoStack = prev.undoStack; save('current', null); showTitle(true); toast('Your saved game could not be restored.');
+    S = prev.S; undoStack = prev.undoStack; tabSuperseded = prev.tabSuperseded; save('current', null); showTitle(true); toast('Your saved game could not be restored.');
     return false;
   }
   return true;
@@ -2272,11 +2282,13 @@ function blurCover(ctx, tex, W, H, zoom, px) {
 function hueShifted(img, w, h, k, deg, sat) { // the picture cover-fitted to w by h, hue-rotated and then saturated as CSS would
   const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
   const g = c.getContext('2d'); coverImg(g, img, 0, 0, c.width, c.height);
+  let im;
+  try { im = g.getImageData(0, 0, c.width, c.height); } catch (e) { return null; } // file:// taints pixel readback; drawBack() falls back to unshifted coverImg()
   const co = Math.cos(deg * Math.PI / 180), si = Math.sin(deg * Math.PI / 180);
   const R = [[.213 + co * .787 - si * .213, .715 - co * .715 - si * .715, .072 - co * .072 + si * .928], [.213 - co * .213 + si * .143, .715 + co * .285 + si * .14, .072 - co * .072 - si * .283], [.213 - co * .213 - si * .787, .715 - co * .715 + si * .715, .072 + co * .928 + si * .072]];
   const A = [[.213 + .787 * sat, .715 - .715 * sat, .072 - .072 * sat], [.213 - .213 * sat, .715 + .285 * sat, .072 - .072 * sat], [.213 - .213 * sat, .715 - .715 * sat, .072 + .928 * sat]];
   const M = A.map((row) => [0, 1, 2].map((j) => row[0] * R[0][j] + row[1] * R[1][j] + row[2] * R[2][j]));
-  const im = g.getImageData(0, 0, c.width, c.height), d = im.data;
+  const d = im.data;
   for (let i = 0; i < d.length; i += 4) {
     const r = d[i], gr = d[i + 1], b = d[i + 2];
     d[i] = M[0][0] * r + M[0][1] * gr + M[0][2] * b; d[i + 1] = M[1][0] * r + M[1][1] * gr + M[1][2] * b; d[i + 2] = M[2][0] * r + M[2][1] * gr + M[2][2] * b;
@@ -4182,12 +4194,16 @@ const tabEl = $('#tabNote');
 function tabNoteHide() { tabEl.hidden = true; }
 $('#tabNoteX').onclick = () => { tabNoteHide(); cv.focus({ preventScroll: true }); };
 window.addEventListener('storage', (e) => {
-  if (newerSave || e.key !== KEY + 'current' || !e.newValue || !S || S.won || titleOn || !tabEl.hidden) return;
+  if (newerSave || (e.key !== null && e.key !== KEY + 'current') || !S || S.won) return;
+  if (e.key === null || !e.newValue) { tabSuperseded = true; clearTimeout(saveTimer); saveTimer = 0; return; }
   let c = null; try { c = JSON.parse(e.newValue); } catch (err) { return; }
   const o = isObj(c) && isObj(c.state) ? c.state : null;
-  if (!o || o.won || !isObj(o.opts)) return;
-  if (o.mode === S.mode && o.deal === S.deal && o.moves === S.moves && o.opts.draw === S.opts.draw && o.opts.suits === S.opts.suits) return; // the same position: nothing to lose
-  tabEl.hidden = false; announce(tabEl.firstElementChild.textContent);
+  if (!o) return;
+  if ((typeof o.v === 'number' && o.v > SAVE_VERSION) || o.won) { tabSuperseded = true; clearTimeout(saveTimer); saveTimer = 0; return; }
+  if (!isObj(o.opts)) return;
+  if (o.mode === S.mode && o.deal === S.deal && o.moves === S.moves && o.score === S.score && o.recycles === S.recycles && o.runs === S.runs && !!o.usedUndo === !!S.usedUndo && o.opts.draw === S.opts.draw && o.opts.suits === S.opts.suits) return; // the same position: nothing to lose
+  tabSuperseded = true; clearTimeout(saveTimer); saveTimer = 0;
+  if (!titleOn && tabEl.hidden) { tabEl.hidden = false; announce(tabEl.firstElementChild.textContent); }
 });
 const coachEl = $('#coach');
 function tipText(id) {
@@ -4253,10 +4269,10 @@ function updateTime() {
 }
 setInterval(() => { tickClock(); updateTime(); ambientSync(); }, 500);
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { tickClock(); flushSave(); } else clockMark = now();
+  if (document.hidden) { tickClock(); if (!titleOn || saveTimer) flushSave(); } else clockMark = now();
   if (AC) { syncAudio(); try { (document.hidden ? AC.suspend() : AC.resume()).catch(() => {}); } catch (e) { /* context already closed */ } }
 });
-window.addEventListener('pagehide', flushSave);
+window.addEventListener('pagehide', () => { if (!titleOn || saveTimer) flushSave(); });
 
 $('#bNew').onclick = () => { initAudio(); confirmAbandon({ mode: S ? S.mode : 'klondike' }); };
 // After a mouse or touch press on a toolbar button the keys belong to the table again (a keyboard press keeps its focus, so Tab and Enter still work).
@@ -4340,6 +4356,7 @@ function skyLoop(t) {
   if (!reducedMotion()) skyRaf = requestAnimationFrame(skyLoop);
 }
 function showTitle(on) {
+  if (on && saveTimer) flushSave();
   titleOn = on; $('#title').classList.toggle('on', on); syncMirror(); if (on) tabNoteHide();
   if (on) { musicHush = false; tipHide(); }
   syncAudio();
@@ -4762,7 +4779,7 @@ let faults = 0;
 function fault(why) {
   if (/ResizeObserver loop/.test(why)) return;
   try {
-    markDirty();
+    if (faults < 3) markDirty();
     if (faults++ === 0 && modalKind !== 'win') openModal('fault');
   } catch (e) { /* the page is in worse shape than the notice can help with */ }
 }
