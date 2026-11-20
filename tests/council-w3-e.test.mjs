@@ -371,4 +371,76 @@ export const tests = [
       t.equal([r.steamed, r.stamp], [0, 1], 'stamp whole, no steam: ' + JSON.stringify(r));
     },
   },
+  {
+    name: 'w3e W3-B03 Draw-3 FLIP_GAP_MS 1:1 sync, waste-before-foundation timing, autoplay UID dedup, & flip/redo audio sync (W6-P-N03, W6-S5-05)',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'full', autoFoundation: 'off' });
+      // 1. Draw-3 visual stagger matches FLIP_GAP_MS (45 ms) 1:1 with audio flips
+      await t.game('setState', { mode: 'klondike', opts: { draw: 3 }, piles: Object.assign({}, EMPTY_K, { stock: ['4C', '5C', '6C'], t0: ['9S'] }) });
+      await t.game('cuesPlayed', true);
+      await t.game('act', 'draw');
+      const drawSync = await t.page.evaluate(() => {
+        const d0 = window.__game.dispOf('waste', 0), d1 = window.__game.dispOf('waste', 1), d2 = window.__game.dispOf('waste', 2);
+        const flips = window.__game.cuesPlayed().filter((c) => c.name === 'flip').map((c) => Math.round(c.wait * 1000));
+        return { dt: [Math.round(d0.t0 - d0.t0), Math.round(d1.t0 - d0.t0), Math.round(d2.t0 - d0.t0)], flips };
+      });
+      t.equal(drawSync.dt, [0, 45, 90], 'Draw-3 visual stagger aligns 1:1 to FLIP_GAP_MS (45 ms): ' + JSON.stringify(drawSync.dt));
+      t.equal(drawSync.flips, [0, 45, 90], 'Draw-3 audio flips align 1:1 to FLIP_GAP_MS (45 ms)');
+
+      // 2. Draw-3 card #3 Ace visits Waste in draw order before autoplay lifts it to Foundation (W6-P-N03)
+      await t.game('setSettings', { autoFoundation: 'safe' });
+      await t.game('setState', { mode: 'klondike', opts: { draw: 3 }, piles: Object.assign({}, EMPTY_K, { stock: ['AS', '8C', '7H'], t0: ['9S'] }) });
+      await t.game('cuesPlayed', true);
+      await t.game('act', 'draw');
+      const d3 = await t.page.evaluate(() => ({
+        piles: window.__game.getState().piles,
+        w0: window.__game.dispOf('waste', 0),
+        w1: window.__game.dispOf('waste', 1),
+        f0: window.__game.dispOf('f0'),
+        cues: window.__game.cuesPlayed(),
+      }));
+      t.equal([d3.piles.waste, d3.piles.f0], [['7H', '8C'], ['AS']], 'Draw-3 draws 7H, 8C to Waste and autoplays AS to Foundation');
+      t.expect(d3.f0.t0 - d3.w1.t0 >= 200, 'AS launches to Foundation strictly after card #2 + waste settle (>=200 ms after 8C): ' + Math.round(d3.f0.t0 - d3.w1.t0));
+      t.expect(!!d3.f0.via && Math.abs((d3.f0.via.t0 - d3.w1.t0) - 45) <= 2, 'AS stages Stage-1 flip onto Waste at t+90 ms (45 ms after card #2): ' + JSON.stringify(d3.f0.via));
+      t.expect(Math.hypot(d3.f0.sx - d3.f0.via.sx, d3.f0.sy - d3.f0.via.sy) > 20 && Math.abs(d3.f0.sx - d3.w1.tx) < 1 && Math.abs(d3.f0.sy - d3.w1.ty) < 1, 'AS Stage-2 lifts off from Waste slot, not Stock: ' + JSON.stringify({ sx: d3.f0.sx, sy: d3.f0.sy, via: d3.f0.via, w1: { tx: d3.w1.tx, ty: d3.w1.ty } }));
+      const asFound = d3.cues.find((c) => c.name === 'found');
+      t.expect(!!asFound && asFound.wait > 0.35, 'AS foundation chime waits until AS lands on Foundation (>350 ms): ' + JSON.stringify(asFound));
+
+      // Draw-1 Ace also visits Waste briefly before lifting to Foundation
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EMPTY_K, { stock: ['AS'], t0: ['9S'] }) });
+      await t.game('act', 'draw');
+      const d1 = await t.page.evaluate(() => window.__game.dispOf('f0'));
+      t.expect(!!d1.via && d1.t0 - d1.via.t0 >= 155, 'Draw-1 Ace visits Waste before lifting to Foundation (+161 ms): ' + Math.round(d1.t0 - (d1.via ? d1.via.t0 : d1.t0)));
+
+      // 3. Autoplay 'found' replaces intermediate tableau 'place' on same card UID and inherits auto=false (W6-S5-05)
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EMPTY_K, { t0: ['AS'], t1: ['2H'], t2: ['KD'] }) });
+      await t.game('cuesPlayed', true);
+      await t.game('act', 'move', 't0', 't1');
+      const ap = await t.page.evaluate(() => ({ f0: window.__game.getState().piles.f0, cues: window.__game.cuesPlayed() }));
+      t.equal(ap.f0, ['AS'], 'autoplay sent player-moved AS straight to Foundation');
+      t.equal(ap.cues.filter((c) => c.name === 'place').length, 0, 'intermediate tableau place cue deduplicated away');
+      const foundCue = ap.cues.find((c) => c.name === 'found');
+      t.expect(!!foundCue && foundCue.arg === 1 && foundCue.auto === false, 'found chime replaces place and inherits auto=false: ' + JSON.stringify(foundCue));
+
+      // 4. Uncovered tableau flip fires at mid-flip (not t=0), and redo() fires at landing (not t=0) (W6-S5-05)
+      await t.game('setSettings', { autoFoundation: 'off' });
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EMPTY_K, { t0: ['#5C', '9H'], t1: ['TS'], f0: ['AC'], t2: ['2C'] }) });
+      await t.game('cuesPlayed', true);
+      await t.game('act', 'move', 't0', 't1');
+      const mvCues = await t.game('cuesPlayed', true);
+      const revFlip = mvCues.find((c) => c.name === 'flip');
+      t.expect(!!revFlip && revFlip.wait >= 0.14, 'uncovered tableau card flip fires at mid-flip (>=140 ms, not t=0): ' + JSON.stringify(revFlip));
+
+      await t.game('act', 'undo'); await t.game('cuesPlayed', true);
+      await t.game('act', 'redo');
+      const redoPlace = (await t.game('cuesPlayed', true)).find((c) => c.name === 'place');
+      t.expect(!!redoPlace && redoPlace.wait >= 0.12, 'redo() tableau cue fires at card landing (>=120 ms, not t=0): ' + JSON.stringify(redoPlace));
+
+      await t.game('act', 'move', 't2', 'f0');
+      await t.game('act', 'undo'); await t.game('cuesPlayed', true);
+      await t.game('act', 'redo');
+      const redoFound = (await t.game('cuesPlayed', true)).find((c) => c.name === 'found');
+      t.expect(!!redoFound && redoFound.arg === 2 && redoFound.wait >= 0.12, 'redo() foundation cue fires at card landing (>=120 ms, not t=0): ' + JSON.stringify(redoFound));
+    },
+  },
 ];

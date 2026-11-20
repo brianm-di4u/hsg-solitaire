@@ -320,4 +320,102 @@ export const tests = [
       t.equal(await t.page.evaluate(() => document.getElementById('toast').textContent), 'Cards draw from the waste, not onto it', 'dropping onto Klondike Waste explains Waste rule');
     },
   },
+  {
+    name: 'play-33 52-card Finish audio past 1500 ms, autoCueBus skip cancellation, click-free master mute/volume, 0.2 s manual toggles, & non-win modal guard (W6-S5-05)',
+    viewports: ['desktop'],
+    initScript: () => {
+      window.__ap = { targets: [], ramps: [] };
+      const st = AudioParam.prototype.setTargetAtTime;
+      AudioParam.prototype.setTargetAtTime = function (target, startTime, timeConstant) {
+        window.__ap.targets.push({ target, startTime, tc: timeConstant });
+        return st.apply(this, arguments);
+      };
+      const lr = AudioParam.prototype.linearRampToValueAtTime;
+      AudioParam.prototype.linearRampToValueAtTime = function (value, endTime) {
+        window.__ap.ramps.push({ value, endTime, dur: endTime - (window.__acNow ? window.__acNow() : 0) });
+        return lr.apply(this, arguments);
+      };
+      const OrigAC = window.AudioContext || window.webkitAudioContext;
+      if (OrigAC) {
+        const Wrap = function (...a) { const ac = new OrigAC(...a); window.__acNow = () => ac.currentTime; return ac; };
+        Wrap.prototype = OrigAC.prototype;
+        window.AudioContext = Wrap;
+      }
+    },
+    async run(t) {
+      const full52 = () => ({
+        mode: 'klondike', opts: { draw: 1 },
+        piles: {
+          stock: [], waste: [], f0: [], f1: [], f2: [], f3: [],
+          t0: run('C').reverse(), t1: run('D').reverse(), t2: run('H').reverse(), t3: run('S').reverse(),
+          t4: [], t5: [], t6: [],
+        },
+      });
+      await baseSettings(t, { sound: true, music: true, ambience: true, motion: 'full', autoFoundation: 'off' });
+      await t.page.mouse.click(5, 5); // gesture initializes AudioContext
+      await t.page.waitForFunction(() => window.__game.audioState().ready, null, { timeout: 5000 });
+
+      // 1. Full 52-card Finish chimes past 1500 ms all the way through the Kings (<= 8000 ms clamp)
+      await t.game('setState', full52());
+      await t.game('cuesPlayed', true);
+      await t.page.evaluate(() => { window.__ap.targets.length = 0; window.__ap.ramps.length = 0; });
+      t.equal((await t.game('act', 'autoComplete')).ok, true, '52-card Finish starts');
+      const finCues = (await t.game('cuesPlayed')).filter((c) => c.name === 'found');
+      const maxWait = Math.max(...finCues.map((c) => c.wait));
+      const gaps = finCues.slice(1).map((c, i) => c.wait - finCues[i].wait);
+      t.expect(finCues.length >= 45, '52-card Finish sounds past the old 19-card cutoff (got ' + finCues.length + ' found cues)');
+      t.expect(maxWait > 3.0 && maxWait <= 8.0, 'final Finish chimes extend past 3.0 s within 8.0 s clamp: ' + maxWait.toFixed(3) + ' s');
+      t.expect(finCues.some((c) => c.arg === 13 && c.wait > 3.0), 'Kings chime near the end of the 52-card cascade');
+      t.expect(gaps.every((g) => g >= 0.058), 'sorted auto cues preserve >= 60 ms thinning floor');
+
+      // 2. Modifier keys do NOT skip Finish; real key skips & immediately cancels autoCueBus (15 ms ramp to 0.0001); 2nd press jumps to Win modal
+      t.equal((await t.state()).finishing, true, '52-card Finish marks finishing=true');
+      await t.game('act', 'key', 'Shift');
+      await t.game('act', 'key', 'Tab');
+      t.equal((await t.state()).finishing, true, 'Shift/Tab modifier keys do not skip Finish');
+      await t.page.evaluate(() => { window.__ap.ramps.length = 0; });
+      await t.game('act', 'key', ' ');
+      const skipRamps = await t.page.evaluate(() => window.__ap.ramps.slice());
+      t.expect(skipRamps.some((r) => r.value <= 0.001 && r.dur <= 0.05), 'skipFinish cancels autoCueBus promptly (<=50 ms ramp to 0.0001): ' + JSON.stringify(skipRamps));
+      t.equal((await t.state()).finishing, false, 'first skip press exits finishing state');
+      // Second press within 250 ms skip window jumps straight to Win modal
+      await t.game('act', 'key', ' ');
+      t.equal((await t.state()).modal, 'win', 'second press during skip window opens Win modal immediately');
+      await t.game('scene', 'game');
+
+      // 3. Smooth master.gain ramp (tau=0.018) on volume & mute + synchronous masterGain() + 0.2 s manual Music/Ambience toggle fades
+      await t.page.evaluate(() => { window.__ap.targets.length = 0; window.__ap.ramps.length = 0; });
+      await t.game('setSettings', { volume: 0.5 });
+      const volCheck = await t.page.evaluate(() => ({ mg: window.__game.masterGain(), targets: window.__ap.targets.slice() }));
+      t.expect(volCheck.mg === 0.25 || volCheck.mg === 0.5, 'masterGain() updates synchronously: ' + volCheck.mg);
+      t.expect(volCheck.targets.some((x) => Math.abs(x.tc - 0.018) < 0.002 && Math.abs(x.target - volCheck.mg) < 0.002), 'volume ramps smoothly with tau=0.018 (no zipper steps): ' + JSON.stringify(volCheck.targets));
+
+      await t.page.evaluate(() => { window.__ap.targets.length = 0; window.__ap.ramps.length = 0; });
+      await t.game('setSettings', { sound: false });
+      const muteCheck = await t.page.evaluate(() => ({ mg: window.__game.masterGain(), targets: window.__ap.targets.slice() }));
+      t.equal(muteCheck.mg, 0, 'masterGain() reports 0 synchronously on mute');
+      t.expect(muteCheck.targets.some((x) => x.target === 0 && Math.abs(x.tc - 0.018) < 0.002), 'Master Sound OFF ramps master.gain smoothly to 0 in ~80 ms (tau=0.018): ' + JSON.stringify(muteCheck.targets));
+
+      await t.game('setSettings', { sound: true, music: true, ambience: true });
+      await t.page.evaluate(() => { window.__ap.ramps.length = 0; });
+      await t.game('setSettings', { music: false });
+      const musRamps = await t.page.evaluate(() => window.__ap.ramps.slice());
+      t.expect(musRamps.some((r) => r.value <= 0.001 && r.dur >= 0.15 && r.dur <= 0.35), 'manual Music OFF fades crisply in ~0.2 s (not 2.5 s): ' + JSON.stringify(musRamps));
+
+      await t.page.evaluate(() => { window.__ap.ramps.length = 0; });
+      await t.game('setSettings', { ambience: false });
+      const ambRamps = await t.page.evaluate(() => window.__ap.ramps.slice());
+      t.expect(ambRamps.some((r) => r.value <= 0.001 && r.dur >= 0.15 && r.dur <= 0.35), 'manual Ambience OFF fades crisply in ~0.2 s (not 2.5 s): ' + JSON.stringify(ambRamps));
+
+      // 4. Opening a non-win modal during winTimer/cascade cancels ceremony cleanly (never hijacks open modal) & S.won blocks gameplay shortcuts
+      await t.game('setState', nearWinKlondike());
+      await t.game('act', 'move', 't0', 'f3');
+      t.equal((await t.state()).won, true, 'game won');
+      t.equal((await t.game('act', 'key', 'd')).ok, false, 'S.won blocks gameplay shortcuts in gameKey()');
+      await t.game('scene', 'menu');
+      await t.page.waitForTimeout(700);
+      const afterMenu = await t.state();
+      t.equal([afterMenu.modal, afterMenu.ceremony], ['menu', false], 'opening Menu during winTimer/cascade cancels ceremony cleanly without hijack');
+    },
+  },
 ];

@@ -791,6 +791,7 @@ function finishWins() {
 let undoStack = [], redoStack = [];
 let pullbackHold = new Set(); // card UIDs manually pulled down from a foundation; suppressed from autoplay until sent home or undone
 let animDelay = {};          // uid → ms delay before its next tween starts (staggered autoplay)
+let drawWaypoints = {};      // uid → { x, y, delay } waste staging waypoint when a drawn card autoplays to foundation (W6-P-N03)
 let flipQueue = [];          // uids that just turned face up (for flip animation + sound)
 let hintState = null;        // {list, i, until}
 let stuckVerdict = null;     // last dead-end check: 'dead' | 'live' | 'unknown' | null
@@ -936,22 +937,54 @@ function afterAction(opts = {}) {
   let d = settleTableau(opts.delay || 0);
   if (!opts.noAutoplay) d = autoplay(d + (opts.delay ? 0 : 120));
   hintState = null;
-  if (!S.won && isWon()) { S.won = true; onWin(d); }
-  if (flipQueue.length) { sfx('flip'); flipQueue.length = 0; }
+  if (!S.won && isWon()) { S.won = true; finishRun = d > 300; onWin(d); }
+  if (flipQueue.length) {
+    for (const u of flipQueue) cueOnLand('flip', undefined, undefined, u, true, 'flip');
+    flipQueue.length = 0;
+  }
   relayout(); if (!deferLand) flushLandCues(); updateHUD(); scheduleSave(); scheduleStuckCheck();
 }
 
 // A card's thump or chime belongs to the moment it lands, not the moment it is released: cues wait here until relayout has given the card
-// its flight, then sound a little before it arrives. Cards the game moves by itself ('auto') are thinned to one every 60 ms.
+// its flight, then sound a little before it arrives (flips sound at mid-flip). Deduplicated by card UID so autoplay 'found' replaces
+// an intermediate tableau 'place' while inheriting auto=false for player moves; sorted by ms before thinning and clamped at 8000 ms (W6-S5-05).
 let landCues = [], deferLand = false;
-const LAND_LEAD_MS = 30, LAND_THIN_MS = 60;
-function cueOnLand(name, arg, pan, u, auto) { landCues.push({ name, arg, pan, u, auto }); }
+const LAND_LEAD_MS = 30, LAND_THIN_MS = 60, LAND_MAX_MS = 8000;
+function cueOnLand(name, arg, pan, u, auto, mode = 'land') {
+  const isAuto = !!auto;
+  if (u != null && u >= 0) {
+    const idx = landCues.findIndex((c) => c.u === u && c.mode === mode);
+    if (idx >= 0) {
+      const prev = landCues[idx];
+      landCues[idx] = { name, arg, pan, u, auto: !!(prev.auto && isAuto), mode };
+      return;
+    }
+  }
+  landCues.push({ name, arg, pan, u, auto: isAuto, mode });
+}
 function flushLandCues() {
-  const list = landCues; landCues = []; const t = now(); let last = -1e9;
-  for (const c of list) {
-    const d = D[c.u], ms = clamp(d ? d.t0 + d.dur - t - LAND_LEAD_MS : 0, 0, 1500);
-    if (c.auto && ms - last < LAND_THIN_MS) continue;
-    last = ms; sfx(c.name, c.arg, c.pan, { delay: ms / 1000, auto: c.auto });
+  const list = landCues; landCues = []; if (!list.length) return;
+  const t = now();
+  const items = list.map((c, ord) => {
+    const d = c.u != null ? D[c.u] : null;
+    let raw = 0;
+    if (d) {
+      if (c.mode === 'flip') raw = d.f0 > -1e8 ? d.f0 + FLIP_MS * .35 - t : 0;
+      else raw = d.dur > 0 ? d.t0 + d.dur - t - LAND_LEAD_MS : 0;
+    }
+    return { c, ord, ms: clamp(raw, 0, LAND_MAX_MS) };
+  });
+  items.sort((a, b) => a.ms - b.ms || a.ord - b.ord);
+  let lastAutoLand = -1e9, lastAutoFlip = -1e9;
+  for (const { c, ms } of items) {
+    if (c.mode === 'flip') {
+      if (c.auto && ms - lastAutoFlip < LAND_THIN_MS) continue;
+      if (c.auto) lastAutoFlip = ms;
+    } else {
+      if (c.auto && ms - lastAutoLand < LAND_THIN_MS) continue;
+      if (c.auto) lastAutoLand = ms;
+    }
+    sfx(c.name, c.arg, c.pan, { delay: ms / 1000, auto: c.auto });
   }
 }
 function tryMove(from, idx, to, why = 'player') {
@@ -980,9 +1013,21 @@ function stockAction() {
     const st = S.piles.stock, w = S.piles.waste;
     if (!st.length && !w.length) return { ok: false, reason: 'empty' };
     pushUndo(); startClock(); stuckSuppressed = false;
-    if (st.length) {
-      const n = Math.min(S.opts.draw, st.length);
-      for (let i = 0; i < n; i++) { const u = st.pop(); w.push(u); S.up[u] = true; animDelay[u] = i * 70; }
+    const stWasDrawn = st.length > 0;
+    let n = 0;
+    if (stWasDrawn) {
+      n = Math.min(S.opts.draw, st.length);
+      const drawn = [];
+      for (let i = 0; i < n; i++) { const u = st.pop(); w.push(u); S.up[u] = true; animDelay[u] = i * FLIP_GAP_MS; drawn.push(u); }
+      if (L && L.piles.waste) {
+        const fanN = S.opts.draw === 3 ? 3 : 1, start = Math.max(0, w.length - fanN), nSpan = Math.max(0, w.length - 1 - start);
+        const down = L.arr === 'side', back = !down && L.piles.stock && L.piles.stock.x > L.piles.waste.x;
+        const step = L.cw * .27, vstep = Math.max(L.idxFull + 3, L.ch * .17);
+        drawn.forEach((u, i) => {
+          const idx = w.length - n + i, j = Math.max(0, idx - start);
+          drawWaypoints[u] = { x: L.piles.waste.x + (down ? 0 : back ? (j - nSpan) * step : j * step), y: L.piles.waste.y + (down ? j * vstep : 0), delay: i * FLIP_GAP_MS };
+        });
+      }
       for (let i = 0; i < n; i++) sfx('flip', undefined, undefined, { delay: i * FLIP_GAP_MS / 1000 }); // Draw 3 flips three cards: three flips
       announce('Drew ' + describeCard(top('waste')));
     } else {
@@ -991,7 +1036,7 @@ function stockAction() {
       for (let i = 0; w.length; i++) { const u = w.pop(); st.push(u); S.up[u] = false; animDelay[u] = Math.min(i, 5) * 14; }
       sfx('deal'); announce('Waste turned back to the stock');
     }
-    S.moves++; afterAction({ delay: 1 });
+    S.moves++; afterAction({ delay: stWasDrawn ? ((n - 1) * FLIP_GAP_MS + 160) : 1 });
     return { ok: true };
   }
   if (d.stock === 'spider') {
@@ -1021,22 +1066,42 @@ function staggerRestore(prevPiles) {
 function pileMap() { const m = []; for (const id in S.piles) for (const u of S.piles[id]) m[u] = id; return m; }
 function undo() {
   if (!undoStack.length || !S || S.won) return { ok: false };
+  cancelAutoCues();
   const prev = pileMap();
   redoStack.push(snapshot()); restore(undoStack.pop()); scoreFx = []; landFx = []; staggerRestore(prev);
   S.usedUndo = true; S.assisted = true; hintState = null; tipEvent('undo');
   sfx('undo'); announce('Undone'); relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   return { ok: true };
 }
-// What a Redo sounds like: the move it puts back, not a plain thud. A card that goes home sings its rank, a Spider run that leaves is the run cue.
-function redoCue(was, runs) {
-  for (const id in S.piles) if (kindOf(id) === 'found' && S.piles[id].length > was[id]) return S.runs > runs ? ['run'] : def().runs ? ['place', 1] : ['found', card(S.piles[id][S.piles[id].length - 1]).r];
-  return ['place', 1];
+// What a Redo sounds like: the move it puts back, synced to landing instead of t=0 (W6-S5-05).
+function redoCue(was, runs, prev) {
+  const panOf = (id) => { const b = L && L.piles[id]; return b ? (b.x + L.cw / 2) / W * 2 - 1 : 0; };
+  for (const id in S.piles) {
+    if (kindOf(id) === 'found' && S.piles[id].length > was[id]) {
+      const u = S.piles[id][S.piles[id].length - 1];
+      return S.runs > runs ? ['run', undefined, panOf(id), u] : def().runs ? ['place', 1, panOf(id), u] : ['found', card(u).r, panOf(id), u];
+    }
+  }
+  let movedUid = -1, movedPile = null;
+  if (prev) {
+    for (const id in S.piles) {
+      const p = S.piles[id];
+      for (let i = p.length - 1; i >= 0; i--) {
+        if (prev[p[i]] !== id) { movedUid = p[i]; movedPile = id; break; }
+      }
+      if (movedUid >= 0) break;
+    }
+  }
+  return ['place', 1, movedPile ? panOf(movedPile) : 0, movedUid];
 }
 function redo() {
   if (!redoStack.length || !S) return { ok: false };
+  cancelAutoCues();
   const prev = pileMap(), was = {}, runs = S.runs; for (const id in S.piles) if (kindOf(id) === 'found') was[id] = S.piles[id].length;
   undoStack.push(snapshot()); restore(redoStack.pop()); scoreFx = []; landFx = []; staggerRestore(prev); stuckSuppressed = false; tipResetIdle();
-  sfx(...redoCue(was, runs)); announce('Redone'); relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
+  const [cueName, cueArg, cuePan, cueUid] = redoCue(was, runs, prev);
+  cueOnLand(cueName, cueArg, cuePan, cueUid, false);
+  announce('Redone'); relayout(); flushLandCues(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   if (!S.won && isWon()) { S.won = true; onWin(0); }
   return { ok: true };
 }
@@ -1920,7 +1985,8 @@ function newGame(o = {}) {
 }
 function startDeal(mode, opts, deal, daily, winnable, grade) {
   abandonCurrent();
-  clearTimeout(winTimer); winTimer = 0; finishRun = false;
+  clearWinTimers(); cancelAutoCues();
+  landCues.length = 0; flipQueue.length = 0; drawWaypoints = {};
   syncShared();
   S = newState(mode, opts, deal, daily); musicHush = false; clearTransientFx(true);
   if (winnable) S.winnable = true;
@@ -2027,11 +2093,19 @@ function milestoneCue(w) {
   if (w.pb) return ['best'];
   return w.streak >= 3 ? ['streak', Math.min(5, w.streak)] : null;
 }
-let winTimer = 0, finishRun = false; // finishRun: Finish is still playing cards home, and any press cuts it short
-function ceremony() { winTimer = 0; finishRun = false; musicHush = true; syncAudio(); sfx('win'); startCascade(); }
+let winTimer = 0, finishRun = false, finishSkipped = false, winEpoch = 0, winSheetTimers = []; // finishRun: Finish is still playing cards home, and any press cuts it short
+function clearWinTimers() {
+  winEpoch++;
+  clearTimeout(winTimer); winTimer = 0;
+  finishRun = false; finishSkipped = false;
+  for (const id of winSheetTimers) clearTimeout(id);
+  winSheetTimers.length = 0;
+}
+function ceremony() { winTimer = 0; finishRun = false; finishSkipped = false; cancelAutoCues(); musicHush = true; syncAudio(); sfx('win'); startCascade(); }
 function skipFinish() {
-  finishRun = false; const t = now();
-  for (let u = 0; u < S.cards.length; u++) if (D[u]) { D[u].t0 = Math.min(D[u].t0, t - 1e5); D[u].f0 = Math.min(D[u].f0, t - 1e5); }
+  finishRun = false; finishSkipped = true; const t = now();
+  cancelAutoCues();
+  for (let u = 0; u < S.cards.length; u++) if (D[u]) { D[u].t0 = Math.min(D[u].t0, t - 1e5); D[u].f0 = Math.min(D[u].f0, t - 1e5); D[u].via = null; }
   landFx = []; scoreFx = []; clearTimeout(winTimer); winTimer = setTimeout(ceremony, 250); markDirty();
 }
 
@@ -2089,7 +2163,7 @@ function loadSaved() {
 }
 function resumeSaved() {
   const c = loadSaved(); if (!c) return false;
-  clearTimeout(winTimer); winTimer = 0; finishRun = false;
+  clearWinTimers(); cancelAutoCues(); landCues.length = 0; flipQueue.length = 0; drawWaypoints = {};
   const prev = { S, undoStack, tabSuperseded };
   try {
     S = c.state; undoStack = c.undo; redoStack = []; pullbackHold.clear(); clearTransientFx(false); hintState = null; held = null; drag = null; cascade = null; fitHold = 1; clearStuck();
@@ -3494,7 +3568,13 @@ const ease = (t) => 1 - Math.pow(1 - t, 3);
 const easeBack = (t) => { const c = 1.4; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); }; // overshoots ~4%, then settles
 function dispPos(u, t) {
   const d = D[u]; if (!d) return null;
-  if (t < d.t0) return { x: d.sx, y: d.sy, lift: 0, rot: 0 };
+  if (t < d.t0) {
+    const v = d.via;
+    if (!v || t < v.t0) return { x: v ? v.sx : d.sx, y: v ? v.sy : d.sy, lift: 0, rot: 0 };
+    if (t >= v.t0 + v.dur) return { x: d.sx, y: d.sy, lift: 0, rot: 0 };
+    const vk = (t - v.t0) / v.dur, ve = ease(vk), vh = Math.sin(Math.PI * Math.min(1, vk * 1.08));
+    return { x: v.sx + (d.sx - v.sx) * ve, y: v.sy + (d.sy - v.sy) * ve - v.arc * vh, lift: vh, rot: v.spin * vh };
+  }
   if (t >= d.t0 + d.dur) return { x: d.tx, y: d.ty, lift: 0, rot: 0 };
   const k = (t - d.t0) / d.dur, e = d.back ? easeBack(k) : ease(k);
   if (d.fromLift != null) {
@@ -3530,14 +3610,31 @@ function relayout(instant) {
   for (let u = 0; u < S.cards.length; u++) {
     const T = targets[u]; if (!T) continue;
     let d = D[u];
-    if (!d || instant) { D[u] = { x: T.x, y: T.y, sx: T.x, sy: T.y, tx: T.x, ty: T.y, t0: 0, dur: 0, up: S.up[u], f0: -1e9, pile: T.pile, fromLift: null, fromRot: 0, seatAt: 0 }; continue; }
+    if (!d || instant) { D[u] = { x: T.x, y: T.y, sx: T.x, sy: T.y, tx: T.x, ty: T.y, t0: 0, dur: 0, up: S.up[u], f0: -1e9, pile: T.pile, via: null, fromLift: null, fromRot: 0, seatAt: 0 }; continue; }
     const delay = animDelay[u] || 0;
+    const wp = drawWaypoints[u];
+    const staged = !rm && wp && T.pile !== 'waste' && delay > wp.delay;
     if (Math.abs(d.tx - T.x) > .5 || Math.abs(d.ty - T.y) > .5) {
-      const p = dispPos(u, t); const dist = Math.hypot(T.x - p.x, T.y - p.y);
-      d.sx = p.x; d.sy = p.y; d.tx = T.x; d.ty = T.y; d.t0 = t + (rm ? 0 : delay); d.dur = rm ? 0 : glideMs(dist, .3, 190, 420);
+      const p = dispPos(u, t);
+      if (staged) {
+        const d1 = Math.hypot(wp.x - p.x, wp.y - p.y), d2 = Math.hypot(T.x - wp.x, T.y - wp.y);
+        d.via = {
+          sx: p.x, sy: p.y, t0: t + wp.delay,
+          dur: Math.min(190, Math.max(110, delay - wp.delay - 10)),
+          arc: clamp(d1 * .1, 0, L.ch * .35),
+          spin: clamp((wp.x - p.x) / Math.max(1, W), -1, 1) * .12,
+        };
+        d.sx = wp.x; d.sy = wp.y; d.tx = T.x; d.ty = T.y; d.t0 = t + delay; d.dur = glideMs(d2, .3, 190, 420);
+        d.arc = runArcFx.has(u) ? L.ch * .55 : clamp(d2 * .1, 0, L.ch * .45);
+        d.spin = clamp((T.x - wp.x) / Math.max(1, W), -1, 1) * .16;
+      } else {
+        const dist = Math.hypot(T.x - p.x, T.y - p.y);
+        d.via = null;
+        d.sx = p.x; d.sy = p.y; d.tx = T.x; d.ty = T.y; d.t0 = t + (rm ? 0 : delay); d.dur = rm ? 0 : glideMs(dist, .3, 190, 420);
+        d.arc = rm ? 0 : runArcFx.has(u) ? L.ch * .55 : clamp(dist * .1, 0, L.ch * .45);
+        d.spin = rm ? 0 : clamp((T.x - p.x) / Math.max(1, W), -1, 1) * .16;
+      }
       d.back = false; d.fromLift = null; d.fromRot = 0;
-      d.arc = rm ? 0 : runArcFx.has(u) ? L.ch * .55 : clamp(dist * .1, 0, L.ch * .45);
-      d.spin = rm ? 0 : clamp((T.x - p.x) / Math.max(1, W), -1, 1) * .16;
       const toFound = T.pile && kindOf(T.pile) === 'found' && d.pile !== T.pile;
       d.seatAt = !rm && (toFound || seatOnLand.has(u)) ? d.t0 + d.dur : 0;
       if (!rm && toFound && !suppressLandFx.has(u)) {
@@ -3545,7 +3642,7 @@ function relayout(instant) {
       }
     }
     d.pile = T.pile;
-    if (d.up !== S.up[u]) { d.up = S.up[u]; d.f0 = rm ? -1e9 : t + delay; }
+    if (d.up !== S.up[u]) { d.up = S.up[u]; d.f0 = rm ? -1e9 : t + (staged ? wp.delay : delay); }
   }
   // Sync newly spawned scoreFx floaters to card arrival while honoring w4b S3-14 lifetime window.
   for (const q of scoreFx) {
@@ -3554,7 +3651,7 @@ function relayout(instant) {
     const d = q.uid >= 0 ? D[q.uid] : null;
     if (d && d.dur > 0) q.t0 = d.t0 > t ? (d.t0 + d.dur - 30) : Math.min(t + 220, d.t0 + d.dur - 30);
   }
-  animDelay = {}; suppressLandFx.clear(); milestoneLandFx.clear(); runArcFx.clear(); seatOnLand.clear();
+  animDelay = {}; drawWaypoints = {}; suppressLandFx.clear(); milestoneLandFx.clear(); runArcFx.clear(); seatOnLand.clear();
   startLoop();
 }
 // How long a card glides to its place. Farther is slower, between lo and hi; a card already within 20 px of its place settles in as little as 90 ms
@@ -3946,16 +4043,18 @@ function frame(t) {
       if (skip.has(u)) continue;
       const d = D[u]; if (!d) continue;
       const wastePip = wasteRow && idx >= p.length - 3 && idx < p.length - 1;
-      const hasTravel = d.sx !== d.tx || d.sy !== d.ty;
-      const waiting = hasTravel && t < d.t0;
-      const airborne = hasTravel && t >= d.t0 && t < d.t0 + d.dur;
+      const hasTravel = d.sx !== d.tx || d.sy !== d.ty || !!d.via;
+      const viaActive = !!(d.via && t >= d.via.t0 && t < d.t0);
+      const waiting = hasTravel && !viaActive && t < d.t0;
+      const airborne = hasTravel && (viaActive || (t >= d.t0 && t < d.t0 + d.dur));
       const flipping = t >= d.f0 && t < d.f0 + FLIP_MS;
-      if (airborne || flipping) { moving.push({ u, wastePip, t0: airborne ? d.t0 : d.f0 }); continue; }
+      if (airborne || flipping) { moving.push({ u, wastePip, t0: viaActive ? d.via.t0 : airborne ? d.t0 : d.f0 }); continue; }
       if (waiting) {
-        const wk = Math.round(d.sx) + ':' + Math.round(d.sy);
+        const wx = d.via ? d.via.sx : d.sx, wy = d.via ? d.via.sy : d.sy;
+        const wk = Math.round(wx) + ':' + Math.round(wy);
         if (waitingSpots.has(wk)) continue;
         waitingSpots.add(wk);
-        drawCardAt(u, d.sx, d.sy, t, 0, 0, wastePip);
+        drawCardAt(u, wx, wy, t, 0, 0, wastePip);
         continue;
       }
       let lift = 0, rot = 0, scMul = 1;
@@ -4360,6 +4459,7 @@ cv.addEventListener('pointerdown', (e) => {
   if (!tip) tipResetIdle();
   if (cascade) { endCascade(); return; }
   if (finishRun && winTimer) { skipFinish(); return; }
+  if (finishSkipped && winTimer) { clearWinTimers(); musicHush = false; syncAudio(); openModal('win'); return; }
   if (!S || S.won || e.button > 0) return;
   if (pd && pd.id !== e.pointerId) return;
   const p = ptr(e); const hit = hitTest(p.x, p.y);
@@ -4494,11 +4594,22 @@ function announcePile(pile) {
   const p = S.piles[pile]; const u = p.length ? p[cursor.depth] : -1;
   announce(pileName(pile).replace(/^./, (c) => c.toUpperCase()) + ': ' + (u < 0 ? 'empty' : S.up[u] ? describeCard(u) + (kindOf(pile) === 'tab' && cursor.depth < p.length - 1 ? ', ' + (p.length - cursor.depth) + ' cards' : '') : p.length + ' cards face down'));
 }
+const SKIP_IGNORE_KEYS = ['Shift', 'Control', 'Alt', 'Meta', 'Tab'];
 function gameKey(e) {
   const k = e.key; const ctrl = e.ctrlKey || e.metaKey;
   if (!S) return false;
   if (cascade) { if (k === 'Enter' || k === ' ' || k === 'Escape') { endCascade(); return true; } return false; }
-  if (finishRun && winTimer) { skipFinish(); return true; }
+  if ((finishRun || finishSkipped) && winTimer) {
+    if (SKIP_IGNORE_KEYS.includes(k)) return false;
+    if (finishSkipped) { clearWinTimers(); musicHush = false; syncAudio(); openModal('win'); return true; }
+    skipFinish(); return true;
+  }
+  if (S.won) {
+    if (k === 'Escape' || k === 'p' || k === 'P') { openModal('menu'); return true; }
+    if (k === 'n' || k === 'N') { confirmAbandon({ mode: S.mode }); return true; }
+    if (k === '?') { openModal('help'); return true; }
+    return false;
+  }
   if (ctrl && (k === 'z' || k === 'Z')) { undo(); return true; }
   if (ctrl && (k === 'y' || k === 'Y')) { redo(); return true; }
   if (ctrl || e.altKey) return false;
@@ -4670,7 +4781,7 @@ window.addEventListener('gamepaddisconnected', () => { if (!padFound()) { clearI
 if (padFound()) padWatch();
 
 // 12. Audio (WebAudio synthesis; the context is created on the first user gesture)
-let AC = null, master = null, cues = null, kit = null, audioMeter = null;
+let AC = null, master = null, autoCueBus = null, cues = null, kit = null, audioMeter = null, masterTarget = 0, suspendTimer = 0;
 const LIMITER = { threshold: -8, knee: 8, ratio: 12, attack: 0.003, release: 0.25 };
 function makeLimiter(ctx, dest) {
   const c = ctx.createDynamicsCompressor(); c.threshold.value = LIMITER.threshold; c.knee.value = LIMITER.knee; c.ratio.value = LIMITER.ratio;
@@ -4864,7 +4975,7 @@ function makeAudioKit(ctx, out, opt = {}) {
       cur = score ? mStart(score, at, fade) : null;
     },
     stop(fade = 1) { music.play(null, { fade }); },
-    level(v) { mLevel = v; if (!held) musicBus.gain.setTargetAtTime(v, ctx.currentTime, 0.05); },
+    level(v) { mLevel = v; if (!held) { const t = ctx.currentTime; musicBus.gain.cancelScheduledValues(t); musicBus.gain.setValueAtTime(musicBus.gain.value, t); musicBus.gain.setTargetAtTime(v, t, 0.05); } },
     duck(db = 6, ms = 400) { if (held) return; const t = ctx.currentTime; musicBus.gain.cancelScheduledValues(t); musicBus.gain.setTargetAtTime(mLevel * 10 ** (-db / 20), t, 0.02); musicBus.gain.setTargetAtTime(mLevel, t + ms / 1000, 0.25); },
     intensity(x) { inten = Math.max(0, Math.min(1, x)); },
     get score() { return cur && cur.score; },
@@ -4906,7 +5017,7 @@ function makeAudioKit(ctx, out, opt = {}) {
       scene = def ? aStart(def, at, fade) : null;
     },
     stop(fade = 1.5) { amb.play(null, { fade }); },
-    level(v) { aLevel = v; if (!held) ambBus.gain.setTargetAtTime(v, ctx.currentTime, 0.05); },
+    level(v) { aLevel = v; if (!held) { const t = ctx.currentTime; ambBus.gain.cancelScheduledValues(t); ambBus.gain.setValueAtTime(ambBus.gain.value, t); ambBus.gain.setTargetAtTime(v, t, 0.05); } },
     set(name, v, tc = 0.5) { params[name] = v; if (scene) applyParam(scene, name, v, ctx.currentTime, tc); },
     get scene() { return scene && scene.def; },
   };
@@ -4933,8 +5044,8 @@ function makeAudioKit(ctx, out, opt = {}) {
     jit(cents = 25, db = 1.5) { return { f: 2 ** (rr(-cents, cents) / 1200), g: 10 ** (rr(-db, 0) / 20), o: rr(0, 1.5) }; },
     start() { if (!timer) timer = setInterval(() => { if (ctx.state === 'running') scheduleUntil(ctx.currentTime + 0.25); }, 25); },
     stop() { if (timer) clearInterval(timer); timer = 0; },
-    hold(tc = 0.08) { held = true; const t = ctx.currentTime; musicBus.gain.cancelScheduledValues(t); musicBus.gain.setTargetAtTime(0, t, tc); ambBus.gain.setTargetAtTime(0, t, tc); },
-    release(tc = 0.3) { held = false; const t = ctx.currentTime; musicBus.gain.setTargetAtTime(mLevel, t, tc); ambBus.gain.setTargetAtTime(aLevel, t, tc); },
+    hold(tc = 0.08) { held = true; const t = ctx.currentTime; musicBus.gain.cancelScheduledValues(t); ambBus.gain.cancelScheduledValues(t); musicBus.gain.setValueAtTime(musicBus.gain.value, t); ambBus.gain.setValueAtTime(ambBus.gain.value, t); musicBus.gain.setTargetAtTime(0, t, tc); ambBus.gain.setTargetAtTime(0, t, tc); },
+    release(tc = 0.3) { held = false; const t = ctx.currentTime; musicBus.gain.cancelScheduledValues(t); ambBus.gain.cancelScheduledValues(t); musicBus.gain.setValueAtTime(musicBus.gain.value, t); ambBus.gain.setValueAtTime(ambBus.gain.value, t); musicBus.gain.setTargetAtTime(mLevel, t, tc); ambBus.gain.setTargetAtTime(aLevel, t, tc); },
     get held() { return held; },
   };
 }
@@ -4965,8 +5076,8 @@ function makeCues(ctx, dest) {
   const sr = ctx.sampleRate, nb = ctx.createBuffer(1, sr * 2, sr), nd = nb.getChannelData(0);
   for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
   const rnd = Math.random, cents = () => (rnd() < .5 ? -1 : 1) * (10 + rnd() * 20), dbg = () => Math.pow(10, -rnd() * 2 / 20);
-  let lastPlace = 0;
-  const out = (pan) => { if (!pan || !ctx.createStereoPanner) return dest; const p = ctx.createStereoPanner(); p.pan.value = clamp(pan, -.7, .7); p.connect(dest); return p; };
+  let lastPlace = 0, curDst = dest;
+  const out = (pan) => { if (!pan || !ctx.createStereoPanner) return curDst; const p = ctx.createStereoPanner(); p.pan.value = clamp(pan, -.7, .7); p.connect(curDst); return p; };
   function noise(t, dur, type, freq, gain, q, pan) {
     const s = ctx.createBufferSource(); s.buffer = nb; s.loop = true; const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq * (1 + (rnd() - .5) * .16); f.Q.value = q || 1;
     const g = ctx.createGain(); g.gain.setValueAtTime(gain * dbg(), t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
@@ -4985,8 +5096,10 @@ function makeCues(ctx, dest) {
     o.connect(g); g.connect(out(pan)); o.start(t); o.stop(t + dur + .05); return o;
   }
   return {
-    play(name, arg, t, pan) {
-      switch (name) {
+    play(name, arg, t, pan, bus) {
+      curDst = bus || dest;
+      try {
+        switch (name) {
         case 'pick': noise(t, .05, 'bandpass', 3200, .4, 1.2, pan); tone(t, 420, .045, 'sine', .2, .003, pan); break;
         case 'place': {
           const n = clamp(arg || 1, 1, 6), v = lastPlace ^ 1; lastPlace = v; // two filter centres, never the same one twice running
@@ -5019,21 +5132,56 @@ function makeCues(ctx, dest) {
         case 'gather': swell(t, .95, 1200, 6500, .5, .85, pan); [1318.5, 1661.22, 1975.53, 2637.02].forEach((f, i) => tone(t + .25 + i * .17, f, .35, 'sine', .1, .01, pan)); break; // the cards drawn into the rosette
         case 'spray': swell(t, 1.2, 500, 3800, .75, .3, pan); noise(t, .5, 'highpass', 4500, .1, 1, pan); break; // the rosette thrown open
         case 'win': [392, 523.25, 659.25, 783.99].forEach((f, i) => { tone(t + i * .12, f, 1.1, 'sawtooth', .08, .03); tone(t + i * .12, f, 1.2, 'triangle', .19, .02); }); noise(t + .4, 1.4, 'highpass', 2500, .17); break;
+        }
+      } finally {
+        curDst = dest;
       }
     },
   };
 }
 const CUE_NAMES = ['pick', 'place', 'flip', 'found', 'deal', 'nope', 'undo', 'hint', 'run', 'ach', 'win', 'best', 'streak', 'course', 'gather', 'spray', 'tick'];
 for (const ev of ['pointerdown', 'click', 'keydown']) document.addEventListener(ev, (e) => { initAudio(); if (e.pointerType) touchIn = e.pointerType !== 'mouse'; }, { passive: true, capture: true }); // the first gesture of any kind starts the audio
+function makeAutoCueBus() {
+  if (!AC || !master) return null;
+  const g = AC.createGain();
+  g.gain.value = 1;
+  g.connect(master);
+  return g;
+}
+function cancelAutoCues() {
+  if (!AC || !autoCueBus) return;
+  const old = autoCueBus, t = AC.currentTime;
+  try {
+    old.gain.cancelScheduledValues(t);
+    old.gain.setValueAtTime(Math.max(old.gain.value, 0.0001), t);
+    old.gain.linearRampToValueAtTime(0.0001, t + 0.015);
+    setTimeout(() => { try { old.disconnect(); } catch (_) { /* already gone */ } }, 60);
+  } catch (_) { /* context closed */ }
+  autoCueBus = makeAutoCueBus();
+}
+function updateMasterGain(instant) {
+  masterTarget = volumeGain(settings.volume, settings.volumeCurve);
+  if (!AC || !master) return;
+  const goal = settings.sound ? masterTarget : 0, t = AC.currentTime;
+  try {
+    master.gain.cancelScheduledValues(t);
+    if (instant) { master.gain.setValueAtTime(goal, t); master.gain.value = goal; }
+    else { master.gain.setValueAtTime(master.gain.value, t); master.gain.setTargetAtTime(goal, t, 0.018); }
+  } catch (_) { /* context closed */ }
+}
 function initAudio() {
   if (AC || !settings.sound) return;
   const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
   try {
-    AC = new C(); master = AC.createGain(); master.gain.value = volumeGain(settings.volume, settings.volumeCurve); master.connect(makeLimiter(AC, AC.destination));
+    AC = new C(); master = AC.createGain();
+    masterTarget = volumeGain(settings.volume, settings.volumeCurve);
+    master.gain.value = settings.sound ? masterTarget : 0;
+    master.connect(makeLimiter(AC, AC.destination));
+    autoCueBus = makeAutoCueBus();
     cues = makeCues(AC, master);
     kit = makeAudioKit(AC, master, { seed: (Math.random() * 4294967295) >>> 0, music: settings.musicVol, ambience: settings.ambVol });
     kit.start();
-  } catch (e) { AC = null; kit = null; cues = null; return; }
+  } catch (e) { AC = null; master = null; autoCueBus = null; kit = null; cues = null; return; }
   syncAudio();
 }
 const PENTA = [0, 2, 4, 7, 9];
@@ -5043,14 +5191,18 @@ const FOUND_BASE = 261.63, FOUND_PARTIAL_MAX = 750;
 const PAUSE_MODALS = ['menu', 'confirm', 'deal', 'daily', 'backs', 'stats', 'help', 'records'];
 let musicHush = false; // the win ceremony: the music steps back, then returns
 function wakeAudio() { if (AC && (AC.state === 'suspended' || AC.state === 'interrupted')) AC.resume(); } // Safari reports 'interrupted' after a call or alarm
-function syncAudio() {
+function syncAudio(opt = {}) {
   if (!AC || !kit) return;
   if (!document.hidden) wakeAudio();
   kit.music.level(settings.musicVol); kit.amb.level(settings.ambVol);
-  kit.music.play(settings.sound && settings.music && !musicHush ? (titleOn ? SCORES.title : SCORES.table) : null, { fade: musicHush ? 1.2 : 2.5 });
-  kit.amb.play(settings.sound && settings.ambience ? SCENES.bathhouse : null, { fade: 2.5 });
+  const wantMusic = settings.sound && settings.music && !musicHush ? (titleOn ? SCORES.title : SCORES.table) : null;
+  const wantAmb = settings.sound && settings.ambience ? SCENES.bathhouse : null;
+  const mFade = opt.manual ? 0.2 : (musicHush ? 1.2 : !wantMusic && !settings.sound ? 0.1 : 2.5);
+  const aFade = opt.manual ? 0.2 : (!wantAmb && !settings.sound ? 0.1 : 2.5);
+  kit.music.play(wantMusic, { fade: mFade });
+  kit.amb.play(wantAmb, { fade: aFade });
   const paused = document.hidden || PAUSE_MODALS.includes(modalKind);
-  if (paused && !kit.held) kit.hold(); else if (!paused && kit.held) kit.release();
+  if (paused && !kit.held) kit.hold(document.hidden ? 0.015 : 0.08); else if (!paused && kit.held) kit.release();
 }
 // Haptics: a short pulse on the cues a thumb should feel. Only after a touch (a laptop with a mouse never buzzes), never with reduced motion, and with its own switch.
 const BUZZ = { pick: 10, place: 12, found: [10, 40, 10], nope: 25 };
@@ -5059,15 +5211,15 @@ function buzz(name, waitSec, auto) {
   const go = () => { try { navigator.vibrate(p); } catch (_) { /* vibration is optional */ } };
   if (waitSec) setTimeout(go, waitSec * 1000); else go();
 }
-// o.delay: seconds to wait before the cue sounds (a card's landing). o.auto: the game moved the card, so no buzz.
+// o.delay: seconds to wait before the cue sounds (a card's landing). o.auto: the game moved the card, so no buzz & routed through cancellable autoCueBus.
 const CUE_LOG = []; // the last cues asked for, for the test hook (kept whether or not sound is on)
 function sfx(name, arg, pan, o) {
-  const wait = (o && o.delay) || 0;
-  if (CUE_LOG.push({ name, arg, wait, at: Math.round(now()) }) > 80) CUE_LOG.shift();
-  buzz(name, wait, o && o.auto);
+  const wait = (o && o.delay) || 0, isAuto = !!(o && o.auto);
+  if (CUE_LOG.push({ name, arg, wait, auto: isAuto, at: Math.round(now()) }) > 80) CUE_LOG.shift();
+  buzz(name, wait, isAuto);
   if (!settings.sound || !settings.sfx || !AC || document.hidden) return;
   wakeAudio();
-  cues.play(name, arg, AC.currentTime + wait, pan);
+  cues.play(name, arg, AC.currentTime + wait, pan, isAuto ? (autoCueBus || (autoCueBus = makeAutoCueBus())) : master);
   if (name === 'run' || name === 'win') kit.music.duck(6, 500);
 }
 // Test hooks: render one piece, scene or cue by itself on an OfflineAudioContext at the shipped levels, without
@@ -5282,9 +5434,20 @@ function updateTime() {
 setInterval(() => { tickClock(); updateTime(); ambientSync(); }, 500);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { tickClock(); if (!titleOn || saveTimer) flushSave(); } else clockMark = now();
-  if (AC) { syncAudio(); try { (document.hidden ? AC.suspend() : AC.resume()).catch(() => {}); } catch (e) { /* context already closed */ } }
+  if (AC) {
+    clearTimeout(suspendTimer); suspendTimer = 0;
+    syncAudio();
+    if (document.hidden) {
+      suspendTimer = setTimeout(() => { suspendTimer = 0; if (document.hidden && AC) try { AC.suspend().catch(() => {}); } catch (e) { /* context already closed */ } }, 25);
+    } else {
+      try { AC.resume().catch(() => {}); } catch (e) { /* context already closed */ }
+    }
+  }
 });
-window.addEventListener('pagehide', () => { if (!titleOn || saveTimer) flushSave(); });
+window.addEventListener('pagehide', () => {
+  if (!titleOn || saveTimer) flushSave();
+  if (AC) { try { AC.suspend().catch(() => {}); } catch (e) { /* context already closed */ } }
+});
 
 $('#bNew').onclick = () => { initAudio(); confirmAbandon({ mode: S ? S.mode : 'klondike' }); };
 // After a mouse or touch press on a toolbar button the keys belong to the table again (a keyboard press keeps its focus, so Tab and Enter still work).
@@ -5380,7 +5543,7 @@ function syncInert() {
   setInert(titleEl, !titleOn || !!modalKind);
 }
 function showTitle(on) {
-  if (on) cancelDrag();
+  if (on) { cancelDrag(); clearWinTimers(); cancelAutoCues(); if (cascade) { if (cascade.timer) clearTimeout(cascade.timer); cascade = null; } }
   if (on && saveTimer) flushSave();
   titleOn = on; titleEl.classList.toggle('on', on); syncInert(); syncMirror(); if (on) tabNoteHide();
   if (on) { musicHush = false; tipHide(); loadArt(['title-hero']); }
@@ -5403,6 +5566,7 @@ function closeModal(back) {
   if (dealPending) { dealPending = null; showDealing(false); }
   if (!modalKind) return;
   const was = modalKind; modalKind = null; modalAnimUntil = 0; modalEl.classList.remove('on'); sheet.innerHTML = '';
+  if (was === 'win') { clearWinTimers(); musicHush = false; }
   clockMark = now(); syncAudio();
   if (back && modalReturn && modalReturn !== was) { const r = modalReturn; modalReturn = null; openModal(r, r === 'stuck' && stuckFact ? { fact: FACTS[stuckFact.fi] } : undefined); return; }
   modalReturn = null; syncInert(); if (!titleOn && S && !S.won) tipSchedule(500);
@@ -5432,6 +5596,11 @@ function trapFocus(e) {
 const head = (title) => '<div class="sheet-head"><h2 id="mT">' + title + '</h2><button type="button" class="ib x" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>';
 function openModal(kind, data) {
   cancelDrag(); tickClock(); tipHide();
+  if (kind !== 'win' && (winTimer || cascade)) {
+    clearWinTimers(); cancelAutoCues();
+    if (cascade) { if (cascade.timer) clearTimeout(cascade.timer); cascade = null; }
+    musicHush = false;
+  }
   if (!modalKind) {
     const ae = document.activeElement;
     modalOpener = ae && ae !== document.body && !modalEl.contains(ae) ? ae : null;
@@ -5441,17 +5610,20 @@ function openModal(kind, data) {
   const cls = (kind === 'backs' || kind === 'help' ? ' wide' : '') + (kind === 'win' ? ' win' : '') + (kind === 'win' && !reducedMotion() ? ' rise' : '');
   sheetFrame.className = 'sheet-frame' + cls;
   sheet.className = 'sheet' + cls;
+  let myEpoch = winEpoch;
+  const trackWinTimer = (fn, ms) => { const id = setTimeout(() => { if (winEpoch === myEpoch) fn(); }, ms); winSheetTimers.push(id); return id; };
   if (kind === 'win') {
+    clearWinTimers(); myEpoch = winEpoch;
     modalAnimUntil = reducedMotion() ? 0 : now() + 1250;
-    if (lastWin && !lastWin.replay && (lastWin.totalWins || 0) > 0) setTimeout(() => { if (modalKind === 'win') sfx('place', 3); }, reducedMotion() ? 150 : 650); // the ticket punch (always audible regardless of reducedMotion; omitted on 0-win/replay tickets)
+    if (lastWin && !lastWin.replay && (lastWin.totalWins || 0) > 0) trackWinTimer(() => { if (modalKind === 'win') sfx('place', 3); }, reducedMotion() ? 150 : 650); // the ticket punch (always audible regardless of reducedMotion; omitted on 0-win/replay tickets)
   }
   sheet.innerHTML = (MODALS[kind] || (() => ''))(data || {});
   modalEl.classList.add('on'); syncAudio();
   if (kind === 'win') {
-    setTimeout(() => { musicHush = false; syncAudio(); }, 1800); // the music returns once the ticket is up
+    trackWinTimer(() => { musicHush = false; syncAudio(); }, 1800); // the music returns once the ticket is up
     const earned = lastWin && ((lastWin.ach || []).length || (lastWin.opened || []).length), m = milestoneCue(lastWin);
-    if (earned) setTimeout(() => sfx('ach'), 900);
-    if (m) setTimeout(() => { if (modalKind === 'win') sfx(m[0], m[1]); }, earned ? 1500 : 1000); // after the achievement chime, if there was one
+    if (earned) trackWinTimer(() => { if (modalKind === 'win') sfx('ach'); }, 900);
+    if (m) trackWinTimer(() => { if (modalKind === 'win') sfx(m[0], m[1]); }, earned ? 1500 : 1000); // after the achievement chime, if there was one
   }
   sheet.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => closeModal(true)));
   const binder = BIND[kind]; if (binder) binder(data || {});
@@ -5598,7 +5770,7 @@ const MODALS = {
 };
 const ACTIONS = {
   resetSaved: () => { // a table that will not come right: forget it and go back to the title
-    clearTimeout(saveTimer); saveTimer = 0; clearTimeout(winTimer); winTimer = 0; finishRun = false; clearStuck(); tipHide(); pullbackHold.clear(); clearTransientFx(false);
+    clearTimeout(saveTimer); saveTimer = 0; clearWinTimers(); cancelAutoCues(); landCues.length = 0; flipQueue.length = 0; drawWaypoints = {}; clearStuck(); tipHide(); pullbackHold.clear(); clearTransientFx(false);
     S = null; undoStack = []; redoStack = []; held = null; drag = null; cascade = null; hintState = null;
     save('current', null); closeModal(); showTitle(true); toast('Saved game cleared.');
   },
@@ -5728,8 +5900,12 @@ function syncMotion() {
 }
 function setSetting(k, v) {
   if ((k === 'back' || k === 'table') && !isOpen(k[0], v)) return;
-  if (k === 'sound') { settings.sound = !!v; if (v) initAudio(); }
-  else if (k === 'volume') { settings.volume = clamp(+v, 0, 1); if (master) master.gain.value = volumeGain(settings.volume, settings.volumeCurve); }
+  if (k === 'sound') {
+    settings.sound = !!v;
+    if (v) { initAudio(); updateMasterGain(false); }
+    else { cancelAutoCues(); updateMasterGain(false); }
+  }
+  else if (k === 'volume') { settings.volume = clamp(+v, 0, 1); updateMasterGain(false); }
   else if (k === 'musicVol' || k === 'ambVol') settings[k] = clamp(+v, 0, 1);
   else if (k === 'dealFairness') {
     if (!SETTING_ENUMS.dealFairness.includes(v)) return;
@@ -5750,7 +5926,7 @@ function setSetting(k, v) {
   if (k === 'tips' && !settings.tips) tipHide();
   if (k === 'motion') syncMotion();
   if (k === 'scoring') updateHUD();
-  if (['sound', 'music', 'ambience', 'musicVol', 'ambVol'].includes(k)) syncAudio();
+  if (['sound', 'music', 'ambience', 'musicVol', 'ambVol'].includes(k)) syncAudio({ manual: k === 'sound' || k === 'music' || k === 'ambience' });
   if (['leftHanded', 'cardSize', 'layout', 'fourColor', 'back', 'table', 'showTimer', 'deckSeed', 'courts'].includes(k)) applyLook();
 }
 
@@ -5793,7 +5969,7 @@ window.__game = {
     if (s.score != null) st.score = s.score; if (s.moves != null) st.moves = s.moves;
     if (s.recycles != null) st.recycles = s.recycles;
     S = st; clearTransientFx(false); undoStack = []; redoStack = []; pullbackHold.clear(); held = null; drag = null; cascade = null; hintState = null; lastWin = null; clearStuck();
-    clearTimeout(winTimer); winTimer = 0; finishRun = false;
+    clearWinTimers(); cancelAutoCues(); landCues.length = 0; flipQueue.length = 0; drawWaypoints = {};
     closeModal(); showTitle(false); tipHide(); tipGoalShown = null; relayout(true); updateHUD(); markDirty();
     return true;
   },
@@ -5808,12 +5984,12 @@ window.__game = {
     makeCues(oc, oc.destination).play(name, arg, 0); return tones;
   },
   volumeGain: (v, curve) => volumeGain(v, curve),
-  masterGain: () => (master ? +master.gain.value.toFixed(4) : null),
+  masterGain: () => (master ? +(settings.sound ? masterTarget : 0).toFixed(4) : null),
   dailyDealFor: (mode, opts, date) => dailyDeal(mode, Object.assign({ draw: 1, suits: 1 }, opts), date),
   ambient: () => ({ fps: AMB.fps, running: !!ambTimer, wanted: ambientWanted(), frames: ambFrames, steam: !!(TABLE_LOOK[settings.table] && TABLE_LOOK[settings.table].steam), painted: (() => { const d = actx.getImageData(0, 0, amb.width, amb.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; })() }),
   canvasFilter: () => CANVAS_FILTER,
   glideOf(pile) { const p = S.piles[pile], d = p.length ? D[p[p.length - 1]] : null; return d ? d.dur : null; },
-  dispOf(pile) { const p = S && S.piles[pile], u = p && p.length ? p[p.length - 1] : -1, d = u >= 0 ? D[u] : null; return d ? { t0: d.t0, dur: d.dur, f0: d.f0, sx: d.sx, sy: d.sy, tx: d.tx, ty: d.ty, fromLift: d.fromLift, fromRot: d.fromRot, seatAt: d.seatAt, pos: dispPos(u, now()) } : null; },
+  dispOf(pile, idx) { const p = S && S.piles[pile], i = idx != null ? idx : (p ? p.length - 1 : -1), u = p && i >= 0 && i < p.length ? p[i] : -1, d = u >= 0 ? D[u] : null; return d ? { t0: d.t0, dur: d.dur, f0: d.f0, sx: d.sx, sy: d.sy, tx: d.tx, ty: d.ty, via: d.via ? { sx: d.via.sx, sy: d.via.sy, t0: d.via.t0, dur: d.via.dur } : null, fromLift: d.fromLift, fromRot: d.fromRot, seatAt: d.seatAt, pos: dispPos(u, now()) } : null; },
   dragInfo: () => (drag ? { curLift: +(drag.curLift || 0).toFixed(4), tilt: +(drag.tilt || 0).toFixed(4), touchOff: +(drag.touchOff || 0).toFixed(2), hasTrail: !!drag.trail, y: drag.y, rawY: drag.rawY } : null),
   dragTilt: () => (drag ? +(drag.tilt || 0).toFixed(4) : 0),
   tableLook(id, patch) {
@@ -5900,14 +6076,14 @@ window.__game = {
       case 'tap': return tapAt(a[0], a[1]);
       case 'key': { const r = gameKey({ key: a[0], ctrlKey: !!a[1], metaKey: false, altKey: false, shiftKey: false }); return { ok: r }; }
       case 'ceremonyAt': { // render the win ceremony exactly `ms` in, then hold that frame
-        if (winTimer) { clearTimeout(winTimer); winTimer = 0; finishRun = false; }
+        if (winTimer) { clearWinTimers(); cancelAutoCues(); }
         if (!cascade) startCascade(); if (!cascade) return { ok: false };
         frozenAt = null; const c = cascade, t0 = c.t0, end = t0 + (+a[0] || 0);
         for (let tt = t0; tt < end; tt += 16) frame(tt);
         frame(end); frozenAt = end; return { ok: true, steamed: c.steamed, stamp: +c.stampA.toFixed(2) };
       }
       case 'unfreeze': frozenAt = null; markDirty(); return { ok: true };
-      case 'skip': { const t = now(); if (S) for (let u = 0; u < S.cards.length; u++) if (D[u]) { D[u].t0 = Math.min(D[u].t0, t - 1e5); D[u].f0 = Math.min(D[u].f0, t - 1e5); } if (winTimer) { clearTimeout(winTimer); winTimer = 0; finishRun = false; startCascade(); } if (cascade) endCascade(); markDirty(); return { ok: true }; }
+      case 'skip': { const t = now(); cancelAutoCues(); if (S) for (let u = 0; u < S.cards.length; u++) if (D[u]) { D[u].t0 = Math.min(D[u].t0, t - 1e5); D[u].f0 = Math.min(D[u].f0, t - 1e5); D[u].via = null; } if (winTimer) { clearWinTimers(); startCascade(); } if (cascade) endCascade(); markDirty(); return { ok: true }; }
       default: return { ok: false, reason: 'unknown action' };
     }
   },
