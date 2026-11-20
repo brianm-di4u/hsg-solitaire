@@ -527,28 +527,28 @@ export const tests = [
       await t.page.click('#sheet [data-close]:not(.x)');
       t.equal((await t.state()).modal, 'stuck', 'Cancel returns cleanly to stuck dialog without wiping streak');
 
-      // 3. Tabletop economy & progress cues (CD-WF5-07): #subRow #homeCount, #goal .rev secondary reveal track, #status b === 3, FreeCell maxMove
+      // 3. Tabletop economy & progress cues (CD-WF5-07, GPU scaleX() per W6-S5-07): #subRow #homeCount, #goal .rev secondary reveal track, #status b === 3, FreeCell maxMove
       await t.game('newGame', { mode: 'klondike', draw: 1, deal: 1234 });
-      const hud0 = await t.page.evaluate(() => ({
-        statusB: document.querySelectorAll('#status b').length,
-        homeCount: document.getElementById('homeCount').textContent,
-        goalPrimary: document.getElementById('goal').firstElementChild.style.width,
-        goalRev: document.getElementById('goal').children[1].style.width,
-      }));
-      t.equal([hud0.statusB, hud0.homeCount, hud0.goalPrimary, hud0.goalRev], [3, '0/52', '0%', '0%'], 'Klondike starts with 3 #status cells, 0/52 in #subRow, 0% primary & 0% reveal track');
-      // Reveal 1 face-down card on a Spider board -> #goal > i stays 0% while #goal .rev advances > 0%
+      const goalFrac = () => t.page.evaluate(() => {
+        const g = document.getElementById('goal'), gw = g.getBoundingClientRect().width || 1;
+        return {
+          statusB: document.querySelectorAll('#status b').length,
+          homeCount: document.getElementById('homeCount').textContent,
+          goalPrimary: +(g.firstElementChild.getBoundingClientRect().width / gw).toFixed(4),
+          goalRev: +(g.children[1].getBoundingClientRect().width / gw).toFixed(4),
+        };
+      });
+      const hud0 = await goalFrac();
+      t.equal([hud0.statusB, hud0.homeCount, hud0.goalPrimary, hud0.goalRev], [3, '0/52', 0, 0], 'Klondike starts with 3 #status cells, 0/52 in #subRow, 0 primary & 0 reveal track');
+      // Reveal 1 face-down card on a Spider board -> #goal > i stays 0 while #goal .rev advances > 0
       await t.game('setState', {
         mode: 'spider', opts: { suits: 1 },
         piles: { stock: [], f0: [], f1: [], f2: [], f3: [], f4: [], f5: [], f6: [], f7: [], t0: ['#KS', '8S'], t1: ['9S'], t2: [], t3: [], t4: [], t5: [], t6: [], t7: [], t8: [], t9: [] },
       });
       await t.game('act', 'move', 't0', 't1');
-      const spHud = await t.page.evaluate(() => ({
-        homeCount: document.getElementById('homeCount').textContent,
-        goalPrimary: document.getElementById('goal').firstElementChild.style.width,
-        goalRev: parseFloat(document.getElementById('goal').children[1].style.width),
-      }));
-      t.equal([spHud.homeCount, spHud.goalPrimary], ['0/8', '0%'], 'Spider #homeCount shows 0/8 and #goal > i stays 0%');
-      t.expect(spHud.goalRev > 0, 'Spider secondary reveal track advances when face-down card flips (' + spHud.goalRev + '%)');
+      const spHud = await goalFrac();
+      t.equal([spHud.homeCount, spHud.goalPrimary], ['0/8', 0], 'Spider #homeCount shows 0/8 and #goal > i stays 0');
+      t.expect(spHud.goalRev > 0, 'Spider secondary reveal track advances when face-down card flips (' + Math.round(spHud.goalRev * 100) + '%)');
 
       // FreeCell live maxMove updates dynamically
       await t.game('newGame', { mode: 'freecell', deal: 617 });

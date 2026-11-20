@@ -418,4 +418,169 @@ export const tests = [
       t.equal([afterMenu.modal, afterMenu.ceremony], ['menu', false], 'opening Menu during winTimer/cascade cancels ceremony cleanly without hijack');
     },
   },
+  {
+    name: 'play-34 W4-B03 2D side-rail keyboard, scroll-aware 16 ms radial Gamepad & shoulders, canvas hover & lifted keyboard hold (W6-S5-08)',
+    viewports: ['desktop'],
+    initScript: () => {
+      const pad = { id: 'Test pad W4-B03', index: 0, connected: true, mapping: 'standard', axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
+      window.__pad = pad;
+      navigator.getGamepads = () => (pad.connected ? [pad, null, null, null] : [null, null, null, null]);
+    },
+    async run(t) {
+      const BTN = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, VIEW: 8, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
+      const polled = async (n) => { const p0 = await t.game('pad'); await t.page.waitForFunction((k) => window.__game.pad().polls >= k, p0.polls + n, { timeout: 8000 }); };
+      const tapBtn = async (name) => {
+        await t.page.evaluate((i) => { window.__pad.buttons[i] = { pressed: true, value: 1 }; }, BTN[name]);
+        await polled(2);
+        await t.page.evaluate((i) => { window.__pad.buttons[i] = { pressed: false, value: 0 }; }, BTN[name]);
+        await polled(2);
+      };
+
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced', autoFoundation: 'off' });
+
+      // 1. 2D Geometric Side-Rail Keyboard Navigation on Yukon desktop (1280x800, L.arr === 'side')
+      await t.page.setViewportSize({ width: 1280, height: 800 });
+      await t.game('newGame', { mode: 'yukon', deal: 42 });
+      await t.waitForStable();
+      await t.page.focus('#cv');
+      // Jump directly to column 7 (t6) via '7', then step right into foundation rail, down, left, back to tableau
+      await t.page.keyboard.press('7');
+      t.equal((await t.state()).cursor.pile, 't6', 'Yukon desktop: 7 jumps to t6');
+      await t.page.keyboard.press('ArrowRight');
+      t.equal((await t.state()).cursor.pile, 'f0', 'Yukon side-rail: ArrowRight from t6 enters f0');
+      await t.page.keyboard.press('ArrowRight');
+      t.equal((await t.state()).cursor.pile, 'f1', 'Yukon side-rail: ArrowRight from f0 reaches f1');
+      await t.page.keyboard.press('ArrowDown');
+      t.equal((await t.state()).cursor.pile, 'f3', 'Yukon side-rail: ArrowDown from f1 steps down to f3');
+      await t.page.keyboard.press('ArrowLeft');
+      t.equal((await t.state()).cursor.pile, 'f2', 'Yukon side-rail: ArrowLeft from f3 reaches f2');
+      await t.page.keyboard.press('ArrowLeft');
+      t.equal((await t.state()).cursor.pile, 't6', 'Yukon side-rail: ArrowLeft from f2 returns to t6');
+      // Tableau ArrowUp/ArrowDown run-depth stepping stays intact on Yukon side-rail
+      const depthEnd = (await t.state()).cursor.depth;
+      await t.page.keyboard.press('ArrowUp');
+      const depthUp = (await t.state()).cursor.depth;
+      t.expect(depthUp < depthEnd, 'Yukon side-rail preserves tableau ArrowUp run-depth stepping: ' + depthEnd + ' -> ' + depthUp);
+      await t.page.keyboard.press('ArrowDown');
+      t.equal((await t.state()).cursor.depth, depthEnd, 'Yukon side-rail preserves tableau ArrowDown run-depth stepping');
+
+      // Klondike phone landscape (844x390, L.arr === 'side') + left-handed mirroring
+      await t.page.setViewportSize({ width: 844, height: 390 });
+      await t.game('newGame', { mode: 'klondike', deal: 43 });
+      await t.waitForStable();
+      await t.page.focus('#cv');
+      await t.page.keyboard.press('7');
+      await t.page.keyboard.press('ArrowRight');
+      const rightRail = (await t.state()).cursor.pile;
+      t.expect(['stock', 'waste', 'f0', 'f1', 'f2', 'f3'].includes(rightRail), 'Klondike 844x390 side-rail: ArrowRight from t6 enters right rail (' + rightRail + ')');
+      await t.page.keyboard.press('ArrowDown');
+      const railDown = (await t.state()).cursor.pile;
+      t.expect(railDown !== rightRail && ['stock', 'waste', 'f0', 'f1', 'f2', 'f3'].includes(railDown), 'Klondike 844x390 side-rail: ArrowDown moves vertically along side rail (' + rightRail + ' -> ' + railDown + ')');
+      // Left-handed layout mirrors side rail to left of t0
+      await t.game('setSettings', { leftHanded: true });
+      await t.page.focus('#cv');
+      await t.page.keyboard.press('1');
+      await t.page.keyboard.press('ArrowLeft');
+      const leftRail = (await t.state()).cursor.pile;
+      t.expect(['stock', 'waste', 'f0', 'f1', 'f2', 'f3'].includes(leftRail), 'Klondike 844x390 left-handed: ArrowLeft from t0 enters left rail (' + leftRail + ')');
+      await t.game('setSettings', { leftHanded: false });
+
+      // 2. Desktop canvas hover signifiers (grab/pointer/clear) & lifted keyboard hold cleanliness
+      await t.page.setViewportSize({ width: 1280, height: 800 });
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: { stock: ['2C', '3C'], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['AS'], t1: ['9H'], t2: ['TS'], t3: [], t4: [], t5: [], t6: [] },
+      });
+      await t.waitForStable();
+      const lay = await t.game('getLayout');
+      const t0c = lay.piles.t0.cards[0], stp = lay.piles.stock;
+      await t.page.mouse.move(t0c.x + t0c.w / 2, t0c.y + 20);
+      t.equal(await t.page.evaluate(() => document.getElementById('cv').style.cursor), 'grab', 'hovering a movable card sets grab cursor');
+      await t.page.mouse.move(stp.x + lay.cardW / 2, stp.y + 20);
+      t.equal(await t.page.evaluate(() => document.getElementById('cv').style.cursor), 'pointer', 'hovering stock sets pointer cursor');
+      await t.page.mouse.move(lay.piles.t5.x + lay.cardW / 2, lay.piles.t5.y + 20);
+      t.equal(await t.page.evaluate(() => document.getElementById('cv').style.cursor), '', 'hovering empty felt clears cursor');
+
+      // Keyboard hold keeps getState().held schema exact ({from, index}) with zero internal leaks
+      await t.page.focus('#cv');
+      await t.page.keyboard.press('2');
+      await t.page.keyboard.press('Enter');
+      t.equal((await t.state()).held, { from: 't1', index: 0 }, 'keyboard hold keeps clean {from, index} state');
+      await t.page.keyboard.press('Escape');
+      t.equal((await t.state()).held, null, 'Escape puts back keyboard-held card');
+
+      // 3. 16 ms rAF Gamepad polling, radial stick deadzone (>0.38), RB/LB/View bindings & B cascade skip
+      const pStart = (await t.game('pad')).polls;
+      await t.page.waitForTimeout(300);
+      const pAfter = (await t.game('pad')).polls;
+      t.expect(pAfter - pStart >= 10, 'Gamepad rAF polls briskly (~60 Hz, got ' + (pAfter - pStart) + ' polls in 300 ms)');
+
+      // Radial deadzone: (0.25, 0.25) has hypot 0.354 <= 0.38 -> ignored; (0.55, 0) > 0.38 -> moves cursor
+      await t.page.keyboard.press('1');
+      const cBefore = (await t.state()).cursor.pile;
+      await t.page.evaluate(() => { window.__pad.axes[0] = 0.25; window.__pad.axes[1] = 0.25; });
+      await polled(4);
+      t.equal((await t.state()).cursor.pile, cBefore, 'diagonal stick (0.25, 0.25) inside 0.38 radial deadzone does not drift cursor');
+      await t.page.evaluate(() => { window.__pad.axes[0] = 0.55; window.__pad.axes[1] = 0; });
+      await polled(2);
+      await t.page.evaluate(() => { window.__pad.axes[0] = 0; window.__pad.axes[1] = 0; });
+      await polled(2);
+      t.equal((await t.state()).cursor.pile, 't1', 'stick deflection (0.55, 0) outside 0.38 radial deadzone moves cursor right');
+
+      // RB auto-moves cursor card (9H -> TS), B undoes, LB redoes
+      await tapBtn('RB');
+      t.equal((await t.state()).piles.t2, ['TS', '9H'], 'Gamepad RB auto-moves selected card (t)');
+      await tapBtn('B');
+      t.equal((await t.state()).piles.t2, ['TS'], 'Gamepad B undoes move');
+      await tapBtn('LB');
+      t.equal((await t.state()).piles.t2, ['TS', '9H'], 'Gamepad LB redoes move (y)');
+
+      // View triggers Finish / Bath Ticket; B skips active cascade
+      await t.game('setSettings', { motion: 'full' });
+      await t.game('setState', nearWinKlondike());
+      await tapBtn('VIEW');
+      await t.page.waitForFunction(() => window.__game.getState().won, null, { timeout: 5000 });
+      await t.page.waitForFunction(() => window.__game.getState().ceremony || window.__game.getState().modal === 'win', null, { timeout: 5000 });
+      if ((await t.state()).ceremony) await tapBtn('B'); // B skips active cascade -> opens Win modal
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'win', null, { timeout: 5000 });
+      await tapBtn('B'); // close Win modal
+      t.equal((await t.state()).modal, null, 'Gamepad B closes Win modal');
+      await tapBtn('VIEW'); // View reopens Bath Ticket on won board
+      t.equal((await t.state()).modal, 'win', 'Gamepad View reopens Bath Ticket after closing Win');
+      await tapBtn('B');
+
+      // 4. Scroll-aware Gamepad modal navigation & right-stick scrolling (844x390 landscape forces #sheetBody overflow)
+      await t.game('setSettings', { motion: 'reduced' });
+      await t.page.setViewportSize({ width: 844, height: 390 });
+      await t.game('scene', 'settings');
+      const overflowCheck = await t.page.evaluate(() => { const sb = document.getElementById('sheetBody'); return sb.scrollHeight > sb.clientHeight; });
+      t.equal(overflowCheck, true, '844x390 Settings #sheetBody overflows vertically');
+      // Walk D-pad down 14 steps so focus travels deep into #sheetBody
+      for (let i = 0; i < 14; i++) await tapBtn('DOWN');
+      const scrollNav = await t.page.evaluate(() => {
+        const sb = document.getElementById('sheetBody'), ae = document.activeElement;
+        const sbr = sb.getBoundingClientRect(), aer = ae ? ae.getBoundingClientRect() : null;
+        return {
+          scrollTop: Math.round(sb.scrollTop),
+          inBody: !!ae && sb.contains(ae),
+          visibleInBody: !!aer && aer.top >= sbr.top - 4 && aer.bottom <= sbr.bottom + 4,
+        };
+      });
+      t.expect(scrollNav.scrollTop > 0 && (!scrollNav.inBody || scrollNav.visibleInBody), 'Gamepad D-pad modal nav scrolls focused controls into #sheetBody viewport: ' + JSON.stringify(scrollNav));
+
+      // Right-stick Y axis scrolls #sheetBody cleanly
+      await t.page.evaluate(() => { document.getElementById('sheetBody').scrollTop = 0; window.__pad.axes[3] = 0.85; });
+      await polled(6);
+      await t.page.evaluate(() => { window.__pad.axes[3] = 0; });
+      const rsScroll = await t.page.evaluate(() => Math.round(document.getElementById('sheetBody').scrollTop));
+      t.expect(rsScroll >= 30, 'Gamepad right-stick Y axis scrolls #sheetBody (' + rsScroll + ' px)');
+
+      // Disconnecting gamepad stops rAF polling completely
+      await t.page.evaluate(() => { window.__pad.connected = false; window.dispatchEvent(new Event('gamepaddisconnected')); });
+      const pOff1 = (await t.game('pad')).polls;
+      await t.page.waitForTimeout(160);
+      const pOff2 = (await t.game('pad')).polls;
+      t.equal(pOff2, pOff1, 'disconnecting gamepad halts rAF polling (0 idle polls)');
+    },
+  },
 ];

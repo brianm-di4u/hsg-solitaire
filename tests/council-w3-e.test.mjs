@@ -443,4 +443,55 @@ export const tests = [
       t.expect(!!redoFound && redoFound.arg === 2 && redoFound.wait >= 0.12, 'redo() foundation cue fires at card landing (>=120 ms, not t=0): ' + JSON.stringify(redoFound));
     },
   },
+  {
+    name: 'w3e W4-B03 #mirror focus supports S, I, Shift+ArrowUp, D, Backspace, Ctrl+Y & M directly without switching focus (W6-S5-08, CD-WF5-04)',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { sound: true, tips: false, motion: 'reduced', autoFoundation: 'off' });
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: Object.assign({}, EMPTY_K, {
+          stock: ['2D', '3D'], waste: ['4H'], f0: ['AS'],
+          t0: ['#9C', '8S', '7H', '6C'], t1: ['9D'], t2: ['KD', 'QC'],
+        }),
+      });
+      await t.page.waitForFunction(() => !!document.querySelector('#mirror [data-key="t0:3"]'), null, { timeout: 8000 });
+      const focusMirror = () => t.page.evaluate(() => { const b = document.querySelector('#mirror [data-key="t0:3"]') || document.querySelector('#mirror [data-pile="t0"]'); b.focus(); return document.activeElement === b; });
+      const sr = () => t.page.evaluate(() => document.getElementById('sr').textContent.trim());
+
+      // 'i' from focused #mirror column announces every card bottom to top
+      t.equal(await focusMirror(), true, 'focused #mirror column 1 button');
+      await t.page.keyboard.press('i');
+      const inspI = await sr();
+      t.expect(/Column 1: 1 face down; bottom to top: Eight of spades, Seven of hearts, Six of clubs/.test(inspI), '#mirror I inspects full column bottom to top: ' + inspI);
+
+      // 'Shift+ArrowUp' from focused #mirror column announces the same bottom-to-top inspection
+      await t.page.keyboard.press('s');
+      const sumS = await sr();
+      t.expect(/Foundations: Ace of spades/.test(sumS) && /Eight of spades, Seven of hearts, Six of clubs on top/.test(sumS), '#mirror S reads full open-information table summary: ' + sumS);
+
+      t.equal(await focusMirror(), true, 're-focused #mirror column 1 button');
+      await t.page.keyboard.press('Shift+ArrowUp');
+      const inspShift = await sr();
+      t.expect(/Column 1: 1 face down; bottom to top: Eight of spades, Seven of hearts, Six of clubs/.test(inspShift), '#mirror Shift+ArrowUp inspects full column bottom to top: ' + inspShift);
+
+      // 'd', 'Backspace', 'Control+y', and 'm' all execute cleanly while focus sits inside #mirror
+      await t.page.keyboard.press('d');
+      t.equal((await t.game('getState')).piles.waste.slice(-1), ['3D'], '#mirror D draws from stock');
+      await t.page.waitForFunction(() => !!document.querySelector('#mirror [data-pile="t0"]'));
+      await focusMirror();
+      await t.page.keyboard.press('Backspace');
+      t.equal((await t.game('getState')).piles.waste.slice(-1), ['4H'], '#mirror Backspace undoes draw');
+      await t.page.waitForFunction(() => !!document.querySelector('#mirror [data-pile="t0"]'));
+      await focusMirror();
+      await t.page.keyboard.press('Control+y');
+      t.equal((await t.game('getState')).piles.waste.slice(-1), ['3D'], '#mirror Ctrl+Y redoes draw');
+      await t.page.waitForFunction(() => !!document.querySelector('#mirror [data-pile="t0"]'));
+      await focusMirror();
+      await t.page.keyboard.press('m');
+      t.equal((await t.game('getState')).settings.sound, false, '#mirror M toggles mute directly');
+      await t.page.keyboard.press('m');
+      t.equal((await t.game('getState')).settings.sound, true, '#mirror M unmutes directly');
+    },
+  },
 ];

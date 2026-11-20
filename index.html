@@ -35,21 +35,26 @@
     /* in-game chrome: dark lacquer and brass in both color schemes, so the lit table reads as the brightest thing */
     --lac-1:#1E2A23; --lac-2:#101813; --lac-ink:#F1E6C8; --lac-muted:#B5AA8E; --brass:#C9A04A; --brass-hi:#E9C873;
     --brass-rule:linear-gradient(90deg,#6E4C16,#E9C873 22%,#9C6E1E 50%,#E9C873 78%,#6E4C16);
+    --dur-press:60ms; --dur-fast:140ms; --dur-med:200ms; --dur-slow:360ms;
+    --ease-out:cubic-bezier(0.22,1,0.36,1); --ease-in:cubic-bezier(0.4,0,1,1);
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;overflow:hidden;background:var(--color-bg);color:var(--color-text);
     font-family:var(--font-deco);font-size:16px;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
-  body,button{touch-action:manipulation} /* a quick second tap on Undo or Hint does not zoom, a pull on the bar does not refresh; the table keeps its own touch-action */
+  body,button{touch-action:manipulation}
   button{font:inherit;color:inherit}
   .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
   #app{position:fixed;inset:0;display:flex;flex-direction:column;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+  #app.entering{animation:fadeIn 180ms var(--ease-out) both}
   #bar{height:var(--bar-h);flex:none;display:flex;align-items:center;gap:10px;padding:0 10px;position:relative;z-index:1;
     background:var(--lac-2) linear-gradient(var(--lac-1),var(--lac-2));color:var(--lac-ink);
     border-bottom:2px solid var(--brass);border-image:var(--brass-rule) 1;box-shadow:0 3px 10px rgba(0,0,0,.45)}
   #goal{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(0,0,0,.5);pointer-events:none}
-  #goal i{position:relative;z-index:2;display:block;height:100%;width:0;background:linear-gradient(90deg,#3E9C80,#8FE0C2);transition:width .35s ease}
-  #goal .rev,#goal .reveal{position:absolute;left:0;top:0;bottom:0;width:0;z-index:1;background:linear-gradient(90deg,rgba(201,160,74,.45),rgba(233,200,115,.68));transition:width .35s ease}
+  #goal i{position:relative;z-index:2;display:block;height:100%;width:100%;transform-origin:left;transform:scaleX(0);background:linear-gradient(90deg,#3E9C80,#8FE0C2);transition:transform var(--dur-slow) var(--ease-out)}
+  #goal .rev,#goal .reveal{position:absolute;left:0;top:0;bottom:0;width:100%;transform-origin:left;transform:scaleX(0);z-index:1;background:linear-gradient(90deg,rgba(201,160,74,.45),rgba(233,200,115,.68));transition:transform var(--dur-slow) var(--ease-out)}
+  #goal.pulse{animation:goalPulse 300ms var(--ease-out)}
+  @keyframes goalPulse{0%,100%{filter:none}45%{filter:brightness(1.38) drop-shadow(0 0 6px rgba(143,224,194,.75))}}
   #ttl{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15}
   #modeName{font-family:var(--font-display);font-weight:400;font-size:1.12rem;letter-spacing:.03em;color:var(--brass-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #modeSub{font-family:var(--font-deco);font-size:.74rem;letter-spacing:.04em;color:var(--lac-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -78,36 +83,57 @@
     gap:2px;border:1px solid rgba(233,200,115,.42);border-radius:14px;cursor:pointer;color:var(--lac-ink);
     background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,0) 55%),linear-gradient(#26342C,#141D17) #1C2620;
     box-shadow:inset 0 1px 0 rgba(255,236,190,.16),0 2px 4px rgba(0,0,0,.5);
-    font-family:var(--font-deco);font-weight:600;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;padding:3px 4px 2px;
-    transition:transform .08s,box-shadow .08s}
+    font-family:var(--font-deco);font-weight:600;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;padding:3px 4px 2px}
   .tb svg{width:22px;height:22px;color:var(--brass-hi);filter:drop-shadow(0 1px 0 rgba(0,0,0,.6))}
-  .tb:active:not(:disabled){transform:translateY(1px);box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
-  .tb:disabled{opacity:.4;cursor:default}
   .tb.glow:not(:disabled){color:#1B1408;border-color:#F3DA92;
     background:linear-gradient(180deg,rgba(255,255,255,.35),rgba(255,255,255,0) 50%),linear-gradient(#E9C873,#B8862C) #D2A84E;
     box-shadow:0 0 0 1px #6E4C16,0 0 14px rgba(233,200,115,.55)}
   .tb.glow:not(:disabled) svg{color:#1B1408;filter:none}
+  .tb.glow-in:not(:disabled){animation:glowPop 450ms var(--ease-out)}
+  @keyframes glowPop{0%{transform:scale(.96);filter:brightness(1.22)}55%{transform:scale(1.04);filter:brightness(1.14)}100%{transform:none;filter:none}}
   .ib{width:44px;height:44px;flex:none;border:1.5px solid var(--brass);border-radius:50%;color:var(--brass-hi);
     background:#18221C radial-gradient(circle at 50% 35%,#2C3B32,#121A15 70%);box-shadow:inset 0 1px 0 rgba(255,236,190,.18),0 2px 4px rgba(0,0,0,.5);
     display:grid;place-items:center;cursor:pointer}
   .ib svg{width:22px;height:22px}
+  :is(.tb,.ib,.btn,.chip,.seg button,.bk:not(.lk),.hp summary,#assistTag,#coach button,#tabNote button,.cal .cday){
+    transition:transform var(--dur-press) var(--ease-out),border-color 120ms var(--ease-out),background-color 120ms var(--ease-out),box-shadow var(--dur-press) var(--ease-out),opacity var(--dur-fast) var(--ease-out)}
+  @media (hover:hover){
+    :is(.tb,.btn:not(.solid):not(.danger),.chip:not(.solid):not(.equip-chip[aria-pressed=true]),#assistTag,#coach button,#tabNote button,.cal .cday):hover:not(:disabled){
+      border-color:var(--brass-hi);box-shadow:inset 0 1px 0 rgba(255,236,190,.2),0 0 0 1px rgba(233,200,115,.24)}
+    .ib:hover:not(:disabled){border-color:var(--brass-hi);box-shadow:inset 0 1px 0 rgba(255,236,190,.28),0 0 8px rgba(233,200,115,.28)}
+    :is(.btn.solid,.chip.solid,.tb.glow,.seg button[aria-pressed=true]):hover:not(:disabled){filter:brightness(1.07)}
+    .btn.danger:hover:not(:disabled){border-color:#FFA499;background:#381E1B}
+    .seg button:hover:not(:disabled):not([aria-pressed=true]){background:rgba(233,200,115,.12)}
+    .bk:not(.lk):hover:not(:disabled){border-color:rgba(233,200,115,.65);background:rgba(33,48,42,.55)}
+    .hp summary:hover{color:#F6DE95}
+  }
+  :is(.tb,.ib,.btn,.chip,.seg button,.bk:not(.lk),.hp summary,#assistTag,#coach button,#tabNote button,.cal .cday):active:not(:disabled){
+    transform:translateY(1px);box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
+  .tb:disabled,.ib:disabled,.btn:disabled,.chip:disabled,.seg button:disabled{opacity:.42;cursor:default;transform:none;box-shadow:none}
+  .btn:disabled:not(.solid):not(.danger){border-color:var(--color-border)}
   button:focus-visible,.chip:focus-visible,.hp summary:focus-visible,input[type=range]:focus-visible,.numin:focus-visible{
     outline:3px solid var(--focus-ring);outline-offset:2px;box-shadow:0 0 0 2px var(--focus-moat)}
   .tog:focus-visible{outline:0;box-shadow:none}
   .tog:focus-visible::before{box-shadow:inset 0 2px 3px rgba(0,0,0,.6),0 0 0 2px var(--focus-moat),0 0 0 5px var(--focus-ring)}
   #bar button:focus-visible,#tools button:focus-visible{outline-color:#4FC3FF;box-shadow:0 0 0 2px #101813}
-  #toast,#dealing{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:92%;
-    background:rgba(16,24,19,.94);color:var(--lac-ink);padding:10px 18px;border-radius:var(--radius-pill);font-size:.92rem;
+  #notices{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);width:max-content;max-width:min(94%,calc(100% - 24px));
+    display:flex;flex-direction:column;align-items:center;gap:8px;z-index:5;pointer-events:none}
+  @media (min-width:560px){#notices{max-width:min(92%,calc(100% - 108px))}}
+  #toast,#dealing{background:rgba(16,24,19,.94);color:var(--lac-ink);padding:10px 18px;border-radius:var(--radius-pill);font-size:.92rem;
     font-family:var(--font-deco);font-weight:600;letter-spacing:.02em;border:1px solid rgba(233,200,115,.6);box-shadow:0 4px 14px rgba(0,0,0,.45);
-    text-align:center;pointer-events:none;opacity:0;transition:opacity .2s}
-  #toast.on,#dealing.on{opacity:1;visibility:visible}
-  #dealing{position:fixed;top:calc(env(safe-area-inset-top) + var(--bar-h) + 8px);bottom:auto;z-index:40;width:max-content;
-    max-width:calc(100% - max(16px, env(safe-area-inset-left) + env(safe-area-inset-right) + 16px));visibility:hidden}
+    text-align:center;pointer-events:none;opacity:0;visibility:hidden;transition:opacity 180ms var(--ease-out),transform 180ms var(--ease-out)}
+  #toast{order:-1;max-width:100%;transform:translateY(6px)}
+  #toast.on{opacity:1;visibility:visible;transform:none;pointer-events:auto;cursor:pointer}
+  #dealing{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + var(--bar-h) + 8px);transform:translate(-50%,-6px);z-index:40;width:max-content;
+    display:flex;align-items:center;gap:8px;max-width:calc(100% - max(16px, env(safe-area-inset-left) + env(safe-area-inset-right) + 16px))}
+  #dealing.on{opacity:1;visibility:visible;transform:translateX(-50%)}
+  #dealing::before{content:"";width:8px;height:8px;flex:none;background:var(--brass-hi);transform:rotate(45deg);animation:dealDia 1.1s ease-in-out infinite}
+  @keyframes dealDia{0%,100%{opacity:.45;transform:rotate(45deg) scale(.85)}50%{opacity:1;transform:rotate(45deg) scale(1.15)}}
   /* Title screen */
-  /* Title: the painting runs full-bleed behind lacquer-and-brass plaques, in both color schemes */
   #title{position:fixed;inset:0;z-index:20;overflow-y:auto;overflow-x:hidden;background:#0E1411;display:none;
     --t-ink:#F1E6C8; --t-muted:#C9BEA2; --t-brass:#E9C873; --focus-ring:#E9C873; --focus-moat:#101813}
-  #title.on{display:block}
+  #title.on{display:block;animation:fadeIn 180ms var(--ease-out) both}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
   #title .wrap{position:relative;max-width:1000px;margin:0 auto;
     padding-top:max(clamp(138px,25vh,260px),calc(env(safe-area-inset-top) + 16px));
     padding-right:max(16px,env(safe-area-inset-right));
@@ -196,6 +222,7 @@
   .row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:18px}
   .btn{min-height:48px;padding:0 18px;border-radius:var(--radius-lg);border:1px solid var(--ctrl-border);background:var(--chip);
     cursor:pointer;font-weight:600}
+  .btn.danger{background:#2A1715;color:var(--color-danger);border-color:var(--color-danger)}
   .credit{margin-top:10px;text-align:center;font-size:.76rem;color:var(--color-muted)}
   /* Modal */
   #modal{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;background:rgba(10,9,16,.55);
@@ -203,23 +230,39 @@
     padding-right:max(12px,calc(env(safe-area-inset-right) + 8px));
     padding-bottom:max(12px,calc(env(safe-area-inset-bottom) + var(--tools-h) + 6px));
     padding-left:max(12px,calc(env(safe-area-inset-left) + 8px))}
-  #modal.on{display:flex}
+  #title.on ~ #modal{padding-top:max(12px,calc(env(safe-area-inset-top) + 12px));padding-bottom:max(12px,calc(env(safe-area-inset-bottom) + 12px))}
+  #modal.on{display:flex;pointer-events:auto;animation:fadeIn 160ms var(--ease-out) both}
+  #modal.closing{display:flex;pointer-events:none;animation:fadeOut 110ms var(--ease-in) forwards}
+  @keyframes fadeOut{from{opacity:1}to{opacity:0}}
+  @keyframes sheetIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @keyframes sheetOut{from{opacity:1;transform:none}to{opacity:0;transform:translateY(6px)}}
   /* dialogs: opaque dark-lacquer border-box shell topped by a pointer-events:none ::after 9-slice brass-frame.webp overlay (CD-WF3-03, CD-WF1-08) */
   .sheet-frame{position:relative;display:flex;width:min(660px,100%);max-height:100%;border-radius:7px;padding:6px;
     background:var(--sheet) linear-gradient(45deg,rgba(184,134,44,.075) 1px,transparent 1px) 0 0/20px 20px;background-clip:border-box;
     box-shadow:0 18px 50px rgba(0,0,0,.5)}
+  #modal.on .sheet-frame:not(.win){animation:sheetIn 180ms var(--ease-out) both}
+  #modal.closing .sheet-frame{animation:sheetOut 110ms var(--ease-in) forwards}
   .sheet-frame.wide{width:min(900px,100%)}
   .sheet-frame.win{background:#121A15 linear-gradient(#1A2620,#0E1411)}
-  .sheet-frame.rise{animation:rise .5s cubic-bezier(.2,.9,.3,1.15) both}
+  .sheet-frame.rise{animation:rise 260ms var(--ease-out) both}
   .sheet-frame::after{content:"";position:absolute;inset:0;border:22px solid transparent;border-image:url(assets/brass-frame.webp) 118 / 22px stretch;
     border-radius:7px;pointer-events:none;z-index:3}
-  .sheet{position:relative;flex:1;min-width:0;max-height:100%;overflow-y:auto;overflow-x:hidden;
+  .sheet{position:relative;flex:1;min-width:0;max-height:100%;display:flex;flex-direction:column;overflow:hidden;
     background:var(--sheet) linear-gradient(45deg,rgba(184,134,44,.075) 1px,transparent 1px) -6px -6px/20px 20px;color:var(--color-text);
-    border:0;border-radius:4px;padding:20px 24px 24px;font-family:var(--font-deco)}
+    border:0;border-radius:4px;padding:0;font-family:var(--font-deco)}
   .sheet .btn,.sheet .chip,.sheet button{font-family:var(--font-deco)}
   .sheet.wide{width:100%}
-  .sheet-head{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding-bottom:8px;
-    border-bottom:2px solid transparent;border-image:linear-gradient(90deg,#B8862C,#E9C873 30%,rgba(184,134,44,0)) 1}
+  .sheet-head{flex:none;display:flex;align-items:center;gap:8px;margin:0;padding:18px 22px 10px;z-index:2;
+    background:var(--sheet);border-bottom:2px solid transparent;border-image:linear-gradient(90deg,#B8862C,#E9C873 30%,rgba(184,134,44,0)) 1}
+  .sheet.win .sheet-head{background:transparent}
+  .sheet-body{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:12px 22px 22px;scroll-padding-top:64px;scroll-padding-bottom:16px;
+    background:linear-gradient(var(--sheet) 30%,rgba(22,32,27,0)) center top,linear-gradient(rgba(22,32,27,0),var(--sheet) 70%) center bottom,
+      radial-gradient(farthest-side at 50% 0,rgba(0,0,0,.42),rgba(0,0,0,0)) center top,radial-gradient(farthest-side at 50% 100%,rgba(0,0,0,.42),rgba(0,0,0,0)) center bottom;
+    background-repeat:no-repeat;background-size:100% 24px,100% 24px,100% 10px,100% 10px;background-attachment:local,local,scroll,scroll}
+  .sheet.win .sheet-body{background:none}
+  .panel-in{animation:panelIn var(--dur-fast) var(--ease-out) both}
+  .swatch-in{animation:fadeIn 180ms var(--ease-out) both}
+  @keyframes panelIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
   .sheet-head h2{font-family:var(--font-display);font-weight:400;letter-spacing:.03em;margin:0;font-size:1.45rem;color:var(--color-primary);flex:1;min-width:0}
   .sheet-head .head-acts{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none}
   .sheet-head .x{margin-left:auto;flex:none}
@@ -293,16 +336,16 @@
     .set.set-slider .sl-ctrl{width:100%}
     .set.set-slider input[type=range]{width:100%}
   }
-  @media (max-width:420px){ .set:not(.set-slider){flex-wrap:wrap;row-gap:4px} .set:not(.set-slider) label{flex:1 1 150px} .set .seg{margin-left:auto} }
-  @media (max-width:360px){ .seg{flex-wrap:wrap;max-width:100%} .seg button{flex:1 1 auto;padding:0 8px} .seg button:first-child,.seg button:last-child{border-radius:0} }
+  @media (max-width:420px){ .set:not(.set-slider){flex-wrap:wrap;row-gap:4px} .set:not(.set-slider) label{flex:1 1 150px} .set .seg{margin-left:auto;max-width:100%} }
+  @media (max-width:380px){ .seg{flex-wrap:wrap;max-width:100%} .seg button{flex:1 1 auto;padding:0 8px} .seg button:first-child,.seg button:last-child{border-radius:0} }
   .tog{width:60px;height:44px;border:0;background:transparent;cursor:pointer;flex:none;position:relative}
   /* on/off: a brass lever in an inset slot; the knob is a turned brass stud */
   .tog::before{content:"";position:absolute;left:6px;top:12px;width:48px;height:20px;border-radius:4px;background:#3A3226;
-    border:1px solid #8C6A2A;box-shadow:inset 0 2px 3px rgba(0,0,0,.6)}
-  .tog::after{content:"";position:absolute;left:7px;top:8px;width:22px;height:28px;border-radius:4px;transition:left .15s;
+    border:1px solid #8C6A2A;box-shadow:inset 0 2px 3px rgba(0,0,0,.6);transition:background-color var(--dur-fast) var(--ease-out),border-color var(--dur-fast) var(--ease-out)}
+  .tog::after{content:"";position:absolute;left:7px;top:8px;width:22px;height:28px;border-radius:4px;transition:transform var(--dur-fast) var(--ease-out);
     border:1px solid #6E4C16;background:#C9A04A linear-gradient(90deg,#8C6A2A,#F3DA92 45%,#C9A04A 60%,#8C6A2A);box-shadow:0 2px 3px rgba(0,0,0,.45)}
   .tog[aria-checked=true]::before{background:#2E6A3C;border-color:#C9A04A;box-shadow:inset 0 2px 3px rgba(0,0,0,.45)}
-  .tog[aria-checked=true]::after{left:31px}
+  .tog[aria-checked=true]::after{transform:translateX(24px)}
   .backs{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px}
   .bk{position:relative;border:2px solid transparent;border-radius:var(--radius-lg);background:transparent;padding:6px 6px 10px;cursor:pointer;text-align:center;
     display:flex;flex-direction:column;align-items:center;gap:6px;font-size:.8rem}
@@ -310,7 +353,7 @@
   .bk.tbl canvas{width:120px;height:72px}
   .bk[aria-pressed=true]{border-color:var(--color-primary);background:var(--chip)}
   .bk b{font-size:.85rem;line-height:1.25}
-  .bk-bar{position:sticky;top:-4px;z-index:2;background:var(--sheet);padding:6px 0 8px;margin:0 0 10px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .bk-bar{position:sticky;top:-12px;z-index:2;background:var(--sheet);padding:8px 0;margin:-8px 0 10px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
   .bk-bar .cap{margin:0;flex:1 1 240px;min-height:2.4em}
   .bk-bar .btn{flex:none;min-height:44px;padding:0 14px;font-size:.82rem}
   .bk-lock{position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;background:rgba(16,24,19,.88);border:1.5px solid #C9A04A;color:#E9C873;display:grid;place-items:center;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.55)}
@@ -354,12 +397,16 @@
   .hp{border-top:1px solid var(--color-border)}
   .hp summary{display:flex;align-items:center;gap:10px;min-height:48px;cursor:pointer;list-style:none;font-family:var(--font-display);font-size:1.12rem;letter-spacing:.03em;color:var(--color-primary)}
   .hp summary::-webkit-details-marker{display:none}
-  .hp summary::after{content:"";margin-left:auto;width:8px;height:8px;border-right:2px solid #B8862C;border-bottom:2px solid #B8862C;transform:rotate(-45deg);transition:transform .15s;flex:none}
+  .hp summary::after{content:"";margin-left:auto;width:8px;height:8px;border-right:2px solid #B8862C;border-bottom:2px solid #B8862C;transform:rotate(-45deg);transition:transform var(--dur-fast) var(--ease-out);flex:none}
   .hp[open] summary::after{transform:rotate(45deg)}
+  .hp[open]>:not(summary){animation:hpIn 160ms var(--ease-out) both}
+  @keyframes hpIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
   .hp summary canvas{width:60px;height:42px;flex:none}
+  .hp-ico{width:60px;height:36px;flex:none;display:grid;place-items:center}
+  .hp-ico i{width:32px;height:32px;border-radius:50%;border:1.5px solid #B8862C;background:#1A2620;color:var(--brass-hi);display:grid;place-items:center;font-style:normal}
+  .hp-ico svg{width:17px;height:17px}
   .hp>p:first-of-type,.hp>table:first-of-type{margin-top:0}
-  /* Win: bath ticket + fact card */
-  /* The bath ticket: an engraved stock painting (assets/ticket-stock.webp) with typeset text; the right 14.5% past the 85.5% perforation is the stub */
+  /* Win: bath ticket + fact card (3 px die-cut corners & 650 ms descending brass stamp, CD-WF5-06) */
   .ticket{position:relative;margin:4px auto 14px;max-width:460px;aspect-ratio:2/1;color:#3A1A10;font-family:var(--font-deco);
     background:#F3E9D2 url(assets/ticket-stock.webp) center/100% 100% no-repeat;border-radius:3px;box-shadow:0 6px 16px rgba(0,0,0,.35);
     padding:6.5% 19% 6.5% 8%;display:flex;flex-direction:column;justify-content:center;transform:rotate(-1.2deg)}
@@ -375,23 +422,26 @@
     text-align:center;font-family:var(--font-mono);font-size:clamp(.38rem,1.3vw,.47rem);color:#8E3622;writing-mode:vertical-rl;transform:rotate(180deg);letter-spacing:.03em}
   .ticket .punch{position:absolute;right:5.5%;bottom:16%;width:6.5%;aspect-ratio:1;border-radius:50%;
     background:radial-gradient(circle at 50% 38%,#0E1411 0 48%,#1A2620 58%,#6B5A40 61%,#C9B48A 66%,transparent 70%)}
-  .sheet.rise .ticket .punch{animation:punch .45s .7s cubic-bezier(.3,1.6,.5,1) both}
-  .sheet.rise .ticket{animation:ticketIn .7s .1s cubic-bezier(.2,.9,.3,1.1) both}
-  @keyframes ticketIn{from{transform:translateY(30px) rotate(-6deg);opacity:0}to{transform:rotate(-1.2deg);opacity:1}}
+  .sheet.rise .ticket{animation:ticketIn var(--dur-slow) 80ms var(--ease-out) both,ticketRecoil 160ms 650ms var(--ease-out)}
+  .sheet.rise .ticket .punch,.sheet.rise .course i.new{animation:punch 180ms 650ms var(--ease-out) both}
+  .sheet.rise .earn{animation:panelIn var(--dur-med) 320ms var(--ease-out) both}
+  .sheet.rise .fact{animation:factIn var(--dur-med) 420ms var(--ease-out) both}
+  @keyframes ticketIn{from{transform:translateY(22px) rotate(-4.5deg);opacity:0}to{transform:rotate(-1.2deg);opacity:1}}
+  @keyframes ticketRecoil{0%,100%{transform:rotate(-1.2deg)}35%{transform:rotate(-1.2deg) translateY(1.5px)}}
+  @keyframes factIn{from{opacity:0;transform:rotate(.6deg) translateY(6px)}to{opacity:1;transform:rotate(.6deg)}}
   .course{display:flex;flex-wrap:nowrap;gap:2px;justify-content:center;margin-top:5px}
   .course i{width:clamp(6px,1.9vw,9px);aspect-ratio:1;border-radius:50%;border:1.2px solid #8E3622;display:block;flex:none}
   .course i.f{background:#8E3622}
   .sheet.win{position:relative;background:#121A15 linear-gradient(#1A2620,#0E1411);color:#EDE3C8;--focus-ring:#E9C873;--focus-moat:#101813}
   .sheet.win .sheet-head{position:relative;justify-content:center}
-  .sheet.win .sheet-head h2{color:#E9C873;text-align:center;font-size:clamp(1.35rem,5.5vw,1.9rem);padding:0 48px;text-shadow:0 2px 0 #000}
-  .sheet.win .sheet-head .head-acts,.sheet.win .sheet-head .x{position:absolute;right:0}
+  .sheet.win .sheet-head h2{color:#E9C873;text-align:center;font-size:clamp(1.22rem,5vw,1.85rem);padding:0 56px;text-shadow:0 2px 0 #000}
+  .sheet.win .sheet-head .head-acts,.sheet.win .sheet-head .x{position:absolute;right:12px}
   .sheet.win .fact{transform:rotate(.6deg);box-shadow:0 4px 12px rgba(0,0,0,.4)}
   .sheet.win .btn{background:#1E2A23;color:#EDE3C8;border-color:rgba(233,200,115,.5)}
   .sheet.win .btn.solid{background:#D2A84E linear-gradient(#F3DA92,#C9A04A 55%,#A87F2C);color:#1B1408;border-color:#F3DA92}
   .course i.m{border-color:#B8862C;box-shadow:0 0 0 1px #E9C873}
-  .sheet.rise .course i.new{animation:punch .45s .6s cubic-bezier(.3,1.6,.5,1) both}
-  @keyframes rise{from{transform:translateY(40px) scale(.96);opacity:0}to{transform:none;opacity:1}}
-  @keyframes punch{0%{transform:scale(2.4);background:transparent;opacity:0}60%{opacity:1}100%{transform:none}}
+  @keyframes rise{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
+  @keyframes punch{0%{transform:scale(1.75);opacity:0}68%{transform:scale(.96);opacity:1}100%{transform:scale(1);opacity:1}}
   .fact{background:var(--paper-bg);color:var(--paper-ink);border-left:5px solid var(--paper-accent);border-radius:var(--radius-md);padding:10px 14px;margin:0 0 12px}
   .fact .k{font-family:var(--font-deco);font-weight:700;color:var(--paper-accent);font-size:.82rem;letter-spacing:.08em;text-transform:uppercase}
   .fact .q{font-weight:600;margin:4px 0 2px;color:var(--paper-ink)}
@@ -399,22 +449,28 @@
   .fact .src{font-size:.78rem;color:var(--paper-muted);margin-top:4px}
   .numin{font:inherit;font-family:var(--font-mono);font-size:1.2rem;padding:8px 10px;width:100%;min-height:48px;border-radius:var(--radius-md);
     border:1px solid var(--ctrl-border);background:var(--color-bg);color:var(--color-text)}
+  .numin.shake{border-color:var(--color-danger);animation:refuseShake 200ms var(--ease-out)}
+  @keyframes refuseShake{0%,100%{transform:none}25%{transform:translateX(-4px)}50%{transform:translateX(4px)}75%{transform:translateX(-2px)}}
   .dl{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
   @media (max-width:520px){
     :root{--bar-h:56px}
     #bar{gap:6px} #subRow{gap:5px} #homeCount{font-size:.62rem} #assistTag{font-size:.58rem;padding:0 6px}
-    #sScoreW{display:flex;flex-direction:column} #sBonus{order:3;margin:0;text-align:right;line-height:1.1}
-    #status{gap:7px;font-size:.6rem;letter-spacing:.04em}
+    #status{gap:7px;font-size:.6rem;letter-spacing:.04em;align-items:flex-start}
+    #sBonus{margin-left:3px;font-size:.84em;letter-spacing:0}
     #status b{font-size:.98rem}
     #modeName{font-size:.86rem} #modeSub{font-size:.68rem;letter-spacing:.02em}
     .course{gap:2px} .course i{width:8px;height:8px;border-width:1.2px}
     .tb{font-size:.64rem;letter-spacing:.06em}
     #modal{padding-left:max(6px,env(safe-area-inset-left));padding-right:max(6px,env(safe-area-inset-right))}
-    .sheet-frame{padding:4px} .sheet-frame::after{border-width:16px}
-    .sheet{padding:16px 14px 18px}
+    .sheet-frame{padding:4px} .sheet-frame::after{border-width:14px}
+    .sheet-head{padding:12px 12px 8px} .sheet-body{padding:10px 12px 16px}
+    .bk-bar{top:-10px}
   }
-  /* Short landscape screens (phones on their side): a slim status bar and the actions in a rail beside the table,
-     so the cards get the height. Left-handed puts the rail on the left. */
+  @media (max-width:360px){
+    .sheet-frame{padding:3px} .sheet-frame::after{border-width:12px}
+    .sheet-head{padding:10px 10px 8px} .sheet-body{padding:8px 10px 14px}
+  }
+  /* Short landscape screens (phones on their side): slim bar, right-rail tools (left when left-handed), #bNew docked at bottom (CD-WF5-04). */
   @media (orientation:landscape) and (max-height:500px){
     :root{--bar-h:44px;--tools-h:0px}
     #app{display:grid;grid-template-columns:1fr auto;grid-template-rows:var(--bar-h) minmax(0,1fr)}
@@ -424,17 +480,28 @@
       border-top:0;border-left:2px solid var(--brass);border-image:linear-gradient(180deg,#6E4C16,#E9C873 22%,#9C6E1E 50%,#E9C873 78%,#6E4C16) 1;
       box-shadow:-3px 0 10px rgba(0,0,0,.45)}
     .lh #app{grid-template-columns:auto 1fr} .lh #stage{grid-column:2} .lh #tools{grid-column:1;border-left:0;border-right:2px solid var(--brass);box-shadow:3px 0 10px rgba(0,0,0,.45)}
+    #bNew{order:5}
     .tb{width:100%;max-width:none;min-height:44px;max-height:64px;font-size:.6rem;letter-spacing:.06em;border-radius:12px}
     .tb svg{width:19px;height:19px}
     #bar .ib{position:relative;width:44px;height:44px;padding:4px;border:0;background:transparent;box-shadow:none}
     #bar .ib::before{content:"";position:absolute;inset:4px;border-radius:50%;border:1.5px solid var(--brass);
-      background:#18221C radial-gradient(circle at 50% 35%,#2C3B32,#121A15 70%);box-shadow:inset 0 1px 0 rgba(255,236,190,.18),0 2px 4px rgba(0,0,0,.5);pointer-events:none}
+      background:#18221C radial-gradient(circle at 50% 35%,#2C3B32,#121A15 70%);box-shadow:inset 0 1px 0 rgba(255,236,190,.18),0 2px 4px rgba(0,0,0,.5);pointer-events:none;
+      transition:transform var(--dur-press) var(--ease-out),border-color 120ms var(--ease-out),box-shadow var(--dur-press) var(--ease-out)}
+    #bar .ib:hover:not(:disabled)::before{border-color:var(--brass-hi);box-shadow:inset 0 1px 0 rgba(255,236,190,.28),0 0 8px rgba(233,200,115,.28)}
+    #bar .ib:active:not(:disabled){transform:none;box-shadow:none}
+    #bar .ib:active:not(:disabled)::before{transform:translateY(1px);box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
     #bar .ib svg{position:relative;z-index:1;width:19px;height:19px}
     #bar .ib:focus-visible{outline-offset:-2px;box-shadow:none}
     #modeName{font-size:.98rem} #modeSub{font-size:.66rem}
     #status{gap:14px;font-size:.58rem} #status b{font-size:1.02rem;margin-top:0}
-    .sheet-frame.daily{width:min(860px,100%)}
+    .sheet-frame.daily,.sheet-frame.win{width:min(860px,100%)}
     .daily-cols{display:grid;grid-template-columns:1.1fr 1fr;gap:12px;align-items:start}
+    .win-cols{display:grid;grid-template-columns:1.05fr 1fr;gap:12px;align-items:start}
+    .sheet.win .ticket{margin:0;max-width:none}
+    .sheet.win .earn{margin-bottom:6px;font-size:.82rem}
+    .sheet.win .fact{margin-bottom:8px;padding:8px 10px;font-size:.82rem}
+    .sheet.win .row{margin-top:8px;gap:6px}
+    .sheet.win .row .btn{min-height:44px;padding:0 12px;font-size:.84rem}
     .menu.daily-grid .btn.day{flex:0 1 calc(33.33% - 6px);min-width:0;min-height:66px}
     .menu.daily-grid .btn.day canvas{height:28px}
   }
@@ -443,22 +510,21 @@
     .tb{gap:1px;padding:2px;font-size:.56rem}
     .tb svg{width:17px;height:17px}
   }
-  #coach{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:max-content;max-width:min(94%,calc(100% - 24px));display:flex;align-items:center;gap:8px;z-index:5;
-    background:rgba(16,24,19,.94);color:var(--lac-ink);border:1px solid rgba(233,200,115,.6);border-radius:var(--radius-pill);padding:4px 6px 4px 16px;
-    font-family:var(--font-deco);font-weight:600;font-size:.92rem;box-shadow:0 4px 14px rgba(0,0,0,.45)}
+  #coach,#tabNote{position:relative;width:max-content;max-width:100%;display:flex;align-items:center;gap:8px;pointer-events:auto;
+    background:rgba(16,24,19,.94);color:var(--lac-ink);border:1px solid rgba(233,200,115,.6);box-shadow:0 4px 14px rgba(0,0,0,.45);
+    font-family:var(--font-deco);font-weight:600}
+  #coach{border-radius:var(--radius-pill);padding:4px 6px 4px 16px;font-size:.92rem}
+  #tabNote{border-radius:22px;padding:4px 12px 4px 16px;font-size:.86rem}
+  #coach:not([hidden]),#tabNote:not([hidden]){animation:noticeIn 180ms var(--ease-out) both}
+  @keyframes noticeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
   #coachTx{min-width:0;flex:1 1 auto;line-height:1.25}
-  @media (min-width:560px){#coach{max-width:min(94%,calc(100% - 108px))}}
-  #coach[hidden]{display:none} #coach ~ #toast{bottom:74px} #coach[hidden] ~ #toast{bottom:14px}
-  #tabNote{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:max-content;max-width:94%;display:flex;align-items:center;gap:8px;z-index:5;
-    background:rgba(16,24,19,.94);color:var(--lac-ink);border:1px solid rgba(233,200,115,.6);border-radius:22px;padding:4px 12px 4px 16px;
-    font-family:var(--font-deco);font-weight:600;font-size:.86rem;box-shadow:0 4px 14px rgba(0,0,0,.45)}
-  #tabNote[hidden]{display:none} #tabNote:not([hidden]) ~ #coach,#tabNote:not([hidden]) ~ #toast{bottom:84px} #tabNote:not([hidden]) ~ #coach:not([hidden]) ~ #toast{bottom:144px}
+  #coach[hidden],#tabNote[hidden]{display:none}
   #tabNote button{flex:none;min-height:44px;min-width:44px;padding:0 14px;border-radius:var(--radius-pill);border:1px solid rgba(233,200,115,.6);background:transparent;color:inherit;font:inherit;font-size:.8rem;cursor:pointer;white-space:nowrap}
   #coach button{flex:none;min-height:44px;min-width:44px;padding:0 12px;border-radius:var(--radius-pill);border:1px solid rgba(233,200,115,.6);background:transparent;color:inherit;font:inherit;font-size:.8rem;cursor:pointer;white-space:nowrap}
   @media (max-width:520px){#coach{padding:4px 6px 4px 12px;gap:6px;font-size:.82rem}#coach button{padding:0 10px;font-size:.76rem}}
   #bHint.pt{outline:3px solid var(--color-highlight);outline-offset:2px}
   :root:not(.rm) #bHint.pt:not(.st){animation:pt 1.3s ease-in-out infinite}
-  @keyframes pt{50%{outline-offset:6px}}
+  @keyframes pt{50%{transform:scale(1.03)}}
   .bk small{display:block;font-size:.7rem;color:var(--color-muted)} .bk.lk canvas{filter:saturate(.55) brightness(.82);opacity:.78} .bk.lk{cursor:default}
   .earn{margin:0 auto 12px;max-width:460px;text-align:center;font-size:.9rem} .earn b{font-family:var(--font-deco)} .earn .pb{color:#6FC3A8;font-weight:700}
   .earn-u{display:flex;align-items:center;justify-content:center;gap:6px 8px;flex-wrap:wrap;margin-top:4px}
@@ -472,10 +538,14 @@
   .fnd li{padding:6px 8px;border:1px solid #B8862C;border-radius:8px;font-size:.85rem;background:var(--chip)} .fnd li b{display:block}
   .ach li b{display:block} .ach li small{color:var(--color-muted)}
   .cal-wrap{overflow-x:auto;max-width:100%}
+  .cal-wrap.cal-prev{animation:calPrev var(--dur-fast) var(--ease-out) both}
+  .cal-wrap.cal-next{animation:calNext var(--dur-fast) var(--ease-out) both}
+  @keyframes calPrev{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
+  @keyframes calNext{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
   .cal{display:grid;grid-template-columns:repeat(7,minmax(44px,1fr));gap:3px;text-align:center;font-size:.8rem;margin:6px 0}
   .cal i,.cal .cday{font-style:normal;min-height:44px;min-width:44px;border:1px solid var(--color-border);border-radius:6px;padding:2px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;color:var(--color-text);font-family:var(--font-deco);font-size:.8rem;line-height:1.15}
   .cal .cday{cursor:pointer}
-  .cal .cday:hover:not(:disabled){border-color:#E9C873;background:var(--chip)}
+  @media (hover:hover){.cal .cday:hover:not(:disabled):not(.f){background:var(--chip)}}
   .cal i small,.cal .cday small{font-size:.62rem;color:var(--color-muted)}
   .cal .cday.w,.cal i.w{background:var(--chip);border-color:#B8862C}
   .cal .cday.f,.cal i.f{background:#D9B256;color:#1B1408;border-color:#E9C873;font-weight:700} .cal .cday.f small,.cal i.f small{color:#1B1408}
@@ -485,8 +555,7 @@
   .cal i.h{border:0;min-height:0;min-width:0;font-weight:700;color:var(--color-muted)}
   .cal-note{margin:6px 0 0;min-height:0;font-size:.78rem}
   .cm{display:flex;align-items:center;justify-content:space-between;gap:8px} .cm b{font-family:var(--font-deco)} .cm .btn{min-width:44px}
-  :root.rm #goal i,:root.rm #goal .rev,:root.rm #goal .reveal,:root.rm .tb,:root.rm #toast,:root.rm #dealing,:root.rm .tog::after,:root.rm .hp summary::after{transition:none}
-  :root.rm .sheet-frame.rise,:root.rm .sheet.rise,:root.rm .sheet.rise .ticket,:root.rm .sheet.rise .ticket .punch,:root.rm .sheet.rise .course i.new,:root.rm #bHint.pt,:root.rm .bk.lk.wiggle{animation:none}
+  :root.rm *,:root.rm *::before,:root.rm *::after{transition:none !important;animation:none !important}
   :root.rm .course i.new{box-shadow:0 0 0 2px #E9C873}
   @media (forced-colors: active){
     .tog::before{background:Canvas;border:2px solid ButtonText;forced-color-adjust:none}
@@ -517,9 +586,11 @@
     <canvas id="cv" tabindex="0" role="application" aria-roledescription="card table"
       aria-label="Card table. Arrow keys move the cursor, Enter picks up or drops cards, H for a hint, U to undo, S to hear the table. Press question mark for help."></canvas>
     <div id="mirror" class="sr-only" role="group" aria-label="Table piles. Press a pile to pick up or drop cards." hidden></div>
-    <div id="tabNote" hidden><span>Also open in another tab: the last move made in either tab is the one kept.</span><button id="tabNoteX" type="button">Got it</button></div>
-    <div id="coach" hidden><span id="coachTx"></span><button id="coachOk" type="button">Got it</button><button id="coachSkip" type="button">Skip tips</button></div>
-    <div id="toast" aria-hidden="true"></div>
+    <div id="notices">
+      <div id="toast" aria-hidden="true"></div>
+      <div id="coach" hidden><span id="coachTx"></span><button id="coachOk" type="button">Got it</button><button id="coachSkip" type="button">Skip tips</button></div>
+      <div id="tabNote" hidden><span>Also open in another tab: the last move made in either tab is the one kept.</span><button id="tabNoteX" type="button">Got it</button></div>
+    </div>
   </main>
   <nav id="tools" aria-label="Game actions">
     <button class="tb" id="bNew" title="New deal (N)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="5" y="3" width="11" height="15" rx="2"/><path d="M9 21h9a2 2 0 0 0 2-2V8"/></svg>New</button>
@@ -2121,7 +2192,7 @@ function newGame(o = {}) {
 function startDeal(mode, opts, deal, daily, winnable, grade) {
   abandonCurrent();
   clearWinTimers(); cancelAutoCues(); cancelBuzz(); clearCueCooldowns();
-  landCues.length = 0; flipQueue.length = 0; drawWaypoints = {}; prevCanAuto = false;
+  landCues.length = 0; flipQueue.length = 0; drawWaypoints = {}; prevCanAuto = false; lastCompletedSuits = 0;
   syncShared();
   S = newState(mode, opts, deal, daily); musicHush = false; clearTransientFx(true);
   syncMusicIntensity();
@@ -2154,7 +2225,7 @@ function confirmAbandon(o, restart) {
   const dealTag = modeKeyLabel(k) + ' · ' + (g.daily ? 'Daily ' + g.daily : 'Deal #' + g.deal) + ' (' + g.moves + (g.moves === 1 ? ' move' : ' moves') + ')';
   openModal('confirm', { title: restart ? 'Restart this deal?' : 'Abandon this deal?',
     text: (restart ? 'Restart ' + dealTag + '? Your moves so far will be lost.' : dealTag + ' is in progress. The game in progress will be lost.') + (streak > 0 ? ' Your ' + modeKeyLabel(k) + ' streak of ' + streak + ' will reset.' : ''),
-    yes: restart ? 'Restart' : 'New deal', onYes: go });
+    yes: restart ? 'Restart' : 'New deal', danger: true, onYes: go });
 }
 function restartDeal() { // the same deal again: the player has now seen its cards, so a win here is a replay
   if (!S) return;
@@ -2329,7 +2400,7 @@ function resumeSaved() {
   const prev = { S, undoStack, tabSuperseded };
   try {
     S = c.state; undoStack = c.undo; redoStack = []; pullbackHold.clear(); clearTransientFx(false); hintState = null; held = null; drag = null; cascade = null; fitHold = 1; clearStuck();
-    prevCanAuto = canAutoComplete();
+    prevCanAuto = canAutoComplete(); lastCompletedSuits = completedSuits();
     tabSuperseded = false; tabNoteHide();
     clockMark = now(); closeModal(); showTitle(false); tipHide(); tipGoalShown = null; relayout(true); markDirty(); updateHUD(); tipResetIdle();
   } catch (e) {
@@ -3803,6 +3874,7 @@ function relayout(instant) {
   }
   if (lastCw !== L.cw) { sprites.clear(); lastCw = L.cw; }
   targets = computeTargets();
+  dockNotices();
   const t = now(), rm = reducedMotion();
   for (let u = 0; u < S.cards.length; u++) {
     const T = targets[u]; if (!T) continue;
@@ -3996,7 +4068,7 @@ function loop() {
   frame(t); const ft = now() - t; fstat.n++; fstat.sum += ft; if (ft > fstat.max) fstat.max = ft; if (fstat.xs.length < 4000) fstat.xs.push(ft);
   fxEma = fxEma * .95 + ft * .05; if (!lowFx && fstat.n > 60 && fxEma > 12) { lowFx = true; for (let i = 0; i < MAX_SPARKS; i++) sparkPool[i].active = false; for (let i = 0; i < MAX_RINGS; i++) ringPool[i].active = false; }
   // frame() may already have queued the next frame (startLoop); never queue a second one
-  if (!rafId && !titleOn && (tweensActive(t) || dragAnimating(t) || (cascade && !cascade.calm) || steam.length || Object.keys(shakes).length || (!reducedMotion() && hintState && hintState.until > t))) rafId = requestAnimationFrame(loop);
+  if (!rafId && !titleOn && (tweensActive(t) || dragAnimating(t) || (held && !reducedMotion() && t < (held.t0 || 0) + 95) || (cascade && !cascade.calm) || steam.length || Object.keys(shakes).length || (!reducedMotion() && hintState && hintState.until > t))) rafId = requestAnimationFrame(loop);
 }
 function drawTableLayer() {
   tctx.setTransform(DPR, 0, 0, DPR, 0, 0); drawTable(tctx, settings.table, W, H, placeBand()); tableDirty = false;
@@ -4333,7 +4405,8 @@ function frame(t) {
   }
   if (held && S.piles[held.from] && L.piles[held.from]) {
     const p = S.piles[held.from], cs = L.piles[held.from].cards;
-    const hLift = reducedMotion() ? 0 : .85, dy = reducedMotion() ? 0 : -Math.max(4, Math.round(cw * .06));
+    const hk = reducedMotion() ? 1 : ease(clamp((t - (held.t0 || 0)) / 90, 0, 1));
+    const hLift = reducedMotion() ? 0 : .85 * hk, dy = reducedMotion() ? 0 : -Math.max(4, Math.round(cw * .06)) * hk;
     for (let i = held.index; i < p.length; i++) {
       const c = cs[i]; if (c) drawCardAt(p[i], c.x, c.y + dy, t, hLift);
     }
@@ -4858,7 +4931,7 @@ cv.addEventListener('pointerup', (e) => {
   if (m === 'drag') return;
   if (m === 'select') {
     if (canPick(hit.pile, hit.index)) {
-      held = { from: hit.pile, index: hit.index };
+      held = { from: hit.pile, index: hit.index, t0: now() };
       sfx('pick', undefined, pilePan(hit.pile));
       announce('Picked up ' + describeRun(S.piles[hit.pile].slice(hit.index)) + '. Tap a pile to place it.');
       markDirty();
@@ -4883,6 +4956,41 @@ cv.addEventListener('pointercancel', cancelDrag);
 window.addEventListener('blur', cancelDrag);
 cv.addEventListener('contextmenu', (e) => e.preventDefault());
 
+function sideNav(cur, dirKey) {
+  if (!L || !L.piles || !L.piles[cur]) return null;
+  const cx = L.piles[cur].x, cy = L.piles[cur].y, ids = Object.keys(L.piles);
+  if (dirKey === 'ArrowLeft' || dirKey === 'ArrowRight') {
+    const dir = dirKey === 'ArrowRight' ? 1 : -1;
+    let best = null, bs = 1e9;
+    for (const id of ids) {
+      if (id === cur) continue;
+      const dx = (L.piles[id].x - cx) * dir;
+      if (dx <= 2) continue;
+      const sc = dx + Math.abs(L.piles[id].y - cy) * 2.5;
+      if (sc < bs) { bs = sc; best = id; }
+    }
+    if (best) return best;
+    // Wrap to opposite far edge preferring the same horizontal band
+    let wrap = null, ws = -1e9;
+    for (const id of ids) {
+      if (id === cur) continue;
+      const dx = (L.piles[id].x - cx) * -dir;
+      if (dx <= 2) continue;
+      const sc = dx - Math.abs(L.piles[id].y - cy) * 2.5;
+      if (sc > ws) { ws = sc; wrap = id; }
+    }
+    return wrap;
+  }
+  const dyDir = dirKey === 'ArrowDown' ? 1 : -1;
+  let best = null, bs = 1e9;
+  for (const id of ids) {
+    if (id === cur) continue;
+    if (Math.abs(L.piles[id].x - cx) > L.cw * .55) continue;
+    const dy = (L.piles[id].y - cy) * dyDir;
+    if (dy > 2 && dy < bs) { bs = dy; best = id; }
+  }
+  return best;
+}
 function rows() {
   const top = topSlots().filter(Boolean); const tab = []; for (let i = 0; i < def().cols; i++) tab.push('t' + i);
   return { top, tab };
@@ -4917,23 +5025,35 @@ function gameKey(e) {
   if (ctrl && (k === 'z' || k === 'Z')) { undo(); return true; }
   if (ctrl && (k === 'y' || k === 'Y')) { redo(); return true; }
   if (ctrl || e.altKey) return false;
-  const R = rows();
+  const R = rows(), isSide = !!(L && L.arr === 'side');
   if (!cursor.pile || !S.piles[cursor.pile]) setCursor(R.tab[0]);
   const inTop = R.top.includes(cursor.pile);
   const row = inTop ? R.top : R.tab; const i = row.indexOf(cursor.pile);
   const P = S.piles[cursor.pile];
   switch (k) {
-    case 'ArrowLeft': kbMode = true; setCursor(row[(i - 1 + row.length) % row.length]); break;
-    case 'ArrowRight': kbMode = true; setCursor(row[(i + 1) % row.length]); break;
+    case 'ArrowLeft':
+      kbMode = true;
+      if (isSide) { const nx = sideNav(cursor.pile, k); if (nx) setCursor(nx); }
+      else setCursor(row[(i - 1 + row.length) % row.length]);
+      break;
+    case 'ArrowRight':
+      kbMode = true;
+      if (isSide) { const nx = sideNav(cursor.pile, k); if (nx) setCursor(nx); }
+      else setCursor(row[(i + 1) % row.length]);
+      break;
     case 'ArrowUp':
       kbMode = true;
       if (e.shiftKey) { announce(inspectColumn(cursor.pile)); break; }
       if (!inTop && !held && P.length && cursor.depth > 0 && S.up[P[cursor.depth - 1]] && canPick(cursor.pile, cursor.depth - 1)) { cursor.depth--; announcePile(cursor.pile); }
+      else if (isSide) { if (inTop) { const nx = sideNav(cursor.pile, k); if (nx) setCursor(nx); } }
       else if (!inTop) { const x = L.piles[cursor.pile].x; let best = R.top[0], bd = 1e9; for (const id of R.top) { const dd = Math.abs(L.piles[id].x - x); if (dd < bd) { bd = dd; best = id; } } setCursor(best); }
       break;
     case 'ArrowDown':
       kbMode = true;
-      if (inTop) { const x = L.piles[cursor.pile].x; let best = R.tab[0], bd = 1e9; for (const id of R.tab) { const dd = Math.abs(L.piles[id].x - x); if (dd < bd) { bd = dd; best = id; } } setCursor(best); }
+      if (isSide) {
+        if (inTop) { const nx = sideNav(cursor.pile, k); if (nx) setCursor(nx); }
+        else if (P.length && cursor.depth < P.length - 1) { cursor.depth++; announcePile(cursor.pile); }
+      } else if (inTop) { const x = L.piles[cursor.pile].x; let best = R.tab[0], bd = 1e9; for (const id of R.tab) { const dd = Math.abs(L.piles[id].x - x); if (dd < bd) { bd = dd; best = id; } } setCursor(best); }
       else if (P.length && cursor.depth < P.length - 1) { cursor.depth++; announcePile(cursor.pile); }
       break;
     case 'Enter': case ' ': kbMode = true; if (activatePile(cursor.pile, cursor.depth) === 'moved') setCursorAfterMove(); break;
@@ -4976,7 +5096,7 @@ function activatePile(pile, depth) {
     if (r.ok) return 'moved';
     held = h; sfx('nope', undefined, pilePan(pile)); if (!explain(refusalReason(S.piles[h.from].slice(h.index), pile, h.from))) announce('Can\'t place there');
   } else if (pile === 'stock') stockAction();
-  else if (P.length && canPick(pile, depth)) { held = { from: pile, index: depth }; sfx('pick', undefined, pilePan(pile)); announce('Picked up ' + describeRun(P.slice(depth)) + '. Move to a pile and press Enter.'); }
+  else if (P.length && canPick(pile, depth)) { held = { from: pile, index: depth, t0: now() }; sfx('pick', undefined, pilePan(pile)); announce('Picked up ' + describeRun(P.slice(depth)) + '. Move to a pile and press Enter.'); }
   else { sfx('nope', undefined, pilePan(pile)); announce('Can\'t pick that up'); }
   return '';
 }
@@ -5082,43 +5202,57 @@ window.addEventListener('keydown', (e) => {
   const ae = document.activeElement;
   if (ae && ae !== cv && ae !== document.body) {
     if (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT') return;
-    if ((e.key === 'i' || e.key === 'I') && mirror.contains(ae) && ae.dataset.pile) { e.preventDefault(); announce(inspectColumn(ae.dataset.pile)); return; }
+    if (((e.key === 'i' || e.key === 'I') || (e.shiftKey && e.key === 'ArrowUp')) && mirror.contains(ae) && ae.dataset.pile) { e.preventDefault(); announce(inspectColumn(ae.dataset.pile)); return; }
     if (e.key !== 'Escape' && e.key !== 'Backspace' && !/^[?hHuUzZnNaAsSdDyYpPiImM]$/.test(e.key)) return;
   }
   if (gameKey(e)) e.preventDefault();
 });
 
-// Gamepad: the pad presses the keys the keyboard path already has and nothing else. D-pad and left stick are the arrow keys (held, they repeat), A is Enter,
-// B puts back what is held and otherwise undoes, X is H (hint), Y is D (draw), Start is P (menu). In a dialog and on the title the D-pad steps between
-// the controls as Tab does, A presses the one in focus, B and Start close the dialog, and left or right on a slider moves it.
-const PAD = { timer: 0, held: {}, next: {}, polls: 0 };
-const PAD_KEYS = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', a: 'Enter', x: 'h', y: 'd', start: 'p' };
+// Gamepad: 16 ms rAF polling while connected, radial stick deadzone > 0.38, scroll-aware dialog navigation, RB/LB/View bindings (W6-S5-08).
+const PAD = { raf: 0, held: {}, next: {}, polls: 0 };
+const PAD_KEYS = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', a: 'Enter', x: 'h', y: 'd', start: 'p', rb: 't', lb: 'y', view: 'a' };
 const padFound = () => { try { return [...(navigator.getGamepads ? navigator.getGamepads() : [])].find((p) => p && p.connected) || null; } catch (e) { return null; } };
 function padControls() {
   const root = modalKind ? sheet : titleOn ? $('#title') : null;
-  return root ? [...root.querySelectorAll('button, input, select, summary')].filter((el) => !el.disabled && el.getClientRects().length) : [];
+  return root ? [...root.querySelectorAll('button, input, select, summary')].filter((el) => !el.disabled && !el.closest('[hidden], [inert]') && el.getClientRects().length) : [];
+}
+function focusPadEl(el) {
+  if (!el) return;
+  el.focus({ preventScroll: true });
+  try { el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' }); } catch (e) { el.scrollIntoView(); }
+  sfx('tick');
 }
 function padFire(name) {
   initAudio();
   if (modalKind || titleOn) {
     const el = document.activeElement, step = name === 'up' || name === 'left' ? -1 : 1;
     if (name === 'b' || name === 'start') { if (modalKind) closeModal(modalKind !== 'win'); return; }
-    if (name === 'a') { const list = padControls(); if (el && list.includes(el)) el.click(); else if (list[0]) list[0].focus({ preventScroll: true }); return; }
+    if (name === 'a') { const list = padControls(); if (el && list.includes(el)) el.click(); else if (list[0]) focusPadEl(list[0]); return; }
     if ((name === 'left' || name === 'right') && el && el.type === 'range') {
       el.value = String(clamp(+el.value + step * (+el.step || 1), +el.min, +el.max)); el.dispatchEvent(new Event('input', { bubbles: true })); return;
     }
+    if (name !== 'up' && name !== 'down' && name !== 'left' && name !== 'right') return;
     const list = padControls(); if (!list.length) return;
-    const i = list.indexOf(el); list[i < 0 ? 0 : (i + step + list.length) % list.length].focus({ preventScroll: true });
+    const i = list.indexOf(el); focusPadEl(list[i < 0 ? 0 : (i + step + list.length) % list.length]);
     return;
   }
-  if (S) gameKey({ key: name === 'b' ? (held ? 'Escape' : 'u') : PAD_KEYS[name] });
+  if (S) gameKey({ key: name === 'b' ? (cascade || held ? 'Escape' : 'u') : PAD_KEYS[name] });
 }
 function padPoll() {
   PAD.polls++;
   const pad = padFound();
   if (!pad || document.hidden) { PAD.held = {}; return; }
-  const down = (i) => !!(pad.buttons[i] && pad.buttons[i].pressed), ax = pad.axes[0] || 0, ay = pad.axes[1] || 0, t = now();
-  const on = { up: down(12) || ay < -.5, down: down(13) || ay > .5, left: down(14) || ax < -.5, right: down(15) || ax > .5, a: down(0), b: down(1), x: down(2), y: down(3), start: down(9) };
+  const down = (i) => !!(pad.buttons[i] && pad.buttons[i].pressed);
+  const ax = pad.axes[0] || 0, ay = pad.axes[1] || 0, mag = Math.hypot(ax, ay), t = now();
+  const sx = mag > .38 && Math.abs(ax) >= Math.abs(ay) * .55 ? ax : 0;
+  const sy = mag > .38 && Math.abs(ay) >= Math.abs(ax) * .55 ? ay : 0;
+  const ry = pad.axes[3] || 0;
+  if ((modalKind || titleOn) && Math.abs(ry) > .25) {
+    const sc = modalKind ? ($('#sheetBody') || sheet) : titleEl;
+    if (sc) sc.scrollTop += ry * 12;
+  }
+  const on = { up: down(12) || sy < -.2, down: down(13) || sy > .2, left: down(14) || sx < -.2, right: down(15) || sx > .2,
+    a: down(0), b: down(1), x: down(2), y: down(3), lb: down(4), rb: down(5), view: down(8), start: down(9) };
   for (const name in on) {
     if (!on[name]) { delete PAD.held[name]; continue; }
     const arrow = name === 'up' || name === 'down' || name === 'left' || name === 'right';
@@ -5126,9 +5260,15 @@ function padPoll() {
     else if (arrow && t >= PAD.next[name]) { PAD.next[name] = t + 130; padFire(name); }
   }
 }
-function padWatch() { if (!PAD.timer) PAD.timer = setInterval(padPoll, 40); }
+function padStep() {
+  PAD.raf = 0;
+  if (!padFound()) { PAD.held = {}; return; }
+  padPoll();
+  PAD.raf = requestAnimationFrame(padStep);
+}
+function padWatch() { if (!PAD.raf && padFound()) PAD.raf = requestAnimationFrame(padStep); }
 window.addEventListener('gamepadconnected', padWatch);
-window.addEventListener('gamepaddisconnected', () => { if (!padFound()) { clearInterval(PAD.timer); PAD.timer = 0; PAD.held = {}; } });
+window.addEventListener('gamepaddisconnected', () => { if (!padFound()) { if (PAD.raf) cancelAnimationFrame(PAD.raf); PAD.raf = 0; PAD.held = {}; } });
 if (padFound()) padWatch();
 
 // 12. Audio (WebAudio synthesis; the context is created on the first user gesture)
@@ -5821,7 +5961,7 @@ function audioState() {
 
 // 13. UI chrome: HUD, toast, title, dialogs
 // Alternating two aria-live="polite" nodes so repeated identical announcements ("Undone", repeated S) never drop (W6-S5-10).
-const sr = $('#sr'), srA = $('#srA'), srB = $('#srB'), toastEl = $('#toast');
+const sr = $('#sr'), srA = $('#srA'), srB = $('#srB'), toastEl = $('#toast'), noticesEl = $('#notices');
 let srFlip = 0;
 function announce(msg) {
   if (!srA.isConnected || !srB.isConnected) { sr.textContent = ''; sr.append(srA, srB); }
@@ -5839,7 +5979,31 @@ function toast(msg, opts) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('on'), dur);
   announce(msg);
 }
+toastEl.onclick = () => { clearTimeout(toastTimer); toastTimer = 0; toastEl.classList.remove('on'); };
 function achToast(names) { sfx('ach'); toast('Achievement: ' + names[0] + (names.length > 1 ? ' and ' + (names.length - 1) + ' more' : '')); }
+function dockNotices() {
+  if (!noticesEl) return;
+  if (!L || !S || !W || !H || coachEl.hidden) { noticesEl.style.left = ''; return; }
+  const cols = def().cols, pad = W >= 560 ? 54 : 12, bandY = H - 74, nw = Math.min(noticesEl.offsetWidth || 320, W - pad * 2);
+  const blocked = [];
+  for (let i = 0; i < cols; i++) {
+    const b = L.piles['t' + i];
+    if (b && b.cards && b.cards.length && b.y + (b.zoneH || L.ch) > bandY) blocked.push([b.x - 4, b.x + L.cw + 4]);
+  }
+  if (!blocked.length) { noticesEl.style.left = ''; return; }
+  const cL = W / 2 - nw / 2, cR = W / 2 + nw / 2;
+  if (!blocked.some(([a, b]) => a < cR && b > cL)) { noticesEl.style.left = ''; return; }
+  blocked.sort((a, b) => a[0] - b[0]);
+  const gaps = []; let cur = pad;
+  for (const [a, b] of blocked) { if (a > cur) gaps.push([cur, a]); cur = Math.max(cur, b); }
+  if (W - pad > cur) gaps.push([cur, W - pad]);
+  let best = null, bw = 0;
+  for (const g of gaps) { const w = g[1] - g[0]; if (w > bw) { bw = w; best = g; } }
+  if (best && bw >= Math.min(nw, 210)) {
+    const cx = clamp((best[0] + best[1]) / 2, pad + nw / 2, W - pad - nw / 2);
+    noticesEl.style.left = Math.round(cx) + 'px';
+  } else noticesEl.style.left = '';
+}
 
 const TIP_GOAL = {
   klondike: 'Build each suit from Ace to King on the foundations.',
@@ -5887,6 +6051,7 @@ function tipHide() {
   clearTimeout(tipIdleTimer); tipIdleTimer = 0;
   tip = null;
   coachEl.hidden = true;
+  if (noticesEl) noticesEl.style.left = '';
   $('#bHint').classList.remove('pt');
 }
 function tipSchedule(ms) {
@@ -5905,6 +6070,7 @@ function tipShowIdle() {
   const x = tipText('hint');
   $('#coachTx').textContent = x;
   coachEl.hidden = false;
+  dockNotices();
   // Passive non-pulsing reminder (CD-WF2-06): never pulse #bHint.pt and never exempt Hint from S.assisted
   announce(x);
   tipTimer = setTimeout(() => tipFade('hint'), TIP_MS.hint);
@@ -5925,6 +6091,7 @@ function tipShow() {
   const x = tipText(id);
   $('#coachTx').textContent = x;
   coachEl.hidden = false;
+  dockNotices();
   announce(x);
   tipTimer = setTimeout(() => tipFade(id), TIP_MS[id]);
 }
@@ -5980,7 +6147,7 @@ function updateHUD() {
   $('#sScoreW').style.display = settings.scoring === 'none' ? 'none' : '';
   $('#sTimeW').style.display = settings.showTimer ? '' : 'none';
   $('#bUndo').disabled = !undoStack.length || S.won; $('#bRedo').disabled = !redoStack.length || S.won;
-  const b = $('#bAuto'), wonRecall = !!(S.won && lastWin);
+  const b = $('#bAuto'), wonRecall = !!(S.won && lastWin), wasGlow = b.classList.contains('glow');
   if (wonRecall) {
     b.disabled = false; b.classList.add('glow');
     if (b.dataset.mode !== 'ticket') { b.innerHTML = TICKET_BTN_HTML; b.dataset.mode = 'ticket'; b.setAttribute('aria-label', 'View Bath Ticket'); b.title = 'View Bath Ticket (A)'; }
@@ -5988,6 +6155,8 @@ function updateHUD() {
   } else {
     const ac = canAutoComplete();
     b.disabled = !ac; b.classList.toggle('glow', ac);
+    if (!wasGlow && ac && !reducedMotion()) { b.classList.remove('glow-in'); void b.offsetWidth; b.classList.add('glow-in'); }
+    else if (!ac) b.classList.remove('glow-in');
     if (b.dataset.mode === 'ticket') { b.innerHTML = FINISH_BTN_HTML; b.dataset.mode = 'finish'; b.removeAttribute('aria-label'); b.title = 'Auto-complete (A)'; }
     if (!prevCanAuto && ac && S.started && !S.won) sfx('ready');
     prevCanAuto = ac;
@@ -5998,21 +6167,30 @@ function updateHUD() {
   if (!modalKind && !titleOn && ae && ae.disabled && $('#tools').contains(ae)) cv.focus({ preventScroll: true });
   syncMirror();
 }
-// How far from a win: the cards on the foundations (Spider: in finished runs) as a thin jade line under the bar, and as words for the pointer and a screen reader.
-// Secondary warm-brass track renders face-down reveal momentum without altering #goal > i (CD-WF5-07); touch-visible counter sits in #subRow (#homeCount).
+// How far from a win: GPU scaleX() jade line under the bar + brass face-down reveal track + 13-card King/Spider milestone pulse (W6-S5-07, CD-WF5-07).
 function homeCount() { let n = 0; for (const id in S.piles) if (kindOf(id) === 'found') n += S.piles[id].length; return n; }
+function completedSuits() { let n = 0; for (const id in S.piles) if (kindOf(id) === 'found' && S.piles[id].length === 13) n++; return n; }
 function downCount(st = S) {
   let n = 0; const cols = MODES[st.mode].cols;
   for (let i = 0; i < cols; i++) for (const u of st.piles['t' + i]) if (!st.up[u]) n++;
   return n;
 }
+let lastCompletedSuits = 0, goalPulseTimer = 0;
+function pulseGoal() {
+  if (reducedMotion()) return;
+  const g = $('#goal'); g.classList.remove('pulse'); void g.offsetWidth; g.classList.add('pulse');
+  clearTimeout(goalPulseTimer); goalPulseTimer = setTimeout(() => { goalPulseTimer = 0; g.classList.remove('pulse'); }, 320);
+}
 function updateGoal() {
   const n = homeCount(), all = S.cards.length, g = $('#goal'), text = n + ' of ' + all + ' cards home';
   g.setAttribute('aria-valuemax', all); g.setAttribute('aria-valuenow', n); g.setAttribute('aria-valuetext', text); g.title = 'Home ' + n + '/' + all;
-  g.firstElementChild.style.width = (100 * n / all) + '%';
+  g.firstElementChild.style.transform = 'scaleX(' + (all ? clamp(n / all, 0, 1) : 0) + ')';
   const initDown = typeof S.initDown === 'number' ? S.initDown : (S.mode === 'spider' ? 44 : S.mode === 'freecell' ? 0 : 21);
   const revFrac = initDown > 0 ? clamp((initDown - downCount()) / initDown, 0, 1) : 0;
-  const revEl = g.children[1]; if (revEl) revEl.style.width = (100 * revFrac) + '%';
+  const revEl = g.children[1]; if (revEl) revEl.style.transform = 'scaleX(' + revFrac + ')';
+  const comp = completedSuits();
+  if (S.started && comp > lastCompletedSuits) pulseGoal();
+  lastCompletedSuits = comp;
   const hc = $('#homeCount');
   if (hc) {
     hc.textContent = S.mode === 'spider' ? (S.runs + '/8') : (n + '/' + all);
@@ -6160,10 +6338,16 @@ function syncInert() {
   setInert(appEl, titleOn || !!modalKind);
   setInert(titleEl, !titleOn || !!modalKind);
 }
-function showTitle(on) {
+let appEnterTimer = 0;
+function showTitle(on, instant) {
+  const was = titleOn;
   if (on) { clearHover(); cancelDrag(); clearWinTimers(); cancelAutoCues(); cancelBuzz(); if (cascade) { if (cascade.timer) clearTimeout(cascade.timer); cascade = null; } }
   if (on && saveTimer) flushSave();
   titleOn = on; titleEl.classList.toggle('on', on); syncInert(); syncMirror(); if (on) tabNoteHide();
+  if (!on && was && !instant && !reducedMotion()) {
+    appEl.classList.remove('entering'); void appEl.offsetWidth; appEl.classList.add('entering');
+    clearTimeout(appEnterTimer); appEnterTimer = setTimeout(() => { appEnterTimer = 0; appEl.classList.remove('entering'); }, 190);
+  } else if (on || instant) { clearTimeout(appEnterTimer); appEnterTimer = 0; appEl.classList.remove('entering'); }
   if (on) { musicHush = false; tipHide(); loadArt(['title-hero']); }
   syncAudio();
   if (on) {
@@ -6179,7 +6363,11 @@ function showTitle(on) {
 // --- Dialogs ---
 const sheet = $('#sheet'), sheetFrame = $('#sheetFrame'), modalEl = $('#modal');
 const modalStack = [];
-let modalData = null, modalOpener = null;
+let modalData = null, modalOpener = null, modalExitTimer = 0;
+function clearModalExit() {
+  clearTimeout(modalExitTimer); modalExitTimer = 0;
+  modalEl.classList.remove('closing'); sheetFrame.style.width = ''; sheetFrame.style.height = '';
+}
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
 function focusSelectorFor(el) {
   if (!el || !sheet.contains(el)) return null;
@@ -6200,11 +6388,14 @@ function focusSelectorFor(el) {
 }
 function closeModal(back) {
   if (dealPending) { dealPending = null; showDealing(false); }
-  if (!modalKind) return;
+  if (!modalKind) { clearModalExit(); return; }
+  const popBack = !!(back && modalStack.length);
+  const fr = !popBack && !reducedMotion() && modalEl.classList.contains('on') ? sheetFrame.getBoundingClientRect() : null;
   const was = modalKind; modalKind = null; modalData = null; modalAnimUntil = 0; modalEl.classList.remove('on'); sheet.innerHTML = '';
+  clearModalExit();
   if (was === 'win') { clearWinTimers(); musicHush = false; updateHUD(); }
   clockMark = now(); syncAudio();
-  if (back && modalStack.length) {
+  if (popBack) {
     const prev = modalStack.pop();
     openModal(prev.kind, prev.data, { replace: true, restoreScroll: prev.scrollTop, restoreFocus: prev.focusSelector });
     return;
@@ -6219,6 +6410,12 @@ function closeModal(back) {
   } else {
     const b = canFocus(op) && appEl.contains(op) ? op : cv;
     if (b) b.focus({ preventScroll: true });
+  }
+  // Purely visual, immediately-cancellable 110 ms pointer-events:none exit fade decoupled from atomic t=0 teardown (CD-WF5-03).
+  if (fr && fr.width > 0 && fr.height > 0) {
+    sheetFrame.style.width = Math.round(fr.width) + 'px'; sheetFrame.style.height = Math.round(fr.height) + 'px';
+    modalEl.classList.add('closing');
+    modalExitTimer = setTimeout(clearModalExit, 115);
   }
 }
 const FOCUS_SEL = 'button, input, select, textarea, a[href], summary, [tabindex]:not([tabindex="-1"])';
@@ -6237,7 +6434,7 @@ const svgI = (d, s = 1.9) => '<svg viewBox="0 0 24 24" fill="none" stroke="curre
 const muteIcon = (on) => svgI('<path d="M11 5 6 9H3v6h3l5 4z"/>' + (on ? '<path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/>' : '<path d="m22 9-6 6M16 9l6 6"/>'), 2);
 const head = (title, extra) => '<div class="sheet-head"><h2 id="mT">' + title + '</h2><div class="head-acts">' + (extra || '') + '<button type="button" class="ib x" data-close aria-label="Close">' + svgI('<path d="M6 6l12 12M18 6 6 18"/>', 2.4) + '</button></div></div>';
 function openModal(kind, data, opts) {
-  clearHover(); cancelDrag(); tickClock(); tipHide();
+  clearModalExit(); clearHover(); cancelDrag(); tickClock(); tipHide();
   if (kind === 'stats') { kind = 'ledger'; data = Object.assign({ tab: 'games' }, data || {}); }
   else if (kind === 'records') { kind = 'ledger'; data = Object.assign({ tab: 'overview' }, data || {}); }
   if (kind !== 'win' && (winTimer || cascade)) {
@@ -6251,10 +6448,10 @@ function openModal(kind, data, opts) {
   }
   if (kind === 'win' || kind === 'fault' || (opts && opts.clearStack)) modalStack.length = 0;
   else if (modalKind && !(opts && opts.replace) && kind !== modalKind) {
-    const snapData = modalData ? Object.assign({}, modalData) : {};
+    const snapData = modalData ? Object.assign({}, modalData) : {}, sb = $('#sheetBody');
     if (modalKind === 'deal') { const di = $('#dealIn'); if (di) snapData.draft = di.value; }
     if (modalKind === 'stuck' && stuckFact) snapData.fact = FACTS[stuckFact.fi];
-    modalStack.push({ kind: modalKind, data: snapData, scrollTop: sheet.scrollTop, focusSelector: focusSelectorFor(document.activeElement) });
+    modalStack.push({ kind: modalKind, data: snapData, scrollTop: sb ? sb.scrollTop : sheet.scrollTop, focusSelector: focusSelectorFor(document.activeElement) });
   }
   modalKind = kind; modalData = data ? Object.assign({}, data) : {}; syncInert();
   const cls = (kind === 'backs' || kind === 'help' || kind === 'ledger' ? ' wide' : '') + (kind === 'daily' ? ' daily' : '') + (kind === 'win' ? ' win' : '') + (kind === 'win' && !reducedMotion() ? ' rise' : '');
@@ -6264,16 +6461,22 @@ function openModal(kind, data, opts) {
   const trackWinTimer = (fn, ms) => { const id = setTimeout(() => { if (winEpoch === myEpoch) fn(); }, ms); winSheetTimers.push(id); return id; };
   if (kind === 'win') {
     clearWinTimers(); myEpoch = winEpoch;
-    modalAnimUntil = reducedMotion() ? 0 : now() + 1250;
-    if (lastWin && !lastWin.replay && (lastWin.totalWins || 0) > 0) trackWinTimer(() => { if (modalKind === 'win') sfx('punch'); }, reducedMotion() ? 150 : 650); // bespoke Bath Ticket punch SFX (always audible regardless of reducedMotion; omitted on 0-win/replay tickets)
+    modalAnimUntil = reducedMotion() ? 0 : now() + 920;
+    if (lastWin && !lastWin.replay && (lastWin.totalWins || 0) > 0) trackWinTimer(() => { if (modalKind === 'win') sfx('punch'); }, reducedMotion() ? 150 : 650);
+  } else {
+    modalAnimUntil = reducedMotion() ? 0 : now() + 190;
   }
   sheet.innerHTML = (MODALS[kind] || (() => ''))(modalData);
+  const hd = sheet.firstElementChild && sheet.firstElementChild.classList.contains('sheet-head') ? sheet.firstElementChild : null;
+  const body = document.createElement('div'); body.className = 'sheet-body'; body.id = 'sheetBody';
+  while (hd ? hd.nextSibling : sheet.firstChild) body.appendChild(hd ? hd.nextSibling : sheet.firstChild);
+  sheet.appendChild(body);
   modalEl.classList.add('on'); syncAudio();
   if (kind === 'win') {
-    trackWinTimer(() => { musicHush = false; syncAudio(); }, 1800); // the music returns once the ticket is up
+    trackWinTimer(() => { musicHush = false; syncAudio(); }, 1800);
     const earned = lastWin && ((lastWin.ach || []).length || (lastWin.opened || []).length), m = milestoneCue(lastWin);
     if (earned) trackWinTimer(() => { if (modalKind === 'win') sfx('ach'); }, 900);
-    if (m) trackWinTimer(() => { if (modalKind === 'win') sfx(m[0], m[1]); }, earned ? 1500 : 1000); // after the achievement chime, if there was one
+    if (m) trackWinTimer(() => { if (modalKind === 'win') sfx(m[0], m[1]); }, earned ? 1500 : 1000);
   }
   sheet.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => closeModal(true)));
   const binder = BIND[kind]; if (binder) binder(modalData);
@@ -6282,7 +6485,7 @@ function openModal(kind, data, opts) {
   const f = (restoreEl && !restoreEl.disabled && !restoreEl.closest('[hidden]') ? restoreEl : null) ||
     sheet.querySelector('[data-focus]:not([hidden])') || focusables(sheet).find((x) => !x.hasAttribute('data-close')) || sheet.querySelector('button');
   if (f) f.focus({ preventScroll: true });
-  sheet.scrollTop = opts && opts.restoreScroll != null ? opts.restoreScroll : 0;
+  body.scrollTop = opts && opts.restoreScroll != null ? opts.restoreScroll : 0;
 }
 modalEl.addEventListener('pointerdown', (e) => { if (e.target === modalEl && modalKind !== 'win') closeModal(true); });
 
@@ -6301,7 +6504,14 @@ function wireTabs(attr, ids, pp, onSwitch) {
   const sw = (id) => {
     modalData.tab = id;
     tabs.forEach((t) => { const on = t.dataset[attr] === id; t.classList.toggle('solid', on); t.setAttribute('aria-selected', String(on)); t.setAttribute('tabindex', on ? '0' : '-1'); });
-    for (const pid of ids) { const p = $('#' + pp + '-' + pid); if (p) p.hidden = pid !== id; }
+    for (const pid of ids) {
+      const p = $('#' + pp + '-' + pid);
+      if (p) {
+        const show = pid === id;
+        p.hidden = !show;
+        if (show && !reducedMotion()) { p.classList.remove('panel-in'); void p.offsetWidth; p.classList.add('panel-in'); }
+      }
+    }
     if (onSwitch) onSwitch(id);
   };
   tabs.forEach((t) => (t.onclick = () => sw(t.dataset[attr])));
@@ -6355,7 +6565,7 @@ function ledgerGameHTML(k) {
     (st.recent ? '<h3>Last ' + RECENT_KEPT + ' games</h3><div class="rs" role="img" aria-label="Last ' + st.recent.length + ' games, oldest first: ' + [...st.recent].map((c) => ({ W: 'won', A: 'won with help', L: 'unfinished' })[c]).join(', ') + '">' + [...st.recent].map((c) => '<i class="' + c + '">' + c + '</i>').join('') + '</div><p class="cap">Oldest on the left. W won, A won with Undo or Hint, L left unfinished.</p>' : '') +
     '<p class="cap">Streaks and bests count first wins without Undo or Hint. Replaying a deal you have won, or using Undo or Hint, still counts as a win.</p>' +
     (storageOK ? '' : '<p class="cap">Stats can\'t be saved in this browser.</p>') +
-    '<div class="row"><button class="btn" data-a="resetStats" data-key="' + k + '">Reset ' + modeKeyLabel(k) + ' stats</button></div>';
+    '<div class="row"><button class="btn danger" data-a="resetStats" data-key="' + k + '">Reset ' + modeKeyLabel(k) + ' stats</button></div>';
 }
 const DAILY_LIST = [['klondike', { draw: 1 }], ['klondike', { draw: 3 }], ['freecell', {}], ['spider', { suits: 1 }], ['spider', { suits: 2 }], ['spider', { suits: 4 }], ['yukon', {}]];
 const LOCK_BADGE = '<span class="bk-lock" aria-hidden="true">' + svgI('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>', 2.2) + '</span>';
@@ -6391,8 +6601,8 @@ function dailyDayHTML(day) {
         '<em>' + statusText + '</em>' + (isWon ? '<i class="seal" aria-hidden="true"></i>' : '') + '</button>';
     }).join('') + '</div>';
 }
-// One fold of the help sheet: the game's own hand of cards beside its name; the game being played starts open.
-const hp = (title, hand, body) => '<details class="hp"' + (hand && S && S.mode === hand ? ' open' : '') + '><summary>' + (hand ? '<canvas aria-hidden="true" data-hand="' + hand + '"></canvas>' : '') + title + '</summary>' + body + '</details>';
+// One fold of the help sheet: the game's own hand of cards (or 32 px brass medallion) beside its name; the game being played starts open.
+const hp = (title, hand, body, ico) => '<details class="hp"' + (hand && S && S.mode === hand ? ' open' : '') + '><summary>' + (hand ? '<canvas aria-hidden="true" data-hand="' + hand + '"></canvas>' : ico ? '<span class="hp-ico" aria-hidden="true"><i>' + svgI(ico) + '</i></span>' : '') + title + '</summary>' + body + '</details>';
 const MODALS = {
   menu: () => {
     const muteBtn = '<button type="button" class="ib" id="mMute" data-a="toggleMute" aria-pressed="' + (!settings.sound) + '" aria-label="' + (settings.sound ? 'Mute sound' : 'Unmute sound') + '" title="' + (settings.sound ? 'Mute sound (M)' : 'Unmute sound (M)') + '">' + muteIcon(settings.sound) + '</button>';
@@ -6524,9 +6734,12 @@ const MODALS = {
         ACH.map((a) => '<li' + (meta.ach[a[0]] ? ' class="got"' : '') + '><b>' + esc(a[1]) + '</b>' + esc(a[2]) + '<small> ' + (meta.ach[a[0]] ? 'Earned ' + meta.ach[a[0]] : 'Not yet') + '</small></li>').join('') + '</ul>' +
       '</div>';
   },
-  deal: (d) => head('Choose a deal') + '<p>' + (d.mode === 'freecell' || (!d.mode && S && S.mode === 'freecell') ? 'FreeCell deals 1–32,000 match the classic numbered set (1–1,000,000 allowed).' : 'Any number from 1 to 2,147,483,646 gives the same layout every time.') + '</p>' +
-    '<div class="dl"><input class="numin" id="dealIn" inputmode="numeric" aria-label="Deal number" value="' + esc(d.draft != null ? d.draft : (S ? S.deal : 1)) + '"><button class="btn solid" data-a="goDeal" data-focus>Deal</button></div>' +
-    '<p class="cap" id="dealNote" role="status" aria-live="polite" hidden>Deal ' + FC_UNWINNABLE.toLocaleString('en-US') + ' is the famously unsolved FreeCell deal. You can still play it.</p>',
+  deal: (d) => {
+    const mode = d.mode || (S ? S.mode : 'klondike'), pre = d.draft != null ? d.draft : (S && S.mode === mode ? S.deal : 1);
+    return head('Choose a deal') + '<p>' + (mode === 'freecell' ? 'FreeCell deals 1–32,000 match the classic numbered set (1–1,000,000 allowed).' : 'Any number from 1 to 2,147,483,646 gives the same layout every time.') + '</p>' +
+      '<div class="dl"><input class="numin" id="dealIn" inputmode="numeric" aria-label="Deal number" data-focus value="' + esc(pre) + '"><button class="btn solid" data-a="goDeal">Deal</button></div>' +
+      '<p class="cap" id="dealNote" role="status" aria-live="polite" hidden></p>';
+  },
   daily: (d) => {
     const today = todayStr(), minDay = dayShift(today, -DAILY_KEEP_DAYS);
     const sel = d && d.day && d.day >= minDay && d.day <= today ? d.day : today;
@@ -6551,9 +6764,9 @@ const MODALS = {
     '<tr><td><kbd>S</kbd> · <kbd>I</kbd></td><td>Hear the whole table · Inspect the current column (or <kbd>Shift</kbd>+<kbd>↑</kbd>). Screen readers can also move through the piles one by one.</td></tr>' +
     '<tr><td><kbd>H</kbd> · <kbd>A</kbd> · <kbd>N</kbd></td><td>Hint (press again for the next) · Auto-complete / Bath Ticket · New deal</td></tr>' +
     '<tr><td><kbd>M</kbd> · <kbd>Esc</kbd> · <kbd>?</kbd></td><td>Mute or unmute sound · Menu (or put cards back) · This help</td></tr>' +
-    '<tr><td>Gamepad</td><td>D-pad or left stick moves the cursor · <b>A</b> picks up or drops · <b>B</b> puts back, or undoes · <b>X</b> hint · <b>Y</b> draw · <b>Start</b> menu. In a dialog the D-pad moves between buttons and <b>A</b> presses one.</td></tr></table>') +
-    hp('Scoring', null, '<p>Klondike and Yukon: +10 to a foundation, +5 waste to column, +5 for turning a card, −15 back from a foundation, and in Klondike a recycle penalty: turning the waste back over the first time is free, then each time costs 50 points (20 in Draw 3). FreeCell: +10 per card home. Spider starts at 500, −1 a move, +100 per completed run. Standard scoring (the default) awards card points at your own pace with no countdown; Timed scoring in Settings adds a speed bonus on a win in Klondike, Yukon and FreeCell (1000 − 2 × seconds; shown beside the Score when the timer is visible), and None hides the score. Best scores are kept separately for Standard and Timed play. Undo and Hint are always free; a game that used either shows a small tag ("undo used", "hint used") and counts as assisted. Streaks, bests and the 21-bath course count only first wins without them: replaying a deal you have won, or an assisted win, still counts as a win.</p>') +
-    hp('About the art &amp; facts', null, '<p>Art: painted with AI image tools for this game. Every card back and table is an original Art Deco painting (shipped with the game as images) inspired by Hot Springs research notes: the Fordyce skylight and lozenge brick, the Quapaw dome and sculpin, Row ironwork, the Superior\'s medallions, Medical Arts Deco, the Ouachitas, thermal water and Lake Ouachita. Colors are estimates, so the designs are "inspired by". Court cards are invented 1920s archetypes (bath attendant, jockey, bellhop, saxophonist, promenade and evening ladies, card-room and racing gentlemen), not real people. The bath ticket and neon colors are invented designs. Win-screen facts are 50 hand-picked items, each with its source named on the card; the research notes behind them are kept outside this game. In the Valley of Vapors, patience is a virtue.</p>'),
+    '<tr><td>Gamepad</td><td>D-pad or left stick moves the cursor · <b>A</b> picks up or drops · <b>B</b> puts back, skips ceremony, or undoes · <b>X</b> hint · <b>Y</b> draw · <b>RB</b> auto-move · <b>LB</b> redo · <b>View/Back</b> finish · <b>Start</b> menu. In dialogs, D-pad steps through controls and scrolls automatically, right stick scrolls, and <b>A</b> presses.</td></tr></table>', '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h2M11 10h2M15 10h2M7 14h10"/>') +
+    hp('Scoring', null, '<p>Klondike and Yukon: +10 to a foundation, +5 waste to column, +5 for turning a card, −15 back from a foundation, and in Klondike a recycle penalty: turning the waste back over the first time is free, then each time costs 50 points (20 in Draw 3). FreeCell: +10 per card home. Spider starts at 500, −1 a move, +100 per completed run. Standard scoring (the default) awards card points at your own pace with no countdown; Timed scoring in Settings adds a speed bonus on a win in Klondike, Yukon and FreeCell (1000 − 2 × seconds; shown beside the Score when the timer is visible), and None hides the score. Best scores are kept separately for Standard and Timed play. Undo and Hint are always free; a game that used either shows a small tag ("undo used", "hint used") and counts as assisted. Streaks, bests and the 21-bath course count only first wins without them: replaying a deal you have won, or an assisted win, still counts as a win.</p>', '<path d="M12 3l2.4 5 5.6.8-4 3.9.9 5.5L12 15.6 7.1 18.2l.9-5.5-4-3.9 5.6-.8z"/>') +
+    hp('About the art &amp; facts', null, '<p>Art: painted with AI image tools for this game. Every card back and table is an original Art Deco painting (shipped with the game as images) inspired by Hot Springs research notes: the Fordyce skylight and lozenge brick, the Quapaw dome and sculpin, Row ironwork, the Superior\'s medallions, Medical Arts Deco, the Ouachitas, thermal water and Lake Ouachita. Colors are estimates, so the designs are "inspired by". Court cards are invented 1920s archetypes (bath attendant, jockey, bellhop, saxophonist, promenade and evening ladies, card-room and racing gentlemen), not real people. The bath ticket and neon colors are invented designs. Win-screen facts are 50 hand-picked items, each with its source named on the card; the research notes behind them are kept outside this game. In the Valley of Vapors, patience is a virtue.</p>', '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>'),
   win: () => {
     const w = lastWin; if (!w) return head('Your bath is drawn');
     const k = modeKey(w.mode, w.opts), tw = Math.max(0, w.totalWins || 0);
@@ -6578,22 +6791,22 @@ const MODALS = {
       if (k === 'klondike1' && cleanCnt >= 3 && statFor('klondike3').won === 0) tierHtml = '<div class="tier-up"><span>Ready for a deeper hand?</span><button type="button" class="chip equip-chip" data-tier-mode="klondike" data-tier-draw="3">Try Draw 3</button></div>';
       else if (k === 'spider1' && cleanCnt >= 3 && statFor('spider2').won === 0) tierHtml = '<div class="tier-up"><span>Ready for two suits?</span><button type="button" class="chip equip-chip" data-tier-mode="spider" data-tier-suits="2">Try 2 suits</button></div>';
     }
-    return head('Your bath is drawn') +
+    return head('Your bath is drawn') + '<div class="win-cols">' +
       '<div class="ticket" role="group" aria-label="Bath ticket"><div class="hd">Spa City Bath Ticket</div>' +
       '<div class="serial" aria-hidden="true">No. ' + String(w.deal).padStart(6, '0') + '</div>' + (punched ? '<div class="punch" aria-hidden="true"></div>' : '') +
       (noScore ? '' : '<div class="big">' + w.score + '</div>') +
       '<div class="grid"' + (noScore ? ' style="grid-template-columns:1fr 1fr"' : '') + '><div>Time<b>' + fmtTime(w.ms) + '</b>' + (w.best.time ? '<span class="best">best</span>' : '') + '</div><div>Moves<b>' + w.moves + '</b>' + (w.best.moves ? '<span class="best">best</span>' : '') + '</div>' + (noScore ? '' : '<div>Score<b>' + w.score + '</b>' + (w.best.score ? '<span class="best">best</span>' : '') + '</div>') + '</div>' +
       '<div class="meta">' + esc(modeKeyLabel(k)) + ' · ' + (w.daily ? 'Daily ' + w.daily : 'Deal #' + w.deal) + (w.bonus ? ' · time bonus +' + w.bonus : '') + (w.replay ? ' · replay' : '') + (w.assisted ? ' · assisted' : '') + '</div>' +
       '<div class="course" role="img" aria-label="Course progress ' + filled + ' of 21">' + Array.from({ length: 21 }, (_, i) => '<i class="' + (i < filled ? 'f' : '') + (punched && i === filled - 1 ? ' new' : '') + ((i + 1) % 7 === 0 ? ' m' : '') + '"' + ((i + 1) % 7 === 0 ? ' title="' + (i + 1) + ' baths"' : '') + '></i>').join('') + '</div>' +
-      '<div class="meta">Course of 21 baths: ' + filled + ' of 21' + (courses > 0 ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : '') + '</div></div>' +
+      '<div class="meta">Course of 21 baths: ' + filled + ' of 21' + (courses > 0 ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : '') + '</div></div><div class="win-side">' +
       (w.pb || w.streak >= 3 || (w.ach || []).length || (w.opened || []).length ? '<div class="earn" role="status">' + (w.pb ? '<div class="pb">New personal best</div>' : '') + (w.streak >= 3 ? '<div>' + w.streak + ' wins in a row</div>' : '') + ((w.ach || []).length ? '<div>' + (w.ach.length > 1 ? 'Achievements' : 'Achievement') + ': ' + w.ach.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + unlockedHtml + '</div>' : '') +
       tierHtml +
       '<div class="fact"><div class="k">Did you know?</div><div class="q">' + esc(f[1]) + '</div><div class="a">' + esc(f[2]) + '</div><div>' + esc(f[3]) + '</div><div class="src">Source: ' + esc(f[4]) + '</div></div>' +
-      '<div class="row">' + primaryBtn + '<button type="button" class="btn" data-a="restart">Replay this deal</button><button type="button" class="btn" data-a="title">Change game</button></div>';
+      '<div class="row">' + primaryBtn + '<button type="button" class="btn" data-a="restart">Replay this deal</button><button type="button" class="btn" data-a="title">Change game</button></div></div></div>';
   },
-  confirm: (d) => head(d.title) + '<p>' + d.text + '</p><div class="row"><button class="btn solid" data-a="yes">' + d.yes + '</button><button class="btn" data-close data-focus>Cancel</button></div>',
+  confirm: (d) => head(d.title) + '<p>' + d.text + '</p><div class="row"><button class="btn' + (d.danger ? ' danger' : ' solid') + '" data-a="yes">' + d.yes + '</button><button class="btn" data-close data-focus>Cancel</button></div>',
   fault: () => head('Something went wrong') + '<p>The table could not be drawn as it should, so it has been redrawn. Your game is still here.</p><p>If it keeps happening, clear the saved game and start again.</p>' +
-    '<div class="row"><button class="btn solid" data-close data-focus>Carry on</button><button class="btn" data-a="resetSaved">Reset saved game</button></div>',
+    '<div class="row"><button class="btn solid" data-close data-focus>Carry on</button><button class="btn danger" data-a="resetSaved">Reset saved game</button></div>',
   stuck: (d) => head('The waters have gone still') + '<p>Nothing left on the table leads anywhere; the moves that remain only shuffle cards about.</p>' +
     (d.fact ? '<div class="fact"><div class="k">Did you know?</div><div class="q">' + esc(d.fact[1]) + '</div><div class="a">' + esc(d.fact[2]) + '</div><div>' + esc(d.fact[3]) + '</div><div class="src">Source: ' + esc(d.fact[4]) + '</div></div>' : '') + '<div class="row">' +
     (undoStack.length ? '<button class="btn solid" data-a="undo" data-focus>Undo</button>' : '') +
@@ -6607,7 +6820,7 @@ function doResetSaved() { // a table that will not come right: forget it and go 
 const ACTIONS = {
   resetSaved: () => {
     if (storageOK && !newerSave && liveDeal()) {
-      openModal('confirm', { title: 'Reset saved game?', text: 'Your current game in progress will be cleared and you will return to the title screen.', yes: 'Reset saved game', onYes: doResetSaved });
+      openModal('confirm', { title: 'Reset saved game?', text: 'Your current game in progress will be cleared and you will return to the title screen.', yes: 'Reset saved game', danger: true, onYes: doResetSaved });
     } else doResetSaved();
   },
   resume: () => closeModal(false),
@@ -6639,7 +6852,10 @@ const ACTIONS = {
     const b = sheet.querySelector('[data-back="skylight"]');
     if (b) {
       const c = b.querySelector('canvas');
-      if (c) { const g = c.getContext('2d'); g.setTransform(c.width / 84, 0, 0, c.height / 118, 0, 0); g.clearRect(0, 0, 84, 118); drawBack(g, 'skylight', 84, 118, settings.deckSeed); }
+      if (c) {
+        const g = c.getContext('2d'); g.setTransform(c.width / 84, 0, 0, c.height / 118, 0, 0); g.clearRect(0, 0, 84, 118); drawBack(g, 'skylight', 84, 118, settings.deckSeed);
+        if (!reducedMotion()) { c.classList.remove('swatch-in'); void c.offsetWidth; c.classList.add('swatch-in'); }
+      }
     }
     toast('Skylight glass reshuffled.');
   },
@@ -6763,7 +6979,7 @@ const BIND = {
       rb.onclick = () => {
         const rk = rb.dataset.key;
         openModal('confirm', {
-          title: 'Reset statistics?', text: 'This clears every ' + modeKeyLabel(rk) + ' statistic.', yes: 'Reset',
+          title: 'Reset statistics?', text: 'This clears every ' + modeKeyLabel(rk) + ' statistic.', yes: 'Reset', danger: true,
           onYes: () => {
             syncShared(); delete stats[rk];
             const active = liveDeal();
@@ -6787,6 +7003,7 @@ const BIND = {
       if (panel) {
         panel.setAttribute('aria-labelledby', 'tab-' + rk);
         panel.innerHTML = ledgerGameHTML(rk);
+        if (!reducedMotion()) { panel.classList.remove('panel-in'); void panel.offsetWidth; panel.classList.add('panel-in'); }
         bindReset();
       }
     };
@@ -6796,11 +7013,29 @@ const BIND = {
     void d;
   },
   deal(d) {
-    const go = () => { const v = parseInt($('#dealIn').value.replace(/[^0-9]/g, ''), 10); if (!v) { $('#dealIn').focus(); return; } const mode = d.mode || (S ? S.mode : 'klondike'); confirmAbandon({ mode, deal: v }); };
+    const mode = d.mode || (S ? S.mode : 'klondike'), max = mode === 'freecell' ? 1000000 : 2147483646;
+    const inp = $('#dealIn'), dn = $('#dealNote');
+    const note = () => {
+      inp.classList.remove('shake');
+      const v = parseInt(inp.value.replace(/[^0-9]/g, ''), 10);
+      if (mode === 'freecell' && v === FC_UNWINNABLE) {
+        dn.textContent = 'Deal ' + FC_UNWINNABLE.toLocaleString('en-US') + ' is the famously unsolved FreeCell deal. You can still play it.';
+        dn.hidden = false;
+      } else { dn.textContent = ''; dn.hidden = true; }
+    };
+    const go = () => {
+      const raw = inp.value.trim(), okDigits = /^\d+$/.test(raw), v = okDigits ? parseInt(raw, 10) : NaN;
+      if (!okDigits || !Number.isFinite(v) || v < 1 || v > max) {
+        const msg = 'Enter a whole number from 1 to ' + max.toLocaleString('en-US') + '.';
+        dn.textContent = msg; dn.hidden = false;
+        if (!reducedMotion()) { inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); }
+        sfx('nope'); announce(msg); inp.focus(); return;
+      }
+      confirmAbandon({ mode, deal: v });
+    };
     sheet.querySelector('[data-a="goDeal"]').onclick = go;
-    $('#dealIn').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } }; // keydown cancelled: the Enter's keypress would otherwise land on the chip the dialog hands focus back to (on the title, Draw 1)
-    const note = () => { const mode = d.mode || (S ? S.mode : 'klondike'); $('#dealNote').hidden = !(mode === 'freecell' && parseInt($('#dealIn').value.replace(/[^0-9]/g, ''), 10) === FC_UNWINNABLE); };
-    $('#dealIn').oninput = note; note();
+    inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } }; // keydown cancelled: the Enter's keypress would otherwise land on the chip the dialog hands focus back to (on the title, Draw 1)
+    inp.oninput = note; note();
   },
   daily(d) {
     const today = todayStr(), minDay = dayShift(today, -DAILY_KEEP_DAYS);
@@ -6844,9 +7079,11 @@ const BIND = {
     };
     const bindCal = () => {
       sheet.querySelectorAll('[data-mo]').forEach((b) => (b.onclick = () => {
-        const w = $('#calW'), dir = b.getAttribute('aria-label');
+        const w = $('#calW'), dir = b.getAttribute('aria-label'), isPrev = dir && dir[0] === 'P';
         modalData.ym = b.dataset.mo;
         w.innerHTML = calendar(modalData.ym, modalData.day);
+        const cwEl = w.querySelector('.cal-wrap');
+        if (cwEl && !reducedMotion()) cwEl.classList.add(isPrev ? 'cal-prev' : 'cal-next');
         bindCal();
         const f = w.querySelector('[aria-label="' + dir + '"]:not(:disabled)') || w.querySelector('[data-mo]:not(:disabled)');
         if (f) f.focus({ preventScroll: true });
@@ -6987,7 +7224,7 @@ window.__game = {
     if (!S) return { scene: sceneName(), modal: modalKind, settings: Object.assign({}, settings) };
     return { scene: sceneName(), modal: modalKind, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, piles: notePiles(),
       score: S.score, moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, winnable: !!S.winnable, grade: S.winnable && Object.hasOwn(GRADE_RANK, S.grade) ? S.grade : '', started: S.started, canAutoComplete: canAutoComplete(),
-      undoDepth: undoStack.length, redoDepth: redoStack.length, replay: !!S.replay, finishing: !!(finishRun && winTimer), ceremony: !!cascade, held: held ? Object.assign({}, held) : null, dropTarget: drag ? dropTarget(drag) : null, cursor: Object.assign({}, cursor),
+      undoDepth: undoStack.length, redoDepth: redoStack.length, replay: !!S.replay, finishing: !!(finishRun && winTimer), ceremony: !!cascade, held: held ? { from: held.from, index: held.index } : null, dropTarget: drag ? dropTarget(drag) : null, cursor: Object.assign({}, cursor),
       settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, maxMove: S.mode === 'freecell' ? capacity(null) : null, stuck: stuckVerdict, lost: lostVerdict, hinting: !!hintJob, storageOK };
   },
   setState(s) {
@@ -7002,8 +7239,8 @@ window.__game = {
     if (s.recycles != null) st.recycles = s.recycles;
     S = st; clearTransientFx(false); undoStack = []; redoStack = []; pullbackHold.clear(); held = null; drag = null; clearHover(); cascade = null; hintState = null; lastWin = null; clearStuck();
     clearWinTimers(); cancelAutoCues(); cancelBuzz(); clearCueCooldowns(); landCues.length = 0; flipQueue.length = 0; drawWaypoints = {};
-    prevCanAuto = canAutoComplete();
-    closeModal(); showTitle(false); tipHide(); tipGoalShown = null; relayout(true); updateHUD(); markDirty();
+    prevCanAuto = canAutoComplete(); lastCompletedSuits = completedSuits();
+    closeModal(); showTitle(false, true); tipHide(); tipGoalShown = null; relayout(true); updateHUD(); markDirty();
     return true;
   },
   unlockAll() { meta.unlock.ids = UNLOCKS.map((u) => u[0]); save('meta', meta); return true; },

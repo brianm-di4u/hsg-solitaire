@@ -657,4 +657,259 @@ export const tests = [
       t.equal((await t.state()).redoDepth, 0, 'Ctrl+Y redoes while focus sits on #tools');
     },
   },
+  {
+    name: 'screens-40 W4-B03 GPU UI mograph, atomic closeModal, sticky/in-place sheets, 650 ms Bath Ticket sync, #notices dock & 320px/landscape layout (W6-S5-07, W6-S5-08, W6-S5-09)',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { motion: 'full', tips: true });
+      await t.game('newGame', { mode: 'klondike', deal: 40 });
+      await t.waitForStable();
+
+      // 1. GPU motion tokens, @media(hover:hover) / :active rules, GPU scaleX() #goal i & translateX() .tog::after
+      const cssCheck = await t.page.evaluate(() => {
+        const root = getComputedStyle(document.documentElement);
+        const tokens = {
+          press: root.getPropertyValue('--dur-press').trim(),
+          fast: root.getPropertyValue('--dur-fast').trim(),
+          med: root.getPropertyValue('--dur-med').trim(),
+          slow: root.getPropertyValue('--dur-slow').trim(),
+          easeOut: root.getPropertyValue('--ease-out').trim(),
+        };
+        const cssText = [...document.styleSheets].map((s) => { try { return [...s.cssRules].map((r) => r.cssText).join('\n'); } catch { return ''; } }).join('\n');
+        const goalI = document.querySelector('#goal i');
+        const goalCs = getComputedStyle(goalI);
+        return {
+          tokens,
+          hasHoverMedia: /@media\s*\(hover:\s*hover\)/.test(cssText),
+          hasActivePress: /:active:not\(:disabled\)/.test(cssText) && /translateY\(1px\)/.test(cssText),
+          hasDanger: /\.btn\.danger/.test(cssText),
+          goalProp: goalCs.transitionProperty,
+          goalInlineTransform: goalI.style.transform,
+          goalInlineWidth: goalI.style.width,
+        };
+      });
+      t.equal([cssCheck.tokens.press, cssCheck.tokens.fast, cssCheck.tokens.med, cssCheck.tokens.slow], ['60ms', '140ms', '200ms', '360ms'], 'canonical GPU motion tokens defined on :root');
+      t.expect(cssCheck.hasHoverMedia && cssCheck.hasActivePress && cssCheck.hasDanger, 'restrained @media(hover:hover), :active press detents, and .btn.danger CSS rules present');
+      t.expect(/transform/.test(cssCheck.goalProp) && !/width/.test(cssCheck.goalProp) && /^scaleX\(/.test(cssCheck.goalInlineTransform) && !cssCheck.goalInlineWidth, '#goal i animates GPU transform: scaleX() rather than width: ' + JSON.stringify(cssCheck));
+
+      // 2. Atomic t=0 closeModal() teardown decoupled from 110 ms non-blocking exit fade + mid-fade cancellation (CD-WF5-03)
+      await t.page.focus('#bHelp');
+      await t.page.keyboard.press('Enter');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'help');
+      const atomicClose = await t.page.evaluate(() => {
+        const m = document.getElementById('modal');
+        document.querySelector('#sheet [data-close]').click();
+        const atZero = {
+          modal: window.__game.getState().modal,
+          inert: document.getElementById('app').inert,
+          activeId: document.activeElement ? document.activeElement.id : null,
+          closing: m.classList.contains('closing'),
+          on: m.classList.contains('on'),
+          pe: getComputedStyle(m).pointerEvents,
+        };
+        // Immediately re-open another modal mid-fade to verify instant exit cancellation
+        document.getElementById('bMenu').click();
+        const reopened = {
+          modal: window.__game.getState().modal,
+          closing: m.classList.contains('closing'),
+          on: m.classList.contains('on'),
+        };
+        return { atZero, reopened };
+      });
+      t.equal(atomicClose.atZero, { modal: null, inert: false, activeId: 'bHelp', closing: true, on: false, pe: 'none' }, 'closeModal() tears down state/inert/focus atomically at t=0 while non-blocking #modal.closing fades');
+      t.equal(atomicClose.reopened, { modal: 'menu', closing: false, on: true }, 'opening a modal mid-exit cancels #modal.closing immediately');
+      await t.page.keyboard.press('Escape');
+      await t.page.waitForFunction(() => !document.getElementById('modal').classList.contains('closing'), null, { timeout: 2000 });
+
+      // 3. Sticky .sheet-head + scrollable #sheetBody + in-place patching (Settings tabs, tipsAgain, Skylight reseed, Ledger tabs)
+      await t.page.setViewportSize({ width: 390, height: 520 });
+      await t.game('scene', 'settings');
+      const settingsPatch = await t.page.evaluate(() => {
+        const sb = document.getElementById('sheetBody'), hd = document.querySelector('#sheet .sheet-head');
+        const togCs = getComputedStyle(document.querySelector('#sheet .tog'), '::after');
+        const headTopBefore = hd.getBoundingClientRect().top;
+        sb.scrollTop = 60;
+        const scrolled = sb.scrollTop;
+        const headTopAfterScroll = hd.getBoundingClientRect().top;
+        document.querySelector('[data-a="tipsAgain"]').click();
+        const afterTipsSame = document.getElementById('sheetBody') === sb;
+        const afterTipsScroll = sb.scrollTop;
+        document.getElementById('stab-comfort').click();
+        const afterTabSame = document.getElementById('sheetBody') === sb;
+        document.getElementById('stab-audio').click();
+        const togProp = togCs.transitionProperty;
+        return {
+          headPinned: Math.abs(headTopBefore - headTopAfterScroll) < 1,
+          scrolled,
+          afterTipsSame,
+          afterTipsScroll,
+          afterTabSame,
+          togProp,
+        };
+      });
+      t.expect(settingsPatch.headPinned && settingsPatch.scrolled > 0, 'sticky .sheet-head stays pinned while #sheetBody scrolls');
+      t.expect(settingsPatch.afterTipsSame && Math.abs(settingsPatch.afterTipsScroll - settingsPatch.scrolled) <= 2, 'Show tips again patches in place without resetting #sheetBody.scrollTop');
+      t.equal(settingsPatch.afterTabSame, true, 'Settings tab switch patches in place without rebuilding #sheetBody');
+      t.expect(/transform/.test(settingsPatch.togProp) && !/left/.test(settingsPatch.togProp), '.tog::after animates GPU transform rather than left: ' + settingsPatch.togProp);
+
+      // Skylight Reshuffle patches in place and does NOT overwrite an equipped non-skylight card back
+      await t.game('setSettings', { back: 'lozenge' });
+      await t.game('scene', 'backs');
+      const reseedPatch = await t.page.evaluate(() => {
+        const sb = document.getElementById('sheetBody');
+        sb.scrollTop = 45;
+        const beforeScroll = sb.scrollTop;
+        const btn = document.querySelector('[data-a="reseed"]');
+        if (btn) btn.click();
+        return {
+          hadBtn: !!btn,
+          sameBody: document.getElementById('sheetBody') === sb,
+          scrollDiff: Math.abs(sb.scrollTop - beforeScroll),
+          back: window.__game.getState().settings.back,
+        };
+      });
+      t.expect(reseedPatch.hadBtn && reseedPatch.sameBody && reseedPatch.scrollDiff <= 2 && reseedPatch.back === 'lozenge', 'Reshuffle skylight glass patches in place without overwriting equipped non-skylight back: ' + JSON.stringify(reseedPatch));
+
+      // Bathhouse Ledger tabs patch in place without tearing down #sheetBody
+      await t.game('scene', 'records');
+      const ledgerPatch = await t.page.evaluate(() => {
+        const sb = document.getElementById('sheetBody');
+        document.getElementById('ltab-games').click();
+        const s1 = document.getElementById('sheetBody') === sb;
+        document.getElementById('ltab-facts').click();
+        const s2 = document.getElementById('sheetBody') === sb;
+        document.getElementById('ltab-ach').click();
+        const s3 = document.getElementById('sheetBody') === sb;
+        return s1 && s2 && s3;
+      });
+      t.equal(ledgerPatch, true, 'Bathhouse Ledger tab switches patch #sheetBody in place');
+      await t.game('scene', 'game');
+
+      // 4. Synchronized 650 ms Bath Ticket stamp, 3 px corners, 260 ms .sheet-frame.rise, post-Win Ticket recall & 2-col landscape Win (CD-WF5-06, CD-WF5-04)
+      await t.page.setViewportSize({ width: 1280, height: 800 });
+      await t.game('setState', nearWinKlondike());
+      await t.game('cuesPlayed', true);
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'win', null, { timeout: 6000 });
+      const winOpenAt = await t.page.evaluate(() => Math.round(performance.now()));
+      await t.page.waitForFunction(() => window.__game.cuesPlayed().some((c) => c.name === 'punch'), null, { timeout: 2500 });
+      const winCheck = await t.page.evaluate((tOpen) => {
+        const fr = document.getElementById('sheetFrame');
+        const tk = document.querySelector('#sheet .ticket');
+        const pn = document.querySelector('#sheet .ticket .punch');
+        const nw = document.querySelector('#sheet .course i.new');
+        const punchCue = window.__game.cuesPlayed().find((c) => c.name === 'punch');
+        return {
+          riseDur: getComputedStyle(fr).animationDuration,
+          ticketRadius: getComputedStyle(tk).borderRadius,
+          ticketDelays: getComputedStyle(tk).animationDelay,
+          punchDelay: getComputedStyle(pn).animationDelay,
+          dotDelay: nw ? getComputedStyle(nw).animationDelay : 'none',
+          punchDeltaMs: punchCue ? punchCue.at - tOpen : null,
+        };
+      }, winOpenAt);
+      t.equal(winCheck.riseDur, '0.26s', 'Win modal sheet-frame rises in calmer 260 ms');
+      t.equal(winCheck.ticketRadius, '3px', 'Bath Ticket keeps crisp 3 px die-cut corners (CD-WF5-06)');
+      t.equal(winCheck.punchDelay, '0.65s', 'Bath Ticket .punch fires at 650 ms');
+      t.equal(winCheck.dotDelay, '0.65s', 'Bath Ticket .course i.new fires at 650 ms');
+      t.expect(/0\.65s/.test(winCheck.ticketDelays), 'Bath Ticket recoil aligns to 650 ms: ' + winCheck.ticketDelays);
+      t.expect(winCheck.punchDeltaMs != null && winCheck.punchDeltaMs >= 560 && winCheck.punchDeltaMs <= 820, 'bespoke punch SFX fires on the 650 ms beat: ' + winCheck.punchDeltaMs + ' ms');
+
+      // Landscape 844x390: 2-column Win grid + #bNew order:5 (CD-WF5-04); closing Win exposes persistent View Bath Ticket recall
+      await t.page.setViewportSize({ width: 844, height: 390 });
+      const landWin = await t.page.evaluate(() => {
+        const cols = document.querySelector('#sheet .win-cols');
+        return {
+          winColsGrid: cols ? getComputedStyle(cols).display : '',
+          winColsCount: cols ? getComputedStyle(cols).gridTemplateColumns.split(/\s+/).length : 0,
+          bNewOrder: getComputedStyle(document.getElementById('bNew')).order,
+        };
+      });
+      t.expect(landWin.winColsGrid === 'grid' && landWin.winColsCount === 2, 'Landscape 844x390 Win modal lays out in 2 columns: ' + JSON.stringify(landWin));
+      t.equal(landWin.bNewOrder, '5', 'Landscape phone moves #bNew to bottom of right rail (order: 5, CD-WF5-04)');
+      await t.page.keyboard.press('Escape');
+      t.equal((await t.state()).modal, null, 'closing Win modal returns to won table');
+      const ticketRecall = await t.page.evaluate(() => {
+        const b = document.getElementById('bAuto');
+        return { disabled: b.disabled, text: b.textContent.trim(), label: b.getAttribute('aria-label') || '' };
+      });
+      t.expect(!ticketRecall.disabled && /ticket/i.test(ticketRecall.text + ' ' + ticketRecall.label), 'closing Win modal leaves persistent Ticket recall active: ' + JSON.stringify(ticketRecall));
+      await t.page.click('#bAuto');
+      t.equal((await t.state()).modal, 'win', 'clicking Ticket recall reopens MODALS.win cleanly');
+      await t.game('scene', 'game');
+
+      // 5. Mobile 390x844 modal width + aligned 2-row #status + portrait #bNew order:0 + unified #notices dock + tap-to-dismiss toast
+      await t.page.setViewportSize({ width: 390, height: 844 });
+      await t.game('setSettings', { scoring: 'timed' });
+      await t.game('newGame', { mode: 'klondike', deal: 41 });
+      await t.waitForStable();
+      await t.game('scene', 'settings');
+      const mob390 = await t.page.evaluate(() => {
+        const sb = document.getElementById('sheetBody');
+        const st = document.getElementById('status');
+        const bNewOrder = getComputedStyle(document.getElementById('bNew')).order;
+        return {
+          bodyWidth: Math.round(sb.getBoundingClientRect().width),
+          statusHeight: Math.round(st.getBoundingClientRect().height),
+          bNewOrder,
+        };
+      });
+      t.expect(mob390.bodyWidth >= 340, '390 px mobile modal reclaims width (>=340 px inner sheet-body): ' + mob390.bodyWidth);
+      t.expect(mob390.statusHeight <= 44, 'mobile #status stays on an aligned 2-row baseline even in Timed scoring: ' + mob390.statusHeight);
+      t.equal(mob390.bNewOrder, '0', 'portrait #tools keeps #bNew in leftmost slot (order: 0)');
+
+      // 320x568 small phone: zero horizontal .seg clip across all 3 Settings tabs + 2-line full-width Audio sliders
+      await t.page.setViewportSize({ width: 320, height: 568 });
+      await t.game('scene', 'settings');
+      await t.waitForStable();
+      const check320Segs = () => t.page.evaluate(() => {
+        const bad = [];
+        for (const b of document.querySelectorAll('#sheet .seg button')) {
+          const r = b.getBoundingClientRect();
+          if (!r.width || !r.height) continue;
+          if (r.right > window.innerWidth + 1 || r.left < -1 || r.height < 44) bad.push({ text: b.textContent.trim(), l: Math.round(r.left), r: Math.round(r.right), h: Math.round(r.height) });
+        }
+        return bad;
+      });
+      t.equal(await check320Segs(), [], '320x568 Settings Gameplay .seg buttons fit without horizontal clipping');
+      await t.page.click('#stab-comfort');
+      t.equal(await check320Segs(), [], '320x568 Settings Table & Comfort .seg buttons fit without horizontal clipping');
+      await t.page.click('#stab-audio');
+      const audio320 = await t.page.evaluate(() => [...document.querySelectorAll('#sheet input[type=range]')].map((el) => Math.round(el.getBoundingClientRect().width)));
+      t.expect(audio320.length >= 3 && audio320.every((w) => w >= 240), '320x568 Audio sliders sit full-width on their own line (>=240 px): ' + JSON.stringify(audio320));
+
+      // Unified #notices dock: simultaneous #toast + #coach + #tabNote stack with zero overlap, and clicking #toast dismisses it
+      await t.game('scene', 'game');
+      await t.page.setViewportSize({ width: 390, height: 844 });
+      const dockCheck = await t.page.evaluate(() => {
+        const toastEl = document.getElementById('toast'), coachEl = document.getElementById('coach'), tabEl = document.getElementById('tabNote');
+        toastEl.textContent = 'Sample long gameplay reminder toast for dock verification.';
+        toastEl.classList.add('on');
+        coachEl.hidden = false; coachEl.querySelector('span').textContent = 'Tap a card to send it where it fits.';
+        tabEl.hidden = false;
+        const rects = [toastEl, coachEl, tabEl].map((el) => { const r = el.getBoundingClientRect(); return { id: el.id, top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), right: Math.round(r.right) }; }).sort((a, b) => a.top - b.top);
+        const overlaps = [];
+        for (let i = 1; i < rects.length; i++) if (rects[i].top < rects[i - 1].bottom - 1) overlaps.push([rects[i - 1], rects[i]]);
+        toastEl.click();
+        const dismissed = !toastEl.classList.contains('on');
+        coachEl.hidden = true; tabEl.hidden = true;
+        return { rects, overlaps, dismissed };
+      });
+      t.equal(dockCheck.overlaps, [], 'simultaneous #toast, #coach, and #tabNote stack inside #notices with zero overlap: ' + JSON.stringify(dockCheck.rects));
+      t.equal(dockCheck.dismissed, true, 'tapping #toast dismisses it immediately');
+
+      // 6. Deal modal validation: out-of-range deal shakes input, shows #dealNote, announces error, and stays open
+      await t.game('scene', 'deal');
+      await t.page.fill('#dealIn', '999999999999');
+      await t.page.click('[data-a="goDeal"]');
+      const dealErr = await t.page.evaluate(() => ({
+        modal: window.__game.getState().modal,
+        shook: document.getElementById('dealIn').classList.contains('shake'),
+        noteVisible: !document.getElementById('dealNote').hidden,
+        noteText: document.getElementById('dealNote').textContent.trim(),
+        sr: document.getElementById('sr').textContent.trim(),
+      }));
+      t.expect(dealErr.modal === 'deal' && dealErr.shook && dealErr.noteVisible && /Enter a whole number/i.test(dealErr.noteText) && /Enter a whole number/i.test(dealErr.sr), 'invalid deal number shakes #dealIn, populates #dealNote, announces error, and stays open: ' + JSON.stringify(dealErr));
+    },
+  },
 ];
