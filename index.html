@@ -3405,7 +3405,7 @@ function drawSteam(t) {
 // fps was 20: the drift is slow enough that half the repaints look the same, and they cost half the main-thread time
 const AMB = { fps: 10, scale: .5, wisps: 8, life: 22, lampSecs: 48, wispAlpha: .13, lampAlpha: .07 }; // a wisp rises for `life` seconds; the lamp crosses the table in `lampSecs`
 const amb = $('#amb'), actx = amb.getContext('2d');
-let ambTimer = 0, ambFrames = 0;
+let ambTimer = 0, ambFrames = 0, ambPainted = false;
 const ambientWanted = () => !!S && !titleOn && !modalKind && !document.hidden && !reducedMotion() && !lowFx && !cascade && W > 0;
 function ambientDraw(t) {
   const sec = t / 1000, look = TABLE_LOOK[settings.table], u = Math.min(W, H), m = L ? L.margin : 12;
@@ -3419,17 +3419,22 @@ function ambientDraw(t) {
     const y = H - m - 12 - k * H * .5, r = u * (.05 + k * .12);
     actx.globalAlpha = AMB.wispAlpha * Math.sin(Math.PI * k); actx.drawImage(pf, x - r, y - r, r * 2, r * 2);
   }
-  actx.globalAlpha = 1; ambFrames++;
+  actx.globalAlpha = 1; ambFrames++; ambPainted = true;
+}
+function ambientClear() {
+  if (!ambPainted) return;
+  ambPainted = false;
+  if (amb.width && amb.height) { actx.setTransform(1, 0, 0, 1, 0, 0); actx.clearRect(0, 0, amb.width, amb.height); }
 }
 function ambientTick() {
   ambTimer = 0;
-  if (!ambientWanted()) { actx.setTransform(1, 0, 0, 1, 0, 0); actx.clearRect(0, 0, amb.width, amb.height); return; }
+  if (!ambientWanted()) { ambientClear(); return; }
   ambientDraw(now()); ambTimer = setTimeout(ambientTick, 1000 / AMB.fps);
 }
 function ambientSync() {
   if (!ambientWanted()) {
     if (ambTimer) { clearTimeout(ambTimer); ambTimer = 0; }
-    if (amb.width && amb.height) { actx.setTransform(1, 0, 0, 1, 0, 0); actx.clearRect(0, 0, amb.width, amb.height); }
+    ambientClear();
     return;
   }
   if (!ambTimer) ambientTick();
