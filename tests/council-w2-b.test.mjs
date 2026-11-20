@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { baseSettings } from './_util.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SHOTS = path.resolve(HERE, '..', '..', '_council', 'hsg-solitaire', 'wave-2', 'shots');
+const SHOTS = process.env.HS_ARTIFACT_DIR ? path.resolve(process.env.HS_ARTIFACT_DIR, 'wave-2', 'shots') : path.resolve(HERE, '..', 'screenshots', 'council-waves', 'wave-2', 'shots');
 const SET = 'spa-solitaire:v1:settings';
 const reloadGame = async (t) => { await t.page.reload(); await t.page.waitForFunction(() => !!window.__game); };
 const shot = async (t, name) => { fs.mkdirSync(SHOTS, { recursive: true }); await t.waitForStable(); await t.page.screenshot({ path: path.join(SHOTS, 'S3-01-' + name + '-' + t.viewport + '.png') }); };
@@ -266,8 +266,8 @@ export const tests = [
       await t.game('scene', 'settings');
       await t.page.evaluate(() => { const r = [...document.querySelectorAll('#sheet .set')].find((e) => /Winnable/.test(e.textContent)); r.scrollIntoView({ block: 'center' }); });
       await shot(t, 'settings');
-      const tg = await t.page.evaluate(() => { const b = [...document.querySelectorAll('#sheet .set')].find((e) => /Winnable/.test(e.textContent)).querySelector('.tog'); const r = b.getBoundingClientRect(); return { w: r.width, h: r.height, on: b.getAttribute('aria-pressed') }; });
-      t.equal(tg.on, 'true', 'the switch shows on'); t.expect(tg.h >= 28 && tg.w >= 44, 'the switch is a usable size: ' + tg.w + 'x' + tg.h);
+      const tg = await t.page.evaluate(() => { const b = [...document.querySelectorAll('#sheet .set')].find((e) => /Winnable/.test(e.textContent)).querySelector('.tog'); const r = b.getBoundingClientRect(); return { w: r.width, h: r.height, role: b.getAttribute('role'), on: b.getAttribute('aria-checked'), pressed: b.getAttribute('aria-pressed') }; });
+      t.equal([tg.role, tg.on, tg.pressed], ['switch', 'true', null], 'the switch exposes role=switch aria-checked=true'); t.expect(tg.h >= 28 && tg.w >= 44, 'the switch is a usable size: ' + tg.w + 'x' + tg.h);
       await t.page.click('#sheet [data-close]').catch(() => {});
       await t.game('scene', 'daily'); await shot(t, 'daily');
       await t.checkLayout({ allowScrollY: true });

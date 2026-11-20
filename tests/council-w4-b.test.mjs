@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { baseSettings } from './_util.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SHOTS = path.resolve(HERE, '..', '..', '_council', 'hsg-solitaire', 'wave-4', 'shots');
+const SHOTS = process.env.HS_ARTIFACT_DIR ? path.resolve(process.env.HS_ARTIFACT_DIR, 'wave-4', 'shots') : path.resolve(HERE, '..', 'screenshots', 'council-waves', 'wave-4', 'shots');
 const shot = async (t, id, name) => { fs.mkdirSync(SHOTS, { recursive: true }); await t.waitForStable(); await t.page.screenshot({ path: path.join(SHOTS, id + '-' + name + '-' + t.viewport + '.png') }); };
 const idle = (t) => t.page.waitForFunction(() => window.__game.isIdle(), null, { timeout: 15000 });
 const reloadGame = async (t) => { await t.page.reload(); await t.page.waitForFunction(() => !!window.__game); };
@@ -206,9 +206,9 @@ export const tests = [
       // the switch is in Settings and works
       await t.game('scene', 'settings');
       const sw = t.page.locator('[data-tog="undoCost"]'); await sw.scrollIntoViewIfNeeded();
-      t.equal(await sw.getAttribute('aria-pressed'), 'false', 'the switch shows off');
+      t.equal([await sw.getAttribute('role'), await sw.getAttribute('aria-checked')], ['switch', 'false'], 'the switch shows off');
       await sw.click();
-      t.equal([await sw.getAttribute('aria-pressed'), (await t.state()).settings.undoCost], ['true', true], 'pressing it turns it on and keeps it');
+      t.equal([await sw.getAttribute('aria-checked'), (await t.state()).settings.undoCost], ['true', true], 'pressing it turns it on and keeps it');
       await t.checkLayout(); await shot(t, 'S3-11', 'settings-switch');
     },
   },

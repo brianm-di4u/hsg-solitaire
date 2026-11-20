@@ -29,6 +29,8 @@
     --radius-sm:3px; --radius-md:6px; --radius-lg:12px; --radius-pill:999px;
     --sheet:#FBF8F1; /* derived: card-stock cream for dialogs */
     --chip:#F2EFE8;
+    --ctrl-border:#8B7B5C; --focus-ring:#8E3622; --focus-moat:#FBF8F1;
+    --paper-bg:#F3E9D2; --paper-ink:#2A1A10; --paper-accent:#2E6A3C; --paper-primary:#8E3622; --paper-muted:#5A4A38;
     --bar-h:52px; --tools-h:64px;
     --font-display:Limelight,"Josefin Sans","Century Gothic",Futura,sans-serif;
     /* in-game chrome: dark lacquer and brass in both color schemes, so the lit table reads as the brightest thing */
@@ -41,6 +43,7 @@
       --color-bg:#0E1411; --color-surface:#16201B; --color-text:#EDE3C8; --color-muted:#ABA088;
       --color-primary:#E2BE66; --color-on-primary:#1B1408; --color-accent:#6FC3A8; --color-on-accent:#0E1411;
       --color-success:#6FC3A8; --color-danger:#FF7A6B; --color-highlight:#E9C873; --color-border:#34443A;
+      --ctrl-border:#5E7065; --focus-ring:#E9C873; --focus-moat:#101813;
       --sheet:#16201B; --chip:#21302A;
     }
   }
@@ -57,13 +60,12 @@
     border-bottom:2px solid var(--brass);border-image:var(--brass-rule) 1;box-shadow:0 3px 10px rgba(0,0,0,.45)}
   #goal{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(0,0,0,.5);pointer-events:none}
   #goal i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3E9C80,#8FE0C2);transition:width .35s ease}
-  @media (prefers-reduced-motion: reduce){ #goal i{transition:none} }
   #ttl{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15}
   #modeName{font-family:var(--font-display);font-weight:400;font-size:1.12rem;letter-spacing:.03em;color:var(--brass-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #modeSub{font-family:var(--font-deco);font-size:.74rem;letter-spacing:.04em;color:var(--lac-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #subRow{display:flex;align-items:center;gap:8px;min-width:0} #subRow #modeSub{min-width:0}
   #assistTag{flex:none;position:relative;border:1px solid rgba(233,200,115,.55);border-radius:999px;background:transparent;color:var(--brass-hi);font-family:var(--font-deco);font-size:.62rem;font-weight:600;letter-spacing:.06em;padding:0 8px;line-height:1.5;cursor:pointer}
-  #assistTag::after{content:"";position:absolute;inset:-14px -6px}
+  #assistTag::after{content:"";position:absolute;top:-12px;bottom:-2px;left:-6px;right:-6px}
   #assistTag[hidden]{display:none}
   #status{display:flex;gap:20px;font-family:var(--font-deco);font-size:.66rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
     color:var(--lac-muted);white-space:nowrap}
@@ -77,7 +79,7 @@
   /* the screen-reader list: each button is a clipped, untouchable 44 px box at the corner (never off the screen, never a small target), painted nowhere */
   #mirror button{position:absolute;left:0;top:0;width:44px;height:44px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;pointer-events:none}
   #cv{touch-action:none;outline:none}
-  #cv.kb:focus{box-shadow:inset 0 0 0 2px rgba(233,200,115,.55)}
+  #cv.kb:focus{box-shadow:inset 0 0 0 3px #4FC3FF}
   #tools{height:var(--tools-h);flex:none;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 8px;position:relative;z-index:1;
     background:var(--lac-2) linear-gradient(var(--lac-2),var(--lac-1));border-top:2px solid var(--brass);border-image:var(--brass-rule) 1;
     box-shadow:0 -3px 10px rgba(0,0,0,.45)}
@@ -98,22 +100,28 @@
     background:#18221C radial-gradient(circle at 50% 35%,#2C3B32,#121A15 70%);box-shadow:inset 0 1px 0 rgba(255,236,190,.18),0 2px 4px rgba(0,0,0,.5);
     display:grid;place-items:center;cursor:pointer}
   .ib svg{width:22px;height:22px}
-  button:focus-visible,.chip:focus-visible{outline:3px solid var(--color-highlight);outline-offset:2px}
-  .tog:focus-visible{outline:0}
-  .tog:focus-visible::before{box-shadow:inset 0 2px 3px rgba(0,0,0,.6),0 0 0 3px var(--color-highlight)}
-  #bar button:focus-visible,#tools button:focus-visible{outline-color:#4FC3FF}
+  button:focus-visible,.chip:focus-visible,.hp summary:focus-visible,input[type=range]:focus-visible,.numin:focus-visible{
+    outline:3px solid var(--focus-ring);outline-offset:2px;box-shadow:0 0 0 2px var(--focus-moat)}
+  .tog:focus-visible{outline:0;box-shadow:none}
+  .tog:focus-visible::before{box-shadow:inset 0 2px 3px rgba(0,0,0,.6),0 0 0 2px var(--focus-moat),0 0 0 5px var(--focus-ring)}
+  #bar button:focus-visible,#tools button:focus-visible{outline-color:#4FC3FF;box-shadow:0 0 0 2px #101813}
   #toast,#dealing{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:92%;
     background:rgba(16,24,19,.94);color:var(--lac-ink);padding:10px 18px;border-radius:var(--radius-pill);font-size:.92rem;
     font-family:var(--font-deco);font-weight:600;letter-spacing:.02em;border:1px solid rgba(233,200,115,.6);box-shadow:0 4px 14px rgba(0,0,0,.45);
     text-align:center;pointer-events:none;opacity:0;transition:opacity .2s}
   #toast.on,#dealing.on{opacity:1;visibility:visible}
-  #dealing{position:fixed;top:64px;bottom:auto;z-index:40;width:max-content;visibility:hidden}
+  #dealing{position:fixed;top:calc(env(safe-area-inset-top) + var(--bar-h) + 8px);bottom:auto;z-index:40;width:max-content;
+    max-width:calc(100% - max(16px, env(safe-area-inset-left) + env(safe-area-inset-right) + 16px));visibility:hidden}
   /* Title screen */
   /* Title: the painting runs full-bleed behind lacquer-and-brass plaques, in both color schemes */
   #title{position:fixed;inset:0;z-index:20;overflow-y:auto;overflow-x:hidden;background:#0E1411;display:none;
-    --t-ink:#F1E6C8; --t-muted:#C9BEA2; --t-brass:#E9C873}
+    --t-ink:#F1E6C8; --t-muted:#C9BEA2; --t-brass:#E9C873; --focus-ring:#E9C873; --focus-moat:#101813}
   #title.on{display:block}
-  #title .wrap{position:relative;max-width:1000px;margin:0 auto;padding:clamp(150px,30vh,300px) 16px 20px}
+  #title .wrap{position:relative;max-width:1000px;margin:0 auto;
+    padding-top:max(clamp(150px,30vh,300px),calc(env(safe-area-inset-top) + 16px));
+    padding-right:max(16px,env(safe-area-inset-right));
+    padding-bottom:max(20px,calc(env(safe-area-inset-bottom) + 16px));
+    padding-left:max(16px,env(safe-area-inset-left))}
   #sky{position:fixed;inset:0;width:100%;height:100%;display:block}
   #title h1{font-family:var(--font-display);font-size:clamp(2.4rem,7vw,4rem);letter-spacing:.05em;margin:4px 0 0;text-align:center;
     color:var(--t-brass);font-weight:400;text-shadow:0 2px 0 #3A2810,0 0 24px rgba(0,0,0,.85),0 0 4px rgba(0,0,0,.9)}
@@ -137,18 +145,18 @@
   #title .btn.solid{background:#D2A84E linear-gradient(#E9C873,#B8862C);color:#1B1408;border-color:#F3DA92}
   #title .credit{color:var(--t-muted)}
   #tTop{margin:0 0 10px} #tTop:has(#tCont[hidden]){display:none}
-  #title .wrap:has(#tCont:not([hidden])){padding-top:clamp(110px,22vh,240px)}
+  #title .wrap:has(#tCont:not([hidden])){padding-top:max(clamp(110px,22vh,240px),calc(env(safe-area-inset-top) + 12px))}
   #tCont{min-width:min(320px,100%);min-height:52px;border-radius:999px;font-size:1.05rem}
-  @media (max-aspect-ratio:3/4){ #title .wrap{padding-top:clamp(120px,17vh,200px)} #title .tag{margin-bottom:14px} }
+  @media (max-aspect-ratio:3/4){ #title .wrap{padding-top:max(clamp(120px,17vh,200px),calc(env(safe-area-inset-top) + 12px))} #title .tag{margin-bottom:14px} }
   @media (max-width:520px){ #title .tag{background:none;padding:0;text-shadow:0 1px 2px #000,0 0 10px rgba(0,0,0,.95),0 0 3px rgba(0,0,0,.9)} } /* no plate behind the tagline on a phone: the painting is dark enough under it */
   /* Short screens on their side: the painting keeps its place but gives the height back, so every game's Play chip is above the fold.
      Under 700 px high the hero and the hands shrink; under 520 px the tiles become four plain columns (name and chips) in a row. */
   @media (orientation:landscape) and (max-height:700px){
-    #title .wrap,#title .wrap:has(#tCont:not([hidden])){padding-top:clamp(70px,16vh,110px)}
+    #title .wrap,#title .wrap:has(#tCont:not([hidden])){padding-top:max(clamp(70px,16vh,110px),calc(env(safe-area-inset-top) + 12px))}
     #title .tag{margin-bottom:10px} .tile canvas{height:clamp(52px,9vh,70px)} .tile p{font-size:.76rem;line-height:1.25}
   }
   @media (orientation:landscape) and (max-height:520px){
-    #title .wrap,#title .wrap:has(#tCont:not([hidden])){padding-top:clamp(44px,12vh,60px);padding-bottom:16px}
+    #title .wrap,#title .wrap:has(#tCont:not([hidden])){padding-top:max(clamp(44px,12vh,60px),calc(env(safe-area-inset-top) + 10px));padding-bottom:max(16px,env(safe-area-inset-bottom))}
     #title h1{font-size:clamp(1.6rem,5vw,2.2rem)} #title .tag{display:none} #tTop{margin-bottom:8px}
     .tiles{grid-template-columns:repeat(4,1fr);gap:8px}
     .tile canvas,.tile .tsub,.tile p{display:none} .tile h2{font-size:1.1rem}
@@ -156,7 +164,7 @@
   }
   /* Under 340 px high with Continue showing the last chip was 12 px under the fold: a tighter top and a plainer Continue give about 30 px back. */
   @media (orientation:landscape) and (max-height:340px){
-    #title .wrap,#title .wrap:has(#tCont:not([hidden])){padding-top:28px;padding-bottom:10px}
+    #title .wrap,#title .wrap:has(#tCont:not([hidden])){padding-top:max(28px,env(safe-area-inset-top));padding-bottom:max(10px,env(safe-area-inset-bottom))}
     #tCont{min-height:44px} #tTop{margin-bottom:6px} .row{margin-top:8px} .credit{margin-top:8px}
   }
   .chips{display:flex;flex-wrap:wrap;gap:6px}
@@ -164,12 +172,15 @@
     background:transparent;color:var(--color-primary);font-weight:600;cursor:pointer;flex:1 0 auto;white-space:nowrap}
   .chip.solid,.btn.solid{background:var(--color-primary);color:var(--color-on-primary)}
   .row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:18px}
-  .btn{min-height:48px;padding:0 18px;border-radius:var(--radius-lg);border:1px solid var(--color-border);background:var(--chip);
+  .btn{min-height:48px;padding:0 18px;border-radius:var(--radius-lg);border:1px solid var(--ctrl-border);background:var(--chip);
     cursor:pointer;font-weight:600}
   .credit{margin-top:10px;text-align:center;font-size:.76rem;color:var(--color-muted)}
   /* Modal */
-  #modal{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;background:rgba(10,9,16,.55);padding:12px;
-    padding-top:calc(env(safe-area-inset-top) + var(--bar-h) + 6px);padding-bottom:calc(env(safe-area-inset-bottom) + var(--tools-h) + 6px)}
+  #modal{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;background:rgba(10,9,16,.55);
+    padding-top:max(12px,calc(env(safe-area-inset-top) + var(--bar-h) + 6px));
+    padding-right:max(12px,calc(env(safe-area-inset-right) + 8px));
+    padding-bottom:max(12px,calc(env(safe-area-inset-bottom) + var(--tools-h) + 6px));
+    padding-left:max(12px,calc(env(safe-area-inset-left) + 8px))}
   #modal.on{display:flex}
   /* dialogs: card stock (or lacquer in the dark scheme) inside a Blender-rendered brass frame, used as a 9-slice border */
   .sheet{background:var(--sheet) linear-gradient(45deg,rgba(184,134,44,.075) 1px,transparent 1px) 0 0/20px 20px;color:var(--color-text);border:22px solid #B8862C;border-radius:9px;
@@ -178,9 +189,10 @@
     font-family:var(--font-deco)}
   .sheet .btn,.sheet .chip,.sheet button{font-family:var(--font-deco)}
   .sheet.wide{width:min(900px,100%)}
-  .sheet h2{font-family:var(--font-display);font-weight:400;letter-spacing:.03em;margin:0 0 12px;font-size:1.45rem;color:var(--color-primary);
-    padding-bottom:8px;border-bottom:2px solid transparent;border-image:linear-gradient(90deg,#B8862C,#E9C873 30%,rgba(184,134,44,0)) 1;display:flex;align-items:center;gap:8px}
-  .sheet h2 .x{margin-left:auto}
+  .sheet-head{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding-bottom:8px;
+    border-bottom:2px solid transparent;border-image:linear-gradient(90deg,#B8862C,#E9C873 30%,rgba(184,134,44,0)) 1}
+  .sheet-head h2{font-family:var(--font-display);font-weight:400;letter-spacing:.03em;margin:0;font-size:1.45rem;color:var(--color-primary);flex:1;min-width:0}
+  .sheet-head .x{margin-left:auto;flex:none}
   .sheet h3{margin:16px 0 6px;font-size:1rem;font-family:var(--font-deco)}
   .sheet p,.sheet li{line-height:1.45;font-size:.92rem}
   .menu{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -192,7 +204,7 @@
   .menu .btn.day b{font-family:var(--font-display);font-weight:400;font-size:1.05rem;color:var(--color-primary);letter-spacing:.02em}
   .menu .btn.day small{font-size:.74rem;color:var(--color-muted)}
   .menu .btn.day em{font-style:normal;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--color-muted);margin-top:2px}
-  .menu .btn.day.won em{color:#2E6A3C;font-weight:700}
+  .menu .btn.day.won em{color:var(--color-success);font-weight:700}
   .seal{position:absolute;right:6px;top:6px;width:26px;height:26px;border-radius:50%;
     background:radial-gradient(circle at 40% 35%,#F3DA92,#C9A04A 55%,#8C6A2A);box-shadow:0 1px 2px rgba(0,0,0,.4);
     -webkit-mask:radial-gradient(circle,#000 62%,transparent 64%),conic-gradient(#000 0 0);mask:none}
@@ -204,22 +216,26 @@
   .set label{font-weight:600}
   .set small{display:block;font-weight:400;color:var(--color-muted)}
   /* segmented choices: a row of stepped brass tabs; the chosen one is a raised brass plate */
-  .seg{display:flex;border:1px solid #B8862C;border-radius:4px;overflow:hidden;flex:none;box-shadow:inset 0 1px 2px rgba(0,0,0,.15)}
-  .seg button{min-height:44px;min-width:44px;padding:0 11px;border:0;border-left:1px solid rgba(184,134,44,.45);background:transparent;
+  .seg{display:flex;border:1px solid #B8862C;border-radius:4px;flex:none;box-shadow:inset 0 1px 2px rgba(0,0,0,.15)}
+  .seg button{position:relative;min-height:44px;min-width:44px;padding:0 11px;border:0;border-left:1px solid rgba(184,134,44,.45);background:transparent;
     cursor:pointer;font-size:.82rem;letter-spacing:.04em}
-  .seg button:first-child{border-left:0}
+  .seg button:first-child{border-left:0;border-radius:3px 0 0 3px}
+  .seg button:last-child{border-radius:0 3px 3px 0}
+  .seg button:only-child{border-radius:3px}
+  .seg button:focus-visible{z-index:2}
   .seg button[aria-pressed=true]{background:#D2A84E linear-gradient(#F3DA92,#C9A04A 55%,#A87F2C);color:#1B1408;font-weight:700;
     box-shadow:inset 0 1px 0 rgba(255,255,255,.5),inset 0 -1px 0 rgba(0,0,0,.25)}
   input[type=range]{width:140px;height:44px;accent-color:#B8862C}
   @media (max-width:420px){ .set{flex-wrap:wrap;row-gap:4px} .set label{flex:1 1 150px} .set .seg{margin-left:auto} }
+  @media (max-width:360px){ .seg{flex-wrap:wrap;max-width:100%} .seg button{flex:1 1 auto;padding:0 8px} .seg button:first-child,.seg button:last-child{border-radius:0} }
   .tog{width:60px;height:44px;border:0;background:transparent;cursor:pointer;flex:none;position:relative}
   /* on/off: a brass lever in an inset slot; the knob is a turned brass stud */
   .tog::before{content:"";position:absolute;left:6px;top:12px;width:48px;height:20px;border-radius:4px;background:#3A3226;
-    box-shadow:inset 0 2px 3px rgba(0,0,0,.6),0 0 0 1px #8C6A2A}
+    border:1px solid #8C6A2A;box-shadow:inset 0 2px 3px rgba(0,0,0,.6)}
   .tog::after{content:"";position:absolute;left:7px;top:8px;width:22px;height:28px;border-radius:4px;transition:left .15s;
-    background:#C9A04A linear-gradient(90deg,#8C6A2A,#F3DA92 45%,#C9A04A 60%,#8C6A2A);box-shadow:0 2px 3px rgba(0,0,0,.45)}
-  .tog[aria-pressed=true]::before{background:#2E6A3C;box-shadow:inset 0 2px 3px rgba(0,0,0,.45),0 0 0 1px #8C6A2A}
-  .tog[aria-pressed=true]::after{left:31px}
+    border:1px solid #6E4C16;background:#C9A04A linear-gradient(90deg,#8C6A2A,#F3DA92 45%,#C9A04A 60%,#8C6A2A);box-shadow:0 2px 3px rgba(0,0,0,.45)}
+  .tog[aria-checked=true]::before{background:#2E6A3C;border-color:#C9A04A;box-shadow:inset 0 2px 3px rgba(0,0,0,.45)}
+  .tog[aria-checked=true]::after{left:31px}
   .backs{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px}
   .bk{border:2px solid transparent;border-radius:var(--radius-lg);background:transparent;padding:6px 6px 10px;cursor:pointer;text-align:center;
     display:flex;flex-direction:column;align-items:center;gap:6px;font-size:.8rem}
@@ -244,7 +260,6 @@
   .hp summary::after{content:"";margin-left:auto;width:8px;height:8px;border-right:2px solid #B8862C;border-bottom:2px solid #B8862C;transform:rotate(-45deg);transition:transform .15s;flex:none}
   .hp[open] summary::after{transform:rotate(45deg)}
   .hp summary canvas{width:60px;height:42px;flex:none}
-  .hp summary:focus-visible{outline:2px solid #B8862C;outline-offset:2px}
   .hp>p:first-of-type,.hp>table:first-of-type{margin-top:0}
   /* Win: bath ticket + fact card */
   /* The bath ticket: an engraved stock painting (assets/ticket-stock.webp) with typeset text; the right 19% is the stub */
@@ -270,24 +285,24 @@
   .course i{width:clamp(6px,1.9vw,9px);aspect-ratio:1;border-radius:50%;border:1.2px solid #8E3622;display:block;flex:none}
   .course i.f{background:#8E3622}
   .sheet.rise{animation:rise .5s cubic-bezier(.2,.9,.3,1.15) both}
-  .sheet.win{position:relative;background:#121A15 linear-gradient(#1A2620,#0E1411);color:#EDE3C8}
-  .sheet.win h2{color:#E9C873;justify-content:center;font-size:1.9rem;text-shadow:0 2px 0 #000}
-  .sheet.win h2 .x{position:absolute;right:10px}
-  .sheet.win .fact{background:#F3E9D2;color:#2A1A10;border-left-color:#2E6A3C;transform:rotate(.6deg);box-shadow:0 4px 12px rgba(0,0,0,.4)}
-  .sheet.win .fact .src{color:#5A4A38}
+  .sheet.win{position:relative;background:#121A15 linear-gradient(#1A2620,#0E1411);color:#EDE3C8;--focus-ring:#E9C873;--focus-moat:#101813}
+  .sheet.win .sheet-head{position:relative;justify-content:center}
+  .sheet.win .sheet-head h2{color:#E9C873;text-align:center;font-size:clamp(1.35rem,5.5vw,1.9rem);padding:0 48px;text-shadow:0 2px 0 #000}
+  .sheet.win .sheet-head .x{position:absolute;right:0}
+  .sheet.win .fact{transform:rotate(.6deg);box-shadow:0 4px 12px rgba(0,0,0,.4)}
   .sheet.win .btn{background:#1E2A23;color:#EDE3C8;border-color:rgba(233,200,115,.5)}
   .sheet.win .btn.solid{background:#D2A84E linear-gradient(#F3DA92,#C9A04A 55%,#A87F2C);color:#1B1408;border-color:#F3DA92}
   .course i.m{border-color:#B8862C;box-shadow:0 0 0 1px #E9C873}
   .sheet.rise .course i.new{animation:punch .45s .6s cubic-bezier(.3,1.6,.5,1) both}
   @keyframes rise{from{transform:translateY(40px) scale(.96);opacity:0}to{transform:none;opacity:1}}
   @keyframes punch{0%{transform:scale(2.4);background:transparent;opacity:0}60%{opacity:1}100%{transform:none}}
-  .fact{background:var(--chip);border-left:5px solid var(--color-accent);border-radius:var(--radius-md);padding:10px 14px;margin:0 0 12px}
-  .fact .k{font-family:var(--font-deco);font-weight:700;color:var(--color-accent);font-size:.82rem;letter-spacing:.08em;text-transform:uppercase}
-  .fact .q{font-weight:600;margin:4px 0 2px}
-  .fact .a{font-family:var(--font-serif-victorian);font-size:1.15rem;color:var(--color-primary);font-weight:700}
-  .fact .src{font-size:.78rem;color:var(--color-muted);margin-top:4px}
+  .fact{background:var(--paper-bg);color:var(--paper-ink);border-left:5px solid var(--paper-accent);border-radius:var(--radius-md);padding:10px 14px;margin:0 0 12px}
+  .fact .k{font-family:var(--font-deco);font-weight:700;color:var(--paper-accent);font-size:.82rem;letter-spacing:.08em;text-transform:uppercase}
+  .fact .q{font-weight:600;margin:4px 0 2px;color:var(--paper-ink)}
+  .fact .a{font-family:var(--font-serif-victorian);font-size:1.15rem;color:var(--paper-primary);font-weight:700}
+  .fact .src{font-size:.78rem;color:var(--paper-muted);margin-top:4px}
   .numin{font:inherit;font-family:var(--font-mono);font-size:1.2rem;padding:8px 10px;width:100%;min-height:48px;border-radius:var(--radius-md);
-    border:1px solid var(--color-border);background:var(--color-bg);color:var(--color-text)}
+    border:1px solid var(--ctrl-border);background:var(--color-bg);color:var(--color-text)}
   .dl{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
   @media (max-width:520px){
     :root{--bar-h:56px}
@@ -303,7 +318,7 @@
   /* Short landscape screens (phones on their side): a slim status bar and the actions in a rail beside the table,
      so the cards get the height. Left-handed puts the rail on the left. */
   @media (orientation:landscape) and (max-height:500px){
-    :root{--bar-h:40px;--tools-h:0px}
+    :root{--bar-h:44px;--tools-h:0px}
     #app{display:grid;grid-template-columns:1fr auto;grid-template-rows:var(--bar-h) minmax(0,1fr)}
     #bar{grid-column:1/-1;gap:8px;padding:0 8px}
     #stage{grid-row:2;grid-column:1}
@@ -311,11 +326,20 @@
       border-top:0;border-left:2px solid var(--brass);border-image:linear-gradient(180deg,#6E4C16,#E9C873 22%,#9C6E1E 50%,#E9C873 78%,#6E4C16) 1;
       box-shadow:-3px 0 10px rgba(0,0,0,.45)}
     .lh #app{grid-template-columns:auto 1fr} .lh #stage{grid-column:2} .lh #tools{grid-column:1;border-left:0;border-right:2px solid var(--brass);box-shadow:3px 0 10px rgba(0,0,0,.45)}
-    .tb{width:100%;max-width:none;min-height:0;max-height:64px;font-size:.6rem;letter-spacing:.06em;border-radius:12px}
+    .tb{width:100%;max-width:none;min-height:44px;max-height:64px;font-size:.6rem;letter-spacing:.06em;border-radius:12px}
     .tb svg{width:19px;height:19px}
-    .ib{width:34px;height:34px} .ib svg{width:19px;height:19px}
+    #bar .ib{position:relative;width:44px;height:44px;padding:4px;border:0;background:transparent;box-shadow:none}
+    #bar .ib::before{content:"";position:absolute;inset:4px;border-radius:50%;border:1.5px solid var(--brass);
+      background:#18221C radial-gradient(circle at 50% 35%,#2C3B32,#121A15 70%);box-shadow:inset 0 1px 0 rgba(255,236,190,.18),0 2px 4px rgba(0,0,0,.5);pointer-events:none}
+    #bar .ib svg{position:relative;z-index:1;width:19px;height:19px}
+    #bar .ib:focus-visible{outline-offset:-2px;box-shadow:none}
     #modeName{font-size:.98rem} #modeSub{font-size:.66rem}
     #status{gap:14px;font-size:.58rem} #status b{font-size:1.02rem;margin-top:0}
+  }
+  @media (orientation:landscape) and (max-height:360px){
+    #tools{gap:4px;padding:4px}
+    .tb{gap:1px;padding:2px;font-size:.56rem}
+    .tb svg{width:17px;height:17px}
   }
   #coach{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:max-content;max-width:94%;display:flex;align-items:center;gap:8px;z-index:5;
     background:rgba(16,24,19,.94);color:var(--lac-ink);border:1px solid rgba(233,200,115,.6);border-radius:var(--radius-pill);padding:4px 6px 4px 16px;
@@ -328,22 +352,34 @@
   #tabNote button{flex:none;min-height:44px;min-width:44px;padding:0 14px;border-radius:var(--radius-pill);border:1px solid rgba(233,200,115,.6);background:transparent;color:inherit;font:inherit;font-size:.8rem;cursor:pointer;white-space:nowrap}
   #coach button{min-height:44px;min-width:44px;padding:0 14px;border-radius:var(--radius-pill);border:1px solid rgba(233,200,115,.6);background:transparent;color:inherit;font:inherit;font-size:.8rem;cursor:pointer;white-space:nowrap}
   #bHint.pt{outline:3px solid var(--color-highlight);outline-offset:2px}
-  @media (prefers-reduced-motion:no-preference){ #bHint.pt:not(.st){animation:pt 1.3s ease-in-out infinite} }
+  :root:not(.rm) #bHint.pt:not(.st){animation:pt 1.3s ease-in-out infinite}
   @keyframes pt{50%{outline-offset:6px}}
   .bk small{display:block;font-size:.7rem;color:var(--color-muted)} .bk.lk canvas{filter:grayscale(1);opacity:.4} .bk.lk{cursor:default}
-  .earn{margin:0 auto 12px;max-width:460px;text-align:center;font-size:.9rem} .earn b{font-family:var(--font-deco)} .earn .pb{color:#2E6A3C;font-weight:700}
+  .earn{margin:0 auto 12px;max-width:460px;text-align:center;font-size:.9rem} .earn b{font-family:var(--font-deco)} .earn .pb{color:#6FC3A8;font-weight:700}
   .rec{border-bottom:1px solid var(--color-border);padding:6px 0} .rec b{font-family:var(--font-deco)} .rec small{display:block;color:var(--color-muted)}
   .ach{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}
-  .ach li{padding:6px 8px;border:1px solid var(--color-border);border-radius:8px;font-size:.85rem;opacity:.8} .ach li.got{opacity:1;border-color:#B8862C;background:var(--chip)}
+  .ach li{padding:6px 8px;border:1px solid var(--color-border);border-radius:8px;font-size:.85rem} .ach li.got{border-color:#B8862C;background:var(--chip)}
   .fnd{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}
   .fnd li{padding:6px 8px;border:1px solid #B8862C;border-radius:8px;font-size:.85rem;background:var(--chip)} .fnd li b{display:block}
   .ach li b{display:block} .ach li small{color:var(--color-muted)}
   .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;font-size:.8rem;margin:6px 0}
   .cal i{font-style:normal;min-height:44px;border:1px solid var(--color-border);border-radius:6px;padding:2px;display:flex;flex-direction:column;justify-content:center}
-  .cal i small{font-size:.62rem;color:var(--color-muted)} .cal i.w{background:var(--chip);border-color:#B8862C} .cal i.f{background:#B8862C;color:#3A2810} .cal i.f small{color:#3A2810}
+  .cal i small{font-size:.62rem;color:var(--color-muted)} .cal i.w{background:var(--chip);border-color:#B8862C} .cal i.f{background:#D9B256;color:#1B1408} .cal i.f small{color:#1B1408}
   .cal i.t{outline:2px solid var(--color-primary)} .cal i.h{border:0;min-height:0;font-weight:700;color:var(--color-muted)}
   .cm{display:flex;align-items:center;justify-content:space-between;gap:8px} .cm b{font-family:var(--font-deco)} .cm .btn{min-width:44px}
-  @media (prefers-reduced-motion: reduce){ #toast,#dealing{transition:none} .tog::after{transition:none} }
+  :root.rm #goal i,:root.rm .tb,:root.rm #toast,:root.rm #dealing,:root.rm .tog::after,:root.rm .hp summary::after{transition:none}
+  :root.rm .sheet.rise,:root.rm .sheet.rise .ticket,:root.rm .sheet.rise .ticket .punch,:root.rm .sheet.rise .course i.new,:root.rm #bHint.pt{animation:none}
+  :root.rm .course i.new{box-shadow:0 0 0 2px #E9C873}
+  @media (forced-colors: active){
+    .tog::before{background:Canvas;border:2px solid ButtonText;forced-color-adjust:none}
+    .tog::after{background:ButtonText;border:2px solid Canvas;forced-color-adjust:none}
+    .tog[aria-checked=true]::before{background:Highlight;border-color:Highlight}
+    .tog[aria-checked=true]::after{background:HighlightText;border-color:Highlight}
+    .seg button[aria-pressed=true]{background:Highlight;color:HighlightText;border-color:Highlight;forced-color-adjust:none}
+    #goal{border:1px solid CanvasText}
+    #goal i{background:Highlight;forced-color-adjust:none}
+    button:focus-visible,.chip:focus-visible,.hp summary:focus-visible,input[type=range]:focus-visible,.numin:focus-visible{outline:3px solid Highlight;outline-offset:2px}
+  }
 </style>
 </head>
 <body>
@@ -520,7 +556,8 @@ if (!hadSave) save('settings', settings); // a save from here on is a player who
 let stats = loadObj('stats');
 let meta = Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 0, daily: {} }, loadObj('meta'));
 const reduceQuery = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
-const reducedMotion = () => settings.motion === 'reduced' || (settings.motion === 'auto' && reduceQuery && reduceQuery.matches);
+const reducedMotion = () => settings.motion === 'reduced' || (settings.motion === 'auto' && !!(reduceQuery && reduceQuery.matches));
+document.documentElement.classList.toggle('rm', reducedMotion());
 
 // 3. Cards and notation
 const RANKS = 'A23456789TJQK';
@@ -1344,19 +1381,27 @@ function hintApply(r, sig) {
   hintState = { list: r.list, i: 0, until: 0, sig };
   return hintShow();
 }
+let hintClearTimer = 0;
+function scheduleHintClear() {
+  clearTimeout(hintClearTimer); hintClearTimer = 0;
+  if (reducedMotion() && hintState && hintState.until > now()) {
+    const hs = hintState, ms = Math.max(10, Math.ceil(hs.until - now()) + 16);
+    hintClearTimer = setTimeout(() => { hintClearTimer = 0; if (hintState === hs) markDirty(); }, ms);
+  }
+}
 function hintShow() {
   const L = hintState.list;
   if (!L.length || L[hintState.i].stock || L[hintState.i].draws) {
     hintState.stockHint = !!L.length;
     if (L.length) { toast(stockHintText()); sfx('hint'); } // the stock hint has its chime like any other hint
     else { toast('Nothing useful from here. Undo, or ask for a new deal.'); sfx('nope'); }
-    hintState.until = now() + 2200; hintState.cur = null; startLoop();
+    hintState.until = now() + 2200; hintState.cur = null; scheduleHintClear(); startLoop();
     return { ok: true, move: null, stock: hintState.stockHint };
   }
   const m = L[hintState.i]; hintState.cur = m; hintState.stockHint = false; hintState.until = now() + 2600;
   shake(m.from, m.index);
   announce('Hint: ' + describeRun(S.piles[m.from].slice(m.index)) + ' to ' + pileName(m.to));
-  sfx('hint'); startLoop();
+  sfx('hint'); scheduleHintClear(); startLoop();
   return { ok: true, move: m };
 }
 
@@ -3123,7 +3168,7 @@ function loop() {
   frame(t); const ft = now() - t; fstat.n++; fstat.sum += ft; if (ft > fstat.max) fstat.max = ft; if (fstat.xs.length < 4000) fstat.xs.push(ft);
   fxEma = fxEma * .95 + ft * .05; if (!lowFx && fstat.n > 60 && fxEma > 12) { lowFx = true; fx = []; }
   // frame() may already have queued the next frame (startLoop); never queue a second one
-  if (!rafId && (tweensActive(t) || drag || cascade || steam.length || Object.keys(shakes).length || (hintState && hintState.until > t))) rafId = requestAnimationFrame(loop);
+  if (!rafId && (tweensActive(t) || drag || (cascade && !cascade.calm) || steam.length || Object.keys(shakes).length || (!reducedMotion() && hintState && hintState.until > t))) rafId = requestAnimationFrame(loop);
 }
 function drawTableLayer() {
   tctx.setTransform(DPR, 0, 0, DPR, 0, 0); drawTable(tctx, settings.table, W, H, placeBand()); tableDirty = false;
@@ -3228,7 +3273,7 @@ function hintArrow(x0, y0, x1, y1, t) {
   const ang = Math.atan2(y1 - ey, x1 - ex);
   ctx.save(); ctx.lineCap = 'round';
   const lw = Math.max(3, L.cw * .045), path = () => { ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(qx, qy, ex, ey); };
-  ctx.setLineDash([L.cw * .16, L.cw * .1]); ctx.lineDashOffset = -(t / 18) % (L.cw * .26);
+  ctx.setLineDash([L.cw * .16, L.cw * .1]); ctx.lineDashOffset = reducedMotion() ? 0 : -(t / 18) % (L.cw * .26);
   ctx.save(); ctx.translate(0, 2); ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = lw + 2; path(); ctx.stroke(); ctx.restore(); // cheap drop shadow
   ctx.strokeStyle = '#E9C873'; ctx.lineWidth = lw; path(); ctx.stroke();
   ctx.setLineDash([]); ctx.fillStyle = '#E9C873'; ctx.strokeStyle = '#6E4C16'; ctx.lineWidth = 1.2;
@@ -3248,7 +3293,7 @@ function frame(t) {
   if (tableDirty) drawTableLayer();
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
   const { cw, ch } = L;
-  const cerK = cascade ? clamp((t - cascade.t0) / 350, 0, 1) : 0;
+  const cerK = cascade ? (cascade.calm ? .55 : clamp((t - cascade.t0) / 350, 0, 1)) : 0;
   if (cerK < 1) { ctx.globalAlpha = 1 - cerK; for (const id in L.piles) placeholder(id, L.piles[id]); ctx.globalAlpha = 1; }
   if (cerK > 0) {
     const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .2, W / 2, H / 2, Math.hypot(W, H) * .6);
@@ -3283,7 +3328,7 @@ function frame(t) {
     ctx.fillStyle = '#F4F2EC'; ctx.font = '700 ' + bh * .66 + 'px ' + DECO; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(n), b.x + cw - bw / 2 - 3, b.y + ch - bh / 2 - 2);
   }
   if (hintState && hintState.until > t) {
-    const a = .55 + .45 * Math.sin(t / 140);
+    const a = reducedMotion() ? .88 : (.55 + .45 * Math.sin(t / 140));
     if (hintState.cur) {
       const m = hintState.cur; const src = L.piles[m.from].cards; const first = src[m.index]; const last = src[src.length - 1];
       if (first) glowRect(first.x, first.y, cw, last.y + ch - first.y, '#F6C933', a, 3);
@@ -3305,17 +3350,18 @@ function frame(t) {
     ctx.strokeStyle = '#B8862C'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.restore();
   }
   if (drag) {
-    drag.tilt = (drag.tilt || 0) * .82 + clamp((drag.vx || 0) * .003, -.12, .12) * .18; drag.vx = (drag.vx || 0) * .7;
+    if (reducedMotion()) { drag.tilt = 0; drag.vx = 0; }
+    else { drag.tilt = (drag.tilt || 0) * .82 + clamp((drag.vx || 0) * .003, -.12, .12) * .18; drag.vx = (drag.vx || 0) * .7; }
     const n = drag.run.length, hgt = (n - 1) * (drag.fan || 0) + ch;
     ctx.save(); ctx.translate(drag.x + cw / 2, drag.y + ch / 2); ctx.rotate(drag.tilt); ctx.translate(-drag.x - cw / 2, -drag.y - ch / 2);
-    if (!lowFx && drag.trail) drag.trail.forEach((q, k) => { ctx.globalAlpha = .12 + k * .08; ctx.drawImage(faceSprite(drag.run[0]), q.x, q.y, cw, ch); });
+    if (!lowFx && !reducedMotion() && drag.trail) drag.trail.forEach((q, k) => { ctx.globalAlpha = .12 + k * .08; ctx.drawImage(faceSprite(drag.run[0]), q.x, q.y, cw, ch); });
     ctx.globalAlpha = 1;
     drag.run.forEach((u, i) => drawCardAt(u, drag.x, drag.y + i * (drag.fan || 0), t, 1.35));
     glowRect(drag.x - cw * .035, drag.y - ch * .035, cw * 1.07, hgt + ch * .07, '#F6C933', .75, 2.5);
     ctx.restore();
     const tg = dropTarget(drag); // the rim goes over the held card so it shows even where the card covers the pile
     if (tg) { const b = L.piles[tg], tc = b.cards.length ? b.cards[b.cards.length - 1] : b; glowRect(tc.x, tc.y, cw, ch, '#FFE08A', .9, 2.5); }
-    if (Math.abs(drag.tilt) > .002) startLoop();
+    if (!reducedMotion() && Math.abs(drag.tilt) > .002) startLoop();
   }
   drawFx(t);
   drawSteam(t);
@@ -3327,7 +3373,7 @@ function shake(id, idx) {
   startLoop();
 }
 function steamBurst() {
-  if (reducedMotion() || !L) return; const t = now(); const src = L.piles.stock || { x: W / 2, y: L.margin };
+  if (reducedMotion() || lowFx || !L) return; const t = now(); const src = L.piles.stock || { x: W / 2, y: L.margin };
   for (let i = 0; i < 14; i++) steam.push({ x: src.x + L.cw * (.2 + Math.random() * .6), y: src.y + L.ch * .6, r: L.cw * (.08 + Math.random() * .1), t0: t + i * 40, life: 900 + Math.random() * 500, vx: (Math.random() - .5) * 30 });
   startLoop();
 }
@@ -3380,13 +3426,27 @@ function ambientTick() {
   if (!ambientWanted()) { actx.setTransform(1, 0, 0, 1, 0, 0); actx.clearRect(0, 0, amb.width, amb.height); return; }
   ambientDraw(now()); ambTimer = setTimeout(ambientTick, 1000 / AMB.fps);
 }
-function ambientSync() { if (!ambTimer && ambientWanted()) ambientTick(); } // called from the half-second timer: starts it when a deal is on the table
+function ambientSync() {
+  if (!ambientWanted()) {
+    if (ambTimer) { clearTimeout(ambTimer); ambTimer = 0; }
+    if (amb.width && amb.height) { actx.setTransform(1, 0, 0, 1, 0, 0); actx.clearRect(0, 0, amb.width, amb.height); }
+    return;
+  }
+  if (!ambTimer) ambientTick();
+} // called from the half-second timer and syncMotion: starts/stops cleanly
 
 // 10. Win ceremony: the cards gather into a rosette under a skylight glow, then spray out like a thermal
 const CER = { gather: 950, hold: 650, spray: 2600, steamEvery: 90, stampR: .42 }; // steam rises from the ring's centre every steamEvery ms; the Spa City mark is stamped at stampR of the ring's radius
 function startCascade() {
   if (!S) return;
-  if (reducedMotion()) { openModal('win'); return; }
+  if (reducedMotion()) {
+    const cx = W / 2, cy = H * .5, reach = Math.hypot(L.cw, L.ch) * .5 + 10, R = Math.max(L.ch, Math.min(W / 2, H / 2) - reach);
+    const run = { calm: true, t0: now(), cx, cy, R, gone: new Set(), stampA: 1, steamed: 0, timer: 0 };
+    cascade = run;
+    run.timer = setTimeout(() => { if (cascade === run) endCascade(); }, 600);
+    markDirty();
+    return;
+  }
   const order = [];
   const f = []; for (let i = 0; i < def().found; i++) f.push(S.piles['f' + i].slice());
   let any = true; while (any) { any = false; for (const p of f) if (p.length) { order.push(p.pop()); any = true; } }
@@ -3404,7 +3464,20 @@ function startCascade() {
   const run = cascade; setTimeout(() => { if (cascade === run) sfx('spray'); }, CER.gather + CER.hold); // the spray starts when the rosette has held
 }
 function drawCascade(t) {
-  const c = cascade, el = t - c.t0, dt = Math.min(.05, (t - c.last) / 1000); c.last = t;
+  const c = cascade;
+  if (c.calm) {
+    if (!lowFx) {
+      ctx.save(); ctx.globalAlpha = .42;
+      const g = ctx.createRadialGradient(c.cx, c.cy, 0, c.cx, c.cy, c.R * 1.15);
+      g.addColorStop(0, 'rgba(110,220,200,.65)'); g.addColorStop(.5, 'rgba(233,200,115,.35)'); g.addColorStop(1, 'rgba(233,200,115,0)');
+      const gr = c.R * 1.15; ctx.fillStyle = g; ctx.fillRect(c.cx - gr, c.cy - gr, gr * 2, gr * 2);
+      ctx.restore();
+    }
+    const r = c.R * CER.stampR;
+    feltEmblem(ctx, c.cx, c.cy + r * .225, r, '#F3DA92', false, 5.5);
+    return;
+  }
+  const el = t - c.t0, dt = Math.min(.05, (t - c.last) / 1000); c.last = t;
   const { cw, ch } = L, sc = Math.min(W, H) / 800, T1 = CER.gather, T2 = T1 + CER.hold;
   const glowA = lowFx ? 0 : clamp(el / T1, 0, 1) * (el < T2 + 600 ? 1 : Math.max(0, 1 - (el - T2 - 600) / 900));
   if (glowA > 0) {
@@ -3480,7 +3553,7 @@ function drawCascade(t) {
   if (el > T2 + CER.spray + 900 || (c.sprayed >= c.parts.length && !c.fly.length && el > T2 + 600 && !c.flakes.length)) endCascade();
 }
 function endCascade() {
-  if (!cascade) return; cascade = null; markDirty(); openModal('win');
+  if (!cascade) return; if (cascade.timer) clearTimeout(cascade.timer); cascade = null; markDirty(); openModal('win');
 }
 
 // 11. Input: pointer (mouse, pen, touch) and keyboard
@@ -3725,7 +3798,11 @@ function tableSummary() {
 window.addEventListener('keydown', (e) => {
   if (modalKind) { if (e.key === 'Escape') { e.preventDefault(); if (modalKind === 'win') closeModal(); else closeModal(true); } else if (e.key === 'Tab') trapFocus(e); return; }
   if (titleOn) return;
-  if (document.activeElement && document.activeElement !== cv && document.activeElement !== document.body && e.key !== 'Escape' && !/^[?hHuUzZnNaA]$/.test(e.key)) return;
+  const ae = document.activeElement;
+  if (ae && ae !== cv && ae !== document.body) {
+    if (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT') return;
+    if (e.key !== 'Escape' && e.key !== 'Backspace' && !/^[?hHuUzZnNaAsSdDyYpP]$/.test(e.key)) return;
+  }
   if (gameKey(e)) e.preventDefault();
 });
 
@@ -4280,6 +4357,8 @@ function updateHUD() {
   $('#bUndo').disabled = !undoStack.length || S.won; $('#bRedo').disabled = !redoStack.length || S.won;
   const ac = canAutoComplete(); const b = $('#bAuto'); b.disabled = !ac; b.classList.toggle('glow', ac);
   $('#bHint').disabled = S.won;
+  const ae = document.activeElement;
+  if (!modalKind && !titleOn && ae && ae.disabled && $('#tools').contains(ae)) cv.focus({ preventScroll: true });
   syncMirror();
 }
 // How far from a win: the cards on the foundations (Spider: in finished runs) as a thin jade line under the bar, and as words for the pointer and a screen reader.
@@ -4384,9 +4463,19 @@ function skyLoop(t) {
   if (skyDue(t)) { skyFrames++; drawSky(t); }
   if (!reducedMotion()) skyRaf = requestAnimationFrame(skyLoop);
 }
+const appEl = $('#app'), titleEl = $('#title');
+function setInert(el, on) {
+  if (!el) return;
+  el.inert = !!on;
+  if (on) el.setAttribute('aria-hidden', 'true'); else el.removeAttribute('aria-hidden');
+}
+function syncInert() {
+  setInert(appEl, titleOn || !!modalKind);
+  setInert(titleEl, !titleOn || !!modalKind);
+}
 function showTitle(on) {
   if (on && saveTimer) flushSave();
-  titleOn = on; $('#title').classList.toggle('on', on); syncMirror(); if (on) tabNoteHide();
+  titleOn = on; titleEl.classList.toggle('on', on); syncInert(); syncMirror(); if (on) tabNoteHide();
   if (on) { musicHush = false; tipHide(); }
   syncAudio();
   if (on) {
@@ -4401,28 +4490,51 @@ function showTitle(on) {
 
 // --- Dialogs ---
 const sheet = $('#sheet'), modalEl = $('#modal');
-let modalReturn = null;
+let modalReturn = null, modalOpener = null;
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
 function closeModal(back) {
   if (!modalKind) return;
-  const was = modalKind; modalKind = null; modalEl.classList.remove('on'); sheet.innerHTML = '';
+  const was = modalKind; modalKind = null; modalAnimUntil = 0; modalEl.classList.remove('on'); sheet.innerHTML = '';
   clockMark = now(); syncAudio();
   if (back && modalReturn && modalReturn !== was) { const r = modalReturn; modalReturn = null; openModal(r); return; }
-  modalReturn = null; setTimeout(tipShow, 500);
-  if (titleOn) { const b = $('#tiles .chip'); if (b) b.focus({ preventScroll: true }); if (!skyRaf && !reducedMotion()) skyRaf = requestAnimationFrame(skyLoop); } else cv.focus({ preventScroll: true });
+  modalReturn = null; syncInert(); setTimeout(tipShow, 500);
+  const op = modalOpener; modalOpener = null;
+  const canFocus = (el) => el && el.isConnected && !el.disabled && !el.closest('[hidden], [inert]') && el.getClientRects().length > 0;
+  if (titleOn) {
+    const b = canFocus(op) && titleEl.contains(op) ? op : ($('#tCont').hidden ? $('#tiles .chip') : $('#tCont'));
+    if (b) b.focus({ preventScroll: true });
+    if (!skyRaf && !reducedMotion()) skyRaf = requestAnimationFrame(skyLoop);
+  } else {
+    const b = canFocus(op) && appEl.contains(op) ? op : cv;
+    if (b) b.focus({ preventScroll: true });
+  }
+}
+const FOCUS_SEL = 'button, input, select, textarea, a[href], summary, [tabindex]:not([tabindex="-1"])';
+function focusables(root) {
+  return [...root.querySelectorAll(FOCUS_SEL)].filter((x) => !x.disabled && x.getAttribute('aria-hidden') !== 'true' && !x.closest('[hidden], [inert]') && x.getClientRects().length > 0 && getComputedStyle(x).visibility !== 'hidden');
 }
 function trapFocus(e) {
-  const f = [...sheet.querySelectorAll('button, input, [tabindex="0"]')].filter((x) => !x.disabled && x.offsetParent !== null);
-  if (!f.length) return; const first = f[0], last = f[f.length - 1];
-  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  const f = focusables(sheet);
+  if (!f.length) { e.preventDefault(); return; }
+  const first = f[0], last = f[f.length - 1], cur = document.activeElement;
+  if (!f.includes(cur)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); return; }
+  if (e.shiftKey && cur === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && cur === last) { e.preventDefault(); first.focus(); }
 }
-const head = (title) => '<h2 id="mT">' + title + '<button class="ib x" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></h2>';
+const head = (title) => '<div class="sheet-head"><h2 id="mT">' + title + '</h2><button type="button" class="ib x" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>';
 function openModal(kind, data) {
   tickClock();
+  if (!modalKind) {
+    const ae = document.activeElement;
+    modalOpener = ae && ae !== document.body && !modalEl.contains(ae) ? ae : null;
+  }
   if (modalKind && kind !== modalKind && ['settings', 'backs', 'stats', 'help', 'deal', 'daily', 'records'].includes(kind) && modalKind === 'menu') modalReturn = 'menu';
-  modalKind = kind; sheet.className = 'sheet' + (kind === 'backs' || kind === 'help' ? ' wide' : '') + (kind === 'win' ? ' win' : '') + (kind === 'win' && !reducedMotion() ? ' rise' : '');
-  if (kind === 'win' && !reducedMotion()) { modalAnimUntil = now() + 1250; setTimeout(() => sfx('place', 3), 650); } // the ticket punch
+  modalKind = kind; syncInert();
+  sheet.className = 'sheet' + (kind === 'backs' || kind === 'help' ? ' wide' : '') + (kind === 'win' ? ' win' : '') + (kind === 'win' && !reducedMotion() ? ' rise' : '');
+  if (kind === 'win') {
+    modalAnimUntil = reducedMotion() ? 0 : now() + 1250;
+    setTimeout(() => { if (modalKind === 'win') sfx('place', 3); }, reducedMotion() ? 150 : 650); // the ticket punch (always audible regardless of reducedMotion)
+  }
   sheet.innerHTML = (MODALS[kind] || (() => ''))(data || {});
   modalEl.classList.add('on'); syncAudio();
   if (kind === 'win') {
@@ -4434,14 +4546,14 @@ function openModal(kind, data) {
   sheet.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => closeModal(true)));
   const binder = BIND[kind]; if (binder) binder(data || {});
   if (kind === 'daily' || kind === 'help') paintHands('#sheet');
-  const f = sheet.querySelector('[data-focus]') || sheet.querySelector('button:not([data-close])') || sheet.querySelector('button');
+  const f = sheet.querySelector('[data-focus]') || sheet.querySelector('button:not([data-close]), summary') || sheet.querySelector('button');
   if (f) f.focus({ preventScroll: true });
   sheet.scrollTop = 0;
 }
 modalEl.addEventListener('pointerdown', (e) => { if (e.target === modalEl && modalKind !== 'win') closeModal(true); });
 
-const seg = (key, opts) => '<div class="seg" role="group">' + opts.map(([v, l]) => '<button data-set="' + key + '" data-val="' + v + '" aria-pressed="' + (String(settings[key]) === String(v)) + '">' + l + '</button>').join('') + '</div>';
-const tog = (key, label) => '<button class="tog" data-tog="' + key + '" aria-pressed="' + !!settings[key] + '" aria-label="' + label + '"></button>';
+const seg = (key, opts) => '<div class="seg" role="group">' + opts.map(([v, l]) => '<button type="button" data-set="' + key + '" data-val="' + v + '" aria-pressed="' + (String(settings[key]) === String(v)) + '">' + l + '</button>').join('') + '</div>';
+const tog = (key, label) => '<button type="button" class="tog" role="switch" data-tog="' + key + '" aria-checked="' + !!settings[key] + '" aria-label="' + label + '"></button>';
 // One fold of the help sheet: the game's own hand of cards beside its name; the game being played starts open.
 const hp = (title, hand, body) => '<details class="hp"' + (hand && S && S.mode === hand ? ' open' : '') + '><summary>' + (hand ? '<canvas aria-hidden="true" data-hand="' + hand + '"></canvas>' : '') + title + '</summary>' + body + '</details>';
 const MODALS = {
@@ -4587,7 +4699,7 @@ const BIND = {
   settings() {
     BIND._common();
     sheet.querySelectorAll('[data-set]').forEach((b) => (b.onclick = () => { setSetting(b.dataset.set, b.dataset.val); sfx('tick'); sheet.querySelectorAll('[data-set="' + b.dataset.set + '"]').forEach((x) => x.setAttribute('aria-pressed', x === b)); if (b.dataset.set === 'tapMove') { const n = $('#tapNote'); if (n) n.textContent = TAP_NOTES[tapMode()]; } }));
-    sheet.querySelectorAll('[data-tog]').forEach((b) => (b.onclick = () => { const k = b.dataset.tog; setSetting(k, !settings[k]); sfx('tick'); b.setAttribute('aria-pressed', !!settings[k]); }));
+    sheet.querySelectorAll('[data-tog]').forEach((b) => (b.onclick = () => { const k = b.dataset.tog; setSetting(k, !settings[k]); sfx('tick'); b.setAttribute('aria-checked', String(!!settings[k])); }));
     $('#vol').oninput = (e) => { setSetting('volume', +e.target.value); previewVolume(); };
     $('#musicVol').oninput = (e) => setSetting('musicVol', +e.target.value);
     $('#ambVol').oninput = (e) => setSetting('ambVol', +e.target.value);
@@ -4664,6 +4776,24 @@ function applyLook() {
 // Dragging the master volume plays a card cue now and then, so the level can be judged by ear.
 let lastPreview = 0;
 function previewVolume() { const t = now(); if (t - lastPreview >= 140) { lastPreview = t; sfx('place', 2); } }
+function syncMotion() {
+  const rm = reducedMotion();
+  document.documentElement.classList.toggle('rm', rm);
+  const bh = $('#bHint'); if (bh) bh.classList.toggle('st', rm);
+  if (rm) {
+    steam = []; fx = []; landFx = []; scoreFx = []; shakes = {};
+    if (drag) { drag.tilt = 0; drag.vx = 0; }
+    if (skyRaf) { cancelAnimationFrame(skyRaf); skyRaf = 0; }
+    if (titleOn) drawSky(now());
+    if (modalKind === 'win') { sheet.classList.remove('rise'); modalAnimUntil = 0; }
+    scheduleHintClear();
+  } else {
+    clearTimeout(hintClearTimer); hintClearTimer = 0;
+    if (titleOn && !modalKind && !skyRaf) skyRaf = requestAnimationFrame(skyLoop);
+  }
+  ambientSync();
+  if (S && L) markDirty();
+}
 function setSetting(k, v) {
   if ((k === 'back' || k === 'table') && !isOpen(k[0], v)) return;
   if (k === 'sound') { settings.sound = !!v; if (v) initAudio(); }
@@ -4672,6 +4802,7 @@ function setSetting(k, v) {
   else if (k in DEFAULT_SETTINGS) settings[k] = typeof DEFAULT_SETTINGS[k] === 'boolean' ? !!v : v;
   saveSettings();
   if (k === 'tips' && !settings.tips) tipHide();
+  if (k === 'motion') syncMotion();
   if (k === 'scoring') updateHUD();
   if (['sound', 'music', 'ambience', 'musicVol', 'ambVol'].includes(k)) syncAudio();
   if (['leftHanded', 'cardSize', 'layout', 'fourColor', 'back', 'table', 'showTimer', 'deckSeed', 'courts'].includes(k)) applyLook();
@@ -4689,7 +4820,7 @@ function resize() {
 window.addEventListener('resize', resize);
 // iOS can resize the visible area (toolbars collapsing, rotation settling) without a window resize event
 if (window.visualViewport) visualViewport.addEventListener('resize', () => { const r = stage.getBoundingClientRect(); if (Math.round(r.width) !== W || Math.round(r.height) !== H) resize(); });
-if (reduceQuery && reduceQuery.addEventListener) reduceQuery.addEventListener('change', () => markDirty());
+if (reduceQuery && reduceQuery.addEventListener) reduceQuery.addEventListener('change', syncMotion);
 
 // 15. Test hooks (window.__game; see MECHANICS §9)
 const noteOf = (u) => (S.up[u] ? '' : '#') + RANKS[card(u).r - 1] + SUITS[card(u).s];
@@ -4699,7 +4830,7 @@ window.__game = {
   seed(n) { nextDeal = Math.max(1, Math.floor(n)); return true; },
   getState() {
     tickClock(); // elapsedMs is otherwise only as fresh as the last half-second tick
-    if (!S) return { scene: sceneName(), settings: Object.assign({}, settings) };
+    if (!S) return { scene: sceneName(), modal: modalKind, settings: Object.assign({}, settings) };
     return { scene: sceneName(), modal: modalKind, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, piles: notePiles(),
       score: S.score, moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, winnable: !!S.winnable, grade: S.winnable && Object.hasOwn(GRADE_RANK, S.grade) ? S.grade : '', started: S.started, canAutoComplete: canAutoComplete(),
       undoDepth: undoStack.length, redoDepth: redoStack.length, replay: !!S.replay, finishing: !!(finishRun && winTimer), ceremony: !!cascade, held: held ? Object.assign({}, held) : null, dropTarget: drag ? dropTarget(drag) : null, cursor: Object.assign({}, cursor),
@@ -4734,6 +4865,7 @@ window.__game = {
   ambient: () => ({ fps: AMB.fps, running: !!ambTimer, wanted: ambientWanted(), frames: ambFrames, painted: (() => { const d = actx.getImageData(0, 0, amb.width, amb.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; })() }),
   canvasFilter: () => CANVAS_FILTER,
   glideOf(pile) { const p = S.piles[pile], d = p.length ? D[p[p.length - 1]] : null; return d ? d.dur : null; },
+  dragTilt: () => (drag ? +(drag.tilt || 0).toFixed(4) : 0),
   scoreFx: () => scoreFx.map((q) => ({ text: q.text, neg: q.neg, pile: q.pile, age: Math.round(now() - q.t0) })),
   sky: () => ({ running: !!skyRaf, frames: skyFrames, gap: skyGap() }),
   skyDue: (t) => skyDue(t),
@@ -4830,6 +4962,7 @@ try {
 uiReady = true;
 buildTitle();
 document.documentElement.classList.toggle('lh', !!settings.leftHanded);
+syncMotion();
 resize();
 loadArt(essentialArt());
 {
