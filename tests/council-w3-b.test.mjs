@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { baseSettings, nearWinKlondike } from './_util.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SHOTS = path.resolve(HERE, '..', '..', '_council', 'hsg-solitaire', 'wave-3', 'shots');
+const SHOTS = process.env.HS_ARTIFACT_DIR ? path.resolve(process.env.HS_ARTIFACT_DIR, 'wave-3', 'shots') : path.resolve(HERE, '..', 'screenshots', 'council-waves', 'wave-3', 'shots');
 const shot = async (t, id, name) => { fs.mkdirSync(SHOTS, { recursive: true }); await t.waitForStable(); await t.page.screenshot({ path: path.join(SHOTS, id + '-' + name + '-' + t.viewport + '.png') }); };
 
 const winNear = async (t, deal) => {
@@ -16,25 +16,29 @@ const winNear = async (t, deal) => {
 
 export const tests = [
   {
-    name: 'w3b S2-19 Scoring: Timed keeps the speed bonus, Standard drops it, None hides the score',
+    name: 'w3b S2-19 Scoring: Standard is the calm default with its own best; Timed is opt-in with speed bonus; None hides score',
     async run(t) {
       await baseSettings(t);
-      t.equal((await t.state()).settings.scoring, 'timed', 'a new profile is scored the way the game always was');
+      t.equal((await t.state()).settings.scoring, 'standard', 'a new profile defaults to calm Standard scoring (OQ-WF1-01)');
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 300 });
+      t.expect(await t.page.locator('#sBonus').isHidden(), 'Standard default shows no draining countdown badge in the HUD');
+
       await winNear(t, 301);
       let txt = await t.page.locator('#sheet').textContent();
+      t.expect(!txt.includes('time bonus'), 'Standard: no speed bonus on the ticket');
+      const stdScore = (await t.state()).score;
+      t.expect(stdScore > 0 && stdScore < 100, 'Standard: the score is card points only (' + stdScore + ')');
+      let st = (await t.game('stats')).klondike1;
+      t.equal([st.bestStandardScore, st.bestTimedScore], [stdScore, 0], 'Standard: saves bestStandardScore without touching bestTimedScore');
+
+      await t.game('setSettings', { scoring: 'timed' });
+      await winNear(t, 302);
+      txt = await t.page.locator('#sheet').textContent();
       t.expect(txt.includes('time bonus +'), 'Timed: the ticket shows the speed bonus');
       const timedScore = (await t.state()).score;
       t.expect(timedScore > 900, 'Timed: the bonus is in the score (' + timedScore + ')');
-      const best = (await t.game('stats')).klondike1.bestScore;
-      t.equal(best, timedScore, 'Timed: the best score is saved');
-
-      await t.game('setSettings', { scoring: 'standard' });
-      await winNear(t, 302);
-      txt = await t.page.locator('#sheet').textContent();
-      t.expect(!txt.includes('time bonus'), 'Standard: no speed bonus on the ticket');
-      const stdScore = (await t.state()).score;
-      t.expect(stdScore < 100, 'Standard: the score is points only (' + stdScore + ')');
-      t.equal((await t.game('stats')).klondike1.bestScore, best, 'Standard: a points-only score does not touch the Timed best');
+      st = (await t.game('stats')).klondike1;
+      t.equal([st.bestStandardScore, st.bestTimedScore], [stdScore, timedScore], 'Timed: saves bestTimedScore independently of bestStandardScore');
 
       await t.game('setSettings', { scoring: 'none' });
       await winNear(t, 303);
@@ -44,32 +48,39 @@ export const tests = [
       await t.game('scene', 'game');
       t.expect(await t.page.locator('#sScoreW').isHidden(), 'None: the Score cell leaves the status bar');
       t.expect(await t.page.locator('#sMoves').isVisible(), 'while Moves stays');
-      await t.game('setSettings', { scoring: 'timed' });
-      t.expect(await t.page.locator('#sScoreW').isVisible(), 'choosing Timed brings it back');
+      await t.game('setSettings', { scoring: 'standard' });
+      t.expect(await t.page.locator('#sScoreW').isVisible(), 'choosing Standard brings it back');
     },
   },
   {
-    name: 'w3b S2-19 a points-only win is not recorded as a best score, so it can never stand in front of a Timed one',
+    name: 'w3b S2-19 Standard and Timed best scores stay independent so neither overwrites the other',
     async run(t) {
       await baseSettings(t, { scoring: 'standard' });
-      // a high points score, as a long game with many moves home would have: more than a slow Timed win could ever reach
+      // a high Standard score never stands in front of a Timed best, and a Timed win never overwrites Standard best
       await t.game('setState', Object.assign(nearWinKlondike(), { deal: 311, moves: 30, score: 5000 }));
       await t.game('act', 'move', 't0', 'f3');
       await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
-      t.equal([(await t.game('stats')).klondike1.won, (await t.game('stats')).klondike1.bestScore], [1, 0], 'Standard: the win counts, but no best score is kept for it');
+      let st = (await t.game('stats')).klondike1;
+      t.equal([st.won, st.bestStandardScore, st.bestTimedScore], [1, 5010, 0], 'Standard: records bestStandardScore (5010) and leaves bestTimedScore at 0');
       await t.game('setSettings', { scoring: 'timed' });
       await t.game('setState', Object.assign(nearWinKlondike(), { deal: 312, moves: 30, score: 100 }));
       await t.game('act', 'move', 't0', 'f3');
       await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
-      const best = (await t.game('stats')).klondike1.bestScore;
-      t.expect(best > 1000 && best < 5000, 'Timed: its own win sets the best score (' + best + ')');
+      st = (await t.game('stats')).klondike1;
+      t.equal(st.bestStandardScore, 5010, 'Timed win leaves bestStandardScore untouched');
+      t.expect(st.bestTimedScore > 1000 && st.bestTimedScore < 5000, 'Timed: its own win sets bestTimedScore (' + st.bestTimedScore + ')');
+      await t.game('scene', 'records');
+      const rec = await t.page.locator('#sheet').textContent();
+      t.expect(rec.includes('5010 (Standard)') && rec.includes(st.bestTimedScore + ' (Timed)'), 'Records displays both independent Standard and Timed best scores');
     },
   },
   {
-    name: 'w3b S2-19 Settings has a Scoring row, it is saved, and a damaged value falls back to Timed',
+    name: 'w3b S2-19 Settings has a Scoring row, unified dark-lacquer shell in light OS mode, and a damaged value falls back to Standard',
     async run(t) {
       await baseSettings(t);
       await t.game('scene', 'settings');
+      const sheetBg = await t.page.evaluate(() => getComputedStyle(document.getElementById('sheet')).backgroundColor);
+      t.equal(sheetBg, 'rgb(22, 32, 27)', 'non-win modal uses unified dark-lacquer #16201B shell even in light OS scheme (CD-WF1-08)');
       const row = t.page.locator('#sheet [data-set="scoring"]');
       t.equal(await row.count(), 3, 'three choices');
       await t.page.locator('#sheet [data-set="scoring"][data-val="none"]').click();
@@ -81,7 +92,7 @@ export const tests = [
       t.equal((await t.state()).settings.scoring, 'none', 'it survives a reload');
       await t.page.evaluate(() => { const k = 'spa-solitaire:v1:settings'; const s = JSON.parse(localStorage.getItem(k)); s.scoring = 'bogus'; localStorage.setItem(k, JSON.stringify(s)); });
       await t.reload();
-      t.equal((await t.state()).settings.scoring, 'timed', 'a damaged value is replaced by the default');
+      t.equal((await t.state()).settings.scoring, 'standard', 'a damaged value falls back to calm Standard default');
     },
   },
   {

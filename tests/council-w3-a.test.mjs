@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { baseSettings, clickCard, dragCard, nearWinKlondike } from './_util.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SHOTS = path.resolve(HERE, '..', '..', '_council', 'hsg-solitaire', 'wave-3', 'shots');
+const SHOTS = process.env.HS_ARTIFACT_DIR ? path.resolve(process.env.HS_ARTIFACT_DIR, 'wave-3', 'shots') : path.resolve(HERE, '..', 'screenshots', 'council-waves', 'wave-3', 'shots');
 const rawShot = async (t, id, name) => { fs.mkdirSync(SHOTS, { recursive: true }); await t.page.screenshot({ path: path.join(SHOTS, id + '-' + name + '-' + t.viewport + '.png') }); };
 const shot = async (t, id, name) => { fs.mkdirSync(SHOTS, { recursive: true }); await t.waitForStable(); await t.page.screenshot({ path: path.join(SHOTS, id + '-' + name + '-' + t.viewport + '.png') }); };
 
@@ -390,6 +390,115 @@ export const tests = [
       t.equal((await t.game('act', 'autoComplete')).ok, true, 'it runs');
       await t.page.waitForFunction(() => window.__game.getState().won, null, { timeout: 8000 });
       await t.game('act', 'skip');
+    },
+  },
+  {
+    name: 'w3a W2-B01 0-win and 21-win replays freeze meta.totalWins, omit ticket punch/fanfare, and never render -1 course completed (CD-WF6-05)',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false });
+      // Fresh 0-win profile: restart Deal #1 so S.replay === true while totalWins === 0, then win it
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 1 });
+      await firstMove(t);
+      await t.game('scene', 'menu');
+      await t.page.locator('#sheet [data-a="restart"]').click();
+      await t.page.locator('#sheet [data-a="yes"]').click();
+      t.equal((await t.state()).replay, true, 'restarted Deal #1 is marked replay');
+      // Set near-win board on Deal #1 preserving S.replay via wonDeals / restart: restart again from near-win state
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 1 }));
+      await t.game('act', 'move', 't0', 't1'); // started=true so Restart flags S.replay
+      await t.game('scene', 'menu');
+      await t.page.locator('#sheet [data-a="restart"]').click();
+      await t.page.locator('#sheet [data-a="yes"]').click();
+      // Now win via direct setState with deal 1 already in wonDeals at totalWins=0 (testing 0-win replay directly)
+      await t.page.evaluate(([p]) => {
+        localStorage.setItem(p + 'meta', JSON.stringify({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 0, daily: {}, wonDeals: ['klondike1:1'], unlock: { ids: [] }, ach: {} }));
+        localStorage.removeItem(p + 'stats');
+      }, [P]);
+      await t.reload();
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false });
+      await t.game('cuesPlayed', true);
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 1 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      await t.page.waitForTimeout(250);
+      const zeroWin = await t.page.evaluate(() => ({
+        text: document.getElementById('sheet').textContent,
+        punchCount: document.querySelectorAll('#sheet .ticket .punch').length,
+        newDots: document.querySelectorAll('#sheet .course i.new').length,
+        filledDots: document.querySelectorAll('#sheet .course i.f').length,
+        cues: window.__game.cuesPlayed().map((c) => c.name),
+        meta: window.__game.meta(),
+        st: window.__game.stats().klondike1,
+      }));
+      t.equal(zeroWin.meta.totalWins, 0, '0-win replay freezes meta.totalWins at 0');
+      t.equal(zeroWin.st.won, 1, 'per-mode st.won still increments on replay (w3a S3-05 split)');
+      t.expect(zeroWin.text.includes('Course of 21 baths: 0 of 21'), 'ticket displays 0 of 21: ' + zeroWin.text);
+      t.expect(!zeroWin.text.includes('-1'), 'ticket never displays -1 course completed');
+      t.equal([zeroWin.punchCount, zeroWin.newDots, zeroWin.filledDots], [0, 0, 0], '0-win replay renders zero punch and zero filled/new course dots');
+      t.expect(!zeroWin.cues.includes('course'), '0-win replay never triggers 21-bath course fanfare');
+      t.equal([Object.keys(zeroWin.meta.ach).length, zeroWin.meta.unlock.ids.length], [0, 0], '0-win replay awards zero achievements or unlocks');
+
+      // 21-win profile replaying an already-won deal never triggers 21-bath course fanfare or punches again
+      await t.page.evaluate(([p]) => {
+        localStorage.setItem(p + 'meta', JSON.stringify({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 21, daily: {}, wonDeals: ['klondike1:21'], unlock: { ids: [] }, ach: {} }));
+      }, [P]);
+      await t.reload();
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false });
+      await t.game('cuesPlayed', true);
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 21 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      await t.page.waitForTimeout(1200);
+      const rep21 = await t.page.evaluate(() => ({
+        punchCount: document.querySelectorAll('#sheet .ticket .punch').length,
+        newDots: document.querySelectorAll('#sheet .course i.new').length,
+        cues: window.__game.cuesPlayed().map((c) => c.name),
+        totalWins: window.__game.meta().totalWins,
+      }));
+      t.equal([rep21.totalWins, rep21.punchCount, rep21.newDots], [21, 0, 0], '21-win replay freezes totalWins and omits ticket punch/new dot');
+      t.expect(!rep21.cues.includes('course'), '21-win replay never replays the 21-bath course fanfare');
+    },
+  },
+  {
+    name: 'w3a W2-B01 mid-game Reset Stats prevents Won 1 of 0 / 200% win rate, and Records never prints score 0 (W6-P-N05)',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false, scoring: 'standard' });
+      // Set up an active started deal one move from winning
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 501, score: 20 }));
+      await t.game('act', 'move', 't0', 't1'); // S.started === true, st.played === 1
+      t.equal((await t.game('stats')).klondike1.played, 1, 'live deal counts as played');
+      // Mid-game Reset Stats for active mode
+      await t.game('scene', 'stats');
+      await t.page.click('[data-a="resetStats"]');
+      await t.page.click('#sheet [data-a="yes"]');
+      t.equal((await t.game('stats')).klondike1.played, 1, 'resetting active in-progress mode preserves played=1 for the live deal');
+      // Finish the active deal
+      await t.game('scene', 'game');
+      await t.game('act', 'move', 't1', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      let st = (await t.game('stats')).klondike1;
+      t.equal([st.played, st.won, st.bestStandardScore], [1, 1, 30], 'finishing active deal records Won 1 of 1 and bestStandardScore=30');
+      await t.game('scene', 'records');
+      let rec = await t.page.locator('#sheet').textContent();
+      t.expect(rec.includes('Won 1 of 1') && rec.includes('score 30 (Standard)') && !rec.includes('score 0'), 'Records shows Won 1 of 1 and score 30 (Standard), never score 0: ' + rec.slice(0, 260));
+      // Win a second deal and check Win rate stays 100% (never 200%)
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 502, score: 40 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      st = (await t.game('stats')).klondike1;
+      t.equal([st.played, st.won], [2, 2], 'second win reaches 2 of 2');
+      await t.game('scene', 'stats');
+      const stTxt = await t.page.locator('#sheet table.st').textContent();
+      t.expect(stTxt.includes('Win rate100%') && !stTxt.includes('200%'), 'Win rate is 100%, never 200%');
+      // Clean scoring:'none' win in FreeCell omits score segment cleanly in Records (never prints score 0)
+      await t.game('setSettings', { scoring: 'none' });
+      const run = (s) => ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'].map((r) => r + s);
+      await t.game('setState', { mode: 'freecell', deal: 503, piles: { c0: [], c1: [], c2: [], c3: [], f0: run('C'), f1: run('D'), f2: run('H'), f3: run('S').slice(0, 12), t0: ['KS'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [], t7: [] } });
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      await t.game('scene', 'records');
+      const fcRec = await t.page.evaluate(() => [...document.querySelectorAll('#sheet .rec')].find((e) => e.textContent.startsWith('FreeCell')).textContent);
+      t.expect(fcRec.includes('1 moves') && !fcRec.includes('score 0'), 'None scoring win omits score segment cleanly: ' + fcRec);
     },
   },
 ];

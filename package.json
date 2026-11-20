@@ -2,7 +2,7 @@
   "name": "hsg-solitaire",
   "private": true,
   "type": "module",
-  "description": "Spa City Solitaire: Klondike, FreeCell, Spider with town-themed cards",
+  "description": "Spa City Solitaire: Klondike, FreeCell, Spider, and Yukon with Hot Springs, Arkansas themed cards",
   "license": "MIT",
   "scripts": {
     "setup": "cd shared/test-harness && npm install && npx playwright install chromium",

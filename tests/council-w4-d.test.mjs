@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { baseSettings } from './_util.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SHOTS = path.resolve(HERE, '..', '..', '_council', 'hsg-solitaire', 'wave-4', 'shots');
+const SHOTS = process.env.HS_ARTIFACT_DIR ? path.resolve(process.env.HS_ARTIFACT_DIR, 'wave-4', 'shots') : path.resolve(HERE, '..', 'screenshots', 'council-waves', 'wave-4', 'shots');
 const shot = async (t, id, name) => { fs.mkdirSync(SHOTS, { recursive: true }); await t.waitForStable(); await t.page.screenshot({ path: path.join(SHOTS, id + '-' + name + '-' + t.viewport + '.png') }); };
 const MK = 'spa-solitaire:v1:meta';
 // The order of the facts in the page's own list (the game's hooks do not list them)
@@ -83,6 +83,41 @@ export const tests = [
       const help = await t.page.evaluate(() => [...document.querySelectorAll('#sheet details.hp')].find((d) => d.textContent.includes('Scoring')).textContent);
       t.expect(help.includes('turning the waste back over the first time is free, then each time costs 50 points (20 in Draw 3)'), 'the Scoring help states the same rule');
       t.expect(!help.includes('after the first pass'), 'and no longer says "after the first pass"');
+      t.expect(help.includes('Standard scoring (the default)') && help.includes('Best scores are kept separately for Standard and Timed play'), 'Scoring help matches OQ-WF1-01 Standard default and independent bests');
+      t.expect(help.includes('Undo and Hint are always free') && !help.includes('15 points') && !help.includes('kept only for Timed'), 'Scoring help reflects retired undoCost and Standard bests (CD-WF1-03)');
+    },
+  },
+  {
+    name: 'w4d W2-B01 HABS facts hs-0065/hs-0088, refusalReason grammar (an ace / an eight), & ACH[w40] copy align with primary sources (W6-S1-05)',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { tips: false, motion: 'reduced' });
+      // Verify hs-0065 (Condie-Bray) and hs-0088 (1927 purchase / 1940s remodel) via dead-end fact cards
+      for (const [id, want, forbid] of [
+        ['hs-0065', 'Condie-Bray Glass & Paint Co.', 'Condi-Neal'],
+        ['hs-0088', '1940s', 'add to the Southern Club\'s front in 1927'],
+      ]) {
+        const idx = FACT_IDS.indexOf(id);
+        t.expect(idx >= 0, id + ' present in FACTS');
+        await t.page.evaluate(([k, seen]) => { const m = JSON.parse(localStorage.getItem(k) || '{}'); m.seenFacts = seen; localStorage.setItem(k, JSON.stringify(m)); }, [MK, FACT_IDS.map((_, n) => n).filter((n) => n !== idx)]);
+        await t.reload();
+        await t.game('setState', DEAD);
+        await t.game('act', 'hint');
+        await t.page.waitForFunction(() => window.__game.getState().modal === 'stuck');
+        const txt = await t.page.locator('#sheet .fact').textContent();
+        t.expect(txt.includes(want) && !txt.includes(forbid), id + ' matches primary HABS/HFR/CAHD notes: ' + txt);
+      }
+      // Verify refusalReason grammar: "an eight" and "an ace"
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['8S'], t1: ['KH'], t2: ['7S'], t3: [], t4: [], t5: [], t6: [] } });
+      await t.game('act', 'key', '1'); await t.game('act', 'key', 'Enter'); await t.game('act', 'key', '2'); await t.game('act', 'key', 'Enter');
+      t.equal(await t.page.evaluate(() => document.getElementById('toast').textContent), 'Build down: an eight goes on a nine', 'refusalReason says "an eight"');
+      await t.game('act', 'key', 'Escape');
+      await t.game('act', 'key', '3'); await t.game('act', 'key', 'Enter'); await t.game('act', 'key', '2'); await t.game('act', 'key', 'Enter');
+      t.equal(await t.page.evaluate(() => document.getElementById('toast').textContent), 'Build down: a seven goes on an eight', 'refusalReason says "on an eight"');
+      // Verify ACH['w40'] ('Fully Furnished') copy is reconciled to owning all backs & tables (OQ-WF6-02)
+      await t.game('scene', 'records');
+      const rec = await t.page.locator('#sheet').textContent();
+      t.expect(rec.includes('Open every card back and parlor table.') && !rec.includes('Win 40 games'), 'ACH[w40] matches OQ-WF6-02');
     },
   },
   {

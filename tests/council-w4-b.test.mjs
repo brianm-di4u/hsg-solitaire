@@ -183,7 +183,7 @@ export const tests = [
   },
   // ------------------------------------------------------------------------------------------ S3-11
   {
-    name: 'w4b S3-11 Undo is free as it always was; with the new setting on, each Undo costs 15 points and none of it comes back',
+    name: 'w4b S3-11 undoCost is retired permanently (CD-WF1-03): Undo is always free across all scoring modes',
     async run(t) {
       await baseSettings(t, { motion: 'reduced' });
       const play = async (extra, undos) => { // one move home (+10 from 100, and the game is not won), then the undos; returns the score after each
@@ -194,22 +194,19 @@ export const tests = [
         for (const u of undos) { await t.game('act', u); out.push((await t.state()).score); }
         return out;
       };
-      t.equal((await t.state()).settings.undoCost, false, 'the setting starts off');
-      t.equal(await play({ undoCost: false }, ['undo']), [110, 100], 'off: the move scored 10 and the Undo gave it back, free');
-      t.equal(await play({ undoCost: true }, ['undo', 'redo', 'undo']), [110, 85, 95, 70], 'on: each Undo takes 15 and a Redo does not refund it');
-      t.equal(await play({ undoCost: true, scoring: 'none' }, ['undo']), [110, 100], 'with scoring set to None there is nothing to charge');
-      t.equal(await play({ undoCost: true, scoring: 'standard' }, ['undo']), [110, 85], 'Standard scoring charges it too');
-      // a save from before has no such key and starts with it off
-      await t.page.evaluate(() => { const k = 'spa-solitaire:v1:settings', o = JSON.parse(localStorage.getItem(k)); delete o.undoCost; localStorage.setItem(k, JSON.stringify(o)); });
+      t.equal((await t.state()).settings.undoCost, undefined, 'undoCost is retired from settings');
+      t.equal(await play({ scoring: 'standard' }, ['undo', 'redo', 'undo']), [110, 100, 110, 100], 'Standard: Undo is always free');
+      t.equal(await play({ scoring: 'timed' }, ['undo', 'redo', 'undo']), [110, 100, 110, 100], 'Timed: Undo is always free');
+      t.equal(await play({ scoring: 'none' }, ['undo']), [110, 100], 'None: Undo is always free');
+      // a legacy save with undoCost:true has it retired on load and never charges points
+      await t.page.evaluate(() => { const k = 'spa-solitaire:v1:settings', o = JSON.parse(localStorage.getItem(k) || '{}'); o.undoCost = true; localStorage.setItem(k, JSON.stringify(o)); });
       await reloadGame(t);
-      t.equal((await t.state()).settings.undoCost, false, 'an older save reads as off');
-      // the switch is in Settings and works
+      t.equal((await t.state()).settings.undoCost, undefined, 'legacy undoCost:true is dropped on load');
+      t.equal(await play({ scoring: 'standard' }, ['undo']), [110, 100], 'legacy undoCost:true still leaves Undo free');
+      // Settings no longer renders an undoCost switch
       await t.game('scene', 'settings');
-      const sw = t.page.locator('[data-tog="undoCost"]'); await sw.scrollIntoViewIfNeeded();
-      t.equal([await sw.getAttribute('role'), await sw.getAttribute('aria-checked')], ['switch', 'false'], 'the switch shows off');
-      await sw.click();
-      t.equal([await sw.getAttribute('aria-checked'), (await t.state()).settings.undoCost], ['true', true], 'pressing it turns it on and keeps it');
-      await t.checkLayout(); await shot(t, 'S3-11', 'settings-switch');
+      t.equal(await t.page.locator('[data-tog="undoCost"]').count(), 0, 'no undoCost toggle in Settings');
+      await t.checkLayout(); await shot(t, 'S3-11', 'settings-no-undocost');
     },
   },
   // ------------------------------------------------------------------------------------------ S3-14

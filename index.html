@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#101813">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,35 +17,24 @@
 -->
 <link rel="stylesheet" href="assets/fonts.css" id="fontCss" media="print" onload="this.media='all'">
 <style>
-  /* Tokens copied from shared/design/tokens.css (values unchanged). */
+  /* Unified v3 dark-lacquer & brushed-brass parlor shell across both OS color schemes (CD-WF1-08); warm ivory paper (--paper-*) is reserved strictly for printed artifacts. */
   :root{
-    --color-bg:#F2EFE8; --color-surface:#E6D7B5; --color-text:#1F2A24; --color-muted:#574A37;
-    --color-primary:#8E3622; --color-on-primary:#FFFFFF; --color-accent:#355E41; --color-on-accent:#FFFFFF;
-    --color-success:#2E6A3C; --color-danger:#9A2A1C; --color-highlight:#D9A23A; --color-border:#CDBF9F;
+    --color-bg:#101813; --color-surface:#16201B; --color-text:#EDE3C8; --color-muted:#ABA088;
+    --color-primary:#E2BE66; --color-on-primary:#1B1408; --color-accent:#6FC3A8; --color-on-accent:#0E1411;
+    --color-success:#6FC3A8; --color-danger:#FF7A6B; --color-highlight:#E9C873; --color-border:#34443A;
     --font-serif-victorian:"Palatino Linotype","Book Antiqua",Palatino,Georgia,"Times New Roman",serif;
     --font-deco:"Josefin Sans","Century Gothic",Futura,"Avenir Next","Trebuchet MS","Gill Sans",sans-serif;
     --font-sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
     --font-mono:"Courier New",Courier,ui-monospace,Menlo,Consolas,monospace;
     --radius-sm:3px; --radius-md:6px; --radius-lg:12px; --radius-pill:999px;
-    --sheet:#FBF8F1; /* derived: card-stock cream for dialogs */
-    --chip:#F2EFE8;
-    --ctrl-border:#8B7B5C; --focus-ring:#8E3622; --focus-moat:#FBF8F1;
+    --sheet:#16201B; --chip:#21302A;
+    --ctrl-border:#5E7065; --focus-ring:#E9C873; --focus-moat:#101813;
     --paper-bg:#F3E9D2; --paper-ink:#2A1A10; --paper-accent:#2E6A3C; --paper-primary:#8E3622; --paper-muted:#5A4A38;
     --bar-h:52px; --tools-h:64px;
     --font-display:Limelight,"Josefin Sans","Century Gothic",Futura,sans-serif;
     /* in-game chrome: dark lacquer and brass in both color schemes, so the lit table reads as the brightest thing */
     --lac-1:#1E2A23; --lac-2:#101813; --lac-ink:#F1E6C8; --lac-muted:#B5AA8E; --brass:#C9A04A; --brass-hi:#E9C873;
     --brass-rule:linear-gradient(90deg,#6E4C16,#E9C873 22%,#9C6E1E 50%,#E9C873 78%,#6E4C16);
-  }
-  @media (prefers-color-scheme: dark){
-    :root{
-      /* derived for v3: black lacquer, jade and brass instead of the shared tokens' purple-navy */
-      --color-bg:#0E1411; --color-surface:#16201B; --color-text:#EDE3C8; --color-muted:#ABA088;
-      --color-primary:#E2BE66; --color-on-primary:#1B1408; --color-accent:#6FC3A8; --color-on-accent:#0E1411;
-      --color-success:#6FC3A8; --color-danger:#FF7A6B; --color-highlight:#E9C873; --color-border:#34443A;
-      --ctrl-border:#5E7065; --focus-ring:#E9C873; --focus-moat:#101813;
-      --sheet:#16201B; --chip:#21302A;
-    }
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;overflow:hidden;background:var(--color-bg);color:var(--color-text);
@@ -170,7 +159,7 @@
   .chips{display:flex;flex-wrap:wrap;gap:6px}
   .chip{min-height:44px;min-width:44px;padding:0 12px;border-radius:var(--radius-pill);border:1px solid var(--color-primary);
     background:transparent;color:var(--color-primary);font-weight:600;cursor:pointer;flex:1 0 auto;white-space:nowrap}
-  .chip.solid,.btn.solid{background:var(--color-primary);color:var(--color-on-primary)}
+  .chip.solid,.btn.solid{background:#D2A84E linear-gradient(#E9C873,#B8862C);color:#1B1408;border-color:#F3DA92}
   .row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:18px}
   .btn{min-height:48px;padding:0 18px;border-radius:var(--radius-lg);border:1px solid var(--ctrl-border);background:var(--chip);
     cursor:pointer;font-weight:600}
@@ -182,7 +171,7 @@
     padding-bottom:max(12px,calc(env(safe-area-inset-bottom) + var(--tools-h) + 6px));
     padding-left:max(12px,calc(env(safe-area-inset-left) + 8px))}
   #modal.on{display:flex}
-  /* dialogs: card stock (or lacquer in the dark scheme) inside a Blender-rendered brass frame, used as a 9-slice border */
+  /* dialogs: dark lacquer inside a Blender-rendered brass frame across both OS color schemes, used as a 9-slice border */
   .sheet{background:var(--sheet) linear-gradient(45deg,rgba(184,134,44,.075) 1px,transparent 1px) 0 0/20px 20px;color:var(--color-text);border:22px solid #B8862C;border-radius:9px;
     border-image:url(assets/brass-frame.webp) 118 / 22px stretch;background-clip:padding-box;
     width:min(660px,100%);max-height:100%;overflow-y:auto;overflow-x:hidden;padding:4px 8px 8px;box-shadow:0 18px 50px rgba(0,0,0,.5);
@@ -534,8 +523,7 @@ const DEFAULT_SETTINGS = {
   sound: true, volume: 0.6, volumeCurve: 'linear', motion: 'auto', leftHanded: false, cardSize: 'standard', layout: 'fit', fourColor: false,
   autoFoundation: 'safe', back: 'skylight', table: 'felt', showTimer: true, deckSeed: 1914, courts: 'deco',
   tapMove: 'tap', // how a press on a card moves it: tap (today's way), double-tap, or drag only
-  scoring: 'timed', // timed: points and a speed bonus on a win (today's way); standard: points only; none: no score shown
-  undoCost: false, // strict scoring: each Undo takes 15 points off (off: Undo is free, today's way)
+  scoring: 'standard', // standard: calm card points without a countdown (default); timed: opt-in speed bonus on a win; none: no score shown
   dealGrade: 'any', // random deals graded by solver effort: any (today's), easy, medium or hard
   winnable: false, // random deals come from a solver-won sequence; dailies always do
   sfx: true, music: true, ambience: true, musicVol: 0.6, ambVol: 0.6, // sound effects, music and ambience; all three obey the master `sound` switch
@@ -546,6 +534,7 @@ const DEFAULT_SETTINGS = {
 const loadObj = (name) => { const v = load(name, null); return isObj(v) ? v : {}; };
 const storedSettings = loadObj('settings');
 const settings = Object.assign({}, DEFAULT_SETTINGS, storedSettings);
+delete settings.undoCost; // retired permanently (CD-WF1-03): Undo is always free
 // The master slider's curve. A profile made from this version on gets the squared one (half way is a quarter of the gain), set here, before anything is
 // written this visit, with the slider at the place that gives the loudness the game has always started at (0.6 of full gain, near enough). A profile that
 // already exists has no `volumeCurve` stored and stays on the straight line, so its slider position is exactly as loud as it was.
@@ -940,15 +929,11 @@ function stockAction() {
   return { ok: false, reason: 'no stock' };
 }
 
-const UNDO_COST = 15;
-// Strict scoring: the 15 points come off the score now and off every saved position, so going further back (or forward again) never gives them back.
-function chargeUndo() { const cut = (sn) => { sn.score = Math.max(0, sn.score - UNDO_COST); }; cut(S); undoStack.forEach(cut); redoStack.forEach(cut); }
 function undo() {
   if (!undoStack.length || !S || S.won) return { ok: false };
   redoStack.push(snapshot()); restore(undoStack.pop()); scoreFx = [];
   S.usedUndo = true; S.assisted = true; hintState = null;
-  const charged = settings.undoCost && settings.scoring !== 'none'; if (charged) chargeUndo();
-  sfx('undo'); announce(charged ? 'Undone, ' + UNDO_COST + ' points off' : 'Undone'); relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
+  sfx('undo'); announce('Undone'); relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   return { ok: true };
 }
 // What a Redo sounds like: the move it puts back, not a plain thud. A card that goes home sings its rank, a Spider run that leaves is the run cue.
@@ -1507,6 +1492,7 @@ function bestDestination(from, idx) {
 }
 // Why a card will not go: the words for a drop the rules refuse. '' where there is nothing to say (the same pile, the stock, a pile that is no target).
 const rankWord = (r) => RANK_NAME[r].toLowerCase();
+const aRank = (r) => (r === 1 || r === 8 ? 'an ' : 'a ') + rankWord(r);
 function refusalReason(run, to, from) {
   if (!run.length || to === from) return '';
   const k = kindOf(to), p = S.piles[to], U = card(run[0]);
@@ -1522,7 +1508,7 @@ function refusalReason(run, to, from) {
   if (!p.length) return def().empty === 'king' && U.r !== 13 ? 'Only a King fills an empty column' : capacityReason(run, to);
   const T = card(p[p.length - 1]);
   if (!S.up[p[p.length - 1]]) return 'That card is face down';
-  if (U.r !== T.r - 1) return T.r === 1 ? 'Nothing goes on an Ace' : 'Build down: a ' + rankWord(U.r) + ' goes on a ' + rankWord(U.r + 1);
+  if (U.r !== T.r - 1) return T.r === 1 ? 'Nothing goes on an Ace' : 'Build down: ' + aRank(U.r) + ' goes on ' + aRank(U.r + 1);
   if (def().build !== 'any' && isRed(T.s) === isRed(U.s)) return 'Colors alternate: it needs a ' + (isRed(U.s) ? 'black ' : 'red ') + rankWord(U.r + 1);
   return capacityReason(run, to);
 }
@@ -1566,9 +1552,14 @@ function pileName(id) {
 // 6. New game, stats, win
 const RECENT_KEPT = 20; // results shown in Statistics: W won, A won with Undo or Hint, L left unfinished; oldest first
 function statFor(k) {
-  const d = { played: 0, won: 0, streak: 0, bestStreak: 0, bestTimeMs: 0, fewestMoves: 0, bestScore: 0, totalMs: 0, assistedWon: 0, recent: '' };
+  const d = { played: 0, won: 0, streak: 0, bestStreak: 0, bestTimeMs: 0, fewestMoves: 0, bestScore: 0, bestStandardScore: 0, bestTimedScore: 0, totalMs: 0, assistedWon: 0, recent: '' };
   if (!isObj(stats[k])) return (stats[k] = d);
-  for (const f in d) if (f !== 'recent' && (typeof stats[k][f] !== 'number' || !isFinite(stats[k][f]))) stats[k][f] = d[f];
+  // Migrate pre-v2 saves that stored only a single legacy bestScore (Timed for non-Spider, points-only for Spider).
+  if (stats[k].bestStandardScore === undefined && stats[k].bestTimedScore === undefined && typeof stats[k].bestScore === 'number' && isFinite(stats[k].bestScore) && stats[k].bestScore > 0) {
+    if (k.startsWith('spider')) stats[k].bestStandardScore = stats[k].bestScore;
+    else stats[k].bestTimedScore = stats[k].bestScore;
+  }
+  for (const f in d) if (f !== 'recent' && (typeof stats[k][f] !== 'number' || !isFinite(stats[k][f]) || stats[k][f] < 0)) stats[k][f] = d[f];
   if (typeof stats[k].recent !== 'string' || /[^WAL]/.test(stats[k].recent)) stats[k].recent = '';
   stats[k].recent = stats[k].recent.slice(-RECENT_KEPT);
   return stats[k];
@@ -1712,39 +1703,51 @@ function onWin(delay) {
   loadArt(LATE_ART); // the ticket stock, ready long before the ceremony ends
   tickClock(); syncShared();
   const k = modeKey(S.mode, S.opts); const st = statFor(k);
+  const scoring = settings.scoring, isTimed = S.mode !== 'spider' && scoring === 'timed', scoredMode = scoring !== 'none';
   let bonus = 0;
-  if (S.mode !== 'spider' && settings.scoring === 'timed') { bonus = timeBonus(S.elapsedMs); addScore(bonus); }
-  // Records are for first, unaided wins: a deal already won (or restarted), and a game that used Undo or Hint, still count as a win
-  // but do not grow the streak or set a best.
-  // A best score is only comparable with the ones already saved when the game was scored the same way: the speed bonus counts (Spider has none).
-  const scoredLikeRecords = settings.scoring === 'timed' || (settings.scoring === 'standard' && S.mode === 'spider');
-  const hadBest = !!st.bestTimeMs, dealKey = k + ':' + S.deal, replay = !!S.replay || meta.wonDeals.includes(dealKey) || meta.wonDeals.includes(S.mode + ':' + S.deal), clean = !replay && !S.assisted;
-  const best = { time: clean && (!st.bestTimeMs || S.elapsedMs < st.bestTimeMs), moves: clean && (!st.fewestMoves || S.moves < st.fewestMoves), score: clean && scoredLikeRecords && S.score > st.bestScore };
-  st.won++; st.totalMs += S.elapsedMs; noteResult(st, S.assisted ? 'A' : 'W');
+  if (isTimed) { bonus = timeBonus(S.elapsedMs); addScore(bonus); }
+  // Records and the 21-bath course count first, unaided wins (CD-WF6-05): replays still increment per-mode st.won,
+  // while freezing streaks, bests, meta.totalWins, course punches, unlocks, and achievements.
+  // Standard and Timed best scores are tracked independently (OQ-WF1-01); Spider has no time bonus and tracks Standard.
+  const hadBestTime = st.bestTimeMs > 0, hadBestMoves = st.fewestMoves > 0;
+  const prevModeBestScore = isTimed ? st.bestTimedScore : scoredMode ? st.bestStandardScore : 0;
+  const dealKey = k + ':' + S.deal, replay = !!S.replay || meta.wonDeals.includes(dealKey) || meta.wonDeals.includes(S.mode + ':' + S.deal), clean = !replay && !S.assisted;
+  const best = {
+    time: clean && (!st.bestTimeMs || S.elapsedMs < st.bestTimeMs),
+    moves: clean && (!st.fewestMoves || S.moves < st.fewestMoves),
+    score: clean && scoredMode && S.score > 0 && S.score > prevModeBestScore,
+  };
+  const pb = (best.time && hadBestTime) || (best.moves && hadBestMoves) || (best.score && prevModeBestScore > 0);
+  st.won++; if (st.played < st.won) st.played = st.won; st.totalMs += S.elapsedMs; noteResult(st, S.assisted ? 'A' : 'W');
   if (!replay && S.winnable && Object.hasOwn(GRADE_RANK, S.grade)) meta.gradeWins[S.grade]++;
   if (clean) { st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak); }
   if (S.assisted) st.assistedWon++;
   if (best.time) st.bestTimeMs = Math.max(1, Math.round(S.elapsedMs));
   if (best.moves) st.fewestMoves = S.moves;
-  if (best.score) st.bestScore = S.score;
+  if (best.score) {
+    if (isTimed) st.bestTimedScore = S.score;
+    else st.bestStandardScore = S.score;
+    st.bestScore = Math.max(st.bestStandardScore, st.bestTimedScore);
+  }
   meta.wonDeals = meta.wonDeals.filter((x) => x !== dealKey).concat(dealKey).slice(-WON_DEALS_KEPT);
   saveStats();
-  meta.totalWins = (meta.totalWins || 0) + 1;
+  if (!replay) meta.totalWins = (meta.totalWins || 0) + 1;
   if (S.daily) meta.daily[S.daily + '|' + k] = 'won';
   meta.dailyBest = dailyRun();
-  const ach = earn({ wins: meta.totalWins, w: { ms: S.elapsedMs, usedUndo: S.usedUndo, usedHint: S.usedHint } });
-  const opened = UNLOCKS.filter(([id, n]) => meta.totalWins >= n && !meta.unlock.ids.includes(id)).map(([id]) => id); meta.unlock.ids.push(...opened);
+  const opened = replay ? [] : UNLOCKS.filter(([id, n]) => meta.totalWins >= n && !meta.unlock.ids.includes(id)).map(([id]) => id);
+  if (opened.length) meta.unlock.ids.push(...opened);
+  const ach = replay ? [] : earn({ wins: meta.totalWins, w: { ms: S.elapsedMs, usedUndo: S.usedUndo, usedHint: S.usedHint } });
   const factIdx = pickFact(S.mode + ':' + S.deal);
   save('meta', meta); save('current', null);
-  lastWin = { ach, opened: opened.map(unlockName), pb: !!(best.time || best.moves || best.score) && hadBest, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, scoring: settings.scoring, bonus, moves: S.moves, ms: S.elapsedMs,
+  lastWin = { ach, opened: opened.map(unlockName), pb, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, scoring, bonus, moves: S.moves, ms: S.elapsedMs,
     best, totalWins: meta.totalWins, streak: clean ? st.streak : 0, assisted: S.assisted, replay, fact: FACTS[factIdx] };
-  announce(settings.scoring === 'none' ? 'You won!' : 'You won! Score ' + S.score);
+  announce(scoring === 'none' ? 'You won!' : 'You won! Score ' + S.score);
   winTimer = setTimeout(ceremony, Math.max(250, delay + 260));
 }
 // The one cue the win sheet adds for what the win earned: a whole course of baths or a daily, then a new personal best, then three or more wins in a row.
 function milestoneCue(w) {
-  if (!w) return null;
-  if (w.totalWins % 21 === 0 || w.daily) return ['course'];
+  if (!w || w.replay) return null;
+  if ((w.totalWins > 0 && w.totalWins % 21 === 0) || w.daily) return ['course'];
   if (w.pb) return ['best'];
   return w.streak >= 3 ? ['streak', Math.min(5, w.streak)] : null;
 }
@@ -2192,7 +2195,7 @@ function drawCourt(ctx, c, x, y, w, h, col) {
 // --- Card backs (12) -------------------------------------------------------------------------
 const BACKS = [
   { id: 'skylight', name: 'Fordyce Skylight', cap: 'Inspired by the blue-green heart of the Fordyce men\'s bath hall skylight (1914–15); the real glass is mostly amber and honey around it. Seeded, so your deck is one of a kind.' },
-  { id: 'lozenge', name: 'Fordyce Lozenge', cap: 'Lozenge-patterned brick of the Fordyce Bathhouse\'s upper stories.' },
+  { id: 'lozenge', name: 'Fordyce Lozenge', cap: 'Inspired by the diamond-lozenge brickwork of the Fordyce Bathhouse\'s upper stories.' },
   { id: 'quapaw', name: 'Quapaw Dome', cap: 'The Quapaw\'s chevron-mosaic dome (1922) in invented colors: the real dome is buff and tan (see the Quapaw Mosaic table).' },
   { id: 'ironwork', name: 'Row Ironwork', cap: 'Wrought-iron scrolls like the grilles of the Hale and the Administration Building.' },
   { id: 'paterae', name: 'Superior Medallions', cap: 'The Superior\'s green tile medallions above brick pilasters (1916).' },
@@ -2245,7 +2248,7 @@ const ACH = [
   ['st7', 'Hot Streak', 'Win seven games in a row in one game.', () => bestOf('bestStreak') >= 7],
   ['w10', 'Ten Baths', 'Win 10 games.', (c) => c.wins >= 10],
   ['w21', 'Full Course', 'Win 21 games, a whole course of baths.', (c) => c.wins >= 21],
-  ['w40', 'Fully Furnished', 'Win 40 games and open every back and table.', (c) => c.wins >= 40],
+  ['w40', 'Fully Furnished', 'Open every card back and parlor table.', () => BACKS.every((b) => isOpen('b', b.id)) && TABLES.every((t) => isOpen('t', t.id))],
   ['w50', 'Season Ticket', 'Win 50 games.', (c) => c.wins >= 50],
   ['w100', 'Hundred Waters', 'Win 100 games.', (c) => c.wins >= 100],
   ['d1', 'Today’s Soak', 'Win a daily deal.', () => Object.values(meta.daily).includes('won')],
@@ -2264,7 +2267,7 @@ function dailyRun() {
 const DAILY_KEEP_DAYS = 400; // older daily entries are dropped when the save loads
 
 const SETTING_ENUMS = { motion: ['auto', 'full', 'reduced'], cardSize: ['compact', 'standard', 'large'], layout: ['fit', 'classic'], autoFoundation: ['off', 'safe', 'all'],
-  courts: ['deco', 'painted'], volumeCurve: ['linear', 'square'], scoring: ['timed', 'standard', 'none'], dealGrade: ['any', 'easy', 'medium', 'hard'], back: BACKS.map((b) => b.id), table: TABLES.map((x) => x.id) };
+  courts: ['deco', 'painted'], volumeCurve: ['linear', 'square'], scoring: ['standard', 'timed', 'none'], dealGrade: ['any', 'easy', 'medium', 'hard'], back: BACKS.map((b) => b.id), table: TABLES.map((x) => x.id) };
 for (const k in DEFAULT_SETTINGS) {
   const v = settings[k], d = DEFAULT_SETTINGS[k];
   if (typeof v !== typeof d || (typeof v === 'number' && !isFinite(v)) || (SETTING_ENUMS[k] && !SETTING_ENUMS[k].includes(v))) settings[k] = d;
@@ -2893,7 +2896,7 @@ const FACTS = [
   ["hs-0061","Which is the oldest surviving bathhouse on Hot Springs' Bathhouse Row?","The Hale","The Hale dates to 1892–93; the others date from 1911–1923.","Encyclopedia of Arkansas: Bathhouse Row"],
   ["hs-0062","Which Bathhouse Row bathhouse has offered baths continuously since 1912?","The Buckstaff","The Buckstaff was the only Row bathhouse still operating after 1985.","Encyclopedia of Arkansas: Bathhouse Row"],
   ["hs-0064","What did the Fordyce Bathhouse cost to build in 1914–15, including fixtures?","$212,749.55","The Fordyce was the Row's most luxurious house.","Wikipedia: Bathhouse Row"],
-  ["hs-0065","Which fountain sits beneath the Fordyce Bathhouse's stained-glass skylight?","The DeSoto Fountain","Condi-Neal Glass of St. Louis installed the skylight's sea-themed glass in 1914–15.","Wikipedia: Bathhouse Row"],
+  ["hs-0065","Which fountain sits beneath the Fordyce Bathhouse's stained-glass skylight?","The DeSoto Fountain","Condie-Bray Glass & Paint Co. of St. Louis designed and built the men's bath hall skylight (1914–15).","1917 Ornamental Glass Bulletin; NPS Fordyce HFR"],
   ["hs-0066","What color are the tile medallions on the Superior Bathhouse facade?","Green","Concrete on the facade is painted to imitate ornamental tile.","Wikipedia: Bathhouse Row"],
   ["hs-0070","What bronze figures guard Bathhouse Row's 1890s main entrance?","Two federal eagles","Army engineer Robert Stevens designed the entrance and balustrade.","Wikipedia: Bathhouse Row"],
   ["hs-0076","How long did it take to build the current (third) Arlington Hotel after the 1923 fire?","13 months and 3 days","Begun Oct. 25, 1923, it was completed Nov. 28, 1924.","Arlington Hotel: History"],
@@ -2901,7 +2904,7 @@ const FACTS = [
   ["hs-0082","Which Bathhouse Row bathhouse is crowned by a large tiled dome?","The Quapaw","Its chevron-mosaic dome is topped by a small copper cupola.","Wikipedia: Bathhouse Row"],
   ["hs-0084","Which fish decorates the parapets of Hot Springs' Quapaw Bathhouse?","Sculpin","Scalloped shells frame the sculpin, originally gold and now white.","Wikipedia: Bathhouse Row"],
   ["hs-0085","Which Bathhouse Row bathhouse has twin towers with three-tiered setbacks?","The Ozark","The 1922 Spanish Colonial Revival design has a vague Art Deco look.","Wikipedia: Bathhouse Row"],
-  ["hs-0088","What material did William Jacobs add to the Southern Club's front in 1927, helping hide the gambling?","Dark Pittsburgh glass","Capone reportedly played poker there at an elevated table.","Encyclopedia of Arkansas: Southern Club"],
+  ["hs-0088","What material encased the Southern Club's storefront after William Jacobs bought the club in 1927, helping hide the gambling?","Dark Pittsburgh glass","Likely added during its 1940s first-floor structural-glass remodel; Capone reportedly played poker there at an elevated table.","Encyclopedia of Arkansas; Central Avenue Historic District NR nomination"],
   ["hs-0093","Which Bathhouse Row building houses Hot Springs National Park's visitor center and museum?","The Fordyce","The Fordyce reopened as the visitor center on May 13, 1989.","Encyclopedia of Arkansas: Hot Springs National Park"],
   ["hs-0094","How tall is the Hot Springs Mountain Tower?","216 feet","The steel lattice tower opened June 3, 1983, replacing a 165-ft tower.","Wikipedia: Hot Springs Mountain Tower"],
   ["hs-0102","Which Bathhouse Row bathhouse now houses a brewery and distillery?","The Superior","Superior Bathhouse Brewery opened in the 1916 building in 2013.","Wikipedia: Hot Springs, Arkansas; Superior Bathhouse Brewery: History"],
@@ -4376,9 +4379,10 @@ function updateGoal() {
 function updateTime() {
   if (!S) return;
   $('#sTime').textContent = fmtTime(S.elapsedMs);
-  const b = $('#sBonus'), on = S.mode !== 'spider' && settings.scoring === 'timed' && settings.showTimer && !S.won;
+  const b = $('#sBonus'), timedMode = S.mode !== 'spider' && settings.scoring === 'timed' && !S.won, on = timedMode && settings.showTimer;
   b.hidden = !on;
   if (on) { b.textContent = '+' + timeBonus(S.elapsedMs); b.title = 'Time bonus a win would add now; it falls 2 points a second'; }
+  $('#sScoreW').title = timedMode && !settings.showTimer ? 'Timed scoring active: win bonus still counts elapsed time while timer is hidden' : '';
 }
 setInterval(() => { tickClock(); updateTime(); ambientSync(); }, 500);
 document.addEventListener('visibilitychange', () => {
@@ -4538,7 +4542,7 @@ function openModal(kind, data) {
   sheet.className = 'sheet' + (kind === 'backs' || kind === 'help' ? ' wide' : '') + (kind === 'win' ? ' win' : '') + (kind === 'win' && !reducedMotion() ? ' rise' : '');
   if (kind === 'win') {
     modalAnimUntil = reducedMotion() ? 0 : now() + 1250;
-    setTimeout(() => { if (modalKind === 'win') sfx('place', 3); }, reducedMotion() ? 150 : 650); // the ticket punch (always audible regardless of reducedMotion)
+    if (lastWin && !lastWin.replay && (lastWin.totalWins || 0) > 0) setTimeout(() => { if (modalKind === 'win') sfx('place', 3); }, reducedMotion() ? 150 : 650); // the ticket punch (always audible regardless of reducedMotion; omitted on 0-win/replay tickets)
   }
   sheet.innerHTML = (MODALS[kind] || (() => ''))(data || {});
   modalEl.classList.add('on'); syncAudio();
@@ -4559,6 +4563,16 @@ modalEl.addEventListener('pointerdown', (e) => { if (e.target === modalEl && mod
 
 const seg = (key, opts) => '<div class="seg" role="group">' + opts.map(([v, l]) => '<button type="button" data-set="' + key + '" data-val="' + v + '" aria-pressed="' + (String(settings[key]) === String(v)) + '">' + l + '</button>').join('') + '</div>';
 const tog = (key, label) => '<button type="button" class="tog" role="switch" data-tog="' + key + '" aria-checked="' + !!settings[key] + '" aria-label="' + label + '"></button>';
+const timerNote = () => settings.scoring === 'timed'
+  ? (settings.showTimer ? 'Timed scoring counts elapsed time for the win speed bonus' : 'Clock hidden; Timed scoring still counts elapsed time for the win speed bonus')
+  : 'Display elapsed time in the bar (does not affect score)';
+const bestScoresLabel = (k, st) => {
+  if (k.startsWith('spider')) return st.bestStandardScore > 0 ? ' · score ' + st.bestStandardScore : '';
+  const parts = [];
+  if (st.bestStandardScore > 0) parts.push(st.bestStandardScore + ' (Standard)');
+  if (st.bestTimedScore > 0) parts.push(st.bestTimedScore + ' (Timed)');
+  return parts.length ? ' · score ' + parts.join(' / ') : '';
+};
 // One fold of the help sheet: the game's own hand of cards beside its name; the game being played starts open.
 const hp = (title, hand, body) => '<details class="hp"' + (hand && S && S.mode === hand ? ' open' : '') + '><summary>' + (hand ? '<canvas aria-hidden="true" data-hand="' + hand + '"></canvas>' : '') + title + '</summary>' + body + '</details>';
 const MODALS = {
@@ -4572,7 +4586,7 @@ const MODALS = {
     '<div class="set"><label>Sound effects<small>Card clicks and chimes</small></label>' + tog('sfx', 'Sound effects') + '</div>' +
     '<div class="set"><label>Music<small>Soft table tunes</small></label>' + tog('music', 'Music') + '</div>' +
     '<div class="set"><label for="musicVol">Music volume</label><input type="range" id="musicVol" min="0" max="1" step="0.05" value="' + settings.musicVol + '"></div>' +
-    '<div class="set"><label>Ambience<small>The quiet of the bathhouse</small></label>' + tog('ambience', 'Ambience') + '</div>' +
+    '<div class="set"><label>Ambience<small>Soft parlor, bathhouse &amp; valley soundscapes</small></label>' + tog('ambience', 'Ambience') + '</div>' +
     '<div class="set"><label for="ambVol">Ambience volume</label><input type="range" id="ambVol" min="0" max="1" step="0.05" value="' + settings.ambVol + '"></div>' +
     (navigator.vibrate ? '<div class="set"><label>Vibration<small>Short buzzes on touch devices</small></label>' + tog('haptics', 'Vibration') + '</div>' : '') +
     '<div class="set"><label>Motion<small>Auto follows your system setting</small></label>' + seg('motion', [['auto', 'Auto'], ['full', 'Full'], ['reduced', 'Reduced']]) + '</div>' +
@@ -4583,11 +4597,10 @@ const MODALS = {
     '<div class="set"><label>Four-color suits<small>Blue diamonds, green clubs</small></label>' + tog('fourColor', 'Four-color suits') + '</div>' +
     '<div class="set"><label>Auto-move to foundations<small>Safe moves only cards nothing else needs</small></label>' + seg('autoFoundation', [['off', 'Off'], ['safe', 'Safe'], ['all', 'All']]) + '</div>' +
     '<div class="set"><label>Move a card by<small id="tapNote">' + TAP_NOTES[tapMode()] + '</small></label>' + seg('tapMove', [['tap', 'Tap'], ['double', 'Double-tap'], ['drag', 'Drag only']]) + '</div>' +
-    '<div class="set"><label>Scoring<small>Timed adds a bonus for a quick win. Standard is points only. None hides the score</small></label>' + seg('scoring', [['timed', 'Timed'], ['standard', 'Standard'], ['none', 'None']]) + '</div>' +
-    '<div class="set"><label>Undo costs points<small>Off: Undo is free. On: each Undo takes 15 points off the score</small></label>' + tog('undoCost', 'Undo costs points') + '</div>' +
+    '<div class="set"><label>Scoring<small>Standard is calm points with no countdown. Timed adds a speed bonus on a win. None hides the score</small></label>' + seg('scoring', [['standard', 'Standard'], ['timed', 'Timed'], ['none', 'None']]) + '</div>' +
     '<div class="set"><label>Deal difficulty<small>Random deals a solver has won, picked by how much searching they took. Not FreeCell or Spider with 2 or 4 suits</small></label>' + seg('dealGrade', [['any', 'Any'], ['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']]) + '</div>' +
     '<div class="set"><label>Winnable deals only<small>A solver wins random deals first. Not FreeCell or four-suit Spider</small></label>' + tog('winnable', 'Winnable deals only') + '</div>' +
-    '<div class="set"><label>Show timer</label>' + tog('showTimer', 'Show timer') + '</div>' +
+    '<div class="set"><label>Show timer<small id="timerNote">' + timerNote() + '</small></label>' + tog('showTimer', 'Show timer') + '</div>' +
     '<div class="set"><label>Show tips<small>Short hints while you play</small></label>' + tog('tips', 'Show tips') + '</div>' +
     '<div class="row" style="margin-top:8px"><button class="btn" data-a="tipsAgain">Show tips again</button></div>' +
     '<div class="row"><button class="btn" data-a="backs">Card backs &amp; tables…</button></div>' +
@@ -4601,10 +4614,12 @@ const MODALS = {
     const k = d.key || (S ? modeKey(S.mode, S.opts) : 'klondike1'); const st = statFor(k);
     const rowS = (a, b) => '<tr><td>' + a + '</td><td>' + b + '</td></tr>';
     return head('Statistics') + '<div class="tabs" role="tablist">' + MODE_KEYS.map((m) => '<button class="chip' + (m === k ? ' solid" data-focus="1' : '') + '" data-key="' + m + '" role="tab" aria-selected="' + (m === k) + '">' + modeKeyLabel(m) + '</button>').join('') + '</div>' +
-      '<table class="st">' + rowS('Played', st.played) + rowS('Won', st.won) + rowS('Win rate', st.played ? Math.round(100 * st.won / st.played) + '%' : 'n/a') +
+      '<table class="st">' + rowS('Played', st.played) + rowS('Won', st.won) + rowS('Win rate', st.played ? Math.min(100, Math.round(100 * st.won / st.played)) + '%' : 'n/a') +
       rowS('Average win time', st.won && st.totalMs > 0 ? fmtTime(st.totalMs / st.won) : 'n/a') + rowS('Wins without Undo or Hint', Math.max(0, st.won - st.assistedWon) + ' of ' + st.won) +
       rowS('Current streak', st.streak) + rowS('Best streak', st.bestStreak) + rowS('Best time', st.bestTimeMs ? fmtTime(st.bestTimeMs) : 'n/a') +
-      rowS('Fewest moves', st.fewestMoves || 'n/a') + rowS('Best score', st.bestScore || 'n/a') + rowS('Wins, all games', meta.totalWins || 0) + '</table>' +
+      rowS('Fewest moves', st.fewestMoves || 'n/a') +
+      (k.startsWith('spider') ? rowS('Best score', st.bestStandardScore || 'n/a') : rowS('Best score (Standard)', st.bestStandardScore || 'n/a') + rowS('Best score (Timed)', st.bestTimedScore || 'n/a')) +
+      rowS('Wins, all games', meta.totalWins || 0) + '</table>' +
       (st.recent ? '<h3>Last ' + RECENT_KEPT + ' games</h3><div class="rs" role="img" aria-label="Last ' + st.recent.length + ' games, oldest first: ' + [...st.recent].map((c) => ({ W: 'won', A: 'won with help', L: 'unfinished' })[c]).join(', ') + '">' + [...st.recent].map((c) => '<i class="' + c + '">' + c + '</i>').join('') + '</div><p class="cap">Oldest on the left. W won, A won with Undo or Hint, L left unfinished.</p>' : '') +
       '<p class="cap">Streaks and bests count first wins without Undo or Hint. Replaying a deal you have won, or using Undo or Hint, still counts as a win.</p>' +
       (storageOK ? '' : '<p class="cap">Stats can\'t be saved in this browser.</p>') +
@@ -4630,7 +4645,7 @@ const MODALS = {
       (nx ? '<br>Next to open: ' + esc(unlockName(nx[0])) + '. ' + lockNote(nx[0]) + '.' : '') +
       (meta.gradeWins.easy + meta.gradeWins.medium + meta.gradeWins.hard > 0 ? '<br>Graded deals won: Easy <b>' + meta.gradeWins.easy + '</b> · Medium <b>' + meta.gradeWins.medium + '</b> · Hard <b>' + meta.gradeWins.hard + '</b>' : '') + '</p><h3>By game</h3>' +
       MODE_KEYS.map((k) => { const st = statFor(k); return '<div class="rec"><b>' + esc(modeKeyLabel(k)) + '</b><small>Won ' + st.won + ' of ' + st.played + ' · streak ' + st.streak + ' (best ' + st.bestStreak + ')</small><small>' +
-        (st.bestTimeMs ? 'Best ' + fmtTime(st.bestTimeMs) + ' · ' + st.fewestMoves + ' moves · score ' + st.bestScore : st.won ? 'No unaided first win yet' : 'No wins yet') + '</small></div>'; }).join('') +
+        (st.bestTimeMs ? 'Best ' + fmtTime(st.bestTimeMs) + ' · ' + st.fewestMoves + ' moves' + bestScoresLabel(k, st) : st.won ? 'No unaided first win yet' : 'No wins yet') + '</small></div>'; }).join('') +
       hp('Facts found: ' + found.length + ' of ' + FACTS.length, null, '<ul class="fnd">' + found.map((i) => '<li><b>' + esc(FACTS[i][2]) + '</b>' + esc(FACTS[i][1]) + '</li>').join('') + '</ul>') +
       '<h3>Achievements: ' + n + ' of ' + ACH.length + '</h3><ul class="ach">' +
       ACH.map((a) => '<li' + (meta.ach[a[0]] ? ' class="got"' : '') + '><b>' + esc(a[1]) + '</b>' + esc(a[2]) + '<small> ' + (meta.ach[a[0]] ? 'Earned ' + meta.ach[a[0]] : 'Not yet') + '</small></li>').join('') + '</ul>';
@@ -4654,20 +4669,21 @@ const MODALS = {
     '<tr><td><kbd>H</kbd> · <kbd>A</kbd> · <kbd>N</kbd></td><td>Hint (press again for the next) · Auto-complete · New deal</td></tr>' +
     '<tr><td><kbd>Esc</kbd> · <kbd>?</kbd></td><td>Menu (or put cards back) · This help</td></tr>' +
     '<tr><td>Gamepad</td><td>D-pad or left stick moves the cursor · <b>A</b> picks up or drops · <b>B</b> puts back, or undoes · <b>X</b> hint · <b>Y</b> draw · <b>Start</b> menu. In a dialog the D-pad moves between buttons and <b>A</b> presses one.</td></tr></table>') +
-    hp('Scoring', null, '<p>Klondike and Yukon: +10 to a foundation, +5 waste to column, +5 for turning a card, −15 back from a foundation, and in Klondike a recycle penalty: turning the waste back over the first time is free, then each time costs 50 points (20 in Draw 3). FreeCell: +10 per card home. Klondike, Yukon and FreeCell add a time bonus on a win (1000 − 2 × seconds; the Score cell shows what a win would add right now) unless Settings sets Scoring to Standard (points only) or None (no score shown); best scores are kept only for Timed play. Spider starts at 500, −1 a move, +100 per completed run. Undo and Hint are free (Settings can make each Undo cost 15 points); a game that used either shows a small tag ("undo used", "hint used") and counts as assisted. Streaks and bests count only first wins without them: replaying a deal you have won, or an assisted win, still counts as a win.</p>') +
+    hp('Scoring', null, '<p>Klondike and Yukon: +10 to a foundation, +5 waste to column, +5 for turning a card, −15 back from a foundation, and in Klondike a recycle penalty: turning the waste back over the first time is free, then each time costs 50 points (20 in Draw 3). FreeCell: +10 per card home. Spider starts at 500, −1 a move, +100 per completed run. Standard scoring (the default) awards card points at your own pace with no countdown; Timed scoring in Settings adds a speed bonus on a win in Klondike, Yukon and FreeCell (1000 − 2 × seconds; shown beside the Score when the timer is visible), and None hides the score. Best scores are kept separately for Standard and Timed play. Undo and Hint are always free; a game that used either shows a small tag ("undo used", "hint used") and counts as assisted. Streaks, bests and the 21-bath course count only first wins without them: replaying a deal you have won, or an assisted win, still counts as a win.</p>') +
     hp('About the art &amp; facts', null, '<p>Art: painted with AI image tools for this game. Every card back and table is an original Art Deco painting (shipped with the game as images) inspired by Hot Springs research notes: the Fordyce skylight and lozenge brick, the Quapaw dome and sculpin, Row ironwork, the Superior\'s medallions, Medical Arts Deco, the Ouachitas, thermal water and Lake Ouachita. Colors are estimates, so the designs are "inspired by". Court cards are invented 1920s archetypes (bath attendant, jockey, bellhop, saxophonist, promenade and evening ladies, card-room and racing gentlemen), not real people. The bath ticket and neon colors are invented designs. Win-screen facts are 50 hand-picked items, each with its source named on the card; the research notes behind them are kept outside this game. In the Valley of Vapors, patience is a virtue.</p>'),
   win: () => {
     const w = lastWin; if (!w) return head('Your bath is drawn');
-    const k = modeKey(w.mode, w.opts); const filled = ((w.totalWins - 1) % 21) + 1; const courses = Math.floor((w.totalWins - 1) / 21);
+    const k = modeKey(w.mode, w.opts), tw = Math.max(0, w.totalWins || 0);
+    const filled = tw > 0 ? ((tw - 1) % 21) + 1 : 0, courses = tw > 0 ? Math.floor((tw - 1) / 21) : 0, punched = !w.replay && tw > 0;
     const f = w.fact, noScore = w.scoring === 'none';
     return head('Your bath is drawn') +
       '<div class="ticket" role="group" aria-label="Bath ticket"><div class="hd">Spa City Bath Ticket</div>' +
-      '<div class="serial" aria-hidden="true">No. ' + String(w.deal).padStart(6, '0') + '</div><div class="punch" aria-hidden="true"></div>' +
+      '<div class="serial" aria-hidden="true">No. ' + String(w.deal).padStart(6, '0') + '</div>' + (punched ? '<div class="punch" aria-hidden="true"></div>' : '') +
       (noScore ? '' : '<div class="big">' + w.score + '</div>') +
       '<div class="grid"' + (noScore ? ' style="grid-template-columns:1fr 1fr"' : '') + '><div>Time<b>' + fmtTime(w.ms) + '</b>' + (w.best.time ? '<span class="best">best</span>' : '') + '</div><div>Moves<b>' + w.moves + '</b>' + (w.best.moves ? '<span class="best">best</span>' : '') + '</div>' + (noScore ? '' : '<div>Score<b>' + w.score + '</b>' + (w.best.score ? '<span class="best">best</span>' : '') + '</div>') + '</div>' +
       '<div class="meta">' + esc(modeKeyLabel(k)) + ' · ' + (w.daily ? 'Daily ' + w.daily : 'Deal #' + w.deal) + (w.bonus ? ' · time bonus +' + w.bonus : '') + (w.replay ? ' · replay' : '') + (w.assisted ? ' · assisted' : '') + '</div>' +
-      '<div class="course" aria-label="Course progress ' + filled + ' of 21">' + Array.from({ length: 21 }, (_, i) => '<i class="' + (i < filled ? 'f' : '') + (i === filled - 1 ? ' new' : '') + ((i + 1) % 7 === 0 ? ' m' : '') + '"' + ((i + 1) % 7 === 0 ? ' title="' + (i + 1) + ' baths"' : '') + '></i>').join('') + '</div>' +
-      '<div class="meta">Course of 21 baths: ' + filled + ' of 21' + (courses ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : '') + '</div></div>' +
+      '<div class="course" aria-label="Course progress ' + filled + ' of 21">' + Array.from({ length: 21 }, (_, i) => '<i class="' + (i < filled ? 'f' : '') + (punched && i === filled - 1 ? ' new' : '') + ((i + 1) % 7 === 0 ? ' m' : '') + '"' + ((i + 1) % 7 === 0 ? ' title="' + (i + 1) + ' baths"' : '') + '></i>').join('') + '</div>' +
+      '<div class="meta">Course of 21 baths: ' + filled + ' of 21' + (courses > 0 ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : '') + '</div></div>' +
       (w.pb || w.streak >= 3 || (w.ach || []).length || (w.opened || []).length ? '<div class="earn" role="status">' + (w.pb ? '<div class="pb">New personal best</div>' : '') + (w.streak >= 3 ? '<div>' + w.streak + ' wins in a row</div>' : '') + ((w.ach || []).length ? '<div>' + (w.ach.length > 1 ? 'Achievements' : 'Achievement') + ': ' + w.ach.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + ((w.opened || []).length ? '<div>Unlocked: ' + w.opened.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + '</div>' : '') +
       '<div class="fact"><div class="k">Did you know?</div><div class="q">' + esc(f[1]) + '</div><div class="a">' + esc(f[2]) + '</div><div>' + esc(f[3]) + '</div><div class="src">Source: ' + esc(f[4]) + '</div></div>' +
       '<div class="row"><button class="btn solid" data-a="new" data-focus>New deal</button><button class="btn" data-a="restart">Replay this deal</button><button class="btn" data-a="title">Change game</button></div>';
@@ -4703,8 +4719,9 @@ const BIND = {
   fault() { BIND._common(); },
   settings() {
     BIND._common();
-    sheet.querySelectorAll('[data-set]').forEach((b) => (b.onclick = () => { setSetting(b.dataset.set, b.dataset.val); sfx('tick'); sheet.querySelectorAll('[data-set="' + b.dataset.set + '"]').forEach((x) => x.setAttribute('aria-pressed', x === b)); if (b.dataset.set === 'tapMove') { const n = $('#tapNote'); if (n) n.textContent = TAP_NOTES[tapMode()]; } }));
-    sheet.querySelectorAll('[data-tog]').forEach((b) => (b.onclick = () => { const k = b.dataset.tog; setSetting(k, !settings[k]); sfx('tick'); b.setAttribute('aria-checked', String(!!settings[k])); }));
+    const syncTimerNote = () => { const tn = $('#timerNote'); if (tn) tn.textContent = timerNote(); };
+    sheet.querySelectorAll('[data-set]').forEach((b) => (b.onclick = () => { setSetting(b.dataset.set, b.dataset.val); sfx('tick'); sheet.querySelectorAll('[data-set="' + b.dataset.set + '"]').forEach((x) => x.setAttribute('aria-pressed', x === b)); if (b.dataset.set === 'tapMove') { const n = $('#tapNote'); if (n) n.textContent = TAP_NOTES[tapMode()]; } if (b.dataset.set === 'scoring') syncTimerNote(); }));
+    sheet.querySelectorAll('[data-tog]').forEach((b) => (b.onclick = () => { const k = b.dataset.tog; setSetting(k, !settings[k]); sfx('tick'); b.setAttribute('aria-checked', String(!!settings[k])); if (k === 'showTimer') syncTimerNote(); }));
     $('#vol').oninput = (e) => { setSetting('volume', +e.target.value); previewVolume(); };
     $('#musicVol').oninput = (e) => setSetting('musicVol', +e.target.value);
     $('#ambVol').oninput = (e) => setSetting('ambVol', +e.target.value);
@@ -4725,7 +4742,7 @@ const BIND = {
   },
   stats(d) {
     sheet.querySelectorAll('[data-key]').forEach((b) => {
-      if (b.dataset.a === 'resetStats') b.onclick = () => openModal('confirm', { title: 'Reset statistics?', text: 'This clears every ' + modeKeyLabel(b.dataset.key) + ' statistic.', yes: 'Reset', onYes: () => { syncShared(); delete stats[b.dataset.key]; saveStats(); openModal('stats', { key: b.dataset.key }); } });
+      if (b.dataset.a === 'resetStats') b.onclick = () => openModal('confirm', { title: 'Reset statistics?', text: 'This clears every ' + modeKeyLabel(b.dataset.key) + ' statistic.', yes: 'Reset', onYes: () => { syncShared(); const rk = b.dataset.key; delete stats[rk]; const active = liveDeal(); if (active && modeKey(active.mode, active.opts) === rk) statFor(rk).played = 1; saveStats(); openModal('stats', { key: rk }); } });
       else b.onclick = () => openModal('stats', { key: b.dataset.key });
     });
     void d;

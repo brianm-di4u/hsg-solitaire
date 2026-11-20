@@ -10,7 +10,7 @@ true story about the town.
    unlimited and instant.
 2. **Readable first.** Faces stay standard and crisp at 36 px wide. The decoration lives on backs, tables and
    transitions, never on rank and suit legibility.
-3. **A town in the details.** Twelve code-drawn backs and five tables come from Bathhouse Row, the Ouachitas
+3. **A town in the details.** Twelve Hot Springs card backs and six tables come from Bathhouse Row, the Ouachitas
    and the lakes. The win card shares a sourced fact.
 4. **Fair and reproducible.** Every deal has a number, the daily deal is the same for everyone, and FreeCell
    deal numbers match the classic numbering.
