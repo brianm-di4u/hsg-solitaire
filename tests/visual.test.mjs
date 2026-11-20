@@ -151,6 +151,7 @@ export const tests = [
       await t.waitForStable();
       const c0 = await t.game('titleHandsPainted');
       await t.game('scene', 'settings');
+      await t.page.click('#stab-comfort');
       await t.page.locator('#sheet [data-tog="fourColor"]').click();
       const c1 = await t.game('titleHandsPainted');
       t.expect(c1 > c0, 'toggling fourColor on Title repaints Title mini-card fans live (' + c0 + ' -> ' + c1 + ')');

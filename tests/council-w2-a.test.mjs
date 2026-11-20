@@ -109,8 +109,9 @@ export const tests = [
       await gesture(t);
       let s = await state(t); t.equal([s.music, s.ambience], ['table', 'parlor'], 'both on by default (felt -> parlor)');
       await t.game('scene', 'settings');
-      for (const id of ['musicVol', 'ambVol']) t.expect(await t.page.isVisible('#' + id), id + ' slider is in Settings');
-      for (const k of ['sfx', 'music', 'ambience']) t.expect(await t.page.isVisible('[data-tog="' + k + '"]'), k + ' toggle is in Settings');
+      await t.page.click('#stab-audio');
+      for (const id of ['sfxVol', 'musicVol', 'ambVol']) t.expect(await t.page.isVisible('#' + id), id + ' slider is in Settings Audio tab');
+      for (const k of ['sfx', 'music', 'ambience']) t.expect(await t.page.isVisible('[data-tog="' + k + '"]'), k + ' toggle is in Settings Audio tab');
       await t.shot('S5-01-settings');
       await t.page.click('[data-tog="music"]');
       s = await state(t); t.equal([s.music, s.ambience], [null, 'parlor'], 'Music off silences only the music');
@@ -122,12 +123,13 @@ export const tests = [
       let st = await t.state(); t.equal(st.settings.sfx, false, 'sound effects can be off on their own');
       t.equal((await state(t)).music, 'table', 'music keeps playing with effects off');
       await t.page.click('[data-tog="sfx"]');
+      await t.page.fill('#sfxVol', '0.65'); await t.page.dispatchEvent('#sfxVol', 'input');
       await t.page.fill('#musicVol', '0.25'); await t.page.dispatchEvent('#musicVol', 'input');
       await t.page.fill('#ambVol', '0.35'); await t.page.dispatchEvent('#ambVol', 'input');
       await t.page.click('[data-tog="music"]');
       await reloadGame(t);
       st = await t.state();
-      t.equal([st.settings.music, st.settings.ambience, st.settings.musicVol, st.settings.ambVol, st.settings.sfx], [false, true, 0.25, 0.35, true], 'settings persist across a reload');
+      t.equal([st.settings.music, st.settings.ambience, st.settings.sfxVol, st.settings.musicVol, st.settings.ambVol, st.settings.sfx], [false, true, 0.65, 0.25, 0.35, true], 'settings persist across a reload');
       await t.game('setSettings', { music: true, sound: false });
       s = await state(t); t.equal([s.music, s.ambience], [null, null], 'the master Sound switch silences music and ambience');
       await t.game('setSettings', { sound: true });
@@ -163,8 +165,10 @@ export const tests = [
       const s0 = await state(t);
       if (s0.ctx !== 'running') t.log('audio context did not run in this browser; checking the hold flags only');
       else {
-        t.expect(s0.bars >= 1, 'the first bar is scheduled');
-        await t.page.waitForFunction((n) => window.__game.audioState().bars > n, s0.bars, { timeout: 8000 }).then(() => t.expect(true, 'music keeps scheduling bars while playing'), () => t.fail('no new bar scheduled in 8 s'));
+        await t.page.waitForFunction(() => window.__game.audioState().bars >= 1, null, { timeout: 2000 }).catch(() => {});
+        const s1 = await state(t);
+        t.expect(s1.bars >= 1, 'the first bar is scheduled');
+        await t.page.waitForFunction((n) => window.__game.audioState().bars > n, s1.bars, { timeout: 8000 }).then(() => t.expect(true, 'music keeps scheduling bars while playing'), () => t.fail('no new bar scheduled in 8 s'));
       }
       await t.game('scene', 'menu');
       let s = await state(t); t.equal(s.held, true, 'the menu is the pause card: audio held');

@@ -38,7 +38,7 @@
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;overflow:hidden;background:var(--color-bg);color:var(--color-text);
-    font-family:var(--font-sans);font-size:16px;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+    font-family:var(--font-deco);font-size:16px;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
   body,button{touch-action:manipulation} /* a quick second tap on Undo or Hint does not zoom, a pull on the bar does not refresh; the table keeps its own touch-action */
   button{font:inherit;color:inherit}
   .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -109,26 +109,32 @@
     --t-ink:#F1E6C8; --t-muted:#C9BEA2; --t-brass:#E9C873; --focus-ring:#E9C873; --focus-moat:#101813}
   #title.on{display:block}
   #title .wrap{position:relative;max-width:1000px;margin:0 auto;
-    padding-top:max(clamp(150px,30vh,300px),calc(env(safe-area-inset-top) + 16px));
+    padding-top:max(clamp(138px,25vh,260px),calc(env(safe-area-inset-top) + 16px));
     padding-right:max(16px,env(safe-area-inset-right));
-    padding-bottom:max(20px,calc(env(safe-area-inset-bottom) + 16px));
+    padding-bottom:max(22px,calc(env(safe-area-inset-bottom) + 16px));
     padding-left:max(16px,env(safe-area-inset-left))}
   #sky{position:fixed;inset:0;width:100%;height:100%;display:block}
   #title h1{font-family:var(--font-display);font-size:clamp(2.4rem,7vw,4rem);letter-spacing:.05em;margin:4px 0 0;text-align:center;
     color:var(--t-brass);font-weight:400;text-shadow:0 2px 0 #3A2810,0 0 24px rgba(0,0,0,.85),0 0 4px rgba(0,0,0,.9)}
-  #title .tnote{text-align:center;margin:0 auto 14px;font-family:var(--font-deco);font-size:.9rem;color:var(--brass-hi);letter-spacing:.03em;width:fit-content;max-width:94%;padding:3px 14px;border-radius:999px;background:rgba(8,12,10,.7);text-shadow:0 1px 6px rgba(0,0,0,.95)}
+  #title .tnote{text-align:center;margin:0 auto 10px;font-family:var(--font-deco);font-size:.9rem;color:var(--brass-hi);letter-spacing:.03em;width:fit-content;max-width:94%;padding:3px 14px;border-radius:999px;background:rgba(8,12,10,.7);text-shadow:0 1px 6px rgba(0,0,0,.95)}
   #title .tnote[hidden]{display:none}
-  #title .tag{text-align:center;color:var(--t-ink);margin:4px auto 20px;font-family:var(--font-deco);font-size:1rem;letter-spacing:.03em;
+  #title .tag{text-align:center;color:var(--t-ink);margin:4px auto 12px;font-family:var(--font-deco);font-size:1rem;letter-spacing:.03em;
     text-shadow:0 1px 8px rgba(0,0,0,.95);max-width:34em;padding:3px 12px;border-radius:999px;background:rgba(8,12,10,.62)}
   .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
   @media (max-width:760px){.tiles{grid-template-columns:1fr 1fr;gap:10px}}
   .tile{position:relative;background:#111A15 linear-gradient(#1D2A23,#0F1612);background-clip:border-box;color:var(--t-ink);border:0;border-radius:5px;
-    padding:18px 20px 22px;display:flex;flex-direction:column;gap:6px;box-shadow:0 10px 26px rgba(0,0,0,.55)}
+    padding:15px 18px 18px;display:flex;flex-direction:column;gap:5px;box-shadow:0 10px 26px rgba(0,0,0,.55)}
   .tile::after{content:"";position:absolute;inset:0;border:14px solid transparent;border-image:url(assets/brass-frame.webp) 118 / 14px stretch;
     border-radius:5px;pointer-events:none;z-index:2}
   .tile canvas{width:100%;height:clamp(70px,11vw,104px);display:block}
   .tile h2{margin:0;font-family:var(--font-display);font-weight:400;font-size:1.3rem;letter-spacing:.03em;color:var(--t-brass);text-align:center}
-  .tile .tsub{display:block;text-align:center;font-family:var(--font-deco);font-size:.74rem;letter-spacing:.04em;color:var(--t-ink);margin-top:-4px}
+  .tile .tsub{display:block;text-align:center;font-family:var(--font-deco);font-size:.74rem;letter-spacing:.04em;color:var(--t-ink);margin-top:-3px}
+  .tile .tmeta{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;margin:1px 0 0}
+  .tile .tbadge{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid rgba(201,160,74,.45);background:#16201B;color:var(--t-muted);
+    font-family:var(--font-deco);font-size:.66rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;line-height:1.35}
+  .tile .tstart{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid rgba(111,195,168,.55);background:#142620;color:#8FE0C2;
+    font-family:var(--font-deco);font-size:.64rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;line-height:1.35}
+  .tile .tstart[hidden]{display:none}
   .tile p{margin:0;font-size:.8rem;color:var(--t-muted);flex:1;text-align:center;line-height:1.35}
   @media (max-width:380px){ .tile .tsub{font-size:.64rem;letter-spacing:0} } @media (max-width:340px){ .tile .tsub{font-size:.58rem} } /* the longest plaque lines (19 letters) stay on one line on a 360 or 320 px phone */
   #title .chip{border-color:var(--t-brass);color:var(--t-brass);background:#111A15}
@@ -137,27 +143,51 @@
   #title .btn.solid{background:#D2A84E linear-gradient(#E9C873,#B8862C);color:#1B1408;border-color:#F3DA92}
   #title .credit{color:var(--t-muted)}
   #tTop{margin:0 0 10px} #tTop:has(#tCont[hidden]){display:none}
-  #title .wrap:has(#tCont:not([hidden])){padding-top:max(clamp(110px,22vh,240px),calc(env(safe-area-inset-top) + 12px))}
-  #tCont{min-width:min(320px,100%);min-height:52px;border-radius:999px;font-size:1.05rem}
-  @media (max-aspect-ratio:3/4){ #title .wrap{padding-top:max(clamp(120px,17vh,200px),calc(env(safe-area-inset-top) + 12px))} #title .tag{margin-bottom:14px} }
+  #title .wrap:has(#tCont:not([hidden])){padding-top:max(clamp(108px,21vh,230px),calc(env(safe-area-inset-top) + 12px))}
+  #tCont{min-width:min(320px,100%);min-height:52px;border-radius:999px;font-size:1rem;padding:0 20px}
+  /* Mobile portrait fold budget (390x844): frame Bathhouse Row above <h1> while fitting all 4 game plaques + Daily deals at/above 844 px (W6-S2-01). */
+  @media (max-aspect-ratio:3/4){
+    #title .wrap{padding-top:max(clamp(74px,10.5vh,112px),calc(env(safe-area-inset-top) + 12px));padding-bottom:max(24px,calc(env(safe-area-inset-bottom) + 14px))}
+    #title .wrap:has(#tCont:not([hidden])){padding-top:max(clamp(68px,9.5vh,104px),calc(env(safe-area-inset-top) + 10px))}
+    #title h1{font-size:clamp(2rem,7.8vw,2.75rem);line-height:1.08;margin:2px 0 0}
+    #title .tag{font-size:.86rem;margin:4px auto 10px}
+    #tTop{margin:0 0 8px} #tCont{min-height:46px;font-size:.92rem}
+    .tiles{gap:8px}
+    .tile{padding:11px 11px 13px;gap:4px}
+    .tile::after{border-width:11px}
+    .tile canvas{height:52px}
+    .tile h2{font-size:1.1rem;line-height:1.1}
+    .tile p{font-size:.7rem;line-height:1.22}
+    .tile .tmeta{gap:4px} .tile .tbadge,.tile .tstart{font-size:.58rem;padding:1px 6px}
+    .chips{gap:5px} .chip{padding:0 9px;font-size:.82rem}
+    .row{margin-top:10px;gap:6px} #tRow .btn{min-height:44px;padding:0 12px;font-size:.84rem}
+    .credit{margin-top:8px;font-size:.7rem}
+  }
   @media (max-width:520px){ #title .tag{padding:3px 10px;background:rgba(8,12,10,.62);text-shadow:0 1px 2px #000,0 0 10px rgba(0,0,0,.95),0 0 3px rgba(0,0,0,.9)} } /* translucent dark scrim keeps tagline legible over bright Ouachita skyline on mobile portrait */
-  /* Short screens on their side: the painting keeps its place but gives the height back, so every game's Play chip is above the fold.
-     Under 700 px high the hero and the hands shrink; under 520 px the tiles become four plain columns (name and chips) in a row. */
+  /* Short screens on their side: keep compact 1-line Hot Springs subtitles (preserving full 'Central Avenue') + spectrum tags within <=360 px WITH #tCont visible (CD-WF2-07, CD-WF5-05, CD-WF6-01). */
   @media (orientation:landscape) and (max-height:700px){
-    #title .wrap,#title .wrap:has(#tCont:not([hidden])){padding-top:max(clamp(70px,16vh,110px),calc(env(safe-area-inset-top) + 12px))}
-    #title .tag{margin-bottom:10px} .tile canvas{height:clamp(52px,9vh,70px)} .tile p{font-size:.76rem;line-height:1.25}
+    #title .wrap,#title .wrap:has(#tCont:not([hidden])){padding-top:max(clamp(60px,13vh,104px),calc(env(safe-area-inset-top) + 10px))}
+    #title .tag{margin-bottom:8px} .tile canvas{height:clamp(50px,8.5vh,68px)} .tile p{font-size:.75rem;line-height:1.24}
   }
   @media (orientation:landscape) and (max-height:520px){
-    #title .wrap,#title .wrap:has(#tCont:not([hidden])){padding-top:max(clamp(44px,12vh,60px),calc(env(safe-area-inset-top) + 10px));padding-bottom:max(16px,env(safe-area-inset-bottom))}
-    #title h1{font-size:clamp(1.6rem,5vw,2.2rem)} #title .tag{display:none} #tTop{margin-bottom:8px}
-    .tiles{grid-template-columns:repeat(4,1fr);gap:8px}
-    .tile canvas,.tile .tsub,.tile p{display:none} .tile h2{font-size:1.1rem}
-    .row{margin-top:10px} .credit{margin-top:12px}
+    #title .wrap,#title .wrap:has(#tCont:not([hidden])){padding-top:max(clamp(20px,5.5vh,34px),calc(env(safe-area-inset-top) + 6px));padding-bottom:max(14px,env(safe-area-inset-bottom))}
+    #title h1{font-size:clamp(1.3rem,3.8vw,1.78rem);line-height:1.08;margin:0} #title .tag{display:none}
+    #tTop{margin:4px 0 6px} #tCont{min-height:44px;font-size:.9rem;padding:0 16px}
+    .tiles{grid-template-columns:repeat(4,1fr);gap:6px}
+    .tile{padding:10px 10px 12px;gap:3px} .tile::after{border-width:10px}
+    .tile canvas,.tile p{display:none}
+    .tile h2{font-size:1rem;line-height:1.1}
+    .tile .tsub{display:block;font-size:.63rem;line-height:1.15;margin-top:0;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .tile .tmeta{margin:0;gap:4px} .tile .tbadge,.tile .tstart{font-size:.56rem;padding:0 6px;line-height:1.3}
+    .chips{gap:4px} .chip{padding:0 8px;font-size:.82rem}
+    .row{margin-top:8px;gap:6px} #tRow .btn{min-height:44px;padding:0 12px;font-size:.82rem} .credit{margin-top:8px}
   }
-  /* Under 340 px high with Continue showing the last chip was 12 px under the fold: a tighter top and a plainer Continue give about 30 px back. */
+  /* Strictly <=340 px high embedded/mini landscape screens (e.g. 568x320): bare name+chips guarantees all 8 chips + 44 px Continue stay above the fold (w4a C4-09). */
   @media (orientation:landscape) and (max-height:340px){
-    #title .wrap,#title .wrap:has(#tCont:not([hidden])){padding-top:max(28px,env(safe-area-inset-top));padding-bottom:max(10px,env(safe-area-inset-bottom))}
-    #tCont{min-height:44px} #tTop{margin-bottom:6px} .row{margin-top:8px} .credit{margin-top:8px}
+    #title .wrap,#title .wrap:has(#tCont:not([hidden])){padding-top:max(14px,env(safe-area-inset-top));padding-bottom:max(8px,env(safe-area-inset-bottom))}
+    #title h1{font-size:1.25rem} #tCont{min-height:44px} #tTop{margin:3px 0 5px}
+    .tile{padding:8px 8px 10px;gap:4px} .tile .tsub,.tile .tmeta{display:none}
+    .row{margin-top:6px} .credit{margin-top:6px}
   }
   .chips{display:flex;flex-wrap:wrap;gap:6px}
   .chip{min-height:44px;min-width:44px;padding:0 12px;border-radius:var(--radius-pill);border:1px solid var(--color-primary);
@@ -191,9 +221,15 @@
   .sheet-head{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding-bottom:8px;
     border-bottom:2px solid transparent;border-image:linear-gradient(90deg,#B8862C,#E9C873 30%,rgba(184,134,44,0)) 1}
   .sheet-head h2{font-family:var(--font-display);font-weight:400;letter-spacing:.03em;margin:0;font-size:1.45rem;color:var(--color-primary);flex:1;min-width:0}
+  .sheet-head .head-acts{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none}
   .sheet-head .x{margin-left:auto;flex:none}
+  .sheet-head .head-acts .x{margin-left:0}
+  .sheet-head .ib[aria-pressed=true]{border-color:var(--ctrl-border);color:var(--color-muted)}
   .sheet h3{margin:16px 0 6px;font-size:1rem;font-family:var(--font-deco)}
   .sheet p,.sheet li{line-height:1.45;font-size:.92rem}
+  .menu-var{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:6px 10px;margin:0 0 10px;
+    border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--chip)}
+  .menu-var > span{font-size:.82rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--color-primary)}
   .menu{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
   .menu .btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:84px;padding:8px 4px;
     text-align:center;font-size:.82rem;line-height:1.15}
@@ -204,6 +240,8 @@
   .menu .btn.day small{font-size:.74rem;color:var(--color-muted)}
   .menu .btn.day em{font-style:normal;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--color-muted);margin-top:2px}
   .menu .btn.day.won em{color:var(--color-success);font-weight:700}
+  .menu .btn.day.active-day{border-color:#E9C873;box-shadow:inset 0 0 0 1px rgba(233,200,115,.4)}
+  .menu .btn.day.active-day em{color:#E9C873;font-weight:700}
   .seal{position:absolute;right:6px;top:6px;width:26px;height:26px;border-radius:50%;
     background:radial-gradient(circle at 40% 35%,#F3DA92,#C9A04A 55%,#8C6A2A);box-shadow:0 1px 2px rgba(0,0,0,.4)}
   .seal::after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;font-weight:700;font-size:.85rem;color:#3A2810}
@@ -215,6 +253,11 @@
   .set.set-wide label{flex:1 1 240px}
   .set label{font-weight:600}
   .set small{display:block;font-weight:400;color:var(--color-muted)}
+  .set.is-muted label,.set.is-muted .sl-val{color:var(--color-muted)}
+  .set.is-muted input[type=range],.set.is-muted .tog{opacity:.55}
+  .set-slider .sl-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex:1 1 auto;min-width:0}
+  .sl-val{font-family:var(--font-deco);font-weight:700;font-size:.86rem;font-variant-numeric:tabular-nums;color:var(--color-primary);min-width:3.2em;text-align:right;flex:none}
+  .set-slider .sl-ctrl{display:flex;align-items:center;gap:10px;flex:none}
   /* segmented choices: a row of stepped brass tabs; the chosen one is a raised brass plate */
   .seg{display:flex;border:1px solid #B8862C;border-radius:4px;flex:none;box-shadow:inset 0 1px 2px rgba(0,0,0,.15)}
   .seg.seg-wrap{flex-wrap:wrap;max-width:100%}
@@ -227,8 +270,24 @@
   .seg button:focus-visible{z-index:2}
   .seg button[aria-pressed=true]{background:#D2A84E linear-gradient(#F3DA92,#C9A04A 55%,#A87F2C);color:#1B1408;font-weight:700;
     box-shadow:inset 0 1px 0 rgba(255,255,255,.5),inset 0 -1px 0 rgba(0,0,0,.25)}
-  input[type=range]{width:140px;height:44px;accent-color:#B8862C}
-  @media (max-width:420px){ .set{flex-wrap:wrap;row-gap:4px} .set label{flex:1 1 150px} .set .seg{margin-left:auto} }
+  /* turned-brass volume sliders matching .tog hardware (WF-5 §2.3, CD-WF5-05) */
+  input[type=range]{-webkit-appearance:none;appearance:none;width:160px;height:44px;background:transparent;cursor:pointer;margin:0;padding:0}
+  input[type=range]::-webkit-slider-runnable-track{height:10px;border-radius:5px;border:1px solid #8C6A2A;
+    background:linear-gradient(90deg,#C9A04A 0 var(--pct,60%),#3A3226 var(--pct,60%) 100%);box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:28px;margin-top:-10px;border-radius:4px;
+    border:1px solid #6E4C16;background:#C9A04A linear-gradient(90deg,#8C6A2A,#F3DA92 45%,#C9A04A 60%,#8C6A2A);box-shadow:0 2px 3px rgba(0,0,0,.45)}
+  input[type=range]::-moz-range-track{height:10px;border-radius:5px;border:1px solid #8C6A2A;background:#3A3226;box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
+  input[type=range]::-moz-range-progress{height:10px;border-radius:5px 0 0 5px;background:#C9A04A}
+  input[type=range]::-moz-range-thumb{width:22px;height:28px;border-radius:4px;border:1px solid #6E4C16;
+    background:#C9A04A linear-gradient(90deg,#8C6A2A,#F3DA92 45%,#C9A04A 60%,#8C6A2A);box-shadow:0 2px 3px rgba(0,0,0,.45)}
+  /* Two-line full-width mobile Audio sliders <=480 px (CD-WF5-05): Label + live N% on line 1, full-width brass slider on line 2 */
+  @media (max-width:480px){
+    .set.set-slider{flex-direction:column;align-items:stretch;gap:2px;padding:8px 0}
+    .set.set-slider .sl-head{width:100%}
+    .set.set-slider .sl-ctrl{width:100%}
+    .set.set-slider input[type=range]{width:100%}
+  }
+  @media (max-width:420px){ .set:not(.set-slider){flex-wrap:wrap;row-gap:4px} .set:not(.set-slider) label{flex:1 1 150px} .set .seg{margin-left:auto} }
   @media (max-width:360px){ .seg{flex-wrap:wrap;max-width:100%} .seg button{flex:1 1 auto;padding:0 8px} .seg button:first-child,.seg button:last-child{border-radius:0} }
   .tog{width:60px;height:44px;border:0;background:transparent;cursor:pointer;flex:none;position:relative}
   /* on/off: a brass lever in an inset slot; the knob is a turned brass stud */
@@ -248,9 +307,29 @@
   .cap{color:var(--color-muted);min-height:2.6em;margin:6px 0 0;font-size:.85rem}
   .tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
   .tabs .chip{flex:none}
+  .tabs.main-tabs{padding-bottom:8px;border-bottom:1px solid var(--color-border)}
+  .tabs.sub-tabs{flex-wrap:wrap;gap:5px}
+  .tabs.sub-tabs .chip{padding:0 10px;font-size:.8rem}
+  .journey{margin:10px 0 14px;padding:10px 12px;border:1px solid rgba(201,160,74,.45);border-radius:var(--radius-md);background:var(--chip)}
+  .journey-hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .journey-hd b{color:var(--color-primary);font-size:.94rem}
+  .journey-hd small{color:var(--color-muted);font-size:.8rem}
+  .journey-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  @media (max-width:480px){.journey-row{grid-template-columns:repeat(2,1fr)}}
+  .jstop{padding:6px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-surface);text-align:center}
+  .jstop.done{border-color:#B8862C}
+  .jstop b{display:block;font-size:.76rem;color:var(--color-text);margin-bottom:4px}
+  .jstop .jdots{display:flex;justify-content:center;gap:4px}
+  .jstop .jdots i{width:10px;height:10px;border-radius:50%;border:1.4px solid #B8862C;display:inline-block}
+  .jstop .jdots i.f{background:#E9C873;border-color:#E9C873}
+  .jstop .jdots i.m{box-shadow:0 0 0 1px #6FC3A8}
+  .fnd-empty{padding:14px;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--chip);color:var(--color-text);text-align:center}
+  .fnd li .fq{display:block;font-weight:600;color:var(--color-text);margin:2px 0}
+  .fnd li .fx{display:block;color:var(--color-text);font-size:.82rem;margin:4px 0 2px}
+  .fnd li .fs{display:block;color:var(--color-muted);font-size:.74rem;margin-top:4px}
   table.st{width:100%;border-collapse:collapse;font-size:.92rem}
   table.st td{padding:8px 4px;border-bottom:1px solid var(--color-border)}
-  table.st td:last-child{text-align:right;font-family:var(--font-mono);font-weight:700}
+  table.st td:last-child{text-align:right;font-family:var(--font-deco);font-variant-numeric:tabular-nums;font-weight:700}
   .rs{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}
   .rs i{font-style:normal;font-family:var(--font-deco);font-weight:700;font-size:.78rem;width:24px;height:24px;display:grid;place-items:center;border-radius:5px;border:1px solid #B8862C}
   .rs .W{background:#2E6A3C;color:#F3E9D2;border-color:#2E6A3C} .rs .A{background:#E9C873;color:#3A2810} .rs .L{background:transparent;color:var(--color-muted)}
@@ -289,7 +368,7 @@
   .sheet.win{position:relative;background:#121A15 linear-gradient(#1A2620,#0E1411);color:#EDE3C8;--focus-ring:#E9C873;--focus-moat:#101813}
   .sheet.win .sheet-head{position:relative;justify-content:center}
   .sheet.win .sheet-head h2{color:#E9C873;text-align:center;font-size:clamp(1.35rem,5.5vw,1.9rem);padding:0 48px;text-shadow:0 2px 0 #000}
-  .sheet.win .sheet-head .x{position:absolute;right:0}
+  .sheet.win .sheet-head .head-acts,.sheet.win .sheet-head .x{position:absolute;right:0}
   .sheet.win .fact{transform:rotate(.6deg);box-shadow:0 4px 12px rgba(0,0,0,.4)}
   .sheet.win .btn{background:#1E2A23;color:#EDE3C8;border-color:rgba(233,200,115,.5)}
   .sheet.win .btn.solid{background:#D2A84E linear-gradient(#F3DA92,#C9A04A 55%,#A87F2C);color:#1B1408;border-color:#F3DA92}
@@ -427,8 +506,7 @@
     <div class="row" id="tRow">
       <button class="btn" id="tDaily">Daily deals</button>
       <button class="btn" id="tBacks">Backs &amp; tables</button>
-      <button class="btn" id="tRec">Records</button>
-      <button class="btn" id="tStats">Statistics</button>
+      <button class="btn" id="tLedger">Bathhouse Ledger</button>
       <button class="btn" id="tSet">Settings</button>
       <button class="btn" id="tHelp">How to play</button>
     </div>
@@ -526,11 +604,11 @@ function storageNote() {
   if (!uiReady) return;
   if (newerSave) {
     const el = $('#tStore'); el.textContent = NEWER_NOTE; el.hidden = false;
-    if (!storageToasted) { storageToasted = true; toast(NEWER_NOTE); }
+    if (!storageToasted) { storageToasted = true; toast(NEWER_NOTE, { minMs: 5500 }); }
     return;
   }
   $('#tStore').hidden = storageOK;
-  if (!storageOK && !storageToasted) { storageToasted = true; toast('Progress cannot be saved in this browser.'); }
+  if (!storageOK && !storageToasted) { storageToasted = true; toast('Progress cannot be saved in this browser.', { minMs: 5500 }); }
 }
 
 const WON_DEALS_KEPT = 200;
@@ -542,7 +620,7 @@ const DEFAULT_SETTINGS = {
   dealFairness: 'winnable', // unified deal fairness: winnable (Any, default), easy, medium, hard, or random (Classic Random)
   dealGrade: 'any', // synced mirror for legacy saves & test hooks: any, easy, medium or hard
   winnable: true, // synced mirror for legacy saves & test hooks: true unless dealFairness === 'random'
-  sfx: true, music: true, ambience: true, musicVol: 0.6, ambVol: 0.6, // sound effects, music and ambience; all three obey the master `sound` switch
+  sfx: true, sfxVol: 1, music: true, ambience: true, musicVol: 0.6, ambVol: 0.6, // sound effects, music and ambience; all three obey the master `sound` switch
   haptics: true, // short buzzes on touch, where the browser can vibrate; never with reduced motion
   autoNoted: false, // set once the first automatic move to a foundation has been explained with a toast
   tips: true, tipStep: 0, tipModes: "", // first-run tips: on for a new player, off for a save that came before them; progress is kept
@@ -1667,7 +1745,7 @@ function lostKick() {
     do r = sv.step(25); while (r === 'more' && now() < end);
     if (r === 'more') return void setTimeout(tick, 0);
     lostVerdict = r;
-    if (r === 'dead' && !lostWarned && !modalKind) { lostWarned = true; sfx('woodTap'); toast('No winning line left from here. Undo takes you back.'); }
+    if (r === 'dead' && !lostWarned && !modalKind) { lostWarned = true; sfx('woodTap'); toast('No winning line left from here. Undo takes you back.', { minMs: 5500 }); }
     else if (r !== 'dead') lostWarned = false;
   };
   setTimeout(tick, 0);
@@ -1871,7 +1949,8 @@ function tickClock() {
 const paused = () => document.hidden || modalKind !== null || titleOn;
 
 function abandonCurrent() {
-  if (S && S.started && !S.won) { syncShared(); const st = statFor(modeKey(S.mode, S.opts)); st.streak = 0; noteResult(st, 'L'); saveStats(); }
+  const g = liveDeal();
+  if (g) { syncShared(); const st = statFor(modeKey(g.mode, g.opts)); st.streak = 0; noteResult(st, 'L'); saveStats(); }
 }
 
 // The one deal among the classic 32,000 that nobody has ever won. A random or daily deal steps past it; a player who types it in still gets it.
@@ -2016,7 +2095,7 @@ function startDeal(mode, opts, deal, daily, winnable, grade) {
   const dk = modeKey(mode, S.opts) + ':' + deal;
   if (meta.seenDeals.includes(dk) || meta.wonDeals.includes(dk) || meta.wonDeals.includes(mode + ':' + deal)) S.replay = true;
   pullbackHold.clear();
-  undoStack = []; redoStack = []; hintState = null; held = null; drag = null; cascade = null; cursor = { pile: null, depth: 0 }; clearStuck();
+  undoStack = []; redoStack = []; hintState = null; held = null; drag = null; clearHover(); cascade = null; cursor = { pile: null, depth: 0 }; clearStuck();
   tabSuperseded = false; tabNoteHide();
   meta.lastMode = mode; meta.lastOpts = { draw: S.opts.draw, suits: S.opts.suits }; save('meta', meta);
   closeModal(); showTitle(false); tipHide(); tipGoalShown = null; tipSchedule(1650);
@@ -2037,8 +2116,9 @@ function confirmAbandon(o, restart) {
   syncShared();
   const k = modeKey(g.mode, g.opts), streak = statFor(k).streak;
   if (modalKind === 'stuck' && streak <= 0) return go();
+  const dealTag = modeKeyLabel(k) + ' · ' + (g.daily ? 'Daily ' + g.daily : 'Deal #' + g.deal) + ' (' + g.moves + (g.moves === 1 ? ' move' : ' moves') + ')';
   openModal('confirm', { title: restart ? 'Restart this deal?' : 'Abandon this deal?',
-    text: (restart ? 'Your moves so far will be lost.' : 'The game in progress will be lost.') + (streak > 0 ? ' Your ' + modeKeyLabel(k) + ' streak of ' + streak + ' will reset.' : ''),
+    text: (restart ? 'Restart ' + dealTag + '? Your moves so far will be lost.' : dealTag + ' is in progress. The game in progress will be lost.') + (streak > 0 ? ' Your ' + modeKeyLabel(k) + ' streak of ' + streak + ' will reset.' : ''),
     yes: restart ? 'Restart' : 'New deal', onYes: go });
 }
 function restartDeal() { // the same deal again: the player has now seen its cards, so a win here is a replay
@@ -2632,32 +2712,32 @@ function drawCourt(ctx, c, x, y, w, h, col) {
 
 // --- Card backs (12) -------------------------------------------------------------------------
 const BACKS = [
-  { id: 'skylight', name: 'Fordyce Skylight', cap: 'Inspired by the blue-green heart of the Fordyce men\'s bath hall skylight (1914–15); the real glass is mostly amber and honey around it. Seeded, so your deck is one of a kind.' },
-  { id: 'lozenge', name: 'Fordyce Lozenge', cap: 'Inspired by the diamond-lozenge brickwork of the Fordyce Bathhouse\'s upper stories.' },
-  { id: 'quapaw', name: 'Quapaw Dome', cap: 'The Quapaw\'s chevron-mosaic dome (1922) in invented colors: the real dome is buff and tan (see the Quapaw Mosaic table).' },
-  { id: 'ironwork', name: 'Row Ironwork', cap: 'Wrought-iron scrolls like the grilles of the Hale and the Administration Building.' },
-  { id: 'paterae', name: 'Superior Medallions', cap: 'The Superior\'s green tile medallions above brick pilasters (1916).' },
-  { id: 'sculpin', name: 'Scallop & Sculpin', cap: 'Quapaw parapet scallops framing sculpin fish: gold as built, white today.' },
-  { id: 'neon', name: 'Neon Night', cap: 'Roaring-era nightlife on card-table felt. The neon colors are invented; club neon is not documented.' },
-  { id: 'deco', name: 'Medical Arts Deco', cap: 'Bronze sunbursts and stepped setbacks of the Art Deco Medical Arts Building (1929–30).' },
-  { id: 'pines', name: 'Ouachita Pines', cap: 'Shortleaf pine ridges, novaculite outcrops and creek steam in the Ouachita Mountains.' },
-  { id: 'steam', name: 'Thermal Steam', cap: 'Spring water at about 143°F: gray tufa terraces, blue-green algae and rising steam.' },
-  { id: 'lake', name: 'Lake Ouachita Dusk', cap: 'Lake Ouachita at dusk. Its roughly 200 islands are numbered for boaters.' },
-  { id: 'silks', name: 'Racing Silks', cap: 'Generic racing silks; horses have raced in Hot Springs since the 1890s. No real stable colors.' },
+  { id: 'skylight', name: 'Fordyce Skylight', cap: 'Blue-green leaded glass inspired by the vaulted skylight of the Fordyce men\'s bath hall (1915). Seeded uniquely for your deck.' },
+  { id: 'lozenge', name: 'Fordyce Lozenge', cap: 'Diamond-lozenge brickwork echoing the upper stories of the Fordyce Bathhouse along Central Avenue.' },
+  { id: 'quapaw', name: 'Quapaw Dome', cap: 'Chevron-mosaic bands inspired by the tiled dome of the 1922 Quapaw Bathhouse.' },
+  { id: 'ironwork', name: 'Row Ironwork', cap: 'Wrought-iron scrollwork patterned after the entrance grilles of Bathhouse Row.' },
+  { id: 'paterae', name: 'Superior Medallions', cap: 'Emerald tile medallions set above warm brick pilasters on the 1916 Superior Bathhouse.' },
+  { id: 'sculpin', name: 'Scallop & Sculpin', cap: 'Gilded parapet scallops and spring-creek sculpin fish crowning the Quapaw facade.' },
+  { id: 'neon', name: 'Neon Night', cap: 'Warm ruby, emerald, and amber parlor glow from Hot Springs\' Roaring Twenties nightlife.' },
+  { id: 'deco', name: 'Medical Arts Deco', cap: 'Bronze sunbursts and stepped setbacks crowning the 1930 Medical Arts Building.' },
+  { id: 'pines', name: 'Ouachita Pines', cap: 'Shortleaf pine ridges, novaculite outcrops, and drifting morning creek mist in the Ouachita Mountains.' },
+  { id: 'steam', name: 'Thermal Steam', cap: 'Hot Springs tufa terraces and rising 143°F thermal vapor curling up Hot Springs Mountain.' },
+  { id: 'lake', name: 'Lake Ouachita Dusk', cap: 'Twilight gold across the pine-ringed coves and numbered islands of Lake Ouachita.' },
+  { id: 'silks', name: 'Racing Silks', cap: 'Bold diamond silks honoring Hot Springs\' thoroughbred racing afternoons since the 1890s.' },
 ];
 const TABLES = [
   { id: 'felt', name: 'Card-Room Felt', ink: 'rgba(244,242,236,.34)', text: '#F4F2EC',
-    cap: 'Green baize under a hanging lamp, for a 1920s card room. Felt for card tables is a period convention; no club\'s own table is documented.' },
+    cap: 'Warm emerald parlor baize lit beneath a low-hung brass card-room lamp.' },
   { id: 'marble', name: 'Fordyce Bath Hall', ink: 'rgba(31,42,36,.4)', text: '#1F2A24',
-    cap: 'Gray-veined white marble lit through a stained-glass skylight: amber and honey glass around a blue-green centre, as in the Fordyce men\'s bath hall (1915).' },
+    cap: 'Cool veined white marble beneath the amber-and-jade stained glass of the Fordyce men\'s bath hall (1915).' },
   { id: 'quapaw', name: 'Quapaw Mosaic', ink: 'rgba(60,40,20,.5)', text: '#3A2A18',
-    cap: 'Buff and tan chevron tile, after the mosaic dome of the Quapaw Bathhouse (1922), photographed in colour for the Historic American Buildings Survey in 1984.' },
+    cap: 'Warm buff-and-tan chevron mosaic echoing the sunlit dome of the 1922 Quapaw Bathhouse.' },
   { id: 'pool', name: 'Thermal Pool', ink: 'rgba(244,242,236,.38)', text: '#F4F2EC',
-    cap: 'Looking down into a soaking pool of spring water, which reaches the surface at about 143\u00B0F.' },
+    cap: 'Looking down into a clear mineral soaking pool fed by 143\u00B0F Hot Springs water.' },
   { id: 'midnight', name: 'Midnight Club', ink: 'rgba(212,175,55,.45)', text: '#D8CFBD',
-    cap: 'Dark walnut for an after-hours card table. Invented: the furnishings of the town\'s gaming clubs are not documented.' },
+    cap: 'Hand-rubbed dark walnut and brass inlay from an intimate after-hours Spa City card table.' },
   { id: 'linen', name: 'Linen Postcard', ink: 'rgba(31,47,92,.5)', text: '#1F2F5C',
-    cap: 'The airbrushed blue sky of a linen-finish souvenir postcard, the kind sold all over the Spa City.' },
+    cap: 'Sun-washed azure sky and textured rag stock like a classic Hot Springs souvenir postcard.' },
 ];
 
 const UNLOCKS = [['b:lozenge', 1], ['t:marble', 2], ['b:paterae', 3], ['b:ironwork', 5], ['b:quapaw', 7], ['t:quapaw', 9], ['b:sculpin', 11], ['b:deco', 13],
@@ -2730,7 +2810,7 @@ for (const k in DEFAULT_SETTINGS) {
 if (hadSave && typeof storedSettings.tips !== 'boolean') settings.tips = false;
 if (hadSave && typeof storedSettings.autoNoted !== 'boolean') settings.autoNoted = true; // someone who has played before has already seen cards go home by themselves
 settings.tipStep = clamp(Math.floor(settings.tipStep), 0, 2); // TIP_ORDER.length
-settings.volume = clamp(settings.volume, 0, 1); settings.musicVol = clamp(settings.musicVol, 0, 1); settings.ambVol = clamp(settings.ambVol, 0, 1);
+settings.volume = clamp(settings.volume, 0, 1); settings.sfxVol = clamp(settings.sfxVol, 0, 1); settings.musicVol = clamp(settings.musicVol, 0, 1); settings.ambVol = clamp(settings.ambVol, 0, 1);
 function normalizeMeta() {
   if (!MODES[meta.lastMode]) meta.lastMode = 'klondike';
   if (!isObj(meta.lastOpts)) meta.lastOpts = {};
@@ -4135,6 +4215,17 @@ function frame(t) {
     const cs = L.piles[lastTap.pile].cards, c = cs && cs[lastTap.index];
     if (c) glowRect(c.x, c.y, cw, cs[cs.length - 1].y + ch - c.y, '#F6C933', .72, 2.2);
   }
+  // Subtle desktop fine-pointer movable-stack hover lift bracket (zero dimming of face-up cards, W6-S2-06, CD-WF1-05).
+  if (hoverHit && !drag && !kbMode && !cascade && S && !S.won && L.piles[hoverHit.pile]) {
+    const hb = L.piles[hoverHit.pile], hcs = hb.cards || [];
+    if (hoverHit.pile === 'stock') {
+      const sc = hcs.length ? hcs[hcs.length - 1] : hb;
+      drawHoverBrackets(sc.x, sc.y, cw, ch);
+    } else if (hoverHit.index >= 0 && hoverHit.index < hcs.length && canPick(hoverHit.pile, hoverHit.index)) {
+      const first = hcs[hoverHit.index], last = hcs[hcs.length - 1];
+      drawHoverBrackets(first.x, first.y, cw, last.y + ch - first.y);
+    }
+  }
   if (hintState && hintState.until > t) {
     const a = reducedMotion() ? .88 : (.55 + .45 * Math.sin(t / 140));
     if (hintState.cur) {
@@ -4474,9 +4565,31 @@ function touchClearance(dr, rawY, t) {
   const taper = clamp((rawY - topY) / Math.max(1, L.ch * 1.1), 0, 1);
   return maxOff * ramp * taper;
 }
+let hoverHit = null;
+function clearHover() {
+  if (!hoverHit && !cv.style.cursor) return;
+  hoverHit = null; cv.style.cursor = '';
+  if (S && L) markDirty();
+}
+function drawHoverBrackets(x, y, w, h) {
+  const pad = 2.5, len = clamp(w * .16, 7, 14), x0 = x - pad, y0 = y - pad, x1 = x + w + pad, y1 = y + h + pad;
+  const corners = () => {
+    ctx.beginPath();
+    ctx.moveTo(x0, y0 + len); ctx.lineTo(x0, y0); ctx.lineTo(x0 + len, y0);
+    ctx.moveTo(x1 - len, y0); ctx.lineTo(x1, y0); ctx.lineTo(x1, y0 + len);
+    ctx.moveTo(x0, y1 - len); ctx.lineTo(x0, y1); ctx.lineTo(x0 + len, y1);
+    ctx.moveTo(x1 - len, y1); ctx.lineTo(x1, y1); ctx.lineTo(x1, y1 - len);
+    ctx.stroke();
+  };
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(26,20,8,.42)'; ctx.lineWidth = 3.5; corners();
+  ctx.strokeStyle = 'rgba(233,200,115,.78)'; ctx.lineWidth = 1.75; corners();
+  ctx.restore();
+}
 function cancelDrag() {
   const hadPress = !!pd;
   pd = null;
+  if (cv.style.cursor === 'grabbing') cv.style.cursor = '';
   if (!drag) { if (hadPress) markDirty(); return; }
   const dr = drag, t = now(), rm = reducedMotion();
   const relLift = rm ? 0 : (dr.curLift != null ? dr.curLift : 1.15);
@@ -4513,12 +4626,28 @@ cv.addEventListener('pointerdown', (e) => {
   e.preventDefault();
 });
 cv.addEventListener('pointermove', (e) => {
-  if (!pd || pd.id !== e.pointerId) return;
-  const p = ptr(e), t = now();
+  const p = ptr(e);
+  if (!pd) {
+    if ((e.pointerType === 'mouse' || e.pointerType === 'pen') && S && !S.won && !cascade && !modalKind && !titleOn && L) {
+      const hit = hitTest(p.x, p.y);
+      let next = null, cur = '';
+      if (hit && hit.pile === 'stock' && ((S.piles.stock && S.piles.stock.length > 0) || (S.mode === 'klondike' && S.piles.waste && S.piles.waste.length > 0))) {
+        next = { pile: 'stock', index: -1 }; cur = 'pointer';
+      } else if (hit && hit.index >= 0 && canPick(hit.pile, hit.index)) {
+        next = { pile: hit.pile, index: hit.index }; cur = 'grab';
+      }
+      if (cv.style.cursor !== cur) cv.style.cursor = cur;
+      const same = (!hoverHit && !next) || (hoverHit && next && hoverHit.pile === next.pile && hoverHit.index === next.index);
+      if (!same) { hoverHit = next; markDirty(); }
+    }
+    return;
+  }
+  if (pd.id !== e.pointerId) return;
+  const t = now();
   if (!drag) {
     const dist = Math.hypot(p.x - pd.x, p.y - pd.y);
     if (dist < (pd.touch ? 10 : 6) || !pd.hit || pd.hit.index < 0) return;
-    held = null;
+    held = null; hoverHit = null;
     const { pile, index } = pd.hit;
     if (!canPick(pile, index)) { pd.hit = null; pd.pressLift = false; markDirty(); refuseDrag(pile, index); return; }
     const run = S.piles[pile].slice(index);
@@ -4531,6 +4660,7 @@ cv.addEventListener('pointermove', (e) => {
     drag = { from: pile, index, run, ox, oy, x: sx, y: sy, rawY: sy, x0: sx, y0: sy, touch: pd.touch, touchOff: 0,
       t0: t, lastT: t, curLift: reducedMotion() ? 1.15 : 0, tilt: 0, vx: 0,
       fan: cs.length > index + 1 ? cs[index + 1].y - c0.y : 0 };
+    if (!pd.touch) cv.style.cursor = 'grabbing';
     sfx('pick', undefined, pilePan(pile));
   }
   drag.vx = (drag.vx || 0) + (p.x - drag.ox - drag.x);
@@ -4540,6 +4670,7 @@ cv.addEventListener('pointermove', (e) => {
   drag.y = drag.rawY - drag.touchOff;
   markDirty();
 });
+cv.addEventListener('pointerleave', clearHover);
 // The pile a held run would land on: the legal one it overlaps most. frame() lights it while the card is held; finishDrag drops there.
 function dropTarget(dr, any) { // any: the pile the card overlaps most whether or not it would be taken (to say why it was not)
   const { cw, ch } = L; let best = null, bestA = 0;
@@ -4565,6 +4696,7 @@ function overSource(dr) {
 }
 function finishDrag() {
   const dr = drag; drag = null;
+  if (cv.style.cursor === 'grabbing') cv.style.cursor = '';
   const best = dropTarget(dr);
   const t = now(), rm = reducedMotion();
   const relLift = rm ? 0 : (dr.curLift != null ? dr.curLift : 1.15);
@@ -4685,6 +4817,8 @@ function gameKey(e) {
   if (S.won) {
     if (k === 'Escape' || k === 'p' || k === 'P') { openModal('menu'); return true; }
     if (k === 'n' || k === 'N') { confirmAbandon({ mode: S.mode }); return true; }
+    if (k === 'm' || k === 'M') { setSetting('sound', !settings.sound); toast(settings.sound ? 'Sound on' : 'Sound muted'); return true; }
+    if ((k === 'a' || k === 'A') && lastWin) { openModal('win'); return true; }
     if (k === '?') { openModal('help'); return true; }
     return false;
   }
@@ -4729,6 +4863,7 @@ function gameKey(e) {
     case 'i': case 'I': kbMode = true; announce(inspectColumn(cursor.pile)); break;
     case 'a': case 'A': if (!autoComplete().ok) toast('Finish appears once every card can go straight home'); break;
     case 'n': case 'N': confirmAbandon({ mode: S.mode }); break;
+    case 'm': case 'M': setSetting('sound', !settings.sound); toast(settings.sound ? 'Sound on' : 'Sound muted'); break;
     case '?': openModal('help'); break;
     case 'p': case 'P': openModal('menu'); break;
     default:
@@ -4856,7 +4991,7 @@ window.addEventListener('keydown', (e) => {
   if (ae && ae !== cv && ae !== document.body) {
     if (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT') return;
     if ((e.key === 'i' || e.key === 'I') && mirror.contains(ae) && ae.dataset.pile) { e.preventDefault(); announce(inspectColumn(ae.dataset.pile)); return; }
-    if (e.key !== 'Escape' && e.key !== 'Backspace' && !/^[?hHuUzZnNaAsSdDyYpPiI]$/.test(e.key)) return;
+    if (e.key !== 'Escape' && e.key !== 'Backspace' && !/^[?hHuUzZnNaAsSdDyYpPiImM]$/.test(e.key)) return;
   }
   if (gameKey(e)) e.preventDefault();
 });
@@ -4905,7 +5040,7 @@ window.addEventListener('gamepaddisconnected', () => { if (!padFound()) { clearI
 if (padFound()) padWatch();
 
 // 12. Audio (WebAudio synthesis; the context is created on the first user gesture)
-let AC = null, master = null, autoCueBus = null, cues = null, kit = null, audioMeter = null, masterTarget = 0, suspendTimer = 0;
+let AC = null, master = null, sfxBus = null, autoCueBus = null, cues = null, kit = null, audioMeter = null, masterTarget = 0, suspendTimer = 0;
 const LIMITER = { threshold: -8, knee: 8, ratio: 12, attack: 0.003, release: 0.25 };
 function makeLimiter(ctx, dest) {
   const c = ctx.createDynamicsCompressor(); c.threshold.value = LIMITER.threshold; c.knee.value = LIMITER.knee; c.ratio.value = LIMITER.ratio;
@@ -5391,14 +5526,14 @@ function makeCues(ctx, dest) {
 const CUE_NAMES = ['pick', 'place', 'flip', 'found', 'deal', 'nope', 'undo', 'hint', 'run', 'ach', 'win', 'best', 'streak', 'course', 'gather', 'spray', 'tick', 'punch', 'stuck', 'recycle'];
 for (const ev of ['pointerdown', 'click', 'keydown']) document.addEventListener(ev, (e) => { initAudio(); if (e.pointerType) touchIn = e.pointerType !== 'mouse'; }, { passive: true, capture: true }); // the first gesture of any kind starts the audio
 // Single delegated Bathhouse Row UI audio handler (replaces 3 inline ticks; preserves single ['tick'] in w3d S5-06).
-const MODAL_BRUSH_IDS = new Set(['bHelp', 'tDaily', 'tBacks', 'tRec', 'tStats', 'tSet', 'tHelp']);
-const MODAL_BRUSH_ACTIONS = new Set(['settings', 'backs', 'stats', 'records', 'help', 'daily', 'deal']);
+const MODAL_BRUSH_IDS = new Set(['bHelp', 'tDaily', 'tBacks', 'tLedger', 'tRec', 'tStats', 'tSet', 'tHelp']);
+const MODAL_BRUSH_ACTIONS = new Set(['settings', 'backs', 'ledger', 'stats', 'records', 'help', 'daily', 'deal', 'ticket']);
 const SKIP_UI_AUDIO_IDS = new Set(['bUndo', 'bRedo', 'bHint', 'bAuto']);
 document.addEventListener('click', (e) => {
   if (!e || e.target === cv || mirror.contains(e.target)) return;
   const el = e.target.closest('button, summary');
   if (!el || el.disabled || SKIP_UI_AUDIO_IDS.has(el.id) || el.dataset.a === 'undo') return;
-  if (el.dataset.tog === 'sound' && !settings.sound) { Promise.resolve().then(() => { if (settings.sound) sfx('tick'); }); return; }
+  if ((el.dataset.tog === 'sound' || el.dataset.a === 'toggleMute') && !settings.sound) { Promise.resolve().then(() => { if (settings.sound) sfx('tick'); }); return; }
   if (el.dataset.a === 'reseed') { sfx('glass'); return; }
   if (el.classList.contains('bk')) { sfx(el.classList.contains('lk') ? 'latch' : 'brush'); return; }
   if (MODAL_BRUSH_IDS.has(el.id) || MODAL_BRUSH_ACTIONS.has(el.dataset.a)) { sfx('brush'); return; }
@@ -5408,7 +5543,7 @@ function makeAutoCueBus() {
   if (!AC || !master) return null;
   const g = AC.createGain();
   g.gain.value = 1;
-  g.connect(master);
+  g.connect(sfxBus || master);
   return g;
 }
 function cancelAutoCues() {
@@ -5433,6 +5568,15 @@ function updateMasterGain(instant) {
     else { master.gain.setValueAtTime(master.gain.value, t); master.gain.setTargetAtTime(goal, t, 0.018); }
   } catch (_) { /* context closed */ }
 }
+function updateSfxGain(instant) {
+  if (!AC || !sfxBus) return;
+  const goal = clamp(settings.sfxVol, 0, 1), t = AC.currentTime;
+  try {
+    sfxBus.gain.cancelScheduledValues(t);
+    if (instant) { sfxBus.gain.setValueAtTime(goal, t); sfxBus.gain.value = goal; }
+    else { sfxBus.gain.setValueAtTime(sfxBus.gain.value, t); sfxBus.gain.setTargetAtTime(goal, t, 0.018); }
+  } catch (_) { /* context closed */ }
+}
 function initAudio() {
   if (AC || !settings.sound) return;
   const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
@@ -5441,17 +5585,20 @@ function initAudio() {
     masterTarget = volumeGain(settings.volume, settings.volumeCurve);
     master.gain.value = settings.sound ? masterTarget : 0;
     master.connect(makeLimiter(AC, AC.destination));
+    sfxBus = AC.createGain();
+    sfxBus.gain.value = clamp(settings.sfxVol, 0, 1);
+    sfxBus.connect(master);
     autoCueBus = makeAutoCueBus();
-    cues = makeCues(AC, master);
+    cues = makeCues(AC, sfxBus);
     kit = makeAudioKit(AC, master, { seed: (Math.random() * 4294967295) >>> 0, music: settings.musicVol, ambience: settings.ambVol });
     kit.start();
-  } catch (e) { AC = null; master = null; autoCueBus = null; kit = null; cues = null; return; }
+  } catch (e) { AC = null; master = null; sfxBus = null; autoCueBus = null; kit = null; cues = null; return; }
   syncAudio();
 }
 // Bb/Eb harmonic universe pentatonic intervals {C, Eb, F, G, Bb} on C4 (CD-WF4-01): King = F6 (1396.91 Hz < 1400 Hz, max partial 1396.92 <= 1500 Hz).
 const PENTA = [0, 3, 5, 7, 10];
 const FOUND_BASE = 261.63, FOUND_PARTIAL_MAX = 750;
-const PAUSE_MODALS = ['menu', 'confirm', 'deal', 'daily', 'backs', 'stats', 'help', 'records', 'stuck'];
+const PAUSE_MODALS = ['menu', 'confirm', 'deal', 'daily', 'backs', 'ledger', 'stats', 'help', 'records', 'stuck'];
 let musicHush = false; // the win ceremony: the music steps back, then returns
 function venueAmbienceKey() {
   if (titleOn) return 'valley';
@@ -5528,7 +5675,7 @@ function sfx(name, arg, pan, o) {
   buzz(name, wait, isAuto);
   if (!settings.sound || !settings.sfx || !AC || document.hidden) return;
   wakeAudio();
-  cues.play(name, arg, AC.currentTime + wait, cPan, isAuto ? (autoCueBus || (autoCueBus = makeAutoCueBus())) : master);
+  cues.play(name, arg, AC.currentTime + wait, cPan, isAuto ? (autoCueBus || (autoCueBus = makeAutoCueBus())) : (sfxBus || master));
   if (kit) {
     if (name === 'run' || name === 'win') kit.music.duck(6, 500);
     else if (name === 'ach') kit.music.duck(4.5, 550);
@@ -5539,14 +5686,15 @@ function audioList() {
   const barSeconds = {}; for (const k in SCORES) barSeconds[k] = +(60 / SCORES[k].bpm * (SCORES[k].beats || 4)).toFixed(3);
   return { music: Object.keys(SCORES), ambience: Object.keys(SCENES), cues: CUE_NAMES.slice(), barSeconds };
 }
-// `over` sets the volume controls to render at (volume, musicVol, ambVol, intensity, night); each one left out is the shipped default.
+// `over` sets the volume controls to render at (volume, sfxVol, musicVol, ambVol, intensity, night); each one left out is the shipped default.
 // 'mix' is the busiest moment: the title piece, the bed, and the loudest cues struck together every second (see below).
 function audioRender(name, seconds, wantWav, over) {
   const ship = Object.assign({}, DEFAULT_SETTINGS, over);
   return measureAudio((oc, dest) => {
     const m = oc.createGain(); m.gain.value = volumeGain(ship.volume, ship.volumeCurve); m.connect(makeLimiter(oc, dest));
+    const sb = oc.createGain(); sb.gain.value = clamp(ship.sfxVol, 0, 1); sb.connect(m);
     if (name === 'mix') {
-      const k = makeAudioKit(oc, m, { seed: 7, music: ship.musicVol, ambience: ship.ambVol }), c = makeCues(oc, m);
+      const k = makeAudioKit(oc, m, { seed: 7, music: ship.musicVol, ambience: ship.ambVol }), c = makeCues(oc, sb);
       k.music.play(SCORES.title, { at: 0, fade: .02 }); k.amb.play(SCENES.bathhouse, { at: 0, fade: .02 });
       for (let i = 1; i < seconds - 1; i++) { // each second: the win ceremony begins over a run of cards going home, and half a second on its spray meets the course chord and a streak
         for (const n of ['win', 'deal', 'gather']) c.play(n, 1, i); c.play('found', 8, i + .03); c.play('place', 5, i + .05);
@@ -5554,7 +5702,7 @@ function audioRender(name, seconds, wantWav, over) {
       }
       k.scheduleUntil(seconds); return null;
     }
-    if (CUE_NAMES.includes(name)) { const c = makeCues(oc, m); for (let i = 0; i < seconds - 1; i++) c.play(name, name === 'found' ? 1 + i % 8 : 1 + i % 5, .1 + i); return null; }
+    if (CUE_NAMES.includes(name)) { const c = makeCues(oc, sb); for (let i = 0; i < seconds - 1; i++) c.play(name, name === 'found' ? 1 + i % 8 : 1 + i % 5, .1 + i); return null; }
     const k = makeAudioKit(oc, m, { seed: 7, music: ship.musicVol, ambience: ship.ambVol });
     if (over && typeof over.intensity === 'number') k.music.intensity(over.intensity);
     if (over && typeof over.night === 'number') k.amb.set('night', over.night, 0.01);
@@ -5570,6 +5718,7 @@ function audioState() {
     ambience: kit && kit.amb.scene ? (Object.keys(SCENES).find((k) => SCENES[k] === kit.amb.scene) || null) : null,
     bars: i ? i.bars : 0, brushes: i ? i.brushes : 0, hush: musicHush,
     intensity: kit ? kit.music.getIntensity() : computeMusicIntensity(),
+    sfxVol: +clamp(settings.sfxVol, 0, 1).toFixed(2),
     roomWet: cues ? cues.roomWet : +(ROOM_WET[settings.table] ?? 0.06).toFixed(4),
     lastTransition: kit ? kit.music.lastTransition : null,
     timerActive: !!(kit && kit.active),
@@ -5588,8 +5737,15 @@ function announce(msg) {
   off.textContent = '';
   on.textContent = msg;
 }
-let toastTimer = 0;
-function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('on'), 2400); announce(msg); }
+let toastTimer = 0, lastToastMs = 0;
+const toastDuration = (msg, minMs) => Math.max(minMs || 0, clamp(2400 + String(msg || '').length * 40, 2600, 6000));
+function toast(msg, opts) {
+  const dur = toastDuration(msg, opts && opts.minMs);
+  lastToastMs = dur;
+  toastEl.textContent = msg; toastEl.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('on'), dur);
+  announce(msg);
+}
 function achToast(names) { sfx('ach'); toast('Achievement: ' + names[0] + (names.length > 1 ? ' and ' + (names.length - 1) + ' more' : '')); }
 
 const TIP_GOAL = {
@@ -5718,6 +5874,8 @@ function tipEvent(ev) {
 $('#coachOk').onclick = () => { if (tip) tipDone(tip); if (!modalKind && !titleOn) cv.focus({ preventScroll: true }); };
 coachEl.onclick = (e) => { if (tip && !e.target.closest('button')) tipDone(tip); };
 $('#coachSkip').onclick = () => { setSetting('tips', false); toast('Tips off. Settings brings them back.'); if (!modalKind && !titleOn) cv.focus({ preventScroll: true }); };
+const FINISH_BTN_HTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/><path d="M5 18l2 2M12 19l1 1"/></svg>Finish';
+const TICKET_BTN_HTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4z"/><path d="M15 5v14"/></svg>Ticket';
 let prevCanAuto = false;
 function updateHUD() {
   if (!S) return;
@@ -5729,9 +5887,18 @@ function updateHUD() {
   $('#sScoreW').style.display = settings.scoring === 'none' ? 'none' : '';
   $('#sTimeW').style.display = settings.showTimer ? '' : 'none';
   $('#bUndo').disabled = !undoStack.length || S.won; $('#bRedo').disabled = !redoStack.length || S.won;
-  const ac = canAutoComplete(); const b = $('#bAuto'); b.disabled = !ac; b.classList.toggle('glow', ac);
-  if (!prevCanAuto && ac && S.started && !S.won) sfx('ready');
-  prevCanAuto = ac;
+  const b = $('#bAuto'), wonRecall = !!(S.won && lastWin);
+  if (wonRecall) {
+    b.disabled = false; b.classList.add('glow');
+    if (b.dataset.mode !== 'ticket') { b.innerHTML = TICKET_BTN_HTML; b.dataset.mode = 'ticket'; b.setAttribute('aria-label', 'View Bath Ticket'); b.title = 'View Bath Ticket (A)'; }
+    prevCanAuto = false;
+  } else {
+    const ac = canAutoComplete();
+    b.disabled = !ac; b.classList.toggle('glow', ac);
+    if (b.dataset.mode === 'ticket') { b.innerHTML = FINISH_BTN_HTML; b.dataset.mode = 'finish'; b.removeAttribute('aria-label'); b.title = 'Auto-complete (A)'; }
+    if (!prevCanAuto && ac && S.started && !S.won) sfx('ready');
+    prevCanAuto = ac;
+  }
   syncMusicIntensity();
   $('#bHint').disabled = S.won;
   const ae = document.activeElement;
@@ -5791,17 +5958,17 @@ const backToTable = (e) => { if (e.detail > 0 && !modalKind && !titleOn) cv.focu
 $('#bUndo').onclick = (e) => { initAudio(); undo(); backToTable(e); };
 $('#bRedo').onclick = (e) => { initAudio(); redo(); backToTable(e); };
 $('#bHint').onclick = (e) => { initAudio(); hint(true); backToTable(e); };
-$('#bAuto').onclick = (e) => { initAudio(); autoComplete(); backToTable(e); };
+$('#bAuto').onclick = (e) => { initAudio(); if (S && S.won && lastWin) { openModal('win'); return; } autoComplete(); backToTable(e); };
 $('#assistTag').onclick = (e) => { toast('Undo or Hint was used. Wins still count, flagged as assisted.'); backToTable(e); };
 $('#bMenu').onclick = () => { initAudio(); openModal('menu'); };
 $('#bHelp').onclick = () => { initAudio(); openModal('help'); };
 
 // --- Title screen ---
 const TILES = [
-  { mode: 'klondike', sub: 'The Fordyce deal', desc: 'The classic. Build down in alternating colors; draw from the stock.', chips: [['Draw 1', { draw: 1 }], ['Draw 3', { draw: 3 }]] },
-  { mode: 'freecell', sub: 'Open on the Row', desc: 'Every card face up and four free cells. Nearly every deal can be won.', chips: [['Play', {}], ['Deal #', { pick: true }]] },
-  { mode: 'spider', sub: 'Central Avenue calm', desc: 'Two decks. Build same-suit runs from King down to Ace.', chips: [['1 suit', { suits: 1 }], ['2 suits', { suits: 2 }], ['4 suits', { suits: 4 }]] },
-  { mode: 'yukon', sub: 'Quiet as the Quapaw', desc: 'No stock: move any face-up card along with everything on top of it.', chips: [['Play', {}]] },
+  { mode: 'klondike', sub: 'The Fordyce deal', badge: 'Relaxed', desc: 'The classic. Build down in alternating colors; draw from the stock.', chips: [['Draw 1', { draw: 1 }], ['Draw 3', { draw: 3 }]] },
+  { mode: 'freecell', sub: 'Open on the Row', badge: 'Pure Skill', desc: 'Every card face up and four free cells. Nearly every deal can be won.', chips: [['Play', {}], ['Deal #', { pick: true }]] },
+  { mode: 'spider', sub: 'Central Avenue calm', badge: 'Two-Deck', desc: 'Two decks. Build same-suit runs from King down to Ace.', chips: [['1 suit', { suits: 1 }], ['2 suits', { suits: 2 }], ['4 suits', { suits: 4 }]] },
+  { mode: 'yukon', sub: 'Quiet as the Quapaw', badge: 'Tactical', desc: 'No stock: move any face-up card along with everything on top of it.', chips: [['Play', {}]] },
 ];
 const HANDS = { klondike: [[13, 3], [12, 2], [11, 0], 'back'], freecell: [[1, 3], [1, 2], [1, 1], [1, 0]], spider: [[13, 3], [12, 3], [11, 3], [10, 3]], yukon: ['back', 'back', [13, 2], [12, 0]] };
 let titleHandsPainted = 0;
@@ -5824,14 +5991,36 @@ function paintHands(scope = '#tiles') {
     });
   });
 }
+function continueLabel(st) {
+  if (!st || !MODES[st.mode]) return 'Continue game';
+  const v = variantLabel(st.mode, st.opts || {});
+  const base = (st.daily ? 'Continue Daily ' : 'Continue ') + MODES[st.mode].name + (v ? ' ' + v : '');
+  return st.moves > 0 ? base + ' · Move ' + st.moves : base;
+}
+function syncTitleCTA() {
+  const saved = loadSaved(), cont = $('#tCont');
+  const hasSaved = !!(saved && saved.state);
+  cont.hidden = !hasSaved;
+  cont.textContent = hasSaved ? continueLabel(saved.state) : 'Continue game';
+  // Reserve solid brushed-brass fill strictly for ONE primary CTA on Title (W6-S1-04, W6-S2-01, CD-WF1-09).
+  document.querySelectorAll('#tiles .chip').forEach((b) => {
+    const isStarter = !hasSaved && b.dataset.primary === '1';
+    b.classList.toggle('solid', isStarter);
+  });
+  const startTag = $('#tStartHere');
+  if (startTag) startTag.hidden = hasSaved || (meta.totalWins || 0) > 0;
+}
 function buildTitle() {
   const el = $('#tiles'); el.innerHTML = '';
   for (const tl of TILES) {
     const d = document.createElement('div'); d.className = 'tile';
-    d.innerHTML = '<canvas aria-hidden="true"></canvas><h2>' + MODES[tl.mode].name + '</h2><small class="tsub">' + tl.sub + '</small><p>' + tl.desc + '</p><div class="chips"></div>';
+    d.innerHTML = '<canvas aria-hidden="true"></canvas><h2>' + MODES[tl.mode].name + '</h2><small class="tsub">' + tl.sub + '</small>' +
+      '<div class="tmeta"><span class="tbadge">' + tl.badge + '</span>' + (tl.mode === 'klondike' ? '<span class="tstart" id="tStartHere" hidden>Start here</span>' : '') + '</div>' +
+      '<p>' + tl.desc + '</p><div class="chips"></div>';
     d.querySelector('canvas').dataset.hand = tl.mode;
     for (const [label, o] of tl.chips) {
-      const b = document.createElement('button'); b.className = 'chip' + (label === 'Play' || label === 'Draw 1' || label === '1 suit' ? ' solid' : '');
+      const b = document.createElement('button'); b.className = 'chip';
+      if (tl.mode === 'klondike' && label === 'Draw 1') b.dataset.primary = '1';
       b.textContent = label; b.setAttribute('aria-label', MODES[tl.mode].name + ': ' + (o.suits ? o.suits + (o.suits > 1 ? ' suits' : ' suit') : label));
       b.onclick = () => { initAudio(); if (o.pick) openModal('deal', { mode: tl.mode }); else confirmAbandon(Object.assign({ mode: tl.mode }, o)); };
       d.querySelector('.chips').appendChild(b);
@@ -5841,10 +6030,10 @@ function buildTitle() {
   $('#tCont').onclick = () => { initAudio(); resumeSaved(); };
   $('#tDaily').onclick = () => openModal('daily');
   $('#tBacks').onclick = () => openModal('backs');
-  $('#tStats').onclick = () => openModal('stats');
-  $('#tRec').onclick = () => openModal('records');
+  $('#tLedger').onclick = () => openModal('ledger', { tab: 'overview' });
   $('#tSet').onclick = () => openModal('settings');
   $('#tHelp').onclick = () => openModal('help');
+  syncTitleCTA();
 }
 // One line under the title, a different one each time the title comes up (the first is the plain description).
 const TITLE_LINES = ['Patience, the Spa City way: four classic games, twelve Hot Springs card backs.', 'In the Valley of Vapors, patience is a virtue.', 'Take the waters, then take your time.', 'A hand of cards between baths.'];
@@ -5879,14 +6068,14 @@ function syncInert() {
   setInert(titleEl, !titleOn || !!modalKind);
 }
 function showTitle(on) {
-  if (on) { cancelDrag(); clearWinTimers(); cancelAutoCues(); cancelBuzz(); if (cascade) { if (cascade.timer) clearTimeout(cascade.timer); cascade = null; } }
+  if (on) { clearHover(); cancelDrag(); clearWinTimers(); cancelAutoCues(); cancelBuzz(); if (cascade) { if (cascade.timer) clearTimeout(cascade.timer); cascade = null; } }
   if (on && saveTimer) flushSave();
   titleOn = on; titleEl.classList.toggle('on', on); syncInert(); syncMirror(); if (on) tabNoteHide();
   if (on) { musicHush = false; tipHide(); loadArt(['title-hero']); }
   syncAudio();
   if (on) {
-    $('#tCont').hidden = !loadSaved();
-    { const day = todayStr(); const n = Object.keys(meta.daily).filter((k) => k.startsWith(day + '|') && meta.daily[k] === 'won').length; $('#tDaily').textContent = 'Daily deals' + (n ? ' (' + n + '/7 ✓)' : ''); }
+    syncTitleCTA();
+    { const day = todayStr(); const n = Object.keys(meta.daily).filter((k) => k.startsWith(day + '|') && (meta.daily[k] === 'won' || meta.daily[k] === 'won-archive')).length; $('#tDaily').textContent = 'Daily deals' + (n ? ' (' + n + '/7 ✓)' : ''); }
     $('#tTag').textContent = TITLE_LINES[titleLineAt++ % TITLE_LINES.length];
     DPR = Math.min(3, window.devicePixelRatio || 1);
     drawSky(now()); paintHands(); if (!skyRaf && !reducedMotion()) skyRaf = requestAnimationFrame(skyLoop);
@@ -5896,16 +6085,36 @@ function showTitle(on) {
 
 // --- Dialogs ---
 const sheet = $('#sheet'), sheetFrame = $('#sheetFrame'), modalEl = $('#modal');
-let modalReturn = null, modalOpener = null;
+const modalStack = [];
+let modalData = null, modalOpener = null;
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
+function focusSelectorFor(el) {
+  if (!el || !sheet.contains(el)) return null;
+  if (el.id) return '#' + el.id;
+  if (el.dataset.set && el.dataset.val) return '[data-set="' + el.dataset.set + '"][data-val="' + el.dataset.val + '"]';
+  if (el.dataset.tog) return '[data-tog="' + el.dataset.tog + '"]';
+  if (el.dataset.a && el.dataset.key) return '[data-a="' + el.dataset.a + '"][data-key="' + el.dataset.key + '"]';
+  if (el.dataset.a) return '[data-a="' + el.dataset.a + '"]';
+  if (el.dataset.daily != null) return '[data-daily="' + el.dataset.daily + '"]';
+  if (el.dataset.back) return '[data-back="' + el.dataset.back + '"]';
+  if (el.dataset.table) return '[data-table="' + el.dataset.table + '"]';
+  if (el.dataset.stab) return '[data-stab="' + el.dataset.stab + '"]';
+  if (el.dataset.ltab) return '[data-ltab="' + el.dataset.ltab + '"]';
+  if (el.dataset.key) return '[data-key="' + el.dataset.key + '"]';
+  return null;
+}
 function closeModal(back) {
   if (dealPending) { dealPending = null; showDealing(false); }
   if (!modalKind) return;
-  const was = modalKind; modalKind = null; modalAnimUntil = 0; modalEl.classList.remove('on'); sheet.innerHTML = '';
-  if (was === 'win') { clearWinTimers(); musicHush = false; }
+  const was = modalKind; modalKind = null; modalData = null; modalAnimUntil = 0; modalEl.classList.remove('on'); sheet.innerHTML = '';
+  if (was === 'win') { clearWinTimers(); musicHush = false; updateHUD(); }
   clockMark = now(); syncAudio();
-  if (back && modalReturn && modalReturn !== was) { const r = modalReturn; modalReturn = null; openModal(r, r === 'stuck' && stuckFact ? { fact: FACTS[stuckFact.fi] } : undefined); return; }
-  modalReturn = null; syncInert(); if (!titleOn && S && !S.won) tipSchedule(500);
+  if (back && modalStack.length) {
+    const prev = modalStack.pop();
+    openModal(prev.kind, prev.data, { replace: true, restoreScroll: prev.scrollTop, restoreFocus: prev.focusSelector });
+    return;
+  }
+  modalStack.length = 0; syncInert(); if (!titleOn && S && !S.won) tipSchedule(500);
   const op = modalOpener; modalOpener = null;
   const canFocus = (el) => el && el.isConnected && !el.disabled && !el.closest('[hidden], [inert]') && el.getClientRects().length > 0;
   if (titleOn) {
@@ -5919,7 +6128,7 @@ function closeModal(back) {
 }
 const FOCUS_SEL = 'button, input, select, textarea, a[href], summary, [tabindex]:not([tabindex="-1"])';
 function focusables(root) {
-  return [...root.querySelectorAll(FOCUS_SEL)].filter((x) => !x.disabled && x.getAttribute('aria-hidden') !== 'true' && !x.closest('[hidden], [inert]') && x.getClientRects().length > 0 && getComputedStyle(x).visibility !== 'hidden');
+  return [...root.querySelectorAll(FOCUS_SEL)].filter((x) => !x.disabled && x.tabIndex >= 0 && x.getAttribute('aria-hidden') !== 'true' && !x.closest('[hidden], [inert]') && x.getClientRects().length > 0 && getComputedStyle(x).visibility !== 'hidden');
 }
 function trapFocus(e) {
   const f = focusables(sheet);
@@ -5929,21 +6138,32 @@ function trapFocus(e) {
   if (e.shiftKey && cur === first) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && cur === last) { e.preventDefault(); first.focus(); }
 }
-const head = (title) => '<div class="sheet-head"><h2 id="mT">' + title + '</h2><button type="button" class="ib x" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>';
-function openModal(kind, data) {
-  cancelDrag(); tickClock(); tipHide();
+const muteIcon = (on) => on
+  ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>'
+  : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg>';
+const head = (title, extra) => '<div class="sheet-head"><h2 id="mT">' + title + '</h2><div class="head-acts">' + (extra || '') + '<button type="button" class="ib x" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div></div>';
+function openModal(kind, data, opts) {
+  clearHover(); cancelDrag(); tickClock(); tipHide();
+  if (kind === 'stats') { kind = 'ledger'; data = Object.assign({ tab: 'games' }, data || {}); }
+  else if (kind === 'records') { kind = 'ledger'; data = Object.assign({ tab: 'overview' }, data || {}); }
   if (kind !== 'win' && (winTimer || cascade)) {
     clearWinTimers(); cancelAutoCues();
     if (cascade) { if (cascade.timer) clearTimeout(cascade.timer); cascade = null; }
     musicHush = false;
   }
-  if (!modalKind) {
+  if (!modalKind && !(opts && opts.replace)) {
     const ae = document.activeElement;
     modalOpener = ae && ae !== document.body && !modalEl.contains(ae) ? ae : null;
   }
-  if (modalKind && kind !== modalKind && (['settings', 'backs', 'stats', 'help', 'deal', 'daily', 'records'].includes(kind) && modalKind === 'menu' || (modalKind === 'stuck' && kind === 'confirm'))) modalReturn = modalKind;
-  modalKind = kind; syncInert();
-  const cls = (kind === 'backs' || kind === 'help' ? ' wide' : '') + (kind === 'win' ? ' win' : '') + (kind === 'win' && !reducedMotion() ? ' rise' : '');
+  if (kind === 'win' || kind === 'fault' || (opts && opts.clearStack)) modalStack.length = 0;
+  else if (modalKind && !(opts && opts.replace) && kind !== modalKind) {
+    const snapData = modalData ? Object.assign({}, modalData) : {};
+    if (modalKind === 'deal') { const di = $('#dealIn'); if (di) snapData.draft = di.value; }
+    if (modalKind === 'stuck' && stuckFact) snapData.fact = FACTS[stuckFact.fi];
+    modalStack.push({ kind: modalKind, data: snapData, scrollTop: sheet.scrollTop, focusSelector: focusSelectorFor(document.activeElement) });
+  }
+  modalKind = kind; modalData = data ? Object.assign({}, data) : {}; syncInert();
+  const cls = (kind === 'backs' || kind === 'help' || kind === 'ledger' ? ' wide' : '') + (kind === 'win' ? ' win' : '') + (kind === 'win' && !reducedMotion() ? ' rise' : '');
   sheetFrame.className = 'sheet-frame' + cls;
   sheet.className = 'sheet' + cls;
   let myEpoch = winEpoch;
@@ -5953,7 +6173,7 @@ function openModal(kind, data) {
     modalAnimUntil = reducedMotion() ? 0 : now() + 1250;
     if (lastWin && !lastWin.replay && (lastWin.totalWins || 0) > 0) trackWinTimer(() => { if (modalKind === 'win') sfx('punch'); }, reducedMotion() ? 150 : 650); // bespoke Bath Ticket punch SFX (always audible regardless of reducedMotion; omitted on 0-win/replay tickets)
   }
-  sheet.innerHTML = (MODALS[kind] || (() => ''))(data || {});
+  sheet.innerHTML = (MODALS[kind] || (() => ''))(modalData);
   modalEl.classList.add('on'); syncAudio();
   if (kind === 'win') {
     trackWinTimer(() => { musicHush = false; syncAudio(); }, 1800); // the music returns once the ticket is up
@@ -5962,19 +6182,26 @@ function openModal(kind, data) {
     if (m) trackWinTimer(() => { if (modalKind === 'win') sfx(m[0], m[1]); }, earned ? 1500 : 1000); // after the achievement chime, if there was one
   }
   sheet.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => closeModal(true)));
-  const binder = BIND[kind]; if (binder) binder(data || {});
+  const binder = BIND[kind]; if (binder) binder(modalData);
   if (kind === 'daily' || kind === 'help') paintHands('#sheet');
-  const f = sheet.querySelector('[data-focus]') || sheet.querySelector('button:not([data-close]), summary') || sheet.querySelector('button');
+  const restoreEl = opts && opts.restoreFocus ? sheet.querySelector(opts.restoreFocus) : null;
+  const f = (restoreEl && !restoreEl.disabled && !restoreEl.closest('[hidden]') ? restoreEl : null) ||
+    sheet.querySelector('[data-focus]:not([hidden])') || focusables(sheet).find((x) => !x.hasAttribute('data-close')) || sheet.querySelector('button');
   if (f) f.focus({ preventScroll: true });
-  sheet.scrollTop = 0;
+  sheet.scrollTop = opts && opts.restoreScroll != null ? opts.restoreScroll : 0;
 }
 modalEl.addEventListener('pointerdown', (e) => { if (e.target === modalEl && modalKind !== 'win') closeModal(true); });
 
 const pctText = (v) => Math.round(clamp(+v || 0, 0, 1) * 100) + '%';
 const seg = (key, opts, wrap, descId) => '<div class="seg' + (wrap ? ' seg-wrap' : '') + '" role="group" aria-labelledby="lbl-' + key + '"' + (descId ? ' aria-describedby="' + descId + '"' : '') + '>' + opts.map(([v, l]) => '<button type="button" data-set="' + key + '" data-val="' + v + '" aria-pressed="' + (String(settings[key]) === String(v)) + '">' + l + '</button>').join('') + '</div>';
 const tog = (key, label, descId) => '<button type="button" class="tog" role="switch" data-tog="' + key + '" aria-checked="' + !!settings[key] + '" aria-labelledby="lbl-' + key + '"' + (descId ? ' aria-describedby="' + descId + '"' : '') + ' aria-label="' + label + '"></button>';
+const sliderRow = (id, label, val, rowId, muted) => {
+  const pct = pctText(val);
+  return '<div class="set set-slider' + (muted ? ' is-muted' : '') + '"' + (rowId ? ' id="' + rowId + '"' : '') + '><div class="sl-head"><label for="' + id + '" id="lbl-' + id + '">' + label + '</label><output class="sl-val" id="val-' + id + '" for="' + id + '">' + pct + '</output></div>' +
+    '<div class="sl-ctrl"><input type="range" id="' + id + '" min="0" max="1" step="0.05" value="' + clamp(+val || 0, 0, 1) + '" style="--pct:' + pct + '" aria-valuetext="' + pct + '"></div></div>';
+};
 function bindTablist(root, onSelect) {
-  const list = root && root.querySelector('[role="tablist"]');
+  const list = root && (root.getAttribute && root.getAttribute('role') === 'tablist' ? root : root.querySelector('[role="tablist"]'));
   if (!list) return;
   const tabs = [...list.querySelectorAll('[role="tab"]')];
   if (!tabs.length) return;
@@ -6003,81 +6230,166 @@ const bestScoresLabel = (k, st) => {
   if (st.bestTimedScore > 0) parts.push(st.bestTimedScore + ' (Timed)');
   return parts.length ? ' · score ' + parts.join(' / ') : '';
 };
+// Eight historic Bathhouse Row bathhouses north-to-south across the 21-Bath Course (7 / 14 / 21 seals).
+const BATH_ROW_STOPS = [
+  ['Superior', 3], ['Hale', 2], ['Maurice', 2], ['Fordyce', 3],
+  ['Quapaw', 3], ['Ozark', 2], ['Buckstaff', 3], ['Lamar', 3],
+];
+function ledgerGameHTML(k) {
+  const st = statFor(k);
+  const rowS = (a, b) => '<tr><td>' + a + '</td><td>' + b + '</td></tr>';
+  return '<table class="st">' + rowS('Played', st.played) + rowS('Won', st.won) + rowS('Win rate', st.played ? Math.min(100, Math.round(100 * st.won / st.played)) + '%' : 'n/a') +
+    rowS('Average win time', st.won && st.totalMs > 0 ? fmtTime(st.totalMs / st.won) : 'n/a') + rowS('Wins without Undo or Hint', Math.max(0, st.won - st.assistedWon) + ' of ' + st.won) +
+    rowS('Current streak', st.streak) + rowS('Best streak', st.bestStreak) + rowS('Best time', st.bestTimeMs ? fmtTime(st.bestTimeMs) : 'n/a') +
+    rowS('Fewest moves', st.fewestMoves || 'n/a') +
+    (k.startsWith('spider') ? rowS('Best score', st.bestStandardScore || 'n/a') : rowS('Best score (Standard)', st.bestStandardScore || 'n/a') + rowS('Best score (Timed)', st.bestTimedScore || 'n/a')) +
+    rowS('Wins, all games', meta.totalWins || 0) + '</table>' +
+    (st.recent ? '<h3>Last ' + RECENT_KEPT + ' games</h3><div class="rs" role="img" aria-label="Last ' + st.recent.length + ' games, oldest first: ' + [...st.recent].map((c) => ({ W: 'won', A: 'won with help', L: 'unfinished' })[c]).join(', ') + '">' + [...st.recent].map((c) => '<i class="' + c + '">' + c + '</i>').join('') + '</div><p class="cap">Oldest on the left. W won, A won with Undo or Hint, L left unfinished.</p>' : '') +
+    '<p class="cap">Streaks and bests count first wins without Undo or Hint. Replaying a deal you have won, or using Undo or Hint, still counts as a win.</p>' +
+    (storageOK ? '' : '<p class="cap">Stats can\'t be saved in this browser.</p>') +
+    '<div class="row"><button class="btn" data-a="resetStats" data-key="' + k + '">Reset ' + modeKeyLabel(k) + ' stats</button></div>';
+}
 // One fold of the help sheet: the game's own hand of cards beside its name; the game being played starts open.
 const hp = (title, hand, body) => '<details class="hp"' + (hand && S && S.mode === hand ? ' open' : '') + '><summary>' + (hand ? '<canvas aria-hidden="true" data-hand="' + hand + '"></canvas>' : '') + title + '</summary>' + body + '</details>';
 const MODALS = {
-  menu: () => head('Menu') + '<div class="menu">' +
-    '<button class="btn solid" data-a="resume" data-focus><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5v14l11-7z"/></svg>Resume</button><button class="btn" data-a="help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.3-.9.8-.9 1.4v.6M12 17h.01"/></svg>How to play</button>' +
-    '<button class="btn" data-a="new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="11" height="15" rx="2"/><path d="M9 21h9a2 2 0 0 0 2-2V8"/></svg>New deal</button><button class="btn" data-a="restart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M4 4v4h4"/></svg>Restart this deal</button><button class="btn" data-a="deal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/></svg>Choose deal number…</button><button class="btn" data-a="daily"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Daily deals</button>' +
-    '<button class="btn" data-a="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10l8-6 8 6v10"/><path d="M9 20v-6h6v6"/></svg>Change game</button><button class="btn" data-a="backs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="9" height="13" rx="1.5"/><rect x="11" y="7" width="9" height="13" rx="1.5"/><path d="M15.5 11.5l-2 2 2 2 2-2z"/></svg>Backs &amp; tables</button><button class="btn" data-a="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Settings</button><button class="btn" data-a="stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V11M12 20V5M19 20v-7"/></svg>Statistics</button><button class="btn" data-a="records"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M12 13v4M8 20h8"/></svg>Records</button></div>',
-  settings: () => head('Settings') +
-    '<div class="set"><label id="lbl-sound">Sound<small id="desc-sound">Master switch for all sound</small></label>' + tog('sound', 'Sound', 'desc-sound') + '</div>' +
-    '<div class="set"><label for="vol" id="lbl-vol">Master volume</label><input type="range" id="vol" min="0" max="1" step="0.05" value="' + settings.volume + '" aria-valuetext="' + pctText(settings.volume) + '"></div>' +
-    '<div class="set"><label id="lbl-sfx">Sound effects<small id="desc-sfx">Card clicks and chimes</small></label>' + tog('sfx', 'Sound effects', 'desc-sfx') + '</div>' +
-    '<div class="set"><label id="lbl-music">Music<small id="desc-music">Soft table tunes</small></label>' + tog('music', 'Music', 'desc-music') + '</div>' +
-    '<div class="set"><label for="musicVol" id="lbl-musicVol">Music volume</label><input type="range" id="musicVol" min="0" max="1" step="0.05" value="' + settings.musicVol + '" aria-valuetext="' + pctText(settings.musicVol) + '"></div>' +
-    '<div class="set"><label id="lbl-ambience">Ambience<small id="desc-ambience">Soft parlor, bathhouse &amp; valley soundscapes</small></label>' + tog('ambience', 'Ambience', 'desc-ambience') + '</div>' +
-    '<div class="set"><label for="ambVol" id="lbl-ambVol">Ambience volume</label><input type="range" id="ambVol" min="0" max="1" step="0.05" value="' + settings.ambVol + '" aria-valuetext="' + pctText(settings.ambVol) + '"></div>' +
-    (navigator.vibrate ? '<div class="set"><label id="lbl-haptics">Vibration<small id="desc-haptics">Short buzzes on touch devices</small></label>' + tog('haptics', 'Vibration', 'desc-haptics') + '</div>' : '') +
-    '<div class="set"><label id="lbl-motion">Motion<small id="desc-motion">Auto follows your system setting</small></label>' + seg('motion', [['auto', 'Auto'], ['full', 'Full'], ['reduced', 'Reduced']], false, 'desc-motion') + '</div>' +
-    '<div class="set"><label id="lbl-leftHanded">Left-handed layout<small id="desc-leftHanded">Stock and free cells on the left</small></label>' + tog('leftHanded', 'Left-handed layout', 'desc-leftHanded') + '</div>' +
-    '<div class="set"><label id="lbl-cardSize">Card size<small id="desc-cardSize">Large also enlarges the corner index</small></label>' + seg('cardSize', [['compact', 'Compact'], ['standard', 'Standard'], ['large', 'Large']], false, 'desc-cardSize') + '</div>' +
-    '<div class="set"><label id="lbl-layout">Table layout<small id="desc-layout">Fit screen moves piles beside the columns on wide screens for bigger cards</small></label>' + seg('layout', [['fit', 'Fit screen'], ['classic', 'Classic']], false, 'desc-layout') + '</div>' +
-    '<div class="set"><label id="lbl-courts">Court cards<small id="desc-courts">Art Deco line art, or the painted portraits</small></label>' + seg('courts', [['deco', 'Art Deco'], ['painted', 'Painted']], false, 'desc-courts') + '</div>' +
-    '<div class="set"><label id="lbl-fourColor">Four-color suits<small id="desc-fourColor">Blue diamonds, green clubs</small></label>' + tog('fourColor', 'Four-color suits', 'desc-fourColor') + '</div>' +
-    '<div class="set"><label id="lbl-autoFoundation">Auto-move to foundations<small id="desc-autoFoundation">Safe moves only cards nothing else needs</small></label>' + seg('autoFoundation', [['off', 'Off'], ['safe', 'Safe'], ['all', 'All']], false, 'desc-autoFoundation') + '</div>' +
-    '<div class="set set-wide"><label id="lbl-tapMove">Move a card by<small id="tapNote">' + TAP_NOTES[tapMode()] + '</small></label>' + seg('tapMove', [['tap', 'Tap'], ['double', 'Double-tap'], ['select', 'Select & place'], ['drag', 'Drag only']], true, 'tapNote') + '</div>' +
-    '<div class="set"><label id="lbl-scoring">Scoring<small id="desc-scoring">Standard is calm points with no countdown. Timed adds a speed bonus on a win. None hides the score</small></label>' + seg('scoring', [['standard', 'Standard'], ['timed', 'Timed'], ['none', 'None']], false, 'desc-scoring') + '</div>' +
-    '<div class="set set-wide"><label id="lbl-dealFairness">Deal fairness<small id="desc-dealFairness">Winnable deals are verified before play across all seven games. Choose a challenge tier, or Classic Random for an unchecked shuffle.</small></label>' + seg('dealFairness', [['winnable', 'Winnable (Any)'], ['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard'], ['random', 'Classic Random']], true, 'desc-dealFairness') + '</div>' +
-    '<div class="set"><label id="lbl-showTimer">Show timer<small id="timerNote">' + timerNote() + '</small></label>' + tog('showTimer', 'Show timer', 'timerNote') + '</div>' +
-    '<div class="set"><label id="lbl-tips">Show tips<small id="desc-tips">Short hints while you play</small></label>' + tog('tips', 'Show tips', 'desc-tips') + '</div>' +
-    '<div class="row" style="margin-top:8px"><button class="btn" data-a="tipsAgain">Show tips again</button></div>' +
-    '<div class="row"><button class="btn" data-a="backs">Card backs &amp; tables…</button></div>' +
-    (storageOK ? '' : '<p class="cap">Settings and stats can\'t be saved in this browser.</p>'),
+  menu: () => {
+    const muteBtn = '<button type="button" class="ib" id="mMute" data-a="toggleMute" aria-pressed="' + (!settings.sound) + '" aria-label="' + (settings.sound ? 'Mute sound' : 'Unmute sound') + '" title="' + (settings.sound ? 'Mute sound (M)' : 'Unmute sound (M)') + '">' + muteIcon(settings.sound) + '</button>';
+    let varStrip = '';
+    if (S && S.mode === 'klondike') {
+      const dr = S.opts.draw === 3 ? 3 : 1;
+      varStrip = '<div class="menu-var"><span id="lbl-mvar">Klondike draw</span><div class="seg" role="group" aria-labelledby="lbl-mvar">' +
+        '<button type="button" data-mvar-mode="klondike" data-mvar-draw="1" aria-pressed="' + (dr === 1) + '">Draw 1</button>' +
+        '<button type="button" data-mvar-mode="klondike" data-mvar-draw="3" aria-pressed="' + (dr === 3) + '">Draw 3</button></div></div>';
+    } else if (S && S.mode === 'spider') {
+      const su = S.opts.suits || 1;
+      varStrip = '<div class="menu-var"><span id="lbl-mvar">Spider suits</span><div class="seg" role="group" aria-labelledby="lbl-mvar">' +
+        [1, 2, 4].map((n) => '<button type="button" data-mvar-mode="spider" data-mvar-suits="' + n + '" aria-pressed="' + (su === n) + '">' + n + (n > 1 ? ' suits' : ' suit') + '</button>').join('') +
+        '</div></div>';
+    }
+    const wonRecall = !!(S && S.won && lastWin);
+    const primaryBtn = wonRecall
+      ? '<button class="btn solid" data-a="ticket" data-focus><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4z"/><path d="M15 5v14"/></svg>View Bath Ticket</button>'
+      : '<button class="btn solid" data-a="resume" data-focus><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5v14l11-7z"/></svg>Resume</button>';
+    return head('Menu', muteBtn) + varStrip + '<div class="menu">' + primaryBtn +
+      '<button class="btn" data-a="help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.3-.9.8-.9 1.4v.6M12 17h.01"/></svg>How to play</button>' +
+      '<button class="btn" data-a="new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="11" height="15" rx="2"/><path d="M9 21h9a2 2 0 0 0 2-2V8"/></svg>New deal</button>' +
+      '<button class="btn" data-a="restart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M4 4v4h4"/></svg>Restart this deal</button>' +
+      '<button class="btn" data-a="deal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/></svg>Choose deal number…</button>' +
+      '<button class="btn" data-a="daily"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Daily deals</button>' +
+      '<button class="btn" data-a="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10l8-6 8 6v10"/><path d="M9 20v-6h6v6"/></svg>Change game</button>' +
+      '<button class="btn" data-a="backs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="9" height="13" rx="1.5"/><rect x="11" y="7" width="9" height="13" rx="1.5"/><path d="M15.5 11.5l-2 2 2 2 2-2z"/></svg>Backs &amp; tables</button>' +
+      '<button class="btn" data-a="ledger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h11a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M8 9h7M8 13h7M8 17h4"/></svg>Bathhouse Ledger</button>' +
+      '<button class="btn" data-a="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Settings</button></div>';
+  },
+  settings: (d) => {
+    const tab = ['gameplay', 'comfort', 'audio'].includes(d && d.tab) ? d.tab : 'gameplay';
+    const tabs = [['gameplay', 'Gameplay'], ['comfort', 'Table & Comfort'], ['audio', 'Audio']];
+    const sndOff = !settings.sound;
+    return head('Settings') +
+      '<div class="tabs main-tabs" role="tablist" aria-label="Settings sections">' +
+      tabs.map(([id, label]) => '<button type="button" id="stab-' + id + '" class="chip' + (tab === id ? ' solid' : '') + '" data-stab="' + id + '" role="tab" aria-selected="' + (tab === id) + '" aria-controls="spanel-' + id + '" tabindex="' + (tab === id ? '0' : '-1') + '"' + (tab === id ? ' data-focus="1"' : '') + '>' + label + '</button>').join('') +
+      '</div>' +
+      '<div id="spanel-gameplay" role="tabpanel" aria-labelledby="stab-gameplay"' + (tab === 'gameplay' ? '' : ' hidden') + '>' +
+        '<div class="set set-wide"><label id="lbl-dealFairness">Deal fairness<small id="desc-dealFairness">Fair, playable deals across all seven games—choose a challenge tier, or Classic Random for an open shuffle.</small></label>' + seg('dealFairness', [['winnable', 'Winnable (Any)'], ['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard'], ['random', 'Classic Random']], true, 'desc-dealFairness') + '</div>' +
+        '<div class="set"><label id="lbl-scoring">Scoring<small id="desc-scoring">Standard awards calm points with no countdown. Timed adds a win speed bonus. None hides the score.</small></label>' + seg('scoring', [['standard', 'Standard'], ['timed', 'Timed'], ['none', 'None']], false, 'desc-scoring') + '</div>' +
+        '<div class="set"><label id="lbl-autoFoundation">Auto-move to foundations<small id="desc-autoFoundation">Safe sends up only cards nothing else needs</small></label>' + seg('autoFoundation', [['off', 'Off'], ['safe', 'Safe'], ['all', 'All']], false, 'desc-autoFoundation') + '</div>' +
+        '<div class="set set-wide"><label id="lbl-tapMove">Move a card by<small id="tapNote">' + TAP_NOTES[tapMode()] + '</small></label>' + seg('tapMove', [['tap', 'Tap'], ['double', 'Double-tap'], ['select', 'Select & place'], ['drag', 'Drag only']], true, 'tapNote') + '</div>' +
+        '<div class="set"><label id="lbl-tips">Show tips<small id="desc-tips">Brief table notes while you play</small></label>' + tog('tips', 'Show tips', 'desc-tips') + '</div>' +
+        '<div class="row" style="margin-top:10px"><button type="button" class="btn" data-a="tipsAgain">Show tips again</button></div>' +
+      '</div>' +
+      '<div id="spanel-comfort" role="tabpanel" aria-labelledby="stab-comfort"' + (tab === 'comfort' ? '' : ' hidden') + '>' +
+        '<div class="set"><label id="lbl-fourColor">Four-color suits<small id="desc-fourColor">Blue diamonds, green clubs</small></label>' + tog('fourColor', 'Four-color suits', 'desc-fourColor') + '</div>' +
+        '<div class="set"><label id="lbl-cardSize">Card size<small id="desc-cardSize">Large also enlarges the corner index</small></label>' + seg('cardSize', [['compact', 'Compact'], ['standard', 'Standard'], ['large', 'Large']], false, 'desc-cardSize') + '</div>' +
+        '<div class="set"><label id="lbl-motion">Motion<small id="desc-motion">Auto follows your system setting</small></label>' + seg('motion', [['auto', 'Auto'], ['full', 'Full'], ['reduced', 'Reduced']], false, 'desc-motion') + '</div>' +
+        '<div class="set"><label id="lbl-leftHanded">Left-handed layout<small id="desc-leftHanded">Stock and free cells on the left</small></label>' + tog('leftHanded', 'Left-handed layout', 'desc-leftHanded') + '</div>' +
+        '<div class="set"><label id="lbl-courts">Court cards<small id="desc-courts">Gilded Art Deco figures, or painted parlor portraits</small></label>' + seg('courts', [['deco', 'Art Deco'], ['painted', 'Painted']], false, 'desc-courts') + '</div>' +
+        '<div class="set"><label id="lbl-layout">Table layout<small id="desc-layout">Fit screen tucks piles beside columns on wide screens for larger cards</small></label>' + seg('layout', [['fit', 'Fit screen'], ['classic', 'Classic']], false, 'desc-layout') + '</div>' +
+        '<div class="set"><label id="lbl-showTimer">Show timer<small id="timerNote">' + timerNote() + '</small></label>' + tog('showTimer', 'Show timer', 'timerNote') + '</div>' +
+        '<div class="row" style="margin-top:10px"><button type="button" class="btn" data-a="backs">Card backs &amp; tables…</button></div>' +
+      '</div>' +
+      '<div id="spanel-audio" role="tabpanel" aria-labelledby="stab-audio"' + (tab === 'audio' ? '' : ' hidden') + '>' +
+        '<div class="set"><label id="lbl-sound">Sound<small id="desc-sound">Master switch for all sound</small></label>' + tog('sound', 'Sound', 'desc-sound') + '</div>' +
+        sliderRow('vol', 'Master volume', settings.volume, 'row-vol', sndOff) +
+        '<div class="set' + (sndOff ? ' is-muted' : '') + '" id="row-sfx"><label id="lbl-sfx">Sound effects<small id="desc-sfx">Card linen, wood detents, and parlor chimes</small></label>' + tog('sfx', 'Sound effects', 'desc-sfx') + '</div>' +
+        sliderRow('sfxVol', 'Effects volume', settings.sfxVol, 'row-sfxVol', sndOff || !settings.sfx) +
+        '<div class="set' + (sndOff ? ' is-muted' : '') + '" id="row-music"><label id="lbl-music">Music<small id="desc-music">Soft 1920s parlor piano &amp; ragtime</small></label>' + tog('music', 'Music', 'desc-music') + '</div>' +
+        sliderRow('musicVol', 'Music volume', settings.musicVol, 'row-musicVol', sndOff || !settings.music) +
+        '<div class="set' + (sndOff ? ' is-muted' : '') + '" id="row-ambience"><label id="lbl-ambience">Ambience<small id="desc-ambience">Parlor air, bathhouse springs &amp; Ouachita valley breeze</small></label>' + tog('ambience', 'Ambience', 'desc-ambience') + '</div>' +
+        sliderRow('ambVol', 'Ambience volume', settings.ambVol, 'row-ambVol', sndOff || !settings.ambience) +
+        (navigator.vibrate ? '<div class="set"><label id="lbl-haptics">Vibration<small id="desc-haptics">Short tactile taps on touch devices</small></label>' + tog('haptics', 'Vibration', 'desc-haptics') + '</div>' : '') +
+      '</div>' +
+      (storageOK ? '' : '<p class="cap">Settings and stats can\'t be saved in this browser.</p>');
+  },
   backs: () => head('Card backs &amp; tables') + '<div class="backs" id="bkGrid">' +
     BACKS.map((b) => { const lk = !isOpen('b', b.id); return '<button class="bk' + (lk ? ' lk" aria-disabled="true' : '') + '" data-back="' + b.id + '" aria-pressed="' + (settings.back === b.id) + '"><canvas width="168" height="236"></canvas><b>' + b.name + '</b>' + (lk ? '<small>' + lockNote('b:' + b.id) + '</small>' : '') + '</button>'; }).join('') +
     '</div><p class="cap" id="bkCap" aria-live="polite"></p><div class="row" style="margin-top:6px"><button class="btn" data-a="reseed">Reshuffle the skylight glass</button></div>' +
     '<h3>Tables</h3><div class="backs">' + TABLES.map((t) => { const lk = !isOpen('t', t.id); return '<button class="bk tbl' + (lk ? ' lk" aria-disabled="true' : '') + '" data-table="' + t.id + '" aria-pressed="' + (settings.table === t.id) + '"><canvas width="240" height="144"></canvas><b>' + t.name + '</b>' + (lk ? '<small>' + lockNote('t:' + t.id) + '</small>' : '') + '</button>'; }).join('') + '</div>' +
     '<p class="cap" id="tblCap" aria-live="polite">' + esc(tableInfo().cap || '') + '</p>',
-  stats: (d) => {
-    const k = d.key || (S ? modeKey(S.mode, S.opts) : 'klondike1'); const st = statFor(k);
-    const rowS = (a, b) => '<tr><td>' + a + '</td><td>' + b + '</td></tr>';
-    return head('Statistics') + '<div class="tabs" role="tablist" aria-label="Game variants">' + MODE_KEYS.map((m) => '<button id="tab-' + m + '" class="chip' + (m === k ? ' solid" data-focus="1' : '') + '" data-key="' + m + '" role="tab" aria-selected="' + (m === k) + '" aria-controls="statsPanel" tabindex="' + (m === k ? '0' : '-1') + '">' + modeKeyLabel(m) + '</button>').join('') + '</div>' +
-      '<div id="statsPanel" role="tabpanel" aria-labelledby="tab-' + k + '"><table class="st">' + rowS('Played', st.played) + rowS('Won', st.won) + rowS('Win rate', st.played ? Math.min(100, Math.round(100 * st.won / st.played)) + '%' : 'n/a') +
-      rowS('Average win time', st.won && st.totalMs > 0 ? fmtTime(st.totalMs / st.won) : 'n/a') + rowS('Wins without Undo or Hint', Math.max(0, st.won - st.assistedWon) + ' of ' + st.won) +
-      rowS('Current streak', st.streak) + rowS('Best streak', st.bestStreak) + rowS('Best time', st.bestTimeMs ? fmtTime(st.bestTimeMs) : 'n/a') +
-      rowS('Fewest moves', st.fewestMoves || 'n/a') +
-      (k.startsWith('spider') ? rowS('Best score', st.bestStandardScore || 'n/a') : rowS('Best score (Standard)', st.bestStandardScore || 'n/a') + rowS('Best score (Timed)', st.bestTimedScore || 'n/a')) +
-      rowS('Wins, all games', meta.totalWins || 0) + '</table>' +
-      (st.recent ? '<h3>Last ' + RECENT_KEPT + ' games</h3><div class="rs" role="img" aria-label="Last ' + st.recent.length + ' games, oldest first: ' + [...st.recent].map((c) => ({ W: 'won', A: 'won with help', L: 'unfinished' })[c]).join(', ') + '">' + [...st.recent].map((c) => '<i class="' + c + '">' + c + '</i>').join('') + '</div><p class="cap">Oldest on the left. W won, A won with Undo or Hint, L left unfinished.</p>' : '') +
-      '<p class="cap">Streaks and bests count first wins without Undo or Hint. Replaying a deal you have won, or using Undo or Hint, still counts as a win.</p>' +
-      (storageOK ? '' : '<p class="cap">Stats can\'t be saved in this browser.</p>') +
-      '<div class="row"><button class="btn" data-a="resetStats" data-key="' + k + '">Reset ' + modeKeyLabel(k) + ' stats</button></div></div>';
+  ledger: (d) => {
+    const tab = ['overview', 'games', 'facts', 'ach'].includes(d && d.tab) ? d.tab : 'overview';
+    const k = (d && d.key) || (S ? modeKey(S.mode, S.opts) : 'klondike1');
+    const found = [...new Set(meta.seenFacts)].filter((i) => i < FACTS.length).sort((a, b) => a - b);
+    const achGot = ACH.filter((a) => meta.ach[a[0]]).length;
+    const nx = UNLOCKS.find((u) => !meta.unlock.ids.includes(u[0]));
+    const tw = Math.max(0, meta.totalWins || 0), filled = tw > 0 ? ((tw - 1) % 21) + 1 : 0, courses = tw > 0 ? Math.floor((tw - 1) / 21) : 0;
+    let bathIdx = 0;
+    const journeyStops = BATH_ROW_STOPS.map(([name, count]) => {
+      const start = bathIdx; bathIdx += count;
+      const done = filled >= bathIdx;
+      const dots = Array.from({ length: count }, (_, j) => {
+        const n = start + j + 1;
+        return '<i class="' + (n <= filled ? 'f' : '') + (n % 7 === 0 ? ' m' : '') + '"' + (n % 7 === 0 ? ' title="Bath ' + n + ' milestone"' : '') + '></i>';
+      }).join('');
+      return '<div class="jstop' + (done ? ' done' : '') + '"><b>' + name + '</b><div class="jdots">' + dots + '</div></div>';
+    }).join('');
+    const ltabs = [['overview', 'Overview'], ['games', 'By Game'], ['facts', 'Facts (' + found.length + '/' + FACTS.length + ')'], ['ach', 'Achievements (' + achGot + '/' + ACH.length + ')']];
+    return head('Bathhouse Ledger') +
+      '<div class="tabs main-tabs" role="tablist" aria-label="Bathhouse Ledger sections">' +
+      ltabs.map(([id, label]) => '<button type="button" id="ltab-' + id + '" class="chip' + (tab === id ? ' solid' : '') + '" data-ltab="' + id + '" role="tab" aria-selected="' + (tab === id) + '" aria-controls="lpanel-' + id + '" tabindex="' + (tab === id ? '0' : '-1') + '"' + (tab === id ? ' data-focus="1"' : '') + '>' + label + '</button>').join('') +
+      '</div>' +
+      '<div id="lpanel-overview" role="tabpanel" aria-labelledby="ltab-overview"' + (tab === 'overview' ? '' : ' hidden') + '>' +
+        '<p>Baths won: <b>' + tw + '</b> · Daily streak: <b>' + dailyStreak() + '</b> (best ' + dailyRun() + ')' +
+        (nx ? '<br>Next to open: ' + esc(unlockName(nx[0])) + '. ' + lockNote(nx[0]) + '.' : '') +
+        (meta.gradeWins.easy + meta.gradeWins.medium + meta.gradeWins.hard > 0 ? '<br>Graded deals won: Easy <b>' + meta.gradeWins.easy + '</b> · Medium <b>' + meta.gradeWins.medium + '</b> · Hard <b>' + meta.gradeWins.hard + '</b>' : '') + '</p>' +
+        '<div class="journey" role="region" aria-label="21-Bath Row Stamp Journey"><div class="journey-hd"><b>21-Bath Row Stamp Journey</b><small>' + filled + ' of 21 baths' + (courses > 0 ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : ' · North to south along Central Avenue') + '</small></div>' +
+        '<div class="journey-row" role="img" aria-label="Course progress ' + filled + ' of 21 across eight bathhouses">' + journeyStops + '</div></div>' +
+        '<h3>By game</h3>' +
+        MODE_KEYS.map((mk) => { const st = statFor(mk); return '<div class="rec"><b>' + esc(modeKeyLabel(mk)) + '</b><small>Won ' + st.won + ' of ' + st.played + ' · streak ' + st.streak + ' (best ' + st.bestStreak + ')</small><small>' +
+          (st.bestTimeMs ? 'Best ' + fmtTime(st.bestTimeMs) + ' · ' + st.fewestMoves + ' moves' + bestScoresLabel(mk, st) : st.won ? 'No unaided first win yet' : 'No wins yet') + '</small></div>'; }).join('') +
+      '</div>' +
+      '<div id="lpanel-games" role="tabpanel" aria-labelledby="ltab-games"' + (tab === 'games' ? '' : ' hidden') + '>' +
+        '<div class="tabs sub-tabs" role="tablist" aria-label="Game variants">' + MODE_KEYS.map((m) => '<button type="button" id="tab-' + m + '" class="chip' + (m === k ? ' solid' : '') + '" data-key="' + m + '" role="tab" aria-selected="' + (m === k) + '" aria-controls="ledgerGamePanel" tabindex="' + (m === k ? '0' : '-1') + '">' + modeKeyLabel(m) + '</button>').join('') + '</div>' +
+        '<div id="ledgerGamePanel" role="tabpanel" aria-labelledby="tab-' + k + '">' + ledgerGameHTML(k) + '</div>' +
+      '</div>' +
+      '<div id="lpanel-facts" role="tabpanel" aria-labelledby="ltab-facts"' + (tab === 'facts' ? '' : ' hidden') + '>' +
+        '<h3>Facts found: ' + found.length + ' of ' + FACTS.length + '</h3>' +
+        (found.length
+          ? '<ul class="fnd">' + found.map((i) => '<li><b>' + esc(FACTS[i][2]) + '</b><span class="fq">' + esc(FACTS[i][1]) + '</span><span class="fx">' + esc(FACTS[i][3]) + '</span><span class="fs">Source: ' + esc(FACTS[i][4]) + '</span></li>').join('') + '</ul>'
+          : '<div class="fnd-empty">No Hot Springs history cards collected yet. Win a deal—or reach a still table—to unlock your first sourced card from Bathhouse Row.</div>') +
+      '</div>' +
+      '<div id="lpanel-ach" role="tabpanel" aria-labelledby="ltab-ach"' + (tab === 'ach' ? '' : ' hidden') + '>' +
+        '<h3>Achievements: ' + achGot + ' of ' + ACH.length + '</h3><ul class="ach">' +
+        ACH.map((a) => '<li' + (meta.ach[a[0]] ? ' class="got"' : '') + '><b>' + esc(a[1]) + '</b>' + esc(a[2]) + '<small> ' + (meta.ach[a[0]] ? 'Earned ' + meta.ach[a[0]] : 'Not yet') + '</small></li>').join('') + '</ul>' +
+      '</div>';
   },
   deal: (d) => head('Choose a deal') + '<p>' + (d.mode === 'freecell' || (!d.mode && S && S.mode === 'freecell') ? 'FreeCell deals 1–32,000 match the classic numbered set (1–1,000,000 allowed).' : 'Any number from 1 to 2,147,483,646 gives the same layout every time.') + '</p>' +
-    '<div class="dl"><input class="numin" id="dealIn" inputmode="numeric" aria-label="Deal number" value="' + (S ? S.deal : 1) + '"><button class="btn solid" data-a="goDeal" data-focus>Deal</button></div>' +
+    '<div class="dl"><input class="numin" id="dealIn" inputmode="numeric" aria-label="Deal number" value="' + esc(d.draft != null ? d.draft : (S ? S.deal : 1)) + '"><button class="btn solid" data-a="goDeal" data-focus>Deal</button></div>' +
     '<p class="cap" id="dealNote" role="status" aria-live="polite" hidden>Deal ' + FC_UNWINNABLE.toLocaleString('en-US') + ' is the famously unsolved FreeCell deal. You can still play it.</p>',
   daily: () => {
-    const day = todayStr();
+    const day = todayStr(), live = liveDeal();
     const list = [['klondike', { draw: 1 }], ['klondike', { draw: 3 }], ['freecell', {}], ['spider', { suits: 1 }], ['spider', { suits: 2 }], ['spider', { suits: 4 }], ['yukon', {}]];
     return head('Daily deals') + '<p>Everyone gets the same seven winnable deals today (' + day + '). A new set arrives at midnight.</p><div class="menu">' +
       list.map(([m, o], i) => {
-        const k = modeKey(m, Object.assign({ draw: 1, suits: 1 }, o)); const st = meta.daily[day + '|' + k];
+        const k = modeKey(m, Object.assign({ draw: 1, suits: 1 }, o));
+        const st = meta.daily[day + '|' + k];
+        const isWon = st === 'won' || st === 'won-archive';
+        const isActive = !isWon && !!((!titleOn && S && !S.won && S.daily === day && modeKey(S.mode, S.opts) === k) || (live && live.daily === day && modeKey(live.mode, live.opts) === k));
         const [name, sub] = modeKeyLabel(k).split(' · ');
-        return '<button class="btn day' + (st === 'won' ? ' won' : '') + '"' + (i === 0 ? ' data-focus' : '') + ' data-daily="' + i + '"><canvas aria-hidden="true" data-hand="' + m + '"></canvas><b>' + name + '</b><small>' + (sub || '&nbsp;') + '</small>' +
-          '<em>' + (st === 'won' ? 'Won' : st ? 'In progress' : 'Not played') + '</em>' + (st === 'won' ? '<i class="seal" aria-hidden="true"></i>' : '') + '</button>';
+        const subText = sub || (m === 'freecell' ? 'Classic' : 'No stock');
+        const statusText = isWon ? 'Won' : isActive ? 'In progress · Resume' : st ? 'Attempted' : 'Not played';
+        return '<button class="btn day' + (isWon ? ' won' : isActive ? ' active-day' : '') + '"' + (i === 0 ? ' data-focus' : '') + ' data-daily="' + i + '"' + (isActive ? ' data-active-daily="1"' : '') + '><canvas aria-hidden="true" data-hand="' + m + '"></canvas><b>' + name + '</b><small>' + subText + '</small>' +
+          '<em>' + statusText + '</em>' + (isWon ? '<i class="seal" aria-hidden="true"></i>' : '') + '</button>';
       }).join('') + '</div>' + dailyHistory();
-  },
-  records: () => {
-    const found = [...new Set(meta.seenFacts)].filter((i) => i < FACTS.length).sort((a, b) => a - b), n = ACH.filter((a) => meta.ach[a[0]]).length, nx = UNLOCKS.find((u) => !meta.unlock.ids.includes(u[0]));
-    return head('Records') + '<p>Baths won: <b>' + (meta.totalWins || 0) + '</b> · Daily streak: <b>' + dailyStreak() + '</b> (best ' + dailyRun() + ')' +
-      (nx ? '<br>Next to open: ' + esc(unlockName(nx[0])) + '. ' + lockNote(nx[0]) + '.' : '') +
-      (meta.gradeWins.easy + meta.gradeWins.medium + meta.gradeWins.hard > 0 ? '<br>Graded deals won: Easy <b>' + meta.gradeWins.easy + '</b> · Medium <b>' + meta.gradeWins.medium + '</b> · Hard <b>' + meta.gradeWins.hard + '</b>' : '') + '</p><h3>By game</h3>' +
-      MODE_KEYS.map((k) => { const st = statFor(k); return '<div class="rec"><b>' + esc(modeKeyLabel(k)) + '</b><small>Won ' + st.won + ' of ' + st.played + ' · streak ' + st.streak + ' (best ' + st.bestStreak + ')</small><small>' +
-        (st.bestTimeMs ? 'Best ' + fmtTime(st.bestTimeMs) + ' · ' + st.fewestMoves + ' moves' + bestScoresLabel(k, st) : st.won ? 'No unaided first win yet' : 'No wins yet') + '</small></div>'; }).join('') +
-      hp('Facts found: ' + found.length + ' of ' + FACTS.length, null, '<ul class="fnd">' + found.map((i) => '<li><b>' + esc(FACTS[i][2]) + '</b>' + esc(FACTS[i][1]) + '</li>').join('') + '</ul>') +
-      '<h3>Achievements: ' + n + ' of ' + ACH.length + '</h3><ul class="ach">' +
-      ACH.map((a) => '<li' + (meta.ach[a[0]] ? ' class="got"' : '') + '><b>' + esc(a[1]) + '</b>' + esc(a[2]) + '<small> ' + (meta.ach[a[0]] ? 'Earned ' + meta.ach[a[0]] : 'Not yet') + '</small></li>').join('') + '</ul>';
   },
   help: () => head('How to play') +
     '<p><b>Goal:</b> move every card to the foundations, building each up by suit from Ace to King (Spider: complete eight King-to-Ace runs).</p>' +
@@ -6095,8 +6407,8 @@ const MODALS = {
     '<tr><td><kbd>D</kbd></td><td>Draw or deal from the stock</td></tr>' +
     '<tr><td><kbd>U</kbd> <kbd>Ctrl</kbd>+<kbd>Z</kbd> · <kbd>Y</kbd></td><td>Undo · Redo (unlimited)</td></tr>' +
     '<tr><td><kbd>S</kbd> · <kbd>I</kbd></td><td>Hear the whole table · Inspect the current column (or <kbd>Shift</kbd>+<kbd>↑</kbd>). Screen readers can also move through the piles one by one.</td></tr>' +
-    '<tr><td><kbd>H</kbd> · <kbd>A</kbd> · <kbd>N</kbd></td><td>Hint (press again for the next) · Auto-complete · New deal</td></tr>' +
-    '<tr><td><kbd>Esc</kbd> · <kbd>?</kbd></td><td>Menu (or put cards back) · This help</td></tr>' +
+    '<tr><td><kbd>H</kbd> · <kbd>A</kbd> · <kbd>N</kbd></td><td>Hint (press again for the next) · Auto-complete / Bath Ticket · New deal</td></tr>' +
+    '<tr><td><kbd>M</kbd> · <kbd>Esc</kbd> · <kbd>?</kbd></td><td>Mute or unmute sound · Menu (or put cards back) · This help</td></tr>' +
     '<tr><td>Gamepad</td><td>D-pad or left stick moves the cursor · <b>A</b> picks up or drops · <b>B</b> puts back, or undoes · <b>X</b> hint · <b>Y</b> draw · <b>Start</b> menu. In a dialog the D-pad moves between buttons and <b>A</b> presses one.</td></tr></table>') +
     hp('Scoring', null, '<p>Klondike and Yukon: +10 to a foundation, +5 waste to column, +5 for turning a card, −15 back from a foundation, and in Klondike a recycle penalty: turning the waste back over the first time is free, then each time costs 50 points (20 in Draw 3). FreeCell: +10 per card home. Spider starts at 500, −1 a move, +100 per completed run. Standard scoring (the default) awards card points at your own pace with no countdown; Timed scoring in Settings adds a speed bonus on a win in Klondike, Yukon and FreeCell (1000 − 2 × seconds; shown beside the Score when the timer is visible), and None hides the score. Best scores are kept separately for Standard and Timed play. Undo and Hint are always free; a game that used either shows a small tag ("undo used", "hint used") and counts as assisted. Streaks, bests and the 21-bath course count only first wins without them: replaying a deal you have won, or an assisted win, still counts as a win.</p>') +
     hp('About the art &amp; facts', null, '<p>Art: painted with AI image tools for this game. Every card back and table is an original Art Deco painting (shipped with the game as images) inspired by Hot Springs research notes: the Fordyce skylight and lozenge brick, the Quapaw dome and sculpin, Row ironwork, the Superior\'s medallions, Medical Arts Deco, the Ouachitas, thermal water and Lake Ouachita. Colors are estimates, so the designs are "inspired by". Court cards are invented 1920s archetypes (bath attendant, jockey, bellhop, saxophonist, promenade and evening ladies, card-room and racing gentlemen), not real people. The bath ticket and neon colors are invented designs. Win-screen facts are 50 hand-picked items, each with its source named on the card; the research notes behind them are kept outside this game. In the Valley of Vapors, patience is a virtue.</p>'),
@@ -6125,35 +6437,114 @@ const MODALS = {
     (undoStack.length ? '<button class="btn solid" data-a="undo" data-focus>Undo</button>' : '') +
     '<button class="btn' + (undoStack.length ? '' : ' solid" data-focus="1') + '" data-a="restart">Restart this deal</button><button class="btn" data-a="new">New deal</button><button class="btn" data-close>Keep looking</button></div>',
 };
+function doResetSaved() { // a table that will not come right: forget it and go back to the title
+  clearTimeout(saveTimer); saveTimer = 0; clearWinTimers(); cancelAutoCues(); cancelBuzz(); clearCueCooldowns(); prevCanAuto = false; landCues.length = 0; flipQueue.length = 0; drawWaypoints = {}; clearStuck(); tipHide(); pullbackHold.clear(); clearTransientFx(false);
+  S = null; undoStack = []; redoStack = []; held = null; drag = null; clearHover(); cascade = null; hintState = null; lastWin = null;
+  save('current', null); closeModal(false); showTitle(true); toast('Saved game cleared.');
+}
 const ACTIONS = {
-  resetSaved: () => { // a table that will not come right: forget it and go back to the title
-    clearTimeout(saveTimer); saveTimer = 0; clearWinTimers(); cancelAutoCues(); cancelBuzz(); clearCueCooldowns(); prevCanAuto = false; landCues.length = 0; flipQueue.length = 0; drawWaypoints = {}; clearStuck(); tipHide(); pullbackHold.clear(); clearTransientFx(false);
-    S = null; undoStack = []; redoStack = []; held = null; drag = null; cascade = null; hintState = null;
-    save('current', null); closeModal(); showTitle(true); toast('Saved game cleared.');
+  resetSaved: () => {
+    if (storageOK && !newerSave && liveDeal()) {
+      openModal('confirm', { title: 'Reset saved game?', text: 'Your current game in progress will be cleared and you will return to the title screen.', yes: 'Reset saved game', onYes: doResetSaved });
+    } else doResetSaved();
   },
-  resume: () => closeModal(), new: () => confirmAbandon({ mode: S ? S.mode : meta.lastMode }), restart: () => confirmAbandon(null, true), undo: () => { const fromStuck = modalKind === 'stuck'; closeModal(); if (fromStuck) stuckSuppressed = true; undo(); },
-  deal: () => openModal('deal'), daily: () => openModal('daily'), title: () => { closeModal(); showTitle(true); },
-  backs: () => openModal('backs'), settings: () => openModal('settings'), stats: () => openModal('stats'), help: () => openModal('help'),
-  tipsAgain: () => { Object.assign(settings, { tips: true, tipStep: 0, tipModes: '' }); tipIdleShown = false; tipGoalShown = null; saveSettings(); openModal('settings'); },
-  records: () => openModal('records'),
-  reseed: () => { settings.deckSeed = 1 + Math.floor(Math.random() * 1e6); saveSettings(); if (settings.back !== 'skylight') settings.back = 'skylight'; applyLook(); openModal('backs'); },
+  resume: () => closeModal(false),
+  ticket: () => { if (lastWin) openModal('win'); else closeModal(false); },
+  toggleMute: () => {
+    setSetting('sound', !settings.sound);
+    const b = $('#mMute');
+    if (b) {
+      b.innerHTML = muteIcon(settings.sound);
+      b.setAttribute('aria-pressed', String(!settings.sound));
+      b.setAttribute('aria-label', settings.sound ? 'Mute sound' : 'Unmute sound');
+      b.title = settings.sound ? 'Mute sound (M)' : 'Unmute sound (M)';
+    }
+    toast(settings.sound ? 'Sound on' : 'Sound muted');
+  },
+  new: () => confirmAbandon({ mode: S ? S.mode : meta.lastMode }), restart: () => confirmAbandon(null, true), undo: () => { const fromStuck = modalKind === 'stuck'; closeModal(false); if (fromStuck) stuckSuppressed = true; undo(); },
+  deal: () => openModal('deal'), daily: () => openModal('daily'), title: () => { closeModal(false); showTitle(true); },
+  backs: () => openModal('backs'), settings: () => openModal('settings'), ledger: () => openModal('ledger', { tab: 'overview' }), stats: () => openModal('ledger', { tab: 'games' }), records: () => openModal('ledger', { tab: 'overview' }), help: () => openModal('help'),
+  tipsAgain: () => {
+    // Patch Settings in place without rebuilding DOM or resetting scrollTop (CD-WF5-03, W6-S2-05).
+    Object.assign(settings, { tips: true, tipStep: 0, tipModes: '' }); tipIdleShown = false; tipGoalShown = null; saveSettings();
+    const sw = sheet.querySelector('[data-tog="tips"]');
+    if (sw) sw.setAttribute('aria-checked', 'true');
+    toast('Tips reset — they will appear again as you play.');
+  },
+  reseed: () => {
+    // Patch skylight swatch in place without overwriting other equipped backs or resetting scrollTop (CD-WF5-03).
+    settings.deckSeed = 1 + Math.floor(Math.random() * 1e6); saveSettings(); applyLook();
+    const b = sheet.querySelector('[data-back="skylight"]');
+    if (b) {
+      const c = b.querySelector('canvas');
+      if (c) { const g = c.getContext('2d'); g.setTransform(c.width / 84, 0, 0, c.height / 118, 0, 0); g.clearRect(0, 0, 84, 118); drawBack(g, 'skylight', 84, 118, settings.deckSeed); }
+    }
+    toast('Skylight glass reshuffled.');
+  },
 };
 const BIND = {
   _common() {
     sheet.querySelectorAll('[data-a]').forEach((b) => { const a = b.dataset.a; if (ACTIONS[a]) b.onclick = () => ACTIONS[a](); });
   },
-  menu() { BIND._common(); },
+  menu() {
+    BIND._common();
+    sheet.querySelectorAll('[data-mvar-mode]').forEach((b) => {
+      b.onclick = () => {
+        if (b.getAttribute('aria-pressed') === 'true') return;
+        const mode = b.dataset.mvarMode;
+        const opts = mode === 'klondike' ? { mode, draw: +b.dataset.mvarDraw } : { mode, suits: +b.dataset.mvarSuits };
+        confirmAbandon(opts);
+      };
+    });
+  },
   win() { BIND._common(); },
   stuck() { BIND._common(); },
   fault() { BIND._common(); },
-  settings() {
+  settings(d) {
     BIND._common();
+    const tabs = [...sheet.querySelectorAll('[data-stab]')];
+    const switchTab = (id) => {
+      modalData.tab = id;
+      tabs.forEach((t) => {
+        const on = t.dataset.stab === id;
+        t.classList.toggle('solid', on);
+        t.setAttribute('aria-selected', String(on));
+        t.setAttribute('tabindex', on ? '0' : '-1');
+      });
+      for (const pid of ['gameplay', 'comfort', 'audio']) {
+        const p = $('#spanel-' + pid);
+        if (p) p.hidden = pid !== id;
+      }
+    };
+    tabs.forEach((t) => (t.onclick = () => switchTab(t.dataset.stab)));
+    bindTablist(sheet.querySelector('[role="tablist"]'), (tab) => { if (tab && tab.dataset.stab) switchTab(tab.dataset.stab); });
     const syncTimerNote = () => { const tn = $('#timerNote'); if (tn) tn.textContent = timerNote(); };
+    const syncAudioMuteUI = () => {
+      const off = !settings.sound;
+      const setMuted = (id, m) => { const r = $('#' + id); if (r) r.classList.toggle('is-muted', !!m); };
+      setMuted('row-vol', off);
+      setMuted('row-sfx', off); setMuted('row-sfxVol', off || !settings.sfx);
+      setMuted('row-music', off); setMuted('row-musicVol', off || !settings.music);
+      setMuted('row-ambience', off); setMuted('row-ambVol', off || !settings.ambience);
+    };
     sheet.querySelectorAll('[data-set]').forEach((b) => (b.onclick = () => { setSetting(b.dataset.set, b.dataset.val); sheet.querySelectorAll('[data-set="' + b.dataset.set + '"]').forEach((x) => x.setAttribute('aria-pressed', x === b)); if (b.dataset.set === 'tapMove') { const n = $('#tapNote'); if (n) n.textContent = TAP_NOTES[tapMode()]; } if (b.dataset.set === 'scoring') syncTimerNote(); }));
-    sheet.querySelectorAll('[data-tog]').forEach((b) => (b.onclick = () => { const k = b.dataset.tog; setSetting(k, !settings[k]); b.setAttribute('aria-checked', String(!!settings[k])); if (k === 'showTimer') syncTimerNote(); }));
-    $('#vol').oninput = (e) => { setSetting('volume', +e.target.value); e.target.setAttribute('aria-valuetext', pctText(e.target.value)); previewVolume(); };
-    $('#musicVol').oninput = (e) => { setSetting('musicVol', +e.target.value); e.target.setAttribute('aria-valuetext', pctText(e.target.value)); };
-    $('#ambVol').oninput = (e) => { setSetting('ambVol', +e.target.value); e.target.setAttribute('aria-valuetext', pctText(e.target.value)); };
+    sheet.querySelectorAll('[data-tog]').forEach((b) => (b.onclick = () => { const k = b.dataset.tog; setSetting(k, !settings[k]); b.setAttribute('aria-checked', String(!!settings[k])); if (k === 'showTimer') syncTimerNote(); if (['sound', 'sfx', 'music', 'ambience'].includes(k)) syncAudioMuteUI(); }));
+    const bindSlider = (id, key, preview) => {
+      const inp = $('#' + id); if (!inp) return;
+      inp.oninput = (e) => {
+        const val = +e.target.value, pct = pctText(val);
+        setSetting(key, val);
+        e.target.setAttribute('aria-valuetext', pct);
+        e.target.style.setProperty('--pct', pct);
+        const out = $('#val-' + id); if (out) out.textContent = pct;
+        if (preview) previewVolume();
+      };
+    };
+    bindSlider('vol', 'volume', true);
+    bindSlider('sfxVol', 'sfxVol', true);
+    bindSlider('musicVol', 'musicVol', false);
+    bindSlider('ambVol', 'ambVol', false);
+    void d;
   },
   backs() {
     BIND._common();
@@ -6172,12 +6563,60 @@ const BIND = {
       b.onfocus = () => showTbl(b.dataset.table);
     });
   },
-  stats(d) {
-    sheet.querySelectorAll('[data-key]').forEach((b) => {
-      if (b.dataset.a === 'resetStats') b.onclick = () => openModal('confirm', { title: 'Reset statistics?', text: 'This clears every ' + modeKeyLabel(b.dataset.key) + ' statistic.', yes: 'Reset', onYes: () => { syncShared(); const rk = b.dataset.key; delete stats[rk]; const active = liveDeal(); if (active && modeKey(active.mode, active.opts) === rk) statFor(rk).played = 1; saveStats(); openModal('stats', { key: rk }); } });
-      else b.onclick = () => openModal('stats', { key: b.dataset.key });
-    });
-    bindTablist(sheet, (tab) => { if (tab && tab.dataset.key) openModal('stats', { key: tab.dataset.key }); });
+  ledger(d) {
+    const mainTabs = [...sheet.querySelectorAll('[data-ltab]')];
+    const switchMain = (id) => {
+      modalData.tab = id;
+      mainTabs.forEach((t) => {
+        const on = t.dataset.ltab === id;
+        t.classList.toggle('solid', on);
+        t.setAttribute('aria-selected', String(on));
+        t.setAttribute('tabindex', on ? '0' : '-1');
+      });
+      for (const pid of ['overview', 'games', 'facts', 'ach']) {
+        const p = $('#lpanel-' + pid);
+        if (p) p.hidden = pid !== id;
+      }
+    };
+    mainTabs.forEach((t) => (t.onclick = () => switchMain(t.dataset.ltab)));
+    bindTablist(sheet.querySelector('.main-tabs[role="tablist"]'), (tab) => { if (tab && tab.dataset.ltab) switchMain(tab.dataset.ltab); });
+    const subTabs = [...sheet.querySelectorAll('.sub-tabs [data-key]')];
+    const bindReset = () => {
+      const rb = sheet.querySelector('[data-a="resetStats"]');
+      if (!rb) return;
+      rb.onclick = () => {
+        const rk = rb.dataset.key;
+        openModal('confirm', {
+          title: 'Reset statistics?', text: 'This clears every ' + modeKeyLabel(rk) + ' statistic.', yes: 'Reset',
+          onYes: () => {
+            syncShared(); delete stats[rk];
+            const active = liveDeal();
+            if (active && modeKey(active.mode, active.opts) === rk) statFor(rk).played = 1;
+            saveStats();
+            if (modalStack.length && modalStack[modalStack.length - 1].kind === 'ledger') modalStack.pop();
+            openModal('ledger', { tab: 'games', key: rk }, { replace: true });
+          },
+        });
+      };
+    };
+    const switchKey = (rk) => {
+      modalData.key = rk;
+      subTabs.forEach((t) => {
+        const on = t.dataset.key === rk;
+        t.classList.toggle('solid', on);
+        t.setAttribute('aria-selected', String(on));
+        t.setAttribute('tabindex', on ? '0' : '-1');
+      });
+      const panel = $('#ledgerGamePanel');
+      if (panel) {
+        panel.setAttribute('aria-labelledby', 'tab-' + rk);
+        panel.innerHTML = ledgerGameHTML(rk);
+        bindReset();
+      }
+    };
+    subTabs.forEach((t) => (t.onclick = () => switchKey(t.dataset.key)));
+    bindTablist(sheet.querySelector('.sub-tabs[role="tablist"]'), (tab) => { if (tab && tab.dataset.key) switchKey(tab.dataset.key); });
+    bindReset();
     void d;
   },
   deal(d) {
@@ -6188,8 +6627,19 @@ const BIND = {
     $('#dealIn').oninput = note; note();
   },
   daily() {
+    const day = todayStr();
     const list = [['klondike', { draw: 1 }], ['klondike', { draw: 3 }], ['freecell', {}], ['spider', { suits: 1 }], ['spider', { suits: 2 }], ['spider', { suits: 4 }], ['yukon', {}]];
-    sheet.querySelectorAll('[data-daily]').forEach((b) => (b.onclick = () => { const [m, o] = list[+b.dataset.daily]; confirmAbandon(Object.assign({ mode: m, daily: true }, o)); }));
+    sheet.querySelectorAll('[data-daily]').forEach((b) => (b.onclick = () => {
+      const [m, o] = list[+b.dataset.daily];
+      const k = modeKey(m, Object.assign({ draw: 1, suits: 1 }, o));
+      // Non-destructive resume when clicking the active live 'In progress · Resume' daily (CD-WF5-07, W6-S2-04).
+      if (b.dataset.activeDaily === '1') {
+        if (!titleOn && S && !S.won && S.daily === day && modeKey(S.mode, S.opts) === k) { closeModal(false); showTitle(false); return; }
+        const live = liveDeal();
+        if (live && live.daily === day && modeKey(live.mode, live.opts) === k) { if (!resumeSaved()) { closeModal(false); showTitle(false); } return; }
+      }
+      confirmAbandon(Object.assign({ mode: m, daily: true }, o));
+    }));
     const bindCal = () => sheet.querySelectorAll('[data-mo]').forEach((b) => (b.onclick = () => { const w = $('#calW'), dir = b.getAttribute('aria-label'); w.innerHTML = calendar(b.dataset.mo); bindCal(); const f = w.querySelector('[aria-label="' + dir + '"]:not(:disabled)') || w.querySelector('[data-mo]:not(:disabled)'); if (f) f.focus({ preventScroll: true }); }));
     bindCal();
   },
@@ -6267,6 +6717,7 @@ function setSetting(k, v) {
     else { cancelAutoCues(); updateMasterGain(false); }
   }
   else if (k === 'volume') { settings.volume = clamp(+v, 0, 1); updateMasterGain(false); }
+  else if (k === 'sfxVol') { settings.sfxVol = clamp(+v, 0, 1); updateSfxGain(false); }
   else if (k === 'musicVol' || k === 'ambVol') settings[k] = clamp(+v, 0, 1);
   else if (k === 'dealFairness') {
     if (!SETTING_ENUMS.dealFairness.includes(v)) return;
@@ -6300,6 +6751,7 @@ function resize() {
   sprites.clear(); tableDirty = true; loadArt(essentialArt()); // a rotated phone may need the other table cut
   if (S) { relayout(true); markDirty(); }
   if (titleOn) { drawSky(now()); paintHands(); }
+  if (modalKind === 'daily' || modalKind === 'help') paintHands('#sheet');
 }
 window.addEventListener('resize', resize);
 // iOS can resize the visible area (toolbars collapsing, rotation settling) without a window resize event
@@ -6330,7 +6782,7 @@ window.__game = {
     if (s.grade) { st.winnable = true; st.grade = s.grade; }
     if (s.score != null) st.score = s.score; if (s.moves != null) st.moves = s.moves;
     if (s.recycles != null) st.recycles = s.recycles;
-    S = st; clearTransientFx(false); undoStack = []; redoStack = []; pullbackHold.clear(); held = null; drag = null; cascade = null; hintState = null; lastWin = null; clearStuck();
+    S = st; clearTransientFx(false); undoStack = []; redoStack = []; pullbackHold.clear(); held = null; drag = null; clearHover(); cascade = null; hintState = null; lastWin = null; clearStuck();
     clearWinTimers(); cancelAutoCues(); cancelBuzz(); clearCueCooldowns(); landCues.length = 0; flipQueue.length = 0; drawWaypoints = {};
     prevCanAuto = canAutoComplete();
     closeModal(); showTitle(false); tipHide(); tipGoalShown = null; relayout(true); updateHUD(); markDirty();
@@ -6407,12 +6859,15 @@ window.__game = {
     if (reset) { fstat.n = 0; fstat.sum = 0; fstat.max = 0; fstat.xs = []; } return r;
   },
   isIdle() { if (hintJob) return false; if (frozenAt !== null) return !artPending && !artTick && !fontsPending; return !artPending && !artTick && !fontsPending && !tweensActive(now()) && !drag && !cascade && !winTimer && now() > modalAnimUntil; },
-  scene(name) {
-    if (name === 'title') { closeModal(); showTitle(true); }
-    else if (name === 'game') { closeModal(); if (!S) newGame({ mode: 'klondike' }); showTitle(false); }
-    else { if (name === 'win' && !lastWin && S) lastWin = { mode: S.mode, opts: S.opts, deal: S.deal, daily: S.daily, score: S.score, bonus: 0, moves: S.moves, ms: S.elapsedMs, best: {}, totalWins: Math.max(1, meta.totalWins || 0), fact: FACTS[fnv1a(S.mode + ':' + S.deal) % FACTS.length] }; openModal(name); }
+  scene(name, data) {
+    if (name === 'title') { closeModal(false); showTitle(true); }
+    else if (name === 'game') { closeModal(false); if (!S) newGame({ mode: 'klondike' }); showTitle(false); }
+    else { if (name === 'win' && !lastWin && S) lastWin = { mode: S.mode, opts: S.opts, deal: S.deal, daily: S.daily, score: S.score, bonus: 0, moves: S.moves, ms: S.elapsedMs, best: {}, totalWins: Math.max(1, meta.totalWins || 0), fact: FACTS[fnv1a(S.mode + ':' + S.deal) % FACTS.length] }; openModal(name, data, { clearStack: true }); }
     return sceneName();
   },
+  hoverState: () => (hoverHit ? { pile: hoverHit.pile, index: hoverHit.index, count: hoverHit.index >= 0 && S && S.piles[hoverHit.pile] ? S.piles[hoverHit.pile].length - hoverHit.index : 0, cursor: cv.style.cursor } : null),
+  toastInfo: () => ({ text: toastEl.textContent, ms: lastToastMs, on: toastEl.classList.contains('on') }),
+  modalStackDepth: () => modalStack.length,
   newGame(o) { return newGame(o || {}); },
   heroTags: () => JSON.parse(JSON.stringify(heroShown)),
   winConfig: () => WIN_SEARCH, // [positions, candidates]; a daily tries 160

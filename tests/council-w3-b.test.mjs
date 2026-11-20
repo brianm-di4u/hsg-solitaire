@@ -303,10 +303,10 @@ export const tests = [
       t.expect(c !== b && c !== a, 'a fourth is a repeat, but not one of the last two shown');
       t.expect(seen.slice(0, 25).includes(seen2[49]), 'it came from the half shown longest ago');
       await t.game('scene', 'records');
-      t.expect((await t.page.locator('#sheet').textContent()).includes('Facts found: 50 of 50'), 'Records counts them');
-      await t.page.locator('#sheet details.hp summary').first().click();
-      t.equal(await t.page.locator('#sheet details.hp[open] .fnd li').count(), 50, 'and lists them');
-      await t.page.locator('#sheet details.hp[open] .fnd li').nth(3).scrollIntoViewIfNeeded();
+      await t.page.click('#ltab-facts');
+      t.expect((await t.page.locator('#lpanel-facts').textContent()).includes('Facts found: 50 of 50'), 'Bathhouse Ledger Facts counts them');
+      t.equal(await t.page.locator('#lpanel-facts .fnd li').count(), 50, 'and lists them');
+      await t.page.locator('#lpanel-facts .fnd li').nth(3).scrollIntoViewIfNeeded();
       await shot(t, 'S3-16', 'records');
       await t.checkLayout();
       await t.reload();

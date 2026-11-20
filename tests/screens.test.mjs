@@ -182,8 +182,10 @@ export const tests = [
       await t.game('scene', 'settings');
       await t.shot('screens-32-settings');
       await t.checkLayout();
+      await t.page.click('#stab-audio');
       await t.page.click('[data-tog="sound"]');
       await t.page.fill('#vol', '0.3'); await t.page.dispatchEvent('#vol', 'input');
+      await t.page.click('#stab-comfort');
       await t.page.click('[data-set="cardSize"][data-val="large"]');
       let s = await t.state(); t.equal([s.settings.sound, s.settings.volume, s.settings.cardSize], [false, 0.3, 'large'], 'settings changed');
       await t.page.reload(); await t.page.waitForFunction(() => !!window.__game);
@@ -438,8 +440,19 @@ export const tests = [
       await check('game');
       for (const sc of ['menu', 'settings', 'backs', 'stats', 'records', 'help', 'daily', 'deal', 'fault']) {
         await t.game('scene', sc);
-        if (sc === 'records') await t.page.locator('#sheet details.hp summary').first().click().catch(() => {});
-        await check(sc);
+        if (sc === 'settings') {
+          await check('settings-gameplay');
+          await t.page.click('#stab-comfort'); await check('settings-comfort');
+          await t.page.click('#stab-audio'); await check('settings-audio');
+          await t.page.click('[data-tog="sound"]'); await check('settings-audio-muted');
+          await t.page.click('[data-tog="sound"]');
+        } else if (sc === 'records') {
+          await check('ledger-overview');
+          await t.page.click('#ltab-facts'); await check('ledger-facts');
+          await t.page.click('#ltab-ach'); await check('ledger-ach');
+        } else {
+          await check(sc);
+        }
       }
       // confirm modal
       await t.game('scene', 'stats');
@@ -487,8 +500,19 @@ export const tests = [
       await check('game');
       for (const sc of ['menu', 'settings', 'backs', 'stats', 'records', 'help', 'daily', 'deal', 'fault']) {
         await t.game('scene', sc);
-        if (sc === 'records') await t.page.locator('#sheet details.hp summary').first().click().catch(() => {});
-        await check(sc);
+        if (sc === 'settings') {
+          await check('settings-gameplay');
+          await t.page.click('#stab-comfort'); await check('settings-comfort');
+          await t.page.click('#stab-audio'); await check('settings-audio');
+          await t.page.click('[data-tog="sound"]'); await check('settings-audio-muted');
+          await t.page.click('[data-tog="sound"]');
+        } else if (sc === 'records') {
+          await check('ledger-overview');
+          await t.page.click('#ltab-facts'); await check('ledger-facts');
+          await t.page.click('#ltab-ach'); await check('ledger-ach');
+        } else {
+          await check(sc);
+        }
       }
       await t.game('scene', 'stats');
       await t.page.click('[data-a="resetStats"]');
@@ -535,7 +559,7 @@ export const tests = [
       iso = await t.page.evaluate(() => ({ app: document.getElementById('app').inert, title: document.getElementById('title').inert }));
       t.equal(iso, { app: true, title: true }, 'Modal open over Title: both #app and #title inert');
 
-      // 2. .seg unclipped focus & .tog role="switch" aria-checked (no aria-pressed)
+      // 2. .seg unclipped focus & .tog role="switch" aria-checked (no aria-pressed) across all 3 Settings tabs
       const setCheck = await t.page.evaluate(() => {
         const segs = [...document.querySelectorAll('#sheet .seg')];
         const togs = [...document.querySelectorAll('#sheet .tog')];
@@ -547,6 +571,7 @@ export const tests = [
       });
       t.equal(setCheck.segOverflowBad, 0, '.seg removes overflow:hidden so focus rings render unclipped');
       t.expect(setCheck.togCount >= 6 && setCheck.togBad === 0, 'all Settings .tog switches expose role=switch aria-checked and omit aria-pressed');
+      await t.page.click('#stab-audio');
       const soundBefore = await t.page.locator('[data-tog="sound"]').getAttribute('aria-checked');
       await t.page.click('[data-tog="sound"]');
       const soundAfter = await t.page.locator('[data-tog="sound"]').getAttribute('aria-checked');
@@ -584,16 +609,20 @@ export const tests = [
       await t.page.keyboard.press('Escape');
       t.equal(await t.page.evaluate(() => document.activeElement && document.activeElement.id), 'bHelp', 'closing Help restores focus to opener #bHelp');
 
-      // 4. Records <summary> Tab reachability
+      // 4. Bathhouse Ledger tablist roving & Tab containment
       await t.game('scene', 'records');
-      let sawFactsSummary = false;
+      let sawLedgerTab = false;
       for (let i = 0; i < 6; i++) {
-        const info = await t.page.evaluate(() => { const a = document.activeElement; return { inSheet: !!a && document.getElementById('sheet').contains(a), tag: a ? a.tagName : '', text: a ? a.textContent.trim() : '' }; });
-        t.equal(info.inSheet, true, 'Records Tab step ' + i + ' stays inside #sheet');
-        if (info.tag === 'SUMMARY' && /Facts found/.test(info.text)) sawFactsSummary = true;
+        const info = await t.page.evaluate(() => { const a = document.activeElement; return { inSheet: !!a && document.getElementById('sheet').contains(a), role: a ? a.getAttribute('role') : '', text: a ? a.textContent.trim() : '' }; });
+        t.equal(info.inSheet, true, 'Bathhouse Ledger Tab step ' + i + ' stays inside #sheet');
+        if (info.role === 'tab' && /Overview|By Game|Facts|Achievements/.test(info.text)) sawLedgerTab = true;
         await t.page.keyboard.press('Tab');
       }
-      t.equal(sawFactsSummary, true, 'Records Tab walk reaches Facts found <summary>');
+      t.equal(sawLedgerTab, true, 'Bathhouse Ledger Tab walk reaches section tablist');
+      await t.page.focus('#ltab-overview');
+      await t.page.keyboard.press('ArrowRight');
+      await t.page.keyboard.press('ArrowRight');
+      t.equal(await t.page.evaluate(() => document.getElementById('ltab-facts').getAttribute('aria-selected')), 'true', 'ArrowRight roves from Overview -> By Game -> Facts');
 
       // 5. Clean ARIA dialog accessible naming across modals (no nested .ib.x inside #mT)
       for (const sc of ['menu', 'settings', 'backs', 'stats', 'records', 'help', 'daily', 'deal', 'win', 'fault']) {

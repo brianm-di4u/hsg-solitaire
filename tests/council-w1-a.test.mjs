@@ -35,6 +35,8 @@ export const tests = [
       await t.page.click('#bMenu'); await t.page.click('#sheet [data-a="restart"]');
       t.equal((await t.state()).modal, 'confirm', 'Restart from the menu asks too');
       await t.page.click('#sheet [data-close][data-focus]');
+      t.equal((await t.state()).modal, 'menu', 'Cancel pops modalStack back to Menu');
+      await t.page.click('#sheet [data-a="resume"]');
       t.equal((await t.state()).moves, 1, 'still the same game');
       t.expect(JSON.parse(await stored(t, CUR)).state.moves === 1, 'saved game untouched');
       await t.page.click('#bNew'); await t.page.click('#sheet [data-a="yes"]');
@@ -176,7 +178,8 @@ export const tests = [
         });
       }
       await t.page.locator('#sheet [data-a="resetSaved"]').click();
-      t.equal((await t.state()).scene, 'title', 'Reset saved game cleanly returns to Title');
+      await t.page.locator('#sheet [data-a="yes"]').click();
+      t.equal((await t.state()).scene, 'title', 'Reset saved game (confirmed) cleanly returns to Title');
     },
   },
   // ---- S6-02 ----

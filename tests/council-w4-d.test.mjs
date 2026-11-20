@@ -116,8 +116,19 @@ export const tests = [
       t.equal(await t.page.evaluate(() => document.getElementById('toast').textContent), 'Build down: a seven goes on an eight', 'refusalReason says "on an eight"');
       // Verify ACH['w40'] ('Fully Furnished') copy is reconciled to owning all backs & tables (OQ-WF6-02)
       await t.game('scene', 'records');
-      const rec = await t.page.locator('#sheet').textContent();
+      await t.page.click('#ltab-ach');
+      const rec = await t.page.locator('#lpanel-ach').textContent();
       t.expect(rec.includes('Open every card back and parlor table.') && !rec.includes('Win 40 games'), 'ACH[w40] matches OQ-WF6-02');
+      // Verify player-facing Backs, Tables & Settings prose avoids fourth-wall historiography caveats (W6-S1-04)
+      await t.game('unlockAll');
+      await t.game('scene', 'backs');
+      const caps = await t.page.evaluate(() => {
+        const out = [];
+        for (const b of document.querySelectorAll('#sheet [data-back]')) { b.focus(); out.push(document.getElementById('bkCap').textContent); }
+        for (const tb of document.querySelectorAll('#sheet [data-table]')) { tb.focus(); out.push(document.getElementById('tblCap').textContent); }
+        return out.join(' || ');
+      });
+      t.expect(!/not documented|invented colors|No real stable colors|no club's own table|how much searching/i.test(caps), 'Backs & Tables speak in warm 1920s parlor prose without historiography caveats: ' + caps.slice(0, 200));
     },
   },
   {

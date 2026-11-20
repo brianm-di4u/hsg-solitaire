@@ -139,7 +139,7 @@ export const tests = [
       await press('B', () => window.__game.getState().modal === 'menu');
       await press('START', () => window.__game.getState().modal === null);
       // on a slider, left and right move it
-      await t.game('scene', 'settings'); await t.page.focus('#vol');
+      await t.game('scene', 'settings'); await t.page.click('#stab-audio'); await t.page.focus('#vol');
       const v0 = await t.page.$eval('#vol', (e) => +e.value);
       await press('LEFT', (v) => +document.getElementById('vol').value < v, v0);
       await press('B', () => window.__game.getState().modal === null);

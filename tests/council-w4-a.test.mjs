@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { baseSettings } from './_util.mjs';
+import { baseSettings, nearWinKlondike } from './_util.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = process.env.HS_ARTIFACT_DIR ? path.resolve(process.env.HS_ARTIFACT_DIR, 'wave-4', 'shots') : path.resolve(HERE, '..', 'screenshots', 'council-waves', 'wave-4', 'shots');
@@ -299,7 +299,7 @@ export const tests = [
     },
   },
   {
-    name: 'w4a C4-10 Statistics has one row for wins without Undo or Hint, and Records shows graded wins only once there are some',
+    name: 'w4a C4-10 Bathhouse Ledger By Game has one row for wins without Undo or Hint, and Overview shows graded wins only once there are some',
     async run(t) {
       await baseSettings(t, { sound: false, tips: false });
       const put = (o) => t.page.evaluate(([p, o]) => { for (const k in o) localStorage.setItem(p + k, JSON.stringify(o[k])); }, [P, o]);
@@ -307,12 +307,14 @@ export const tests = [
       await put({ stats: { klondike1: base }, meta: { lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 3, daily: {}, unlock: { ids: [] } } });
       await reloadGame(t); await baseSettings(t, { sound: false, tips: false });
       await t.game('scene', 'stats');
+      t.equal(await t.page.locator('#mT').textContent(), 'Bathhouse Ledger', 'stats alias opens Bathhouse Ledger');
       const rows = await t.page.locator('#sheet table.st tr').allTextContents();
       t.expect(rows.includes('Wins without Undo or Hint2 of 3'), 'one row: two of the three wins were unaided: ' + JSON.stringify(rows));
       t.equal(rows.filter((r) => /Undo or Hint/.test(r)).length, 1, 'and the near-duplicate row is gone');
       await shot(t, 'C4-10', 'stats');
       await t.checkLayout();
       await t.game('scene', 'records');
+      t.equal(await t.page.locator('#sheet .journey .jstop').count(), 8, 'Overview shows the 8-bathhouse 21-Bath Row Stamp Journey');
       let txt = await t.page.locator('#sheet').textContent();
       t.expect(!/Graded deals won/.test(txt), 'a player who never chose a grade sees no Graded line');
       await t.page.evaluate(([p]) => { const m = JSON.parse(localStorage.getItem(p + 'meta')); m.gradeWins = { easy: 0, medium: 2, hard: 1 }; localStorage.setItem(p + 'meta', JSON.stringify(m)); }, [P]);
@@ -324,23 +326,23 @@ export const tests = [
     },
   },
   {
-    name: 'w4a C4-11 the line under Move a card by says what the choice does',
+    name: 'w4a C4-11 the line under Move a card by says what each of the four choices does',
     async run(t) {
       await baseSettings(t, { sound: false, tips: false });
       const note = () => t.page.locator('#tapNote').textContent();
-      const want = { tap: /^Tap sends a card to its best pile$/, double: /^Double-tap sends a card/, drag: /^Drag only: a tap never moves a card$/ };
-      for (const mode of ['double', 'drag', 'tap']) {
+      const want = { tap: /^Tap sends a card to its best pile$/, double: /^Double-tap sends a card/, select: /^Select & place: tap a card to pick it up/, drag: /^Drag only: a tap never moves a card$/ };
+      for (const mode of ['double', 'select', 'drag', 'tap']) {
         await t.game('setSettings', { tapMove: mode });
         await t.game('scene', 'settings');
         t.expect(want[mode].test(await note()), 'opened with ' + mode + ' saved, the line reads: ' + await note());
       }
-      for (const mode of ['double', 'drag', 'tap']) {
+      for (const mode of ['double', 'select', 'drag', 'tap']) {
         await t.page.locator('[data-set="tapMove"][data-val="' + mode + '"]').click();
         t.expect(want[mode].test(await note()), 'choosing ' + mode + ' changes the line at once: ' + await note());
       }
       const texts = new Set();
-      for (const mode of ['double', 'drag', 'tap']) { await t.page.locator('[data-set="tapMove"][data-val="' + mode + '"]').click(); texts.add(await note()); }
-      t.equal(texts.size, 3, 'three choices, three different lines');
+      for (const mode of ['double', 'select', 'drag', 'tap']) { await t.page.locator('[data-set="tapMove"][data-val="' + mode + '"]').click(); texts.add(await note()); }
+      t.equal(texts.size, 4, 'four choices, four different lines');
       await t.page.locator('[data-set="tapMove"][data-val="drag"]').click(); await shot(t, 'C4-11', 'settings');
       await t.checkLayout();
     },
@@ -381,6 +383,274 @@ export const tests = [
       t.equal(await t.page.evaluate(([p]) => localStorage.getItem(p + 'current'), [P]), saved, 'Cancel leaves the saved deal as it was');
       await t.page.locator('#tCont').click();
       t.equal((await t.state()).deal, JSON.parse(saved).state.deal, 'and Continue brings it back');
+    },
+  },
+  {
+    name: 'w4a W4-B01 responsive single-CTA Title, 3-tab Gameplay-first Settings, modalStack[], 3x3 Menu, non-destructive Daily & post-Win Ticket recall (W6-S1-04, W6-S2-01, W6-S2-05)',
+    async run(t) {
+      await baseSettings(t, { sound: true, tips: false, motion: 'reduced' });
+      // 1. Fresh 0-win Title: ONE solid primary CTA (Klondike Draw 1) + Start here + 5 text-only #tRow pills + spectrum badges
+      await t.game('scene', 'title');
+      await t.waitForStable();
+      const fresh = await t.page.evaluate(() => {
+        const solids = [...document.querySelectorAll('#title button.solid')].filter((b) => !b.hidden && b.getClientRects().length > 0);
+        const start = document.getElementById('tStartHere');
+        const badges = [...document.querySelectorAll('.tile .tbadge')].map((x) => x.textContent.trim());
+        const rowBtns = [...document.querySelectorAll('#tRow button')];
+        const tag = document.querySelector('#title .tag');
+        return {
+          solidCount: solids.length,
+          solidText: solids[0] ? solids[0].textContent.trim() : '',
+          startVisible: !!(start && !start.hidden && start.textContent.trim() === 'Start here'),
+          badges,
+          rowCount: rowBtns.length,
+          rowSvgs: document.querySelectorAll('#tRow svg').length,
+          tagBg: tag ? getComputedStyle(tag).backgroundColor : '',
+        };
+      });
+      t.equal([fresh.solidCount, fresh.solidText, fresh.startVisible], [1, 'Draw 1', true], '0-win Title has exactly ONE solid primary CTA (Draw 1) with Start here');
+      t.equal(fresh.badges, ['Relaxed', 'Pure Skill', 'Two-Deck', 'Tactical'], 'each mode carries a short spectrum badge separate from .tsub');
+      t.equal([fresh.rowCount, fresh.rowSvgs], [5, 0], '#tRow is trimmed to 5 text-only pills');
+      t.expect(fresh.tagBg && fresh.tagBg !== 'rgba(0, 0, 0, 0)', '#title .tag keeps a dark scrim behind the tagline: ' + fresh.tagBg);
+
+      // 1b. Mobile 390x844 portrait fold: Bathhouse Row landmark visible above h1, all 4 modes' Play chips + #tDaily <= 844
+      if (t.viewport === 'mobile') {
+        await t.page.setViewportSize({ width: 390, height: 844 });
+        await t.game('scene', 'title');
+        await t.waitForStable();
+        const port = await t.page.evaluate(() => {
+          const tags = window.__game.heroTags().tags;
+          const h1 = document.querySelector('#title h1').getBoundingClientRect();
+          const chips = [...document.querySelectorAll('#tiles .chip')].map((c) => c.getBoundingClientRect());
+          const daily = document.getElementById('tDaily').getBoundingClientRect();
+          return {
+            tagText: tags[0] ? tags[0].text : null,
+            tagY: tags[0] ? Math.round(tags[0].y) : -1,
+            h1Top: Math.round(h1.top),
+            lowestChip: Math.round(Math.max(...chips.map((c) => c.bottom))),
+            dailyBottom: Math.round(daily.bottom),
+            vh: innerHeight,
+          };
+        });
+        t.equal(port.tagText, 'CENTRAL AVENUE · BATHHOUSE ROW', 'portrait hero retains CENTRAL AVENUE · BATHHOUSE ROW landmark');
+        t.expect(port.tagY > 0 && port.tagY < port.h1Top, 'portrait hero tag clears h1 cleanly: ' + JSON.stringify(port));
+        t.expect(port.lowestChip <= port.vh && port.dailyBottom <= port.vh, '390x844 portrait keeps all 4 modes + Daily deals above fold: ' + JSON.stringify(port));
+        await t.page.setViewportSize(t.vp);
+      }
+
+      // 2. Dynamic #tCont becomes SOLE solid CTA when a game is saved + landscape 341-520px keeps full 'Central Avenue'
+      await t.seed(47);
+      await t.game('newGame', { mode: 'klondike', draw: 1 });
+      await t.game('act', 'draw');
+      await t.page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+      await t.game('scene', 'title');
+      await t.waitForStable();
+      const savedTitle = await t.page.evaluate(() => {
+        const solids = [...document.querySelectorAll('#title button.solid')].filter((b) => !b.hidden && b.getClientRects().length > 0);
+        return {
+          solidCount: solids.length,
+          solidId: solids[0] ? solids[0].id : '',
+          contText: document.getElementById('tCont').textContent.trim(),
+        };
+      });
+      t.equal([savedTitle.solidCount, savedTitle.solidId], [1, 'tCont'], 'saved deal promotes #tCont to sole solid CTA on Title');
+      t.expect(/Continue Klondike Draw 1 · Move 1/.test(savedTitle.contText), 'dynamic #tCont shows mode, variant and move count: ' + savedTitle.contText);
+
+      if (t.viewport === 'desktop') {
+        for (const [w, h] of [[640, 360], [667, 375], [844, 390]]) {
+          await t.page.setViewportSize({ width: w, height: h });
+          await t.game('scene', 'title');
+          await t.waitForStable();
+          const land = await t.page.evaluate(() => {
+            const subs = [...document.querySelectorAll('.tile .tsub')].map((e) => ({ txt: e.textContent.trim(), vis: getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().height > 0 }));
+            const chips = [...document.querySelectorAll('#tiles .chip')].map((c) => c.getBoundingClientRect().bottom);
+            const cont = document.getElementById('tCont').getBoundingClientRect();
+            return { subs, lowestChip: Math.round(Math.max(...chips)), contBottom: Math.round(cont.bottom), vh: innerHeight };
+          });
+          t.expect(land.subs.every((x) => x.vis) && land.subs.some((x) => x.txt.includes('Central Avenue')), w + 'x' + h + ' keeps 1-line .tsub with full Central Avenue: ' + JSON.stringify(land.subs));
+          t.expect(land.lowestChip <= land.vh && land.contBottom <= land.vh, w + 'x' + h + ' fits #tCont + all Play chips inside viewport: ' + JSON.stringify(land));
+        }
+        await t.page.setViewportSize(t.vp);
+        await t.game('scene', 'title');
+      }
+
+      // 3. 3-tab Gameplay-first Settings, in-place tipsAgain, mobile 2-line sliders, .is-muted, & modalStack[] multi-hop
+      await t.page.focus('#tSet');
+      await t.page.keyboard.press('Enter');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'settings');
+      const setFirst = await t.page.evaluate(() => ({
+        activeTab: document.querySelector('#sheet [data-stab][aria-selected="true"]').dataset.stab,
+        firstLabel: document.querySelector('#spanel-gameplay .set label').childNodes[0].textContent.trim(),
+        audioHidden: document.getElementById('spanel-audio').hidden,
+      }));
+      t.equal(setFirst, { activeTab: 'gameplay', firstLabel: 'Deal fairness', audioHidden: true }, 'Settings opens on Gameplay tab with Deal fairness first');
+
+      await t.page.evaluate(() => { document.getElementById('sheet').scrollTop = 60; });
+      const stBefore = await t.page.evaluate(() => document.getElementById('sheet').scrollTop);
+      await t.page.click('[data-a="tipsAgain"]');
+      const afterTips = await t.page.evaluate(() => ({
+        scrollTop: document.getElementById('sheet').scrollTop,
+        toast: document.getElementById('toast').textContent,
+        checked: document.querySelector('[data-tog="tips"]').getAttribute('aria-checked'),
+      }));
+      t.equal(afterTips.scrollTop, stBefore, 'Show tips again patches in place without resetting scrollTop');
+      t.equal(afterTips.checked, 'true', 'Show tips again flips tips switch on in place');
+      t.expect(/Tips reset/i.test(afterTips.toast), 'Show tips again confirms via toast: ' + afterTips.toast);
+      await t.game('setSettings', { tips: false });
+
+      // Audio tab: #sfxVol slider, mobile 2-line width check, & .is-muted dimming
+      await t.page.click('#stab-audio');
+      const audioTab = await t.page.evaluate(() => {
+        const sfx = document.getElementById('sfxVol');
+        const row = document.getElementById('row-sfxVol');
+        return {
+          hasSfxVol: !!sfx && !document.getElementById('spanel-audio').hidden,
+          inputW: sfx ? Math.round(sfx.getBoundingClientRect().width) : 0,
+          rowW: row ? Math.round(row.getBoundingClientRect().width) : 0,
+        };
+      });
+      t.equal(audioTab.hasSfxVol, true, 'Audio tab exposes #sfxVol slider');
+      if (t.viewport === 'mobile') {
+        t.expect(audioTab.inputW >= audioTab.rowW * 0.85, 'mobile Audio slider stacks full width (' + audioTab.inputW + ' / ' + audioTab.rowW + ')');
+      }
+      await t.page.click('[data-tog="sound"]');
+      t.equal(await t.page.evaluate(() => document.getElementById('row-sfxVol').classList.contains('is-muted')), true, 'muting master sound dims dependent audio rows');
+      await t.page.click('[data-tog="sound"]');
+
+      // Multi-hop modalStack[]: Title (#tSet) -> Settings (Table & Comfort, scrolled) -> Backs (reseed in-place preserving equipped back) -> Close -> Settings restored -> Close -> #tSet focused
+      await t.game('unlockAll');
+      await t.game('setSettings', { back: 'lozenge' });
+      await t.page.click('#stab-comfort');
+      await t.page.evaluate(() => { document.getElementById('sheet').scrollTop = 90; });
+      const comfortScroll = await t.page.evaluate(() => document.getElementById('sheet').scrollTop);
+      await t.page.click('[data-a="backs"]');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'backs');
+      t.equal(await t.game('modalStackDepth'), 1, 'modalStack pushes Settings underneath Backs');
+      await t.page.locator('[data-a="reseed"]').scrollIntoViewIfNeeded();
+      await t.page.evaluate(() => { const s = document.getElementById('sheet'); if (s.scrollTop === 0) s.scrollTop = 80; });
+      const backsScroll = await t.page.evaluate(() => document.getElementById('sheet').scrollTop);
+      await t.page.click('[data-a="reseed"]');
+      const afterReseed = await t.page.evaluate(() => ({
+        back: window.__game.getState().settings.back,
+        scrollTop: document.getElementById('sheet').scrollTop,
+      }));
+      t.equal(afterReseed, { back: 'lozenge', scrollTop: backsScroll }, 'Skylight Reshuffle patches swatch in place without changing equipped back or scrollTop');
+      await t.page.click('#sheet [data-close]');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'settings');
+      const restoredSet = await t.page.evaluate(() => ({
+        tab: document.querySelector('#sheet [data-stab][aria-selected="true"]').dataset.stab,
+        scrollTop: document.getElementById('sheet').scrollTop,
+      }));
+      t.equal(restoredSet, { tab: 'comfort', scrollTop: comfortScroll }, 'closing Backs pops modalStack back to Table & Comfort preserving scrollTop');
+      await t.page.click('#sheet [data-close]');
+      await t.page.waitForFunction(() => !window.__game.getState().modal);
+      t.equal(await t.page.evaluate(() => document.activeElement && document.activeElement.id), 'tSet', 'final close restores focus to Title opener #tSet');
+
+      // 4. Inline Menu variant strip (confirm-gated), #mMute, 'M' hotkey, & Deal # draft preservation across Confirm -> Cancel
+      await t.page.click('#tCont');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'game');
+      await t.page.click('#bMenu');
+      await t.page.click('#sheet [data-mvar-mode="klondike"][data-mvar-draw="3"]');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'confirm');
+      t.expect(/Klondike · Draw 1.*1 move/i.test(await t.page.locator('#sheet').textContent()), 'variant switch over live deal confirm-gates naming active deal & moves');
+      await t.page.click('#sheet [data-close]');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'menu');
+
+      await t.page.click('#sheet [data-a="deal"]');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'deal');
+      await t.page.fill('#dealIn', '12345');
+      await t.page.click('#sheet [data-a="goDeal"]');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'confirm');
+      await t.page.click('#sheet [data-close]');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'deal');
+      t.equal(await t.page.inputValue('#dealIn'), '12345', 'Deal # typed draft survives Confirm -> Cancel via modalStack');
+      await t.page.click('#sheet [data-close]'); // back to menu
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'menu');
+
+      const snd0 = (await t.state()).settings.sound;
+      await t.page.click('#mMute');
+      t.equal((await t.state()).settings.sound, !snd0, '#mMute toggles sound inside Menu');
+      await t.page.click('#sheet [data-a="resume"]');
+      await t.page.keyboard.press('m');
+      t.equal((await t.state()).settings.sound, snd0, 'M hotkey toggles mute/unmute from game table');
+
+      // 5. Non-destructive active Daily ('In progress · Resume') vs stale 'Attempted'
+      await t.game('newGame', { mode: 'klondike', draw: 1, daily: true });
+      await t.game('act', 'draw');
+      await t.page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+      await t.game('scene', 'daily');
+      const d0Btn = t.page.locator('#sheet [data-daily="0"]');
+      t.expect(/In progress · Resume/.test(await d0Btn.textContent()), 'active live Daily reads In progress · Resume');
+      await d0Btn.click();
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'game');
+      t.equal((await t.state()).moves, 1, 'clicking active Daily resumes non-destructively without wiping moves');
+      await t.game('newGame', { mode: 'freecell', deal: 12 });
+      await t.game('scene', 'daily');
+      t.expect(/Attempted/.test(await t.page.locator('#sheet [data-daily="0"]').textContent()), 'abandoned earlier Daily reads Attempted');
+      await t.page.click('#sheet [data-close]');
+
+      // 6. Post-Win Bath Ticket recall via #bAuto ('Ticket') and Menu ('View Bath Ticket')
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 401, moves: 25 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'win', null, { timeout: 10000 });
+      await t.page.click('#sheet [data-close]');
+      await t.page.waitForFunction(() => !window.__game.getState().modal);
+      const autoBtn = await t.page.evaluate(() => { const b = document.getElementById('bAuto'); return { text: b.textContent.trim(), disabled: b.disabled }; });
+      t.equal(autoBtn, { text: 'Ticket', disabled: false }, 'dismissed win sheet turns #bAuto into enabled Ticket recall');
+      await t.page.click('#bAuto');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'win');
+      await t.page.click('#sheet [data-close]');
+      await t.page.click('#bMenu');
+      t.equal(await t.page.locator('#sheet [data-a="ticket"]').textContent(), 'View Bath Ticket', 'post-Win Menu primary CTA offers View Bath Ticket');
+      await t.page.click('#sheet [data-a="ticket"]');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'win');
+    },
+  },
+  {
+    name: 'w4a W4-B01 desktop fine-pointer hover signifiers, sfxVol attenuation & length-scaled toasts (W6-S2-06)',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced' });
+      // 1. Desktop hover signifiers on Klondike stock & Yukon movable stack + idle-safe rAF + pointerleave clear
+      await t.game('setState', { mode: 'yukon', piles: { f0: [], f1: [], f2: [], f3: [], t0: ['KS', 'QH', '4C'], t1: ['KD'], t2: [], t3: [], t4: [], t5: [], t6: [] } });
+      const lay = await t.game('getLayout');
+      const card = lay.piles.t0.cards[0]; // KS with 2 cards above it — movable run of 3 in Yukon (getLayout already returns viewport coords)
+      await t.page.mouse.move(card.x + card.w / 2, card.y + 12);
+      await t.waitForStable();
+      const hv = await t.page.evaluate(() => ({ state: window.__game.hoverState(), cursor: document.getElementById('cv').style.cursor }));
+      t.equal(hv.state, { pile: 't0', index: 0, count: 3, cursor: 'grab' }, 'Yukon hover highlights entire pickable 3-card run');
+      t.equal(hv.cursor, 'grab', 'movable stack shows grab cursor');
+      await t.game('frameStats', true);
+      await t.page.waitForTimeout(250);
+      t.equal((await t.game('frameStats')).frames, 0, 'stationary hover stays 100% idle-safe (0 rAF frames)');
+      await t.page.evaluate(() => document.getElementById('cv').dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse', bubbles: true })));
+      const hvAfter = await t.page.evaluate(() => ({ state: window.__game.hoverState(), cursor: document.getElementById('cv').style.cursor }));
+      t.equal(hvAfter, { state: null, cursor: '' }, 'pointerleave clears hover highlight and cursor');
+
+      // Stock hover shows pointer cursor
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: { stock: ['AS', '2S'], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['KH'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] } });
+      const kLay = await t.game('getLayout'), st = kLay.piles.stock;
+      await t.page.mouse.move(st.x + st.w / 2, st.y + st.h / 2);
+      const hvStock = await t.page.evaluate(() => ({ state: window.__game.hoverState(), cursor: document.getElementById('cv').style.cursor }));
+      t.equal([hvStock.state && hvStock.state.pile, hvStock.cursor], ['stock', 'pointer'], 'stock hover reports pile=stock and pointer cursor');
+
+      // 2. sfxVol audio attenuation via sfxBus
+      const rFull = await t.page.evaluate(() => window.__game.audioRender('hint', 6, false, { sfxVol: 1 }));
+      const rHalf = await t.page.evaluate(() => window.__game.audioRender('hint', 6, false, { sfxVol: 0.5 }));
+      const ratio = rHalf.peak / rFull.peak;
+      t.expect(ratio > 0.45 && ratio < 0.55, 'sfxVol=0.5 attenuates SFX cue peak to ~50% (' + rFull.peak + ' -> ' + rHalf.peak + ', ratio ' + ratio.toFixed(2) + ')');
+      await t.game('setSettings', { sfxVol: 0.5 });
+      t.equal((await t.game('audioState')).sfxVol, 0.5, 'audioState() reflects sfxVol setting');
+      await t.game('setSettings', { sfxVol: 1 });
+
+      // 3. Length-scaled toast duration
+      await t.page.keyboard.press('m'); // short toast: 'Sound on' / 'Sound muted'
+      const tShort = await t.game('toastInfo');
+      t.expect(tShort.ms >= 2600 && tShort.ms <= 3600, 'short toast uses compact duration: ' + JSON.stringify(tShort));
+      await t.game('scene', 'settings');
+      await t.page.click('[data-a="tipsAgain"]'); // longer toast (~49 chars)
+      const tMed = await t.game('toastInfo');
+      t.expect(tMed.ms > tShort.ms && tMed.ms <= 6000, 'longer toast scales duration proportionally: ' + JSON.stringify(tMed));
     },
   },
 ];

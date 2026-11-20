@@ -107,9 +107,10 @@ export const tests = [
       for (const id of ['spid4', 'free', 'yuk', 'w40', 'w50', 'w100', 'd1', 'd7all', 'run']) t.expect(!got.includes(id), 'did not earn ' + id);
       t.equal(m.unlock.ids.length, 11, 'the 22nd win opens everything up to 21 wins: ' + m.unlock.ids);
       await t.game('scene', 'records');
-      const body = await t.page.locator('#sheet').textContent();
-      t.expect(body.includes('Achievements: ' + got.length + ' of 24'), 'Records counts them: 24 in all');
-      const names = await t.page.locator('.ach li b').allTextContents(); t.equal(new Set(names).size, names.length, 'names are unique');
+      await t.page.click('#ltab-ach');
+      const body = await t.page.locator('#lpanel-ach').textContent();
+      t.expect(body.includes('Achievements: ' + got.length + ' of 24'), 'Bathhouse Ledger Achievements counts them: 24 in all');
+      const names = await t.page.locator('#lpanel-ach .ach li b').allTextContents(); t.equal(new Set(names).size, names.length, 'names are unique');
       t.equal(names.length, 24, '24 achievements');
     },
   },
@@ -140,19 +141,19 @@ export const tests = [
     name: 'w2c S3-03 Records shows every game, the streaks, the next unlock and the achievements',
     async run(t) {
       await put(t, OLD); await reloadGame(t);
-      await t.page.click('#tRec');
-      t.equal((await t.state()).scene, 'records', 'reachable from the title');
+      await t.page.click('#tLedger');
+      t.equal((await t.state()).scene, 'ledger', 'Bathhouse Ledger reachable from the title');
       const txt = await t.page.locator('#sheet').textContent();
       t.expect(txt.includes('Won 3 of 5 · streak 1 (best 2)'), 'per-game record: ' + txt.slice(0, 200));
       t.expect(txt.includes('Best 4:00 · 90 moves · score 1500'), 'bests'); t.expect(txt.includes('Baths won: 3'), 'total wins');
       t.equal(await t.page.locator('.rec').count(), 7, 'all seven game variants');
       await shot(t, 'S3-03', 'records');
-      await t.page.evaluate(() => { const s = document.getElementById('sheet'); s.scrollTop = s.scrollHeight; });
+      await t.page.click('#ltab-ach');
       await shot(t, 'S3-03', 'records-achievements');
       await t.checkLayout({ allowScrollY: true });
       await t.page.keyboard.press('Escape');
       await t.game('newGame', { mode: 'klondike' }); await t.game('scene', 'menu');
-      t.expect(await t.page.locator('[data-a="records"]').count() === 1, 'and from the pause card');
+      t.expect(await t.page.locator('[data-a="ledger"]').count() === 1, 'and from the pause card');
     },
   },
   {

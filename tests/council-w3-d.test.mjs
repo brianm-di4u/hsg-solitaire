@@ -150,7 +150,8 @@ export const tests = [
       await t.page.evaluate(([x, y]) => document.getElementById('cv').dispatchEvent(new PointerEvent('pointerup', { pointerType: 'touch', pointerId: 7, isPrimary: true, clientX: x + 30, clientY: y, bubbles: true })), [c.x, c.y]);
       // the switch, and reduced motion
       await t.game('scene', 'settings');
-      t.expect(await t.page.isVisible('[data-tog="haptics"]'), 'Settings has a Vibration switch');
+      await t.page.click('#stab-audio');
+      t.expect(await t.page.isVisible('[data-tog="haptics"]'), 'Settings Audio tab has a Vibration switch');
       await t.page.locator('[data-tog="haptics"]').scrollIntoViewIfNeeded(); await shot(t, 'S1-12', 'settings');
       await t.page.click('[data-tog="haptics"]');
       t.equal((await t.state()).settings.haptics, false, 'it turns off and is saved');
@@ -283,11 +284,14 @@ export const tests = [
       await t.page.click('#bMenu');
       t.equal((await cuesNow(t, true)).map((c) => c.name), ['tick'], 'opening the menu ticks');
       await t.page.click('[data-a="settings"]');
+      await t.page.click('#stab-comfort');
       await cuesNow(t, true);
       await t.page.click('[data-tog="fourColor"]');
       t.equal((await cuesNow(t, true)).map((c) => c.name), ['tick'], 'a switch ticks');
       await t.page.click('[data-set="cardSize"][data-val="large"]');
       t.equal((await cuesNow(t, true)).map((c) => c.name), ['tick'], 'a choice ticks');
+      await t.page.click('#stab-audio');
+      await cuesNow(t, true);
       // the slider: two quick moves are one preview, a later move another
       const slide = (v) => t.page.evaluate((v) => { const e = document.getElementById('vol'); e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); }, v);
       await slide(0.3); await slide(0.35);
@@ -423,7 +427,7 @@ export const tests = [
       const aria = await t.page.evaluate(() => {
         const segs = [...document.querySelectorAll('#sheet .seg[role="group"]')];
         const togs = [...document.querySelectorAll('#sheet .tog[role="switch"]')];
-        const sliders = ['vol', 'musicVol', 'ambVol'].map((id) => { const e = document.getElementById(id); return { id, vt: e.getAttribute('aria-valuetext') }; });
+        const sliders = ['vol', 'sfxVol', 'musicVol', 'ambVol'].map((id) => { const e = document.getElementById(id); return { id, vt: e.getAttribute('aria-valuetext') }; });
         return {
           segsLinked: segs.every((g) => g.getAttribute('aria-labelledby') && document.getElementById(g.getAttribute('aria-labelledby'))),
           togsLinked: togs.every((b) => b.getAttribute('aria-labelledby') && document.getElementById(b.getAttribute('aria-labelledby')) && !b.hasAttribute('aria-pressed')),
@@ -433,6 +437,7 @@ export const tests = [
       });
       t.equal([aria.segsLinked, aria.togsLinked, aria.hasSelectMode], [true, true, true], 'Settings groups & switches link labels and expose Select & place');
       t.expect(aria.sliders.every((x) => /^\d+%$/.test(x.vt)), 'volume sliders expose aria-valuetext="N%": ' + JSON.stringify(aria.sliders));
+      await t.page.click('#stab-audio');
       await t.page.fill('#vol', '0.45'); await t.page.dispatchEvent('#vol', 'input');
       t.equal(await t.page.getAttribute('#vol', 'aria-valuetext'), '45%', 'slider aria-valuetext updates live');
 
@@ -451,12 +456,12 @@ export const tests = [
 
       await t.game('scene', 'stats');
       const tabRove = await t.page.evaluate(() => {
-        const active = document.querySelector('#sheet [role="tab"][aria-selected="true"]');
+        const active = document.querySelector('#sheet .sub-tabs [role="tab"][aria-selected="true"]');
         active.focus();
-        return { before: active.dataset.key, panel: !!document.querySelector('#sheet [role="tabpanel"]') };
+        return { before: active.dataset.key, panel: !!document.querySelector('#sheet #ledgerGamePanel[role="tabpanel"]') };
       });
       await t.page.keyboard.press('ArrowRight');
-      const afterKey = await t.page.evaluate(() => document.querySelector('#sheet [role="tab"][aria-selected="true"]').dataset.key);
+      const afterKey = await t.page.evaluate(() => document.querySelector('#sheet .sub-tabs [role="tab"][aria-selected="true"]').dataset.key);
       t.expect(tabRove.panel && afterKey !== tabRove.before, 'tablist ArrowRight roves to next variant tab (' + tabRove.before + ' -> ' + afterKey + ')');
       await t.page.keyboard.press('Escape');
 

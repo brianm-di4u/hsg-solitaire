@@ -83,7 +83,11 @@ export const tests = [
       await t.page.click('#bMenu');
       const order = await t.page.evaluate(() => [...document.querySelectorAll('#sheet .menu .btn')].map((x) => x.dataset.a));
       t.equal(order.slice(0, 3), ['resume', 'help', 'new'], 'Resume, then How to play');
-      t.equal(order.length, 11, 'nothing was dropped from the menu');
+      t.equal(order.length, 10, 'balanced 3x3 menu grid plus Resume (Statistics & Records unified into Bathhouse Ledger)');
+      t.expect(order.includes('ledger') && !order.includes('stats') && !order.includes('records'), 'Bathhouse Ledger replaces duplicate Statistics & Records tiles');
+      const muteBox = await t.page.locator('#mMute').boundingBox();
+      t.expect(muteBox && muteBox.width >= 44 && muteBox.height >= 44, 'sticky Menu header includes >=44x44 quick-mute button: ' + JSON.stringify(muteBox));
+      t.equal(await t.page.locator('#sheet .menu-var [data-mvar-mode="klondike"]').count(), 2, 'Klondike Menu includes inline Draw 1 / Draw 3 variant strip');
       await shot(t, 'S2-09', 'menu');
       await t.page.click('#sheet [data-a="help"]');
       t.equal((await t.state()).modal, 'help', 'the menu entry still opens help');

@@ -57,7 +57,9 @@ export const tests = [
       await t.page.evaluate(() => window.dispatchEvent(new ErrorEvent('error', { message: 'boom' })));
       await waitModal(t, 'fault');
       await t.page.locator('[data-a="resetSaved"]').click();
-      t.equal((await t.state()).scene, 'title', 'reset goes to the title');
+      await waitModal(t, 'confirm');
+      await t.page.locator('#sheet [data-a="yes"]').click();
+      t.equal((await t.state()).scene, 'title', 'confirmed reset goes to the title');
       t.equal(await raw(t, 'current'), null, 'the saved game is gone');
       t.expect(await t.page.locator('#tCont').isHidden(), 'and there is nothing to Continue');
       await t.page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
