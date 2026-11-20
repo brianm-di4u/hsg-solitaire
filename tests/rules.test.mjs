@@ -306,4 +306,255 @@ export const tests = [
       t.equal(d1.daily, '2026-10-28', 'daily flag');
     },
   },
+  {
+    name: 'rules-21 makeSolver collision-free B..u keys (3C/10C/AD..9D), Yukon 2s safety, and split/pullback verification (W6-S3-03, CD-WF6-03)',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { autoFoundation: 'off', motion: 'reduced', tips: false });
+      // 1. Key uniqueness across all 52 card codes (specifically verifying 3C !== '#', 10C !== ':', AD..9D !== digits)
+      const alphabet = await t.page.evaluate(() => {
+        const seen = new Set(), bad = [];
+        for (let s = 0; s < 4; s++) for (let r = 1; r <= 13; r++) {
+          const x = (s << 4) | r, ch = String.fromCharCode(65 + (x >> 4) * 13 + (x & 15));
+          seen.add(ch);
+          if (/[0-9:#|,]/.test(ch)) bad.push([s, r, ch]);
+        }
+        return { unique: seen.size, bad };
+      });
+      t.equal([alphabet.unique, alphabet.bad.length], [52, 0], 'all 52 compact card symbols B..u are unique and disjoint from delimiters/digits');
+      // 2. Real top-3C and previously false-dead Draw 1 deals now solve cleanly
+      for (const deal of [75, 172, 203, 313, 316, 440, 505, 767, 821]) {
+        const r = await t.game('solve', 'klondike', { draw: 1 }, deal, 4000);
+        t.equal(r.result, 'won', 'Draw 1 deal #' + deal + ' solves won without 3C/# key collision (used ' + r.used + ')');
+      }
+      // 3. Yukon rank-2 safety: buried black Ace (AS under KS) must land on red 2H (emptying t1 for KS) rather than 2H eagerly settling
+      const fullRun = (s, n = 13) => ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'].slice(0, n).map((r) => r + s);
+      await t.game('setState', {
+        mode: 'yukon',
+        piles: {
+          f0: fullRun('C', 13), f1: fullRun('D', 13), f2: ['AH'], f3: [],
+          t0: ['KH', '2H'],
+          t1: ['AS', 'KS'],
+          t2: ['QH', 'JH', 'TH', '9H', '8H', '7H', '6H', '5H', '4H', '3H'],
+          t3: ['QS', 'JS', 'TS', '9S'],
+          t4: ['8S', '7S'], t5: ['6S', '5S'], t6: ['4S', '3S', '2S'],
+        },
+      });
+      const ykSolve = await t.game('solveState', 500);
+      t.equal(ykSolve.result, 'won', 'Yukon 2H stays off foundation so [AS, KS] can land on 2H and win (used ' + ykSolve.used + ')');
+      // Verify safe autoplay in Yukon does NOT auto-play 2H while opposite-color AS is still on tableau
+      await t.game('setSettings', { autoFoundation: 'safe' });
+      await t.game('act', 'move', 't1', 't0', 2); // moves [AS, KS] onto 2H, emptying t1
+      t.equal((await t.state()).piles.t0, ['KH', '2H', 'AS', 'KS'], 'Yukon safe autoplay kept 2H on tableau so [AS, KS] landed cleanly');
+      await t.game('setSettings', { autoFoundation: 'off' });
+
+      // 4. Verification mode for lostKick(): partial-run split (splitting 7H off 8S onto 8C is the sole legal move, exposing 8S -> f3 and buried 6H -> f2)
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: {
+          stock: [], waste: [],
+          f0: fullRun('C', 6), f1: fullRun('D', 13), f2: fullRun('H', 5), f3: fullRun('S', 7),
+          t0: ['#7C', '#6H', '8S', '7H'],
+          t1: ['8C'],
+          t2: ['#9S', '#9C', '#9H', '8H'],
+          t3: ['#KS', '#QS', '#JS', 'TS'],
+          t4: ['#KC', '#QC', '#JC', 'TC'],
+          t5: ['#KH', '#QH', '#JH', 'TH'],
+          t6: [],
+        },
+      });
+      t.equal((await t.game('solveState', 4000)).result, 'dead', 'pruned default solver misses partial-run split');
+      const splitRes = await t.game('solveState', 4000, { verify: true });
+      t.equal(splitRes.result, 'won', 'verify mode allows partial-run split (7H off 8S onto 8C) and solves won');
+      // Bounded foundation pullback: QD on f1 (12) pulls onto KS so JS moves off TS -> TS..KS win
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: {
+          stock: [], waste: [],
+          f0: fullRun('C', 13), f1: fullRun('D', 12), f2: fullRun('H', 12), f3: fullRun('S', 9),
+          t0: ['TS', 'JS'], t1: ['KD'], t2: ['KH'], t3: ['KS'], t4: ['QS'], t5: [], t6: [],
+        },
+      });
+      const pbRes = await t.game('solveState', 4000, { verify: true });
+      t.equal(pbRes.result, 'won', 'verify mode allows bounded foundation pullback (QD onto KS) and solves won');
+    },
+  },
+  {
+    name: 'rules-22 hintSearch backtrack recovery on live Klondike & FreeCell detour boards + deferred assisted stamp (W6-P-N01)',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { autoFoundation: 'off', motion: 'reduced', tips: false });
+      const fullRun = (s, n = 13) => ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'].slice(0, n).map((r) => r + s);
+
+      // 1. Klondike 1-move detour: moving 9D from t1 -> t0 makes t0 -> t1 a history state; Hint MUST return t0 -> t1 instead of 'nope'
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: {
+          stock: [], waste: [],
+          f0: fullRun('C', 9), f1: fullRun('D', 7), f2: fullRun('H', 7), f3: fullRun('S', 7),
+          t0: ['8D', 'TC'], t1: ['8S', '9S', 'TS', '9D'], t2: [], t3: [], t4: [], t5: [], t6: [],
+        },
+      });
+      t.equal((await t.game('act', 'move', 't1', 't0')).ok, true, 'Klondike detour t1 -> t0 legal');
+      await t.game('cuesPlayed', true);
+      const kh = await t.game('act', 'hint');
+      const kCues = await t.game('cuesPlayed', true);
+      const kToast = await t.page.locator('#toast').textContent();
+      t.expect(kh.ok && kh.move && kh.move.from === 't0' && kh.move.to === 't1' && kh.move.backtrack === true, 'Klondike Hint returns concrete backtrack move t0 -> t1: ' + JSON.stringify(kh));
+      t.equal((await t.state()).stuck, 'live', 'Klondike board stays live');
+      t.expect(kCues.some((c) => c.name === 'hint') && !kCues.some((c) => c.name === 'nope'), 'Klondike backtrack hint plays hint chime, never nope');
+      t.expect(/back to column 2/i.test(kToast) && !/Nothing useful/.test(kToast), 'Klondike toast explains moving back: ' + kToast);
+
+      // 2. FreeCell 1-move detour (no empty columns or free cells, no other legal moves): identical live-board backtrack recovery
+      await t.game('setState', {
+        mode: 'freecell',
+        piles: {
+          c0: ['KC'], c1: ['KD'], c2: ['KH'], c3: ['KS'],
+          f0: fullRun('C', 9), f1: fullRun('D', 7), f2: fullRun('H', 7), f3: fullRun('S', 7),
+          t0: ['8D', 'TC'], t1: ['8S', '9S', 'TS', '9D'], t2: ['QC'], t3: ['QD'], t4: ['QH'], t5: ['QS'], t6: ['TH'], t7: ['TD'],
+        },
+      });
+      t.equal((await t.game('act', 'move', 't1', 't0')).ok, true, 'FreeCell detour t1 -> t0 legal');
+      await t.game('cuesPlayed', true);
+      const fh = await t.game('act', 'hint');
+      const fCues = await t.game('cuesPlayed', true);
+      t.expect(fh.ok && fh.move && fh.move.from === 't0' && fh.move.to === 't1' && fh.move.backtrack === true, 'FreeCell Hint returns concrete backtrack move t0 -> t1: ' + JSON.stringify(fh));
+      t.equal((await t.state()).stuck, 'live', 'FreeCell board stays live');
+      t.expect(fCues.some((c) => c.name === 'hint') && !fCues.some((c) => c.name === 'nope'), 'FreeCell backtrack hint plays hint chime, never nope');
+
+      // 3. Dead-end Hint never stamps S.usedHint / S.assisted
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: { stock: [], waste: [], t0: ['5C'], t1: ['5S'], t2: [], t3: [], t4: [], t5: [], t6: [] } });
+      const dh = await t.game('act', 'hint');
+      t.equal(dh.stuck, true, 'dead board reports stuck');
+      t.equal(await t.page.locator('#assistTag').isHidden(), true, 'dead-end Hint does not stamp assisted tag');
+    },
+  },
+  {
+    name: 'rules-23 Draw 3 stockPlays() visited-Set cycle guard & FreeCell buried-low-rank potential() (W6-S3-06)',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { autoFoundation: 'off', motion: 'reduced', tips: false });
+      // 1. Draw 3 stock=18, waste=5 (n=23, mod-3 phase shift after playing 1 card from waste): stockPlays() MUST terminate on visited stock size without duplicates
+      await t.game('newGame', { mode: 'klondike', draw: 3, deal: 92 });
+      // Draw twice (stock=18, waste=6) then remove top waste card onto a synthetic 23-card stock/waste cycle
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 3 },
+        piles: {
+          stock: ['#2C', '#3C', '#4C', '#5C', '#6C', '#7C', '#8C', '#9C', '#TC', '#JC', '#QC', '#KC', '#2D', '#3D', '#4D', '#5D', '#6D', '#7D'],
+          waste: ['8D', '9D', 'TD', 'JD', 'QD'],
+          f0: [], f1: [], f2: [], f3: [],
+          t0: ['KH'], t1: ['KS'], t2: ['8H'], t3: ['9H'], t4: ['TH'], t5: ['JH'], t6: ['QH'],
+        },
+      });
+      const plays = await t.game('stockPlays');
+      const maxDraws = Math.max(0, ...plays.map((p) => p.draws));
+      const drawKeys = plays.map((p) => p.draws + ':' + p.to);
+      t.expect(plays.length > 0 && plays.length <= 16, 'Draw 3 stockPlays terminates cleanly without 4.2x duplicate blowup (count=' + plays.length + ', maxDraws=' + maxDraws + ')');
+      t.expect(maxDraws <= 15, 'maxDraws stays within single post-recycle pass (' + maxDraws + ' <= 15, never 49)');
+      t.equal(new Set(drawKeys).size, drawKeys.length, 'every emitted stockPlay is unique');
+
+      // 2. FreeCell potential() buried-low-rank evaluation: with all 4 free cells occupied and no empty-column move, Hint spots moving 8D onto 9C to uncover buried AS
+      await t.game('setState', {
+        mode: 'freecell',
+        piles: {
+          c0: ['KC'], c1: ['KD'], c2: ['KH'], c3: ['KS'],
+          f0: [], f1: [], f2: [], f3: [],
+          t0: ['AS', '8D'], t1: ['9C'], t2: ['QC', '5H'], t3: ['QD', '6S'], t4: ['QH', '7C'], t5: ['QS', '7D'], t6: ['JC', '4H'], t7: ['JD', '4S'],
+        },
+      });
+      const fh = await t.game('act', 'hint');
+      t.expect(fh.ok && fh.move && fh.move.from === 't0' && fh.move.to === 't1', 'FreeCell buried-low-rank potential() hints uncovering buried AS (8D -> 9C): ' + JSON.stringify(fh));
+    },
+  },
+  {
+    name: 'rules-24 Spider deterministic Finish (104-card win ceremony), stuck-Undo suppression & streak confirm, and tabletop economy cues (W6-S3-06, CD-WF5-07)',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { autoFoundation: 'off', motion: 'reduced', tips: false });
+      const doneRun = ['AS', '2S', '3S', '4S', '5S', '6S', '7S', '8S', '9S', 'TS', 'JS', 'QS', 'KS'];
+      // 1. Spider deterministic Finish: 6 runs home (78 cards), 2 monotonic same-suit runs split across 4 columns (26 cards), stock empty, 0 face-down
+      await t.game('setState', {
+        mode: 'spider', opts: { suits: 1 }, score: 500, moves: 10,
+        piles: {
+          stock: [],
+          f0: doneRun, f1: doneRun, f2: doneRun, f3: doneRun, f4: doneRun, f5: doneRun, f6: [], f7: [],
+          t0: ['KS', 'QS', 'JS', 'TS', '9S', '8S'],
+          t1: ['7S', '6S', '5S', '4S', '3S', '2S', 'AS'],
+          t2: ['KS', 'QS', 'JS', 'TS'],
+          t3: ['9S', '8S', '7S', '6S', '5S', '4S', '3S', '2S', 'AS'],
+          t4: [], t5: [], t6: [], t7: [], t8: [], t9: [],
+        },
+      });
+      let st = await t.state();
+      t.equal(st.canAutoComplete, true, 'Spider Finish enabled on verifiable monotonic same-suit board');
+      t.equal(await t.page.isDisabled('#bAuto'), false, 'Finish button active for Spider');
+      const ac = await t.game('act', 'autoComplete');
+      t.equal(ac.ok, true, 'Spider Finish executes cleanly');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 15000 });
+      st = await t.state();
+      // 2 consolidation moves (-2 pts, +2 moves) + 2 completed runs (+200 pts) = 698 score, 12 moves
+      t.equal([st.won, st.runs, st.moves, st.score], [true, 2, 12, 698], 'Spider Finish wins with exact per-move S.moves++ and -1/+100 score accounting');
+
+      // Spider Finish stays disabled if stock has cards or a card is face-down or out-of-order
+      await t.game('setState', {
+        mode: 'spider', opts: { suits: 1 },
+        piles: {
+          stock: ['#AS'],
+          f0: doneRun, f1: doneRun, f2: doneRun, f3: doneRun, f4: doneRun, f5: doneRun, f6: doneRun, f7: [],
+          t0: ['KS', 'QS', 'JS', 'TS', '9S', '8S'], t1: ['7S', '6S', '5S', '4S', '3S', '2S'], t2: [], t3: [], t4: [], t5: [], t6: [], t7: [], t8: [], t9: [],
+        },
+      });
+      t.equal((await t.state()).canAutoComplete, false, 'Spider Finish disabled while stock non-empty');
+
+      // 2. Stuck-Undo loop suppression & streak warning on stuck Restart/New
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['#2D', '6S'], t1: ['#3D', '6C', '5H'], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      await t.game('act', 'move', 't1', 't0', 1); // shuttle into dead end; previous state was ALSO a dead end!
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'stuck', null, { timeout: 4000 });
+      await t.page.click('#sheet [data-a="undo"]');
+      t.equal((await t.state()).modal, null, 'Undo from stuck closes modal');
+      await t.page.waitForTimeout(900);
+      t.equal((await t.state()).modal, null, 'stuck modal does NOT auto-repop 500 ms after stuck-Undo');
+      // Set an active win streak of 3, open stuck via Hint, click New deal -> Confirm must warn about streak and Cancel returns to stuck
+      await t.page.evaluate(() => { const k = 'spa-solitaire:v1:stats', s = JSON.parse(localStorage.getItem(k) || '{}'); s.klondike1 = Object.assign(s.klondike1 || {}, { played: 4, won: 3, streak: 3, bestStreak: 3 }); localStorage.setItem(k, JSON.stringify(s)); });
+      await t.game('act', 'hint');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'stuck', null, { timeout: 4000 });
+      await t.page.click('#sheet [data-a="new"]');
+      t.equal((await t.state()).modal, 'confirm', 'New deal from stuck warns streak-holder before resetting streak');
+      t.expect((await t.page.locator('#sheet').textContent()).includes('streak of 3 will reset'), 'Confirm text names active streak');
+      await t.page.click('#sheet [data-close]:not(.x)');
+      t.equal((await t.state()).modal, 'stuck', 'Cancel returns cleanly to stuck dialog without wiping streak');
+
+      // 3. Tabletop economy & progress cues (CD-WF5-07): #subRow #homeCount, #goal .rev secondary reveal track, #status b === 3, FreeCell maxMove
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 1234 });
+      const hud0 = await t.page.evaluate(() => ({
+        statusB: document.querySelectorAll('#status b').length,
+        homeCount: document.getElementById('homeCount').textContent,
+        goalPrimary: document.getElementById('goal').firstElementChild.style.width,
+        goalRev: document.getElementById('goal').children[1].style.width,
+      }));
+      t.equal([hud0.statusB, hud0.homeCount, hud0.goalPrimary, hud0.goalRev], [3, '0/52', '0%', '0%'], 'Klondike starts with 3 #status cells, 0/52 in #subRow, 0% primary & 0% reveal track');
+      // Reveal 1 face-down card on a Spider board -> #goal > i stays 0% while #goal .rev advances > 0%
+      await t.game('setState', {
+        mode: 'spider', opts: { suits: 1 },
+        piles: { stock: [], f0: [], f1: [], f2: [], f3: [], f4: [], f5: [], f6: [], f7: [], t0: ['#KS', '8S'], t1: ['9S'], t2: [], t3: [], t4: [], t5: [], t6: [], t7: [], t8: [], t9: [] },
+      });
+      await t.game('act', 'move', 't0', 't1');
+      const spHud = await t.page.evaluate(() => ({
+        homeCount: document.getElementById('homeCount').textContent,
+        goalPrimary: document.getElementById('goal').firstElementChild.style.width,
+        goalRev: parseFloat(document.getElementById('goal').children[1].style.width),
+      }));
+      t.equal([spHud.homeCount, spHud.goalPrimary], ['0/8', '0%'], 'Spider #homeCount shows 0/8 and #goal > i stays 0%');
+      t.expect(spHud.goalRev > 0, 'Spider secondary reveal track advances when face-down card flips (' + spHud.goalRev + '%)');
+
+      // FreeCell live maxMove updates dynamically
+      await t.game('newGame', { mode: 'freecell', deal: 617 });
+      t.equal((await t.state()).maxMove, 5, 'FreeCell starts at Max move: 5 (4 free cells, 0 empty columns)');
+      await t.game('act', 'move', 't0', 'c0');
+      t.equal((await t.state()).maxMove, 4, 'FreeCell Max move updates to 4 when a free cell is used');
+    },
+  },
 ];

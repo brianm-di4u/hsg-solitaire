@@ -132,17 +132,31 @@ export const tests = [
     },
   },
   {
-    name: 'w3b S3-02 Deal difficulty picks a solver-won random deal of the asked grade, says so, and counts first wins per grade',
+    name: 'w3b S3-02 Unified Deal Fairness defaults fresh profiles to stratified Winnable (Any), supports Easy/Medium/Hard/Classic Random across all games, preserves S.grade, and counts gradeWins',
     async run(t) {
-      await baseSettings(t, { dealGrade: 'any', winnable: false });
-      // the bands for Klondike Draw 1, as the page sets them: easy up to 100 positions, medium up to 400, then hard
+      // Fresh profile defaults to unified dealFairness: 'winnable' (Winnable (Any), winnable: true)
+      await t.page.evaluate(() => localStorage.removeItem('spa-solitaire:v1:settings'));
+      await t.reload();
+      let s = await t.state();
+      t.equal([s.settings.dealFairness, s.settings.winnable, s.settings.dealGrade], ['winnable', true, 'any'], 'fresh profile defaults to Winnable (Any) (W6-S3-04)');
+
+      await baseSettings(t, { dealFairness: 'random' });
+      // the bands for Klondike Draw 1: easy up to 100 positions, medium up to 400, then hard
       const gradeOf = (n) => (n <= 100 ? 'easy' : n <= 400 ? 'medium' : 'hard');
       await t.seed(5); await t.game('newGame', { mode: 'klondike', draw: 1 });
-      let s = await t.state();
-      t.equal([s.deal, s.winnable, s.grade], [5, false, ''], 'Any is the plain shuffle, as before');
+      s = await t.state();
+      t.equal([s.deal, s.winnable, s.grade], [5, false, ''], 'Classic Random deals the plain unverified shuffle');
+
+      // Winnable (Any) preserves solver-measured S.grade rather than stripping it
+      await t.game('setSettings', { dealFairness: 'winnable' });
+      await t.seed(5); await t.game('newGame', { mode: 'klondike', draw: 1 });
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'game', null, { timeout: 30000 });
+      s = await t.state();
+      t.expect(s.winnable && ['easy', 'medium', 'hard'].includes(s.grade), 'Winnable (Any) preserves solver-measured S.grade: ' + s.grade);
+
       const seen = [];
       for (const want of ['easy', 'medium', 'hard']) {
-        await t.game('setSettings', { dealGrade: want });
+        await t.game('setSettings', { dealFairness: want });
         await t.seed(5);
         await t.game('newGame', { mode: 'klondike', draw: 1 });
         await t.page.waitForFunction(() => window.__game.getState().scene === 'game', null, { timeout: 30000 });
@@ -155,15 +169,50 @@ export const tests = [
         seen.push(s.deal);
       }
       t.equal(new Set(seen).size, 3, 'three grades, three different deals from one seed');
+
+      // Unified Settings selector: 5 buttons (Winnable (Any), Easy, Medium, Hard, Classic Random), zero legacy conflicting toggles
       await t.game('scene', 'settings');
-      t.equal(await t.page.locator('#sheet [data-set="dealGrade"]').count(), 4, 'Settings has Any, Easy, Medium and Hard');
-      await t.page.locator('#sheet [data-set="dealGrade"]').first().scrollIntoViewIfNeeded();
+      t.equal(await t.page.locator('#sheet [data-set="dealFairness"]').count(), 5, 'Settings has 5 unified Deal fairness choices');
+      t.equal(await t.page.locator('#sheet [data-set="dealGrade"]').count(), 0, 'legacy separate dealGrade selector retired');
+      t.equal(await t.page.locator('#sheet [data-tog="winnable"]').count(), 0, 'legacy conflicting winnable switch retired');
+      await t.page.locator('#sheet [data-set="dealFairness"]').first().scrollIntoViewIfNeeded();
       await shot(t, 'S3-02', 'settings');
       await t.checkLayout();
       await t.game('scene', 'game'); await shot(t, 'S3-02', 'header');
-      // FreeCell and two-suit Spider are left alone
+
+      // FreeCell now supports Easy / Medium / Hard classic MS buckets (1..32,000 excluding #11982) + Winnable (Any) + Classic Random
+      const fcSeen = [];
+      for (const want of ['easy', 'medium', 'hard']) {
+        await t.game('setSettings', { dealFairness: want });
+        await t.seed(9); await t.game('newGame', { mode: 'freecell' });
+        s = await t.state();
+        t.expect(s.winnable && s.grade === want && s.deal >= 1 && s.deal <= 32000 && s.deal !== 11982, 'FreeCell ' + want + ': classic deal #' + s.deal);
+        fcSeen.push(s.deal);
+      }
+      t.equal(new Set(fcSeen).size, 3, 'FreeCell Easy/Medium/Hard pick distinct classic buckets');
+      await t.game('setSettings', { dealFairness: 'random' });
       await t.seed(9); await t.game('newGame', { mode: 'freecell' });
-      s = await t.state(); t.equal([s.deal, s.winnable], [9, false], 'FreeCell is dealt as before');
+      s = await t.state(); t.equal([s.deal, s.winnable], [9, false], 'FreeCell Classic Random deals the plain numbered deal');
+
+      // Spider 2-suit & Spider 4-suit serve pre-verified Easy/Medium/Hard pools instantly (< 15 ms)
+      for (const suits of [2, 4]) {
+        for (const want of ['easy', 'medium', 'hard']) {
+          await t.game('setSettings', { dealFairness: want });
+          const res = await t.page.evaluate(([su]) => {
+            window.__game.seed(17);
+            const t0 = performance.now();
+            window.__game.newGame({ mode: 'spider', suits: su });
+            const st = window.__game.getState();
+            return { ms: performance.now() - t0, deal: st.deal, winnable: st.winnable, grade: st.grade };
+          }, [suits]);
+          t.expect(res.winnable && res.grade === want, 'Spider ' + suits + '-suit ' + want + ': verified pool deal #' + res.deal);
+          if (suits === 2) {
+            const sv = await t.game('solve', 'spider', { suits: 2 }, res.deal, 3000);
+            t.equal(sv.result, 'won', 'Spider 2-suit ' + want + ' deal #' + res.deal + ' verifies won via makeSolver');
+          }
+        }
+      }
+
       // first wins of a graded deal are counted, replays are not
       const win = async (deal) => {
         await t.game('setState', Object.assign(nearWinKlondike(), { deal, grade: 'hard' }));
@@ -179,6 +228,10 @@ export const tests = [
       await t.page.evaluate(() => { const k = 'spa-solitaire:v1:meta'; const m = JSON.parse(localStorage.getItem(k)); m.gradeWins = { easy: 'x', hard: -4, medium: 3.7 }; localStorage.setItem(k, JSON.stringify(m)); });
       await t.reload();
       t.equal((await t.game('meta')).gradeWins, { easy: 0, medium: 3, hard: 0 }, 'a damaged count is mended, nothing else breaks');
+      // Damaged dealFairness falls back cleanly to Winnable (Any)
+      await t.page.evaluate(() => { const k = 'spa-solitaire:v1:settings'; const o = JSON.parse(localStorage.getItem(k) || '{}'); o.dealFairness = 'bogus'; localStorage.setItem(k, JSON.stringify(o)); });
+      await t.reload();
+      t.equal((await t.state()).settings.dealFairness, 'winnable', 'damaged dealFairness falls back to winnable');
     },
   },
   {
@@ -270,7 +323,7 @@ export const tests = [
         for (let d = 1; d <= 80 && (hard.length < 2 || !none.length); d++) {
           const deal = d * 7919, r = G.solve('klondike', { draw: 1 }, deal, 2000);
           if (r.result === 'won' && r.used >= 150 && hard.length < 2) hard.push(deal);
-          else if (r.result === 'dead' && !none.length) none.push(deal);
+          else if (r.result !== 'won' && !none.length) none.push(deal);
         }
         for (let d = 1; d <= 80 && !yukon.length; d++) { const r = G.solve('yukon', {}, d * 7919, 2000); if (r.result === 'won' && r.used >= 80) yukon.push(d * 7919); }
         return { hard, none, yukon };

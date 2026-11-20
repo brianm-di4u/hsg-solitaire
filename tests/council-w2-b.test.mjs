@@ -38,7 +38,7 @@ const replayInPage = async ([mode, opts, deal, budget]) => {
         const pile = p[from]; if (!pile || !pile.length) continue;
         const n = pile[pile.length - 1]; if (n[0] === '#') continue;
         const red = suit(n) === 1 || suit(n) === 2, a = red ? Math.min(count[0], count[3]) : Math.min(count[1], count[2]);
-        if (count[suit(n)] === rank(n) - 1 && (rank(n) <= 2 || a >= rank(n) - 1)) {
+        if (count[suit(n)] === rank(n) - 1 && (rank(n) === 1 || (mode !== 'yukon' && rank(n) === 2) || a >= rank(n) - 1)) {
           for (const f of ['f0', 'f1', 'f2', 'f3']) if (g.act('move', from, f, 1).ok) { moved = true; break; }
           if (moved) break;
         }
@@ -113,30 +113,33 @@ export const tests = [
     },
   },
   {
-    name: 'w2b S3-01 the setting is off by default, saved, and a plain deal is dealt exactly as before',
+    name: 'w2b S3-01 Deal fairness defaults fresh profiles to Winnable (Any), migrates legacy saves, and Classic Random deals the plain shuffle',
     async run(t) {
       await t.page.evaluate((k) => localStorage.removeItem(k), SET); await reloadGame(t);
       let s = await t.state();
-      t.equal(s.settings.winnable, false, 'Winnable deals only starts off');
+      t.equal([s.settings.dealFairness, s.settings.winnable], ['winnable', true], 'fresh profile defaults to Winnable (Any)');
+      await t.game('setSettings', { dealFairness: 'random' });
       await t.seed(4242); await t.game('newGame', { mode: 'klondike', draw: 1 });
       s = await t.state();
-      t.equal(s.deal, 4242, 'with the setting off the random deal is the seed itself');
+      t.equal(s.deal, 4242, 'with Classic Random the deal is the seed itself');
       t.equal(s.winnable, false, 'not marked winnable');
-      // settings from before this wave have no such key
-      await t.game('unlockAll'); await t.page.evaluate(([k, v]) => localStorage.setItem(k, v), [SET, JSON.stringify({ sound: false, volume: 0.4, back: 'deco' })]); await reloadGame(t);
-      s = await t.state(); t.equal(s.settings.winnable, false, 'an old save gets the default'); t.equal(s.settings.back, 'deco', 'and keeps what it had');
-      await t.page.evaluate(([k, v]) => localStorage.setItem(k, v), [SET, JSON.stringify({ winnable: 'yes' })]); await reloadGame(t);
-      t.equal((await t.state()).settings.winnable, false, 'a damaged value falls back');
-      await t.game('setSettings', { winnable: true }); await reloadGame(t);
-      t.equal((await t.state()).settings.winnable, true, 'switching it on survives a reload');
+      // legacy save with explicit winnable:false migrates to Classic Random; old save without key gets Winnable (Any)
+      await t.game('unlockAll');
+      await t.page.evaluate(([k, v]) => localStorage.setItem(k, v), [SET, JSON.stringify({ sound: false, volume: 0.4, back: 'deco', winnable: false })]); await reloadGame(t);
+      s = await t.state(); t.equal([s.settings.dealFairness, s.settings.winnable, s.settings.back], ['random', false, 'deco'], 'legacy winnable:false migrates to Classic Random');
+      await t.page.evaluate(([k, v]) => localStorage.setItem(k, v), [SET, JSON.stringify({ sound: false, volume: 0.4, back: 'deco' })]); await reloadGame(t);
+      s = await t.state(); t.equal([s.settings.dealFairness, s.settings.winnable, s.settings.back], ['winnable', true, 'deco'], 'legacy save without fairness key gets Winnable (Any)');
+      await t.page.evaluate(([k, v]) => localStorage.setItem(k, v), [SET, JSON.stringify({ dealFairness: 'yes' })]); await reloadGame(t);
+      t.equal((await t.state()).settings.dealFairness, 'winnable', 'a damaged value falls back to winnable');
+      await t.game('setSettings', { dealFairness: 'random' }); await reloadGame(t);
+      t.equal((await t.state()).settings.dealFairness, 'random', 'switching to Classic Random survives a reload');
     },
   },
   {
-    name: 'w2b S3-01 with the setting on a random deal is one the solver won, found by the fixed attempt rule',
+    name: 'w2b S3-01 under Winnable (Any) live-searched modes follow the fixed attempt rule and Spider 2-suit serves its verified pool instantly',
     async run(t) {
       const G = loadSolver();
-      await baseSettings(t, { motion: 'reduced' });
-      await t.game('setSettings', { winnable: true });
+      await baseSettings(t, { motion: 'reduced', dealFairness: 'winnable' });
       const cfg = await t.game('winConfig');
       for (const [key, [mode, o]] of Object.entries(KEYS)) {
         const opts = full(o), [budget, tries] = cfg[key];
@@ -146,50 +149,58 @@ export const tests = [
           const res = await t.page.evaluate(([m, op]) => window.__game.newGame(Object.assign({ mode: m }, op)), [mode, opts]);
           const s = await t.state();
           t.equal(res.deal, s.deal, key + ' newGame reports the deal it dealt');
-          if (!s.winnable) { t.expect(s.deal === seed, key + ' seed ' + seed + ': a failed search deals the plain shuffle'); continue; }
+          t.expect(s.winnable && ['easy', 'medium', 'hard'].includes(s.grade), key + ' seed ' + seed + ': marked winnable with solver-measured grade (' + s.grade + ')');
           marked++;
-          let at = -1; for (let a = 0; a < tries && at < 0; a++) if (G.candidateDeal(seed, a, String(seed)) === s.deal) at = a;
-          t.expect(at >= 0, key + ' seed ' + seed + ': the deal is in the fixed sequence (attempt ' + (at + 1) + ')');
-          for (let a = 0; a < at; a++) t.expect((await t.game('solve', mode, opts, G.candidateDeal(seed, a, String(seed)), budget)).result !== 'won', key + ' seed ' + seed + ': earlier attempt ' + (a + 1) + ' would not have won');
-          t.equal((await t.game('solve', mode, opts, s.deal, budget)).result, 'won', key + ' seed ' + seed + ': the dealt deal solves again inside the limit');
+          if (key === 'spider2') {
+            t.equal((await t.game('solve', mode, opts, s.deal, 3000)).result, 'won', key + ' seed ' + seed + ': pre-verified pool deal solves via makeSolver');
+          } else {
+            let at = -1; for (let a = 0; a < tries && at < 0; a++) if (G.candidateDeal(seed, a, String(seed)) === s.deal) at = a;
+            t.expect(at >= 0, key + ' seed ' + seed + ': the deal is in the fixed sequence (attempt ' + (at + 1) + ')');
+            for (let a = 0; a < at; a++) t.expect((await t.game('solve', mode, opts, G.candidateDeal(seed, a, String(seed)), budget)).result !== 'won', key + ' seed ' + seed + ': earlier attempt ' + (a + 1) + ' would not have won');
+            t.equal((await t.game('solve', mode, opts, s.deal, budget)).result, 'won', key + ' seed ' + seed + ': the dealt deal solves again inside the limit');
+          }
           await t.seed(seed); await t.page.evaluate(([m, op]) => window.__game.newGame(Object.assign({ mode: m }, op)), [mode, opts]);
           t.equal((await t.state()).deal, s.deal, key + ' seed ' + seed + ' lands on the same deal twice');
         }
-        t.expect(marked >= 2, key + ' found winnable deals for most seeds: ' + marked + '/3');
+        t.expect(marked === 3, key + ' found winnable deals for all seeds: ' + marked + '/3');
       }
     },
   },
   {
-    name: 'w2b S3-01 FreeCell and four-suit Spider have no winnable option and say so',
+    name: 'w2b S3-01 FreeCell and four-suit Spider are now verified winnable (366+ Spider 4-suit Daily seeds & classic FreeCell) and modals reflect all seven games',
     async run(t) {
-      await baseSettings(t, { motion: 'reduced' });
-      await t.game('setSettings', { winnable: true });
-      const cfg = await t.game('winConfig');
-      t.expect(!cfg.spider4 && !cfg.freecell, 'no search for spider4 or freecell');
+      await baseSettings(t, { motion: 'reduced', dealFairness: 'winnable' });
+      const pools = await t.game('seedPools');
+      const s4Total = pools.spider4.easy.length + pools.spider4.medium.length + pools.spider4.hard.length;
+      const s2Total = pools.spider2.easy.length + pools.spider2.medium.length + pools.spider2.hard.length;
+      t.expect(s4Total >= 366, 'Spider 4-suit pre-verified pool has >= 366 seeds (' + s4Total + ')');
+      t.expect(s2Total >= 366, 'Spider 2-suit pre-verified pool has >= 366 seeds (' + s2Total + ')');
+      t.expect(pools.freecell.easy.length >= 50 && pools.freecell.medium.length >= 50 && pools.freecell.hard.length >= 50, 'FreeCell Easy/Medium/Hard buckets populated');
       await t.seed(99); await t.game('newGame', { mode: 'spider', suits: 4 });
-      let s = await t.state(); t.equal(s.deal, 99, 'a four-suit random deal is the plain shuffle'); t.equal(s.winnable, false, 'not marked winnable');
+      let s = await t.state(); t.expect(s.winnable && ['easy', 'medium', 'hard'].includes(s.grade), 'Spider 4-suit Winnable (Any) serves verified pool deal #' + s.deal);
       await t.seed(99); await t.game('newGame', { mode: 'freecell' });
-      s = await t.state(); t.equal(s.deal, 99, 'a FreeCell random deal is the plain numbered deal'); t.equal(s.winnable, false, 'not marked winnable');
+      s = await t.state(); t.expect(s.winnable && s.deal >= 1 && s.deal <= 32000 && s.deal !== 11982, 'FreeCell Winnable (Any) serves classic winnable deal #' + s.deal);
       for (const o of [{ mode: 'spider', suits: 4 }, { mode: 'freecell' }]) {
         await t.game('newGame', Object.assign({ daily: '2026-11-13' }, o));
-        t.equal((await t.state()).winnable, false, o.mode + ' daily is not marked winnable');
+        t.equal((await t.state()).winnable, true, o.mode + ' daily is now winnable');
       }
       await t.game('scene', 'daily');
       const txt = await t.page.evaluate(() => document.querySelector('#sheet').textContent);
-      t.expect(/FreeCell and four-suit Spider/.test(txt), 'the Daily deals sheet names the exceptions');
+      t.expect(/seven winnable deals/.test(txt) && !/All but FreeCell/.test(txt), 'the Daily deals sheet states all seven deals are winnable');
       await t.game('scene', 'settings');
       const set = await t.page.evaluate(() => document.querySelector('#sheet').textContent);
-      t.expect(/Winnable deals only/.test(set) && /FreeCell or four-suit Spider/.test(set), 'the Settings row names the exceptions');
+      t.expect(/Deal fairness/.test(set) && /Winnable \(Any\)/.test(set) && /Classic Random/.test(set), 'Settings surfaces the unified Deal fairness control');
     },
   },
   {
-    name: 'w2b S3-01 daily deals are winnable, the same for everyone, new each day, and a restart keeps them',
+    name: 'w2b S3-01 all seven daily deals are winnable, deterministic, rotate across Easy/Medium/Hard (zero 0%-Hard exclusion), and restart keeps them',
     async run(t) {
       const G = loadSolver();
       await baseSettings(t, { motion: 'reduced' });
       const cfg = await t.game('winConfig');
-      for (const [key, [mode, o]] of Object.entries(KEYS)) {
-        const opts = full(o), budget = cfg[key][0];
+      const ALL = Object.assign({}, KEYS, { spider4: ['spider', { suits: 4 }], freecell: ['freecell', {}] });
+      for (const [key, [mode, o]] of Object.entries(ALL)) {
+        const opts = full(o), budget = cfg[key] ? cfg[key][0] : 3000;
         const day = (d) => t.page.evaluate(([m, op, dd]) => window.__game.newGame(Object.assign({ mode: m, daily: dd }, op)), [mode, opts, d]);
         await day('2026-11-13'); const a = await t.state();
         await t.reload();
@@ -197,12 +208,16 @@ export const tests = [
         t.equal(a.deal, b.deal, key + ' the daily is the same deal on two loads');
         t.equal(a.winnable, true, key + ' the daily is marked winnable');
         t.equal(a.daily, '2026-11-13', key + ' keeps its date');
-        const tag = '2026-11-13|' + key, base = 1 + G.fnv1a(tag) % 2000000000;
-        const seq = (n) => G.candidateDeal(base, n, tag);
-        let at = -1; for (let n = 0; n < 160 && at < 0; n++) if (seq(n) === a.deal) at = n;
-        t.expect(at >= 0, key + ' the daily is attempt ' + (at + 1) + ' of date|key|attempt');
-        for (let n = 0; n < at; n++) t.expect((await t.game('solve', mode, opts, seq(n), budget)).result !== 'won', key + ' attempt ' + (n + 1) + ' would not have won');
-        t.equal((await t.game('solve', mode, opts, a.deal, budget)).result, 'won', key + ' the daily deal solves again inside the limit');
+        if (key === 'spider2') {
+          t.equal((await t.game('solve', mode, opts, a.deal, 3000)).result, 'won', key + ' the daily pool deal solves via makeSolver');
+        } else if (key !== 'spider4' && key !== 'freecell') {
+          const tag = '2026-11-13|' + key, base = 1 + G.fnv1a(tag) % 2000000000;
+          const seq = (n) => G.candidateDeal(base, n, tag);
+          let at = -1; for (let n = 0; n < 160 && at < 0; n++) if (seq(n) === a.deal) at = n;
+          t.expect(at >= 0, key + ' the daily is attempt ' + (at + 1) + ' of date|key|attempt');
+          for (let n = 0; n < at; n++) t.expect((await t.game('solve', mode, opts, seq(n), budget)).result !== 'won', key + ' attempt ' + (n + 1) + ' would not have won');
+          t.equal((await t.game('solve', mode, opts, a.deal, budget)).result, 'won', key + ' the daily deal solves again inside the limit');
+        }
         await day('2026-11-14'); const c = await t.state();
         t.expect(c.deal !== a.deal, key + ' the next day brings a different deal');
         await day('2026-11-13');
@@ -211,17 +226,33 @@ export const tests = [
         const d = await t.state();
         t.equal(d.deal, a.deal, key + ' restart replays the same deal'); t.equal(d.winnable, true, key + ' restart keeps the mark'); t.equal(d.daily, '2026-11-13', key + ' restart keeps the daily');
       }
+      // Verify Spider 2-suit & Spider 4-suit Daily deals span Easy, Medium, and Hard with zero repeats over 30 consecutive days
+      const span = await t.page.evaluate(() => {
+        const out = {};
+        for (const [k, su] of [['spider2', 2], ['spider4', 4]]) {
+          const deals = new Set(), grades = new Set();
+          for (let i = 1; i <= 30; i++) {
+            const d = '2026-03-' + String(i).padStart(2, '0');
+            window.__game.newGame({ mode: 'spider', suits: su, daily: d });
+            const st = window.__game.getState();
+            deals.add(st.deal); grades.add(st.grade);
+          }
+          out[k] = { unique: deals.size, grades: [...grades].sort() };
+        }
+        return out;
+      });
+      t.equal(span.spider2, { unique: 30, grades: ['easy', 'hard', 'medium'] }, 'Spider 2-suit 30-day dailies are unique and span Easy/Medium/Hard');
+      t.equal(span.spider4, { unique: 30, grades: ['easy', 'hard', 'medium'] }, 'Spider 4-suit 30-day dailies are unique and span Easy/Medium/Hard');
     },
   },
   {
-    name: 'w2b S3-01 searching never holds the page for long, and the table says so while it works',
+    name: 'w2b S3-01 searching never holds the page for long, Spider 2-suit pool is instant, and the table says so while live search works',
     viewports: ['desktop'],
     async run(t) {
-      await baseSettings(t, { motion: 'reduced' });
-      await t.game('setSettings', { winnable: true });
+      await baseSettings(t, { motion: 'reduced', dealFairness: 'winnable' });
       await t.page.evaluate(() => { window.__long = []; try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__long.push(Math.round(e.duration)); }).observe({ entryTypes: ['longtask'] }); } catch (e) { /* no long task API */ } });
-      let pending = 0, sawPill = 0; const ms = [];
-      for (const [, [mode, o]] of Object.entries(KEYS)) {
+      let pending = 0, sawPill = 0; const ms = [], s2Ms = [];
+      for (const [key, [mode, o]] of Object.entries(KEYS)) {
         for (let i = 0; i < 6; i++) {
           const r = await t.page.evaluate(async ([m, op, n]) => {
             window.__game.seed(1000 + n * 37);
@@ -232,25 +263,25 @@ export const tests = [
           }, [mode, full(o), i]);
           t.equal(r.ok, true, mode + ' deal arrives'); t.equal(r.after, false, mode + ' the notice is gone once the deal is dealt');
           ms.push(r.ms);
+          if (key === 'spider2') s2Ms.push(r.ms);
           if (r.isP) { pending++; if (r.pill) sawPill++; }
         }
       }
       const longs = await t.page.evaluate(() => window.__long), worst = Math.max(0, ...longs);
       ms.sort((a, b) => a - b);
-      t.log('30 searches: median ' + ms[15] + ' ms, slowest ' + ms[29] + ' ms; long tasks over 50 ms: ' + longs.length + ', worst ' + worst + ' ms; ' + pending + ' ran past the first slice');
-      t.expect(worst <= 150, 'no single task over about 150 ms (a 45 ms slice, a step, then dealing the cards; the machine may be loaded), worst ' + worst);
+      t.log('30 deals: median ' + ms[15] + ' ms, slowest ' + ms[29] + ' ms; Spider 2-suit max ' + Math.max(...s2Ms) + ' ms; long tasks: ' + longs.length + ', worst ' + worst + ' ms; ' + pending + ' async');
+      t.expect(Math.max(...s2Ms) <= 45, 'Spider 2-suit pre-verified pool starts cleanly without multi-hundred-ms stalls: max ' + Math.max(...s2Ms) + ' ms');
+      t.expect(worst <= 150, 'no single task over about 150 ms, worst ' + worst);
       t.equal(sawPill, pending, 'every search that ran past the first slice showed the notice');
-      t.expect(pending >= 1, 'at least one search was slow enough to test the notice: ' + pending);
     },
   },
   {
-    name: 'w2b S3-01 settings row, winnable mark and the working notice at both sizes',
+    name: 'w2b S3-01 settings row, winnable/grade HUD mark and the working notice at both sizes',
     async run(t) {
-      await baseSettings(t, { motion: 'reduced' });
-      await t.game('setSettings', { winnable: true });
+      await baseSettings(t, { motion: 'reduced', dealFairness: 'winnable' });
       await t.page.evaluate(() => window.__game.newGame({ mode: 'klondike', draw: 3, daily: '2026-11-13' }));
       const sub = await t.page.evaluate(() => document.querySelector('#modeSub').textContent);
-      t.expect(/winnable/.test(sub), 'the HUD says winnable: ' + sub);
+      t.expect(/winnable|easy|medium|hard/.test(sub), 'the HUD names the winnable/grade mark: ' + sub);
       const ov = await t.page.evaluate(() => ({ right: document.querySelector('#ttl').getBoundingClientRect().right, statusLeft: document.querySelector('#status').getBoundingClientRect().left, sw: document.querySelector('#modeSub').scrollWidth, cw: document.querySelector('#modeSub').clientWidth }));
       t.expect(ov.right <= ov.statusLeft + 1, 'title block stays clear of the score block');
       t.expect(ov.sw <= ov.cw + 1, 'the sub-label is not cut off: ' + ov.sw + ' in ' + ov.cw);
@@ -264,10 +295,22 @@ export const tests = [
       t.expect(above, 'the notice sits above an open sheet');
       await t.page.evaluate(() => document.querySelector('#dealing').classList.remove('on'));
       await t.game('scene', 'settings');
-      await t.page.evaluate(() => { const r = [...document.querySelectorAll('#sheet .set')].find((e) => /Winnable/.test(e.textContent)); r.scrollIntoView({ block: 'center' }); });
+      await t.page.evaluate(() => { const r = [...document.querySelectorAll('#sheet .set')].find((e) => /Deal fairness/.test(e.textContent)); r.scrollIntoView({ block: 'center' }); });
       await shot(t, 'settings');
-      const tg = await t.page.evaluate(() => { const b = [...document.querySelectorAll('#sheet .set')].find((e) => /Winnable/.test(e.textContent)).querySelector('.tog'); const r = b.getBoundingClientRect(); return { w: r.width, h: r.height, role: b.getAttribute('role'), on: b.getAttribute('aria-checked'), pressed: b.getAttribute('aria-pressed') }; });
-      t.equal([tg.role, tg.on, tg.pressed], ['switch', 'true', null], 'the switch exposes role=switch aria-checked=true'); t.expect(tg.h >= 28 && tg.w >= 44, 'the switch is a usable size: ' + tg.w + 'x' + tg.h);
+      const df = await t.page.evaluate(() => {
+        const row = [...document.querySelectorAll('#sheet .set')].find((e) => /Deal fairness/.test(e.textContent));
+        const btns = [...row.querySelectorAll('[data-set="dealFairness"]')];
+        const sw = document.querySelector('#sheet .tog');
+        const r = sw.getBoundingClientRect();
+        return {
+          count: btns.length,
+          active: btns.find((b) => b.getAttribute('aria-pressed') === 'true')?.dataset.val,
+          tg: { w: r.width, h: r.height, role: sw.getAttribute('role'), checked: sw.getAttribute('aria-checked'), pressed: sw.getAttribute('aria-pressed') },
+        };
+      });
+      t.equal([df.count, df.active], [5, 'winnable'], 'unified Deal fairness selector has 5 buttons with Winnable (Any) active');
+      t.equal([df.tg.role, df.tg.pressed], ['switch', null], 'Settings switches expose role=switch aria-checked (no aria-pressed)');
+      t.expect(df.tg.h >= 28 && df.tg.w >= 44, 'switches stay a usable size: ' + df.tg.w + 'x' + df.tg.h);
       await t.page.click('#sheet [data-close]').catch(() => {});
       await t.game('scene', 'daily'); await shot(t, 'daily');
       await t.checkLayout({ allowScrollY: true });

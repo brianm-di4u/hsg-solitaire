@@ -48,11 +48,13 @@
     background:var(--lac-2) linear-gradient(var(--lac-1),var(--lac-2));color:var(--lac-ink);
     border-bottom:2px solid var(--brass);border-image:var(--brass-rule) 1;box-shadow:0 3px 10px rgba(0,0,0,.45)}
   #goal{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(0,0,0,.5);pointer-events:none}
-  #goal i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3E9C80,#8FE0C2);transition:width .35s ease}
+  #goal i{position:relative;z-index:2;display:block;height:100%;width:0;background:linear-gradient(90deg,#3E9C80,#8FE0C2);transition:width .35s ease}
+  #goal .rev{position:absolute;left:0;top:0;bottom:0;width:0;z-index:1;background:linear-gradient(90deg,rgba(201,160,74,.45),rgba(233,200,115,.68));transition:width .35s ease}
   #ttl{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15}
   #modeName{font-family:var(--font-display);font-weight:400;font-size:1.12rem;letter-spacing:.03em;color:var(--brass-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #modeSub{font-family:var(--font-deco);font-size:.74rem;letter-spacing:.04em;color:var(--lac-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #subRow{display:flex;align-items:center;gap:8px;min-width:0} #subRow #modeSub{min-width:0}
+  #homeCount{flex:none;font-family:var(--font-deco);font-size:.68rem;font-weight:700;letter-spacing:.04em;color:#8FE0C2;font-variant-numeric:tabular-nums;white-space:nowrap}
   #assistTag{flex:none;position:relative;border:1px solid rgba(233,200,115,.55);border-radius:999px;background:transparent;color:var(--brass-hi);font-family:var(--font-deco);font-size:.62rem;font-weight:600;letter-spacing:.06em;padding:0 8px;line-height:1.5;cursor:pointer}
   #assistTag::after{content:"";position:absolute;top:-12px;bottom:-2px;left:-6px;right:-6px}
   #assistTag[hidden]{display:none}
@@ -202,10 +204,14 @@
   .menu .btn.solid svg{color:currentColor}
   @media (max-width:480px){.menu{grid-template-columns:repeat(2,1fr)}}
   .set{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--color-border);min-height:52px}
+  .set.set-wide{flex-wrap:wrap;row-gap:8px}
+  .set.set-wide label{flex:1 1 240px}
   .set label{font-weight:600}
   .set small{display:block;font-weight:400;color:var(--color-muted)}
   /* segmented choices: a row of stepped brass tabs; the chosen one is a raised brass plate */
   .seg{display:flex;border:1px solid #B8862C;border-radius:4px;flex:none;box-shadow:inset 0 1px 2px rgba(0,0,0,.15)}
+  .seg.seg-wrap{flex-wrap:wrap;max-width:100%}
+  .seg.seg-wrap button{flex:1 1 auto;padding:0 10px}
   .seg button{position:relative;min-height:44px;min-width:44px;padding:0 11px;border:0;border-left:1px solid rgba(184,134,44,.45);background:transparent;
     cursor:pointer;font-size:.82rem;letter-spacing:.04em}
   .seg button:first-child{border-left:0;border-radius:3px 0 0 3px}
@@ -295,7 +301,7 @@
   .dl{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
   @media (max-width:520px){
     :root{--bar-h:56px}
-    #bar{gap:6px} #assistTag{font-size:.58rem;padding:0 6px}
+    #bar{gap:6px} #subRow{gap:5px} #homeCount{font-size:.62rem} #assistTag{font-size:.58rem;padding:0 6px}
     #sScoreW{display:flex;flex-direction:column} #sBonus{order:3;margin:0;text-align:right;line-height:1.1}
     #status{gap:7px;font-size:.6rem;letter-spacing:.04em}
     #status b{font-size:.98rem}
@@ -356,7 +362,7 @@
   .cal i small{font-size:.62rem;color:var(--color-muted)} .cal i.w{background:var(--chip);border-color:#B8862C} .cal i.f{background:#D9B256;color:#1B1408} .cal i.f small{color:#1B1408}
   .cal i.t{outline:2px solid var(--color-primary)} .cal i.h{border:0;min-height:0;font-weight:700;color:var(--color-muted)}
   .cm{display:flex;align-items:center;justify-content:space-between;gap:8px} .cm b{font-family:var(--font-deco)} .cm .btn{min-width:44px}
-  :root.rm #goal i,:root.rm .tb,:root.rm #toast,:root.rm #dealing,:root.rm .tog::after,:root.rm .hp summary::after{transition:none}
+  :root.rm #goal i,:root.rm #goal .rev,:root.rm .tb,:root.rm #toast,:root.rm #dealing,:root.rm .tog::after,:root.rm .hp summary::after{transition:none}
   :root.rm .sheet.rise,:root.rm .sheet.rise .ticket,:root.rm .sheet.rise .ticket .punch,:root.rm .sheet.rise .course i.new,:root.rm #bHint.pt{animation:none}
   :root.rm .course i.new{box-shadow:0 0 0 2px #E9C873}
   @media (forced-colors: active){
@@ -375,12 +381,12 @@
 <div id="app">
   <header id="bar">
     <button class="ib" id="bMenu" aria-label="Menu" title="Menu (Esc)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-    <div id="ttl"><span id="modeName">Spa City Solitaire</span><div id="subRow"><span id="modeSub"></span><button id="assistTag" type="button" hidden>assisted</button></div></div>
+    <div id="ttl"><span id="modeName">Spa City Solitaire</span><div id="subRow"><span id="modeSub"></span><span id="homeCount" aria-hidden="true"></span><button id="assistTag" type="button" hidden>assisted</button></div></div>
     <div id="status" role="group" aria-label="Game status">
       <span id="sScoreW">Score<small id="sBonus" hidden></small><b id="sScore">0</b></span><span>Moves<b id="sMoves">0</b></span><span id="sTimeW">Time<b id="sTime">0:00</b></span>
     </div>
     <button class="ib" id="bHelp" aria-label="How to play" title="How to play (?)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.3-.9.8-.9 1.4v.6M12 17h.01"/></svg></button>
-    <div id="goal" role="progressbar" aria-label="Cards home" aria-valuemin="0" aria-valuemax="52" aria-valuenow="0" aria-valuetext="0 of 52 cards home"><i></i></div>
+    <div id="goal" role="progressbar" aria-label="Cards home" aria-valuemin="0" aria-valuemax="52" aria-valuenow="0" aria-valuetext="0 of 52 cards home"><i></i><span class="rev" aria-hidden="true"></span></div>
   </header>
   <main id="stage">
     <canvas id="tbl" aria-hidden="true"></canvas>
@@ -524,8 +530,9 @@ const DEFAULT_SETTINGS = {
   autoFoundation: 'safe', back: 'skylight', table: 'felt', showTimer: true, deckSeed: 1914, courts: 'deco',
   tapMove: 'tap', // how a press on a card moves it: tap (today's way), double-tap, or drag only
   scoring: 'standard', // standard: calm card points without a countdown (default); timed: opt-in speed bonus on a win; none: no score shown
-  dealGrade: 'any', // random deals graded by solver effort: any (today's), easy, medium or hard
-  winnable: false, // random deals come from a solver-won sequence; dailies always do
+  dealFairness: 'winnable', // unified deal fairness: winnable (Any, default), easy, medium, hard, or random (Classic Random)
+  dealGrade: 'any', // synced mirror for legacy saves & test hooks: any, easy, medium or hard
+  winnable: true, // synced mirror for legacy saves & test hooks: true unless dealFairness === 'random'
   sfx: true, music: true, ambience: true, musicVol: 0.6, ambVol: 0.6, // sound effects, music and ambience; all three obey the master `sound` switch
   haptics: true, // short buzzes on touch, where the browser can vibrate; never with reduced motion
   autoNoted: false, // set once the first automatic move to a foundation has been explained with a toast
@@ -609,6 +616,7 @@ function makeDeck(mode, opts) {
 function newState(mode, opts, deal, daily) {
   const st = { v: 1, mode, opts: { draw: opts.draw === 3 ? 3 : 1, suits: [1, 2, 4].includes(opts.suits) ? opts.suits : 1 }, deal, daily: daily || null,
     cards: makeDeck(mode, opts), up: [], piles: {}, score: mode === 'spider' ? 500 : 0, moves: 0, elapsedMs: 0, recycles: 0, runs: 0,
+    initDown: mode === 'spider' ? 44 : mode === 'freecell' ? 0 : 21,
     started: false, won: false, usedUndo: false, usedHint: false, assisted: false, replay: false };
   for (const id of pileIds(mode)) st.piles[id] = [];
   st.up = st.cards.map(() => false);
@@ -698,10 +706,52 @@ function foundationFor(u) {
 const totalFound = () => { let n = 0; for (let i = 0; i < def().found; i++) n += S.piles['f' + i].length; return n; };
 const isWon = () => totalFound() === S.cards.length;
 
+function spiderFinishPlan() {
+  if (!S || S.won || S.mode !== 'spider' || S.piles.stock.length) return null;
+  for (let i = 0; i < 10; i++) {
+    const p = S.piles['t' + i];
+    for (let j = 0; j < p.length; j++) {
+      if (!S.up[p[j]]) return null;
+      if (j + 1 < p.length && card(p[j]).r !== card(p[j + 1]).r + 1) return null;
+    }
+  }
+  const piles = {}; for (const k in S.piles) piles[k] = S.piles[k].slice();
+  const plan = [];
+  const won = inPosition({ piles, up: S.up.slice() }, () => {
+    for (let step = 0; step < 64 && !isWon(); step++) {
+      let best = null;
+      for (let i = 0; i < 10; i++) {
+        const from = 't' + i, p = S.piles[from];
+        if (!p.length) continue;
+        let idx = p.length - 1;
+        while (idx > 0 && suitDesc(p[idx - 1], p[idx])) idx--;
+        const head = p[idx], runLen = p.length - idx;
+        for (let j = 0; j < 10; j++) {
+          if (i === j) continue;
+          const to = 't' + j, q = S.piles[to];
+          if (!q.length || !suitDesc(q[q.length - 1], head)) continue;
+          let tRun = 1; while (tRun < q.length && suitDesc(q[q.length - 1 - tRun], q[q.length - tRun])) tRun++;
+          const completes = tRun + runLen === 13 ? 1000 : 0;
+          const empties = idx === 0 ? 100 : 50;
+          const pri = completes + empties + card(head).r * 4 + tRun;
+          if (!best || pri > best.pri) best = { from, index: idx, to, pri };
+        }
+      }
+      if (!best) break;
+      const moved = S.piles[best.from].splice(best.index);
+      S.piles[best.to].push(...moved);
+      plan.push({ from: best.from, index: best.index, to: best.to });
+      simSettle();
+    }
+    return isWon();
+  });
+  return won ? plan : null;
+}
+
 function canAutoComplete() {
   if (!S || S.won) return false;
   const d = def();
-  if (S.mode === 'spider') return false;
+  if (S.mode === 'spider') return !!spiderFinishPlan();
   if (S.mode === 'freecell') {
     for (let i = 0; i < d.cols; i++) { const p = S.piles['t' + i]; for (let j = 0; j < p.length - 1; j++) if (card(p[j]).r < card(p[j + 1]).r) return false; }
     return true;
@@ -736,6 +786,7 @@ let hintState = null;        // {list, i, until}
 let stuckVerdict = null;     // last dead-end check: 'dead' | 'live' | 'unknown' | null
 let stuckFact = null;        // the fact the dead-end dialog showed for this position: { key, fi }
 let stuckShownFor = null;    // posKey the "no more moves" popup was last shown for
+let stuckSuppressed = false; // suppress auto-repop after Undo from MODALS.stuck until next forward move or Hint
 let stuckTimer = 0;
 let nextDeal = null;         // set by __game.seed(n)
 
@@ -811,7 +862,7 @@ function settleTableau(delayBase) {
 }
 
 function safeToAutoplay(u) {
-  const c = card(u); if (c.r <= 2) return true;
+  const c = card(u); if (c.r === 1 || (c.r === 2 && S.mode !== 'yukon')) return true;
   let need = 0;
   for (let i = 0; i < 4; i++) {
     const p = S.piles['f' + i]; if (!p.length) continue;
@@ -882,7 +933,7 @@ function tryMove(from, idx, to, why = 'player') {
   if (!canPick(from, idx)) return { ok: false, reason: 'cannot pick' };
   const run = S.piles[from].slice(idx);
   if (!canDrop(run, to, from)) return { ok: false, reason: 'illegal drop' };
-  pushUndo(); startClock(); if (why === 'player') tipEvent('move');
+  pushUndo(); startClock(); stuckSuppressed = false; if (why === 'player') tipEvent('move');
   rawMove(from, idx, to);
   S.moves++; if (S.mode === 'spider') addScore(-1);
   { const b = L && L.piles[to]; cueOnLand(kindOf(to) === 'found' ? 'found' : 'place', kindOf(to) === 'found' ? card(run[0]).r : run.length, b ? (b.x + L.cw / 2) / W * 2 - 1 : 0, run[0]); }
@@ -900,7 +951,7 @@ function stockAction() {
   if (d.stock === 'draw') {
     const st = S.piles.stock, w = S.piles.waste;
     if (!st.length && !w.length) return { ok: false, reason: 'empty' };
-    pushUndo(); startClock();
+    pushUndo(); startClock(); stuckSuppressed = false;
     if (st.length) {
       const n = Math.min(S.opts.draw, st.length);
       for (let i = 0; i < n; i++) { const u = st.pop(); w.push(u); S.up[u] = true; animDelay[u] = i * 70; }
@@ -920,7 +971,7 @@ function stockAction() {
     let tabCards = 0, hasEmpty = false;
     for (let i = 0; i < 10; i++) { const n = S.piles['t' + i].length; tabCards += n; if (!n) hasEmpty = true; }
     if (tabCards >= 10 && hasEmpty) { toast('Every column needs a card before the next row'); sfx('nope'); return { ok: false, reason: 'empty column' }; }
-    pushUndo(); startClock();
+    pushUndo(); startClock(); stuckSuppressed = false;
     for (let i = 0; i < 10 && st.length; i++) { const u = st.pop(); S.piles['t' + i].push(u); S.up[u] = true; animDelay[u] = i * 45; }
     S.moves++; addScore(-1); sfx('deal'); announce('Dealt a new row');
     afterAction({ delay: 460 });
@@ -944,7 +995,7 @@ function redoCue(was, runs) {
 function redo() {
   if (!redoStack.length || !S) return { ok: false };
   const was = {}, runs = S.runs; for (const id in S.piles) if (kindOf(id) === 'found') was[id] = S.piles[id].length;
-  undoStack.push(snapshot()); restore(redoStack.pop()); scoreFx = [];
+  undoStack.push(snapshot()); restore(redoStack.pop()); scoreFx = []; stuckSuppressed = false;
   sfx(...redoCue(was, runs)); announce('Redone'); relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   if (!S.won && isWon()) { S.won = true; onWin(0); }
   return { ok: true };
@@ -1004,29 +1055,33 @@ function legalMoves(all) {
 const makeSolver = (() => {
   const R = (c) => c & 15, su = (c) => c >> 4, red = (c) => ((su(c) + 1) >> 1) & 1, top = (p) => p[p.length - 1];
   const fits = (lo, hi) => R(lo) === R(hi) + 1 && red(lo) !== red(hi);
-  const chars = (a) => String.fromCharCode(...a.map((x) => x + 32));
-  const clone = (s) => ({ t: s.t.map((p) => p.slice()), dn: s.dn.slice(), st: s.st.slice(), w: s.w.slice(), f: s.f.slice(), done: s.done });
+  // Collision-free 52-char card alphabet 'B'..'u' (ASCII 66..117, 100% disjoint from digits, ':', '#', '|', ',') per CD-WF6-03.
+  const chars = (a) => { let r = ''; for (let i = 0; i < a.length; i++) { const x = a[i]; r += String.fromCharCode(65 + (x >> 4) * 13 + (x & 15)); } return r; };
+  const clone = (s) => ({ t: s.t.map((p) => p.slice()), dn: s.dn.slice(), st: s.st.slice(), w: s.w.slice(), f: s.f.slice(), done: s.done, pb: s.pb });
   const flip = (s) => s.t.forEach((p, i) => { if (s.dn[i] > 0 && s.dn[i] >= p.length) s.dn[i] = p.length - 1; });
   const next = (s, u) => s.f[su(u)] === R(u) - 1;
-  const safe = (s, u) => R(u) <= 2 || (red(u) ? Math.min(s.f[0], s.f[3]) : Math.min(s.f[1], s.f[2])) >= R(u) - 1;
-  const settle = (s) => {
+  // In Yukon, rank-2 cards stay off foundations until both opposite-color Aces are home (a buried Ace may need to land on that 2).
+  const safe = (s, u, yukon) => R(u) === 1 || (!yukon && R(u) === 2) || (red(u) ? Math.min(s.f[0], s.f[3]) : Math.min(s.f[1], s.f[2])) >= R(u) - 1;
+  const settle = (s, yukon) => {
     flip(s);
     for (let m = 1; m;) {
       m = 0;
-      for (const p of s.t.concat([s.w])) if (p.length && next(s, top(p)) && safe(s, top(p))) { s.f[su(p.pop())]++; flip(s); m = 1; }
+      for (const p of s.t.concat([s.w])) if (p.length && next(s, top(p)) && safe(s, top(p), yukon)) { s.f[su(p.pop())]++; flip(s); m = 1; }
     }
   };
-  const key = (s) => s.t.map((p, i) => s.dn[i] + chars(p)).sort().join('|') + '#' + chars(s.st) + '#' + chars(s.w) + '#' + s.f + '#' + s.done;
-  // Moves are [score, from, index, to], best score first; to -1 is the foundation, from -1 the waste, from -2 a draw, score -1 (Spider) a deal.
-  function tabMoves(s, ms, spider) {
+  const key = (s) => s.t.map((p, i) => s.dn[i] + ':' + chars(p)).sort().join('|') + '#' + chars(s.st) + '#' + chars(s.w) + '#' + s.f + '#' + s.done;
+  // Moves are [score, from, index, to], best score first; to -1 is foundation, from -1 waste, from -2 draw, from -3 foundation pullback, score -1 (Spider) deal.
+  function tabMoves(s, ms, spider, verify, yukon) {
     s.t.forEach((p, c) => {
       if (!p.length) return;
       if (!spider && next(s, top(p))) ms.push([5, c, p.length - 1, -1]);
       let b = s.dn[c];
       if (spider) { b = p.length - 1; while (b > s.dn[c] && p[b - 1] - p[b] === 1) b--; }
+      else if (!yukon) { b = p.length - 1; while (b > s.dn[c] && fits(p[b - 1], p[b])) b--; }
       for (let i = b; i < p.length; i++) {
         const u = p[i], under = i > s.dn[c] ? p[i - 1] : -1, rev = i === s.dn[c] && i; let gap = 0;
-        if (!spider && under >= 0 && fits(under, u)) continue;
+        const isSplit = !spider && under >= 0 && fits(under, u);
+        if (isSplit && !verify) continue;
         s.t.forEach((q, j) => {
           let sc = 3;
           if (j === c) return;
@@ -1036,26 +1091,40 @@ const makeSolver = (() => {
             if (spider ? R(t) !== R(u) + 1 || (under >= 0 && R(under) === R(u) + 1 && !(same && su(under) !== su(u))) : !fits(t, u)) return;
             if (spider) sc = same ? 30 : 8;
           }
-          ms.push([spider ? sc + (rev ? 45 : 0) : rev ? 4 : 3, c, i, j]);
+          const score = spider ? sc + (rev ? 45 : 0) : isSplit ? (next(s, under) ? 3.5 : 1.2) : rev ? 4 : 3;
+          ms.push([score, c, i, j]);
         });
       }
     });
+    if (verify && !spider && s.pb < 2) {
+      for (let fs = 0; fs < 4; fs++) {
+        const rk = s.f[fs]; if (rk < 2) continue;
+        const u = (fs << 4) | rk;
+        if (safe(s, u, yukon)) continue;
+        let gap = 0;
+        s.t.forEach((q, j) => {
+          if (!q.length) { if (gap || rk !== 13) return; gap = 1; ms.push([0.5, -3, fs, j]); }
+          else if (fits(top(q), u)) ms.push([0.5, -3, fs, j]);
+        });
+      }
+    }
   }
-  function klondikeMoves(s, ms) {
+  function klondikeMoves(s, ms, verify) {
     const u = top(s.w); let gap = 0;
     if (u && next(s, u)) ms.push([5, -1, 0, -1]);
     if (u) s.t.forEach((q, j) => { if (q.length ? fits(top(q), u) : !gap && R(u) === 13 && (gap = 1)) ms.push([2, -1, 0, j]); });
-    tabMoves(s, ms);
+    tabMoves(s, ms, 0, verify, false);
     if (s.st.length || s.w.length) ms.push([1, -2, 0, 0]);
   }
-  function tabApply(s, m, draw) {
+  function tabApply(s, m, draw, yukon) {
     const o = clone(s);
     if (m[1] === -2) { if (o.st.length) for (let i = Math.min(draw, o.st.length); i--;) o.w.push(o.st.pop()); else while (o.w.length) o.st.push(o.w.pop()); }
+    else if (m[1] === -3) { const fs = m[2], rk = o.f[fs]; o.f[fs]--; o.t[m[3]].push((fs << 4) | rk); o.pb++; }
     else {
       const src = m[1] < 0 ? o.w : o.t[m[1]], run = src.splice(m[1] < 0 ? src.length - 1 : m[2]);
       if (m[3] < 0) o.f[su(run[0])]++; else o.t[m[3]].push(...run);
     }
-    settle(o); return o;
+    settle(o, yukon); return o;
   }
   function clear(o, c) {
     const p = o.t[c], b = p.length - 13;
@@ -1063,7 +1132,7 @@ const makeSolver = (() => {
     flip(o);
   }
   function spiderMoves(s, ms) {
-    tabMoves(s, ms, 1);
+    tabMoves(s, ms, 1, false, false);
     let tabCards = 0; for (let i = 0; i < s.t.length; i++) tabCards += s.t[i].length;
     if (s.st.length && (tabCards < 10 || s.t.every((p) => p.length))) ms.push([-1, 0, 0, 0]);
   }
@@ -1073,16 +1142,18 @@ const makeSolver = (() => {
     else { o.t[m[3]].push(...o.t[m[1]].splice(m[2])); clear(o, m[3]); clear(o, m[1]); }
     return o;
   }
-  // makeSolver(state, budget) -> { used, step(n), moves }: step(n) searches n more positions, answering 'won' (moves = the line), 'dead',
-  // 'budget' or 'more'. The budget test ignores how the work is sliced.
-  return (st, budget) => {
-    const mode = st.mode, draw = st.opts.draw, spider = mode === 'spider', code = (u) => st.cards[u].s * 16 + st.cards[u].r;
+  // makeSolver(state, budget, opts) -> { used, step(n), moves }: step(n) searches n more positions, answering 'won' (moves = the line), 'dead',
+  // 'budget' or 'more'. The budget test ignores how the work is sliced. opts.verify permits productive partial-run splits & bounded pullbacks.
+  return (st, budget, opts) => {
+    const mode = st.mode, draw = st.opts.draw, spider = mode === 'spider', yukon = mode === 'yukon', verify = !!(opts && opts.verify);
+    const code = (u) => st.cards[u].s * 16 + st.cards[u].r;
     const t = [], dn = [];
     for (const id in st.piles) if (id[0] === 't') { const p = st.piles[id]; t.push(p.map(code)); const d = p.findIndex((u) => st.up[u]); dn.push(d < 0 ? p.length : d); }
-    const root = { t, dn, st: (st.piles.stock || []).map(code), w: (st.piles.waste || []).map(code), f: [0, 0, 0, 0], done: 0 };
+    const root = { t, dn, st: (st.piles.stock || []).map(code), w: (st.piles.waste || []).map(code), f: [0, 0, 0, 0], done: 0, pb: 0 };
     for (const id in st.piles) if (id[0] === 'f') { const p = st.piles[id]; if (spider) root.done += Math.floor(p.length / 13); else if (p.length) root.f[st.cards[p[0]].s] = p.length; } // a game part-way through
-    if (!spider) settle(root);
-    const gen = mode === 'klondike' ? klondikeMoves : mode === 'yukon' ? tabMoves : spiderMoves, apply = spider ? spiderApply : tabApply;
+    if (!spider) settle(root, yukon);
+    const gen = mode === 'klondike' ? (s, ms) => klondikeMoves(s, ms, verify) : yukon ? (s, ms) => tabMoves(s, ms, 0, verify, true) : spiderMoves;
+    const apply = spider ? spiderApply : (s, m) => tabApply(s, m, draw, yukon);
     const frame = (s) => { const ms = []; gen(s, ms); return { s, ms: ms.sort((a, b) => b[0] - a[0]), i: 0 }; };
     const stack = [frame(root)], seen = new Set([key(root)]), me = { used: 0 };
     const home = (c) => (spider ? c.done === 8 : c.f[0] + c.f[1] + c.f[2] + c.f[3] === 52);
@@ -1094,7 +1165,7 @@ const makeSolver = (() => {
         if (me.used >= end) return 'more';
         const f = stack[stack.length - 1]; if (!f) return 'dead';
         if (f.i >= f.ms.length) { stack.pop(); continue; }
-        const c = apply(f.s, f.ms[f.i++], draw), id = key(c); if (seen.has(id)) continue;
+        const c = apply(f.s, f.ms[f.i++]), id = key(c); if (seen.has(id)) continue;
         seen.add(id); me.used++;
         if (home(c)) { me.moves = stack.map((x) => x.ms[x.i - 1]); return 'won'; }
         stack.push(frame(c));
@@ -1129,7 +1200,7 @@ function posKey() {
   return k + tabs.sort().join(';') + '|' + cells.sort().join(';') + '|' + found.sort().join(';');
 }
 function potential() {
-  const d = def(); let down = 0, free = 0, breaks = 0;
+  const d = def(); let down = 0, free = 0, breaks = 0, bury = 0;
   for (let i = 0; i < d.cols; i++) {
     const p = S.piles['t' + i]; if (!p.length) free++;
     for (let j = 0; j < p.length; j++) {
@@ -1138,8 +1209,19 @@ function potential() {
     }
   }
   for (let i = 0; i < d.cells; i++) if (!S.piles['c' + i].length) free++;
+  if (S.mode === 'freecell') {
+    const fr = [0, 0, 0, 0];
+    for (let i = 0; i < 4; i++) { const p = S.piles['f' + i]; if (p.length) fr[card(p[0]).s] = p.length; }
+    for (let i = 0; i < d.cols; i++) {
+      const p = S.piles['t' + i], len = p.length;
+      for (let j = 0; j < len - 1; j++) {
+        const c = card(p[j]), need = c.r - fr[c.s];
+        if (need >= 1 && need <= 3) bury += (len - 1 - j) * (4 - need);
+      }
+    }
+  }
   const stock = (S.piles.stock ? S.piles.stock.length : 0) + (S.piles.waste ? S.piles.waste.length : 0);
-  return 1000 * totalFound() - 100 * down - 10 * stock + 5 * free - breaks;
+  return 1000 * totalFound() - 100 * down - 10 * stock + 5 * free - breaks - bury;
 }
 // settleTableau() without score, sound or animation
 function simSettle() {
@@ -1197,10 +1279,13 @@ function stockPlays() {
   const dests = pileIds(S.mode).filter((id) => kindOf(id) === 'tab' || kindOf(id) === 'found');
   const piles = {}; for (const k in S.piles) piles[k] = S.piles[k].slice();
   inPosition({ piles, up: S.up.slice() }, () => {
-    // drawing and turning over never reorder the cards, so the stock's size alone says where in the cycle we are
-    const start = S.piles.stock.length, auto = settings.autoFoundation;
+    // drawing and turning over never reorder the cards, so any repeated stock size closes the reachable cycle (even when Draw 3 mod-3 phase shifts after a waste play)
+    const seenSizes = new Set([S.piles.stock.length]), auto = settings.autoFoundation;
     for (let k = 1; k <= 2 * n + 4; k++) {
-      simStock(); if (S.piles.stock.length === start) break;
+      simStock();
+      const sz = S.piles.stock.length;
+      if (seenSizes.has(sz)) break;
+      seenSizes.add(sz);
       const u = top('waste'); if (u < 0) continue;
       if (auto !== 'off' && foundationFor(u) && (auto === 'all' || safeToAutoplay(u))) { out.push({ from: 'waste', to: null, count: 1, draws: k, auto: true, score: 60 }); break; }
       let emptyTab = false, emptyFound = false;
@@ -1311,7 +1396,9 @@ function* solverHintG() {
   if (!dest || !canPick(from, index) || !canDrop(run, dest, from)) return null;
   const m = { from, to: dest, index, count: run.length, score: 100, depth: 1, solver: true };
   const c = simChild({ piles: S.piles, up: S.up }, m);
-  return !c || historyKeys().has(c.key) ? null : m;
+  if (!c) return null;
+  if (historyKeys().has(c.key)) m.backtrack = true;
+  return m;
 }
 
 // The whole search for a Hint, as a generator (see analyzeG): the nearest-gain search, the solver's line where it finds one, and the dead-end proof.
@@ -1320,15 +1407,26 @@ function* hintSearch() {
   const a = yield* analyzeG(HINT_BUDGET, false, true);
   let list = a.productive, verdict, dead = false;
   const sl = yield* solverHintG();
-  if (sl) {
+  if (sl && !sl.backtrack) {
     list = [sl].concat(list.filter((m) => !(sl.stock ? m.stock || m.draws : m.from === sl.from && m.to === sl.to && m.index === sl.index)));
     verdict = 'live';
-  } else if (!list.length && a.exhausted) {
-    // nothing new ahead; prove it's a dead end before saying so (the only way on may be back the way we came)
+  } else if (list.length) {
+    verdict = 'live';
+  } else if (a.exhausted) {
+    // nothing new ahead; check without history filter to distinguish true dead end from a recoverable detour back through a prior position (W6-P-N01)
     const d = yield* analyzeG(STUCK_BUDGET, true, false);
-    verdict = d.dead ? 'dead' : d.productive.length ? 'live' : 'unknown'; dead = d.dead;
-  } else if (!list.length) { verdict = 'unknown'; list = fallbackHints(); }
-  else verdict = 'live';
+    if (!d.dead && (d.productive.length || sl)) {
+      const bt = d.productive.map((m) => Object.assign({}, m, { backtrack: true }));
+      list = sl ? [sl].concat(bt.filter((m) => !(sl.stock ? m.stock || m.draws : m.from === sl.from && m.to === sl.to && m.index === sl.index))) : bt;
+      verdict = 'live'; dead = false;
+    } else if (sl) {
+      list = [sl]; verdict = 'live'; dead = false;
+    } else {
+      verdict = d.dead ? 'dead' : 'unknown'; dead = d.dead;
+    }
+  } else if (sl) {
+    list = [sl]; verdict = 'live';
+  } else { verdict = 'unknown'; list = fallbackHints(); }
   return { list, verdict, dead };
 }
 const hintSig = () => S.moves + '|' + undoStack.length + '|' + (S.piles.stock ? S.piles.stock.length : 0);
@@ -1352,7 +1450,7 @@ function runHintJob(gen, job) {
 function hint(sliced) {
   if (!S || S.won) return { ok: false };
   if (hintJob) return { ok: true, pending: true }; // this press is already being answered
-  S.usedHint = true; S.assisted = true; tipEvent('hint'); updateHUD();
+  stuckSuppressed = false;
   const sig = hintSig();
   if (hintState && hintState.sig === sig) { hintState.i = (hintState.i + 1) % Math.max(1, hintState.list.length); return hintShow(); }
   const gen = hintSearch();
@@ -1363,6 +1461,7 @@ function hint(sliced) {
 function hintApply(r, sig) {
   stuckVerdict = r.verdict;
   if (r.dead) { hintState = null; showStuck(true); return { ok: true, move: null, stuck: true }; }
+  if (r.list.length) { S.usedHint = true; S.assisted = true; tipEvent('hint'); updateHUD(); scheduleSave(); }
   hintState = { list: r.list, i: 0, until: 0, sig };
   return hintShow();
 }
@@ -1385,7 +1484,12 @@ function hintShow() {
   }
   const m = L[hintState.i]; hintState.cur = m; hintState.stockHint = false; hintState.until = now() + 2600;
   shake(m.from, m.index);
-  announce('Hint: ' + describeRun(S.piles[m.from].slice(m.index)) + ' to ' + pileName(m.to));
+  if (m.backtrack) {
+    const msg = 'Move ' + describeRun(S.piles[m.from].slice(m.index)) + ' back to ' + pileName(m.to) + ' to reopen the winning line';
+    toast(msg); announce('Hint: ' + msg);
+  } else {
+    announce('Hint: ' + describeRun(S.piles[m.from].slice(m.index)) + ' to ' + pileName(m.to));
+  }
   sfx('hint'); scheduleHintClear(); startLoop();
   return { ok: true, move: m };
 }
@@ -1397,7 +1501,8 @@ function scheduleStuckCheck() {
     stuckTimer = 0;
     if (!S || S.won || titleOn) return;
     if (modalKind || drag || held || cascade || tweensActive(now())) { stuckTimer = setTimeout(tick, 400); return; }
-    checkStuck(); lostKick();
+    if (!stuckSuppressed) checkStuck();
+    lostKick();
   }, 500);
 }
 function checkStuck() {
@@ -1417,11 +1522,11 @@ function showStuck(force) {
   if (!stuckFact || stuckFact.key !== fk) stuckFact = { key: fk, fi: pickFact('stuck:' + S.mode + ':' + S.deal + ':' + S.moves) };
   save('meta', meta); openModal('stuck', { fact: FACTS[stuckFact.fi] });
 }
-function clearStuck() { clearTimeout(stuckTimer); stuckTimer = 0; stuckVerdict = null; stuckShownFor = null; lostRun++; lostVerdict = null; lostWarned = false; }
+function clearStuck() { clearTimeout(stuckTimer); stuckTimer = 0; stuckVerdict = null; stuckShownFor = null; stuckSuppressed = false; lostRun++; lostVerdict = null; lostWarned = false; }
 
-// A deal can become unwinnable long before it runs out of moves. Once few cards are face down, ask the solver (it sees every card),
-// a few positions at a time between frames; if it runs out of lines it says so once, and stays quiet when it is only out of budget.
-// It does not look at pulling cards back down from a foundation, so the words are "no winning line", not "impossible".
+// A deal can become unwinnable long before it runs out of moves. Once few cards are face down, ask the solver (with verification mode
+// permitting productive partial-run splits and bounded foundation pullbacks) a few positions at a time between frames; if it runs out
+// of lines it says so once, and stays quiet when it is only out of budget.
 const LOST_BUDGET = 4000, LOST_FACEDOWN = 8; // positions to search; most face-down cards worth asking about
 let lostRun = 0, lostVerdict = null, lostWarned = false;
 function lostKick() {
@@ -1429,7 +1534,7 @@ function lostKick() {
   if (!S || S.won || modalKind || (S.mode !== 'klondike' && S.mode !== 'yukon')) return;
   let down = 0; for (let i = 0; i < def().cols; i++) for (const u of S.piles['t' + i]) if (!S.up[u]) down++;
   if (down > LOST_FACEDOWN) return;
-  const sv = makeSolver(S, LOST_BUDGET);
+  const sv = makeSolver(S, LOST_BUDGET, { verify: true });
   const tick = () => {
     if (lostRun !== my || !S) return;
     const end = now() + 6; let r;
@@ -1444,8 +1549,23 @@ function lostKick() {
 
 function autoComplete() {
   if (!canAutoComplete()) return { ok: false };
-  pushUndo(); startClock();
+  pushUndo(); startClock(); stuckSuppressed = false;
   let d = 0, guard = 0, stall = 0;
+  if (S.mode === 'spider') {
+    const plan = spiderFinishPlan() || [];
+    for (const step of plan) {
+      const run = rawMove(step.from, step.index, step.to, d + 1);
+      S.moves++; addScore(-1);
+      const b = L && L.piles[step.to];
+      cueOnLand('place', run.length, b ? (b.x + L.cw / 2) / W * 2 - 1 : 0, run[0], true);
+      d += 140;
+      d = settleTableau(d);
+    }
+    sfx('deal');
+    if (!S.won && isWon()) { S.won = true; finishRun = d > 300; onWin(d); }
+    relayout(); flushLandCues(); updateHUD(); scheduleSave(); scheduleStuckCheck();
+    return { ok: true };
+  }
   while (!isWon() && guard++ < 400) {
     let moved = false;
     let best = null;
@@ -1582,7 +1702,9 @@ function abandonCurrent() {
 // The one deal among the classic 32,000 that nobody has ever won. A random or daily deal steps past it; a player who types it in still gets it.
 const FC_UNWINNABLE = 11982;
 function dailyDeal(mode, opts, date) {
-  const h = fnv1a(date + '|' + modeKey(mode, opts));
+  const k = modeKey(mode, opts);
+  if (k === 'spider2' || k === 'spider4') return pickPoolDeal(k, '', date, 0).deal;
+  const h = fnv1a(date + '|' + k);
   const n = mode === 'freecell' ? 1 + (h % 32000) : 1 + (h % 2000000000);
   return mode === 'freecell' && n === FC_UNWINNABLE ? n + 1 : n;
 }
@@ -1590,16 +1712,55 @@ function randomFreecellDeal() { let n; do n = 1 + Math.floor(Math.random() * 320
 
 // --- Winnable deals ---
 // A deal is shown once a solver has won it (the deal, then fnv1a(tag|attempt)); positions, not time, so every machine agrees.
-// Left out: four-suit Spider (nothing wins) and FreeCell (no room in the size budget).
-const WIN_SEARCH = { klondike1: [300, 24], klondike3: [400, 24], yukon: [400, 24], spider1: [800, 24], spider2: [800, 80] };
+// Raised above GRADES[key][1] so Easy, Medium, and Hard deals all survive in Winnable (Any) and Daily play (W6-S3-04).
+const WIN_SEARCH = { klondike1: [1200, 32], klondike3: [1200, 32], yukon: [800, 32], spider1: [1000, 32], spider2: [1500, 80] };
 // Deal grades. The solver counts the positions it visits before it wins a deal; a deal it wins with hardly any backtracking is easy, one that
-// needs a long search is hard. [last easy count, last medium count] per game, set from 120 solved deals of each (about half easy, a quarter
-// medium, a fifth hard). Two-suit Spider is left out: its search is too slow to pick from.
+// needs a long search is hard. [last easy count, last medium count] per game.
 const GRADES = { klondike1: [100, 400], klondike3: [120, 500], yukon: [70, 250], spider1: [200, 450], spider2: [400, 1000] };
 const GRADE_CAP = 3000, GRADE_TRIES = 60; // positions a hard-or-medium candidate may use; candidates tried before taking the nearest grade found
 const gradeOf = (key, used) => { const g = GRADES[key]; return !g ? '' : used <= g[0] ? 'easy' : used <= g[1] ? 'medium' : 'hard'; };
 const GRADE_RANK = { easy: 0, medium: 1, hard: 2 };
 const candidateDeal = (base, a, tag) => (a ? 1 + fnv1a(tag + '|' + a) % 2000000000 : base);
+// Offline pre-verified solvable seed pools (< 2.1 KB delta-base36 total):
+// - spider2: 366 makeSolver-verified solvable deals (122 easy / 122 medium / 122 hard) eliminating live DFS stalls
+// - spider4: 372 replay-verified solvable deals (124 easy / 124 medium / 124 hard; >= 366 unique Daily deals/year)
+// - freecell: 180 pre-classified classic MS deals (1..32,000 excluding #11982; 60 easy / 60 medium / 60 hard)
+const decodePool = (s) => { let v = 0; return s.split(',').map((d) => (v += parseInt(d, 36))); };
+const SEED_POOLS = {
+  spider2: {
+    easy: decodePool('4,14,5,e,h,k,c,25,1u,f,o,8,j,6,1n,i,x,3n,18,j,14,7,d,y,5,j,9,c,1z,2p,e,5,s,b,1,l,1b,1z,n,c,n,15,1,f,3,k,e,j,h,4,p,m,3,r,e,4,9,g,22,25,o,1k,2e,1h,1k,7,j,19,19,n,z,7,9,8,6,m,2v,4,c,9,5d,15,6,6,1,g,o,f,8,23,i,24,17,l,m,15,36,c,14,e,f,2z,3,t,n,h,b,j,36,5,9,a,i,19,3,3,1m,2a,2c,v,r,1c'),
+    medium: decodePool('x,n,3,j,5,6,m,6,10,j,1h,4,5,b,f,17,1,16,24,6,1e,4,3,b,c,1,3,c,2,2,y,x,q,2,16,1f,2,t,16,l,h,1,f,f,4y,2,o,f,11,h,l,3,c,b,c,c,r,3,6,24,j,5,e,3,3,3,1j,r,m,13,6,29,b,i,k,l,z,25,k,1,1,3,1m,3,a,7,6,2,e,1h,e,f,8,6,o,1x,l,2,1,9,p,d,q,1,7,8,1a,1,g,2,j,10,d,d,7,l,8,17,g,f,a,1u'),
+    hard: decodePool('d,y,z,3,k,y,6,4,l,3,4,e,8,v,1,b,9,b,j,2,6,a,b,s,3,6,1,o,2,1o,p,5,6,n,13,i,f,5,a,3,7,d,n,f,j,f,16,3,4,2,3,3,a,9,s,3,b,c,f,2,3,4,1,15,5,a,8,7,g,5,k,6,j,8,7,6,1,i,d,n,c,8,6,t,7,1,7,2,2,h,8,9,l,j,1l,v,5,f,3,i,9,3,3,4,2,a,6,7,m,16,m,4,d,c,b,c,a,7,10,g,c,2'),
+  },
+  spider4: {
+    easy: decodePool('d,10,t,1,h,7,2,7,2k,u,4,b,b,6,1b,2w,1q,b,9,8,13,4,8,1r,x,9,1i,8,7,1e,18,h,16,1c,o,w,4p,s,g,6,2d,1p,h,2,c,p,i,4,12,l,5,b,h,11,1p,6,2,t,20,1c,3p,13,t,n,1z,19,1j,1l,30,4,10,3,2j,1x,6,2v,10,d,d,p,1,5,a,z,2,1s,r,1b,1e,1d,1z,k,29,9,l,1h,z,b,v,19,3v,1p,2n,5,i,2s,c,t,1l,j,9,18,18,9,7,z,z,2c,6b,1,j,7,3,1d'),
+    medium: decodePool('e,1,1n,2f,9,11,a,1l,10,k,c,d,a,n,1v,1q,q,1s,16,1g,c,8,6,s,14,1n,1q,z,1f,2v,u,1,1l,3,e,q,1b,z,9,3,1a,t,1o,6,d,1z,k,d,m,1p,7,a,5c,4,15,4,1w,g,1w,k,k,9,9,r,y,1o,m,j,3z,4n,4,1f,c,1d,2f,8,2b,2m,1d,1i,8,46,5,d,20,g,b,3h,3,9,d,3,t,1,22,9,f,q,2m,1y,1e,2,m,g,8,a,n,15,4,l,l,r,6,n,y,9,1,b,1h,6,3b,1d,c,2v'),
+    hard: decodePool('l,3u,u,3,3j,u,p,1q,t,1l,1z,j,l,p,c,1,3f,8,s,23,y,x,3l,10,32,n,4,d,x,2,i,1,4,h,1i,17,z,2u,14,17,d,d,1m,1q,32,1d,1s,f,q,2,8,l,3a,13,4,3,1o,i,b,15,9,7,1n,19,j,1z,d,j,h,v,15,5s,o,x,p,z,2,k,u,a,2,1,10,d,5,3,q,1d,o,z,h,w,1,b,n,18,e,27,q,y,1z,1d,4,5,27,12,k,1n,11,1a,z,a,1d,1g,h,u,t,5,1r,2d,13,11,2,v'),
+  },
+  freecell: {
+    easy: decodePool('3,5,8,2,1,e,8,9,2,6,1,1,2,b,2,3,2,1,n,9,2,a,6,b,4,5,5,a,1,h,2,9,3,1,c,6,7,2,1,3,2,6,a,1,2,p,c,9,3,1,5,7,1,4,1,1,1,d,b,1'),
+    medium: decodePool('6,1,3,c,4,3,1,a,2,b,2,6,6,4,3,2,3,3,3,2,2,i,7,6,8,j,1,6,5,6,e,4,d,1,9,6,y,c,d,3,8,k,6,m,9,1,9,j,b,5,8,c,3,1,h,a,1,k,9,6'),
+    hard: decodePool('4,1,4,2,1,9,6,1,4,2,1,1,1,1,1,6,3,1,2,3,2,1,6,1,1,3,2,2,b,3,2,2,2,1,5,2,5,1,2,1,1,2,4,1,5,2,2,1,2,1,2,1,1,1,4,2,2,1,1,7'),
+  },
+};
+const POOL_FLAT = {};
+for (const k in SEED_POOLS) POOL_FLAT[k] = SEED_POOLS[k].easy.map((d) => [d, 'easy']).concat(SEED_POOLS[k].medium.map((d) => [d, 'medium']), SEED_POOLS[k].hard.map((d) => [d, 'hard']));
+const FC_GRADE_MAP = new Map(POOL_FLAT.freecell);
+function dayIndex(dateStr) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || ''));
+  return m ? Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000) : fnv1a(String(dateStr || ''));
+}
+function pickPoolDeal(key, want, daily, seed) {
+  const pool = SEED_POOLS[key];
+  if (want && pool[want] && pool[want].length) {
+    const arr = pool[want], idx = fnv1a((daily || String(seed)) + '|' + key + '|' + want) % arr.length;
+    return { deal: arr[idx], grade: want };
+  }
+  const flat = POOL_FLAT[key];
+  // Coprime stride 131 (gcd(131, 366)=1, gcd(131, 372)=1) rotates Easy/Medium/Hard with zero repeats across an entire leap year.
+  const idx = daily ? (((dayIndex(daily) * 131 + fnv1a(key)) % flat.length) + flat.length) % flat.length : fnv1a(String(seed) + '|' + key) % flat.length;
+  return { deal: flat[idx][0], grade: flat[idx][1] };
+}
 let dealPending = null;
 const showDealing = (on) => { $('#dealing').classList.toggle('on', on); if (on) announce('Finding a winnable deal'); };
 
@@ -1617,8 +1778,19 @@ function newGame(o = {}) {
   deal = mode === 'freecell' ? clamp(Math.floor(deal), 1, 1000000) : clamp(Math.floor(deal), 1, 2147483646);
   dealPending = null; showDealing(false);
   const key = modeKey(mode, opts), cfg = WIN_SEARCH[key];
-  const want = !daily && settings.dealGrade !== 'any' && key !== 'spider2' && GRADES[key] ? settings.dealGrade : '';
-  if (exact || !cfg || !(daily || settings.winnable || want)) return startDeal(mode, opts, deal, daily, exact && o.winnable, exact && o.grade);
+  const fair = settings.dealFairness || (settings.dealGrade !== 'any' ? settings.dealGrade : settings.winnable ? 'winnable' : 'random');
+  const want = !daily && (fair === 'easy' || fair === 'medium' || fair === 'hard') ? fair : '';
+  const wantWin = daily || fair !== 'random';
+  if (exact || !wantWin) return startDeal(mode, opts, deal, daily, exact && o.winnable, exact && o.grade);
+  if (key === 'freecell') {
+    if (want) { const pk = pickPoolDeal('freecell', want, null, deal); return startDeal(mode, opts, pk.deal, null, true, pk.grade); }
+    return startDeal(mode, opts, deal, daily, true, FC_GRADE_MAP.get(deal) || '');
+  }
+  if (key === 'spider2' || key === 'spider4') {
+    const pk = pickPoolDeal(key, want, daily, deal);
+    return startDeal(mode, opts, pk.deal, daily, true, pk.grade);
+  }
+  if (!cfg) return startDeal(mode, opts, deal, daily, false, '');
   const tag = daily ? daily + '|' + key : String(deal), tries = daily ? 160 : want ? GRADE_TRIES : cfg[1], budget = want === 'easy' ? GRADES[key][0] : want ? GRADE_CAP : cfg[0];
   let a = 0, sv = null, cand = deal, near = 0, nearGrade = '', grade = '';
   const slice = (ms) => { // null to keep going, else the deal (0 if none won)
@@ -1635,7 +1807,11 @@ function newGame(o = {}) {
       if (now() >= end) return null;
     }
   };
-  const finish = (r) => startDeal(mode, opts, r || deal, daily, !!r, r && want ? grade : ''); // only a deal picked by grade carries one
+  const finish = (r) => {
+    const res = startDeal(mode, opts, r || deal, daily, !!r, r ? grade : '');
+    if (!r) toast('Unverified deal — dealt a classic shuffle.');
+    return res;
+  };
   const first = slice(45);
   if (first != null) return finish(first);
   const me = dealPending = {}; showDealing(true);
@@ -1671,8 +1847,11 @@ function liveDeal() {
 }
 function confirmAbandon(o, restart) {
   const go = () => (restart ? restartDeal() : newGame(o));
-  if (modalKind === 'stuck' || !liveDeal()) return go();
-  const k = S ? modeKey(S.mode, S.opts) : null; const streak = k ? statFor(k).streak : 0;
+  const g = liveDeal();
+  if (!g) return go();
+  syncShared();
+  const k = modeKey(g.mode, g.opts), streak = statFor(k).streak;
+  if (modalKind === 'stuck' && streak <= 0) return go();
   openModal('confirm', { title: restart ? 'Restart this deal?' : 'Abandon this deal?',
     text: (restart ? 'Your moves so far will be lost.' : 'The game in progress will be lost.') + (streak > 0 ? ' Your ' + modeKeyLabel(k) + ' streak of ' + streak + ' will reset.' : ''),
     yes: restart ? 'Restart' : 'New deal', onYes: go });
@@ -2267,10 +2446,26 @@ function dailyRun() {
 const DAILY_KEEP_DAYS = 400; // older daily entries are dropped when the save loads
 
 const SETTING_ENUMS = { motion: ['auto', 'full', 'reduced'], cardSize: ['compact', 'standard', 'large'], layout: ['fit', 'classic'], autoFoundation: ['off', 'safe', 'all'],
-  courts: ['deco', 'painted'], volumeCurve: ['linear', 'square'], scoring: ['standard', 'timed', 'none'], dealGrade: ['any', 'easy', 'medium', 'hard'], back: BACKS.map((b) => b.id), table: TABLES.map((x) => x.id) };
+  courts: ['deco', 'painted'], volumeCurve: ['linear', 'square'], scoring: ['standard', 'timed', 'none'], dealFairness: ['winnable', 'easy', 'medium', 'hard', 'random'], dealGrade: ['any', 'easy', 'medium', 'hard'], back: BACKS.map((b) => b.id), table: TABLES.map((x) => x.id) };
 for (const k in DEFAULT_SETTINGS) {
   const v = settings[k], d = DEFAULT_SETTINGS[k];
   if (typeof v !== typeof d || (typeof v === 'number' && !isFinite(v)) || (SETTING_ENUMS[k] && !SETTING_ENUMS[k].includes(v))) settings[k] = d;
+}
+{ // Unify dealFairness with legacy winnable/dealGrade saves; fresh profiles default to Winnable (Any) (W6-S3-04).
+  if (Object.hasOwn(storedSettings, 'dealFairness')) {
+    settings.winnable = settings.dealFairness !== 'random';
+    settings.dealGrade = ['easy', 'medium', 'hard'].includes(settings.dealFairness) ? settings.dealFairness : 'any';
+  } else if (hadSave) {
+    if (['easy', 'medium', 'hard'].includes(storedSettings.dealGrade)) {
+      settings.dealFairness = storedSettings.dealGrade; settings.dealGrade = storedSettings.dealGrade; settings.winnable = true;
+    } else if (storedSettings.winnable === false) {
+      settings.dealFairness = 'random'; settings.dealGrade = 'any'; settings.winnable = false;
+    } else {
+      settings.dealFairness = 'winnable'; settings.dealGrade = 'any'; settings.winnable = true;
+    }
+  } else {
+    settings.dealFairness = 'winnable'; settings.dealGrade = 'any'; settings.winnable = true;
+  }
 }
 if (hadSave && typeof storedSettings.tips !== 'boolean') settings.tips = false;
 if (hadSave && typeof storedSettings.autoNoted !== 'boolean') settings.autoNoted = true; // someone who has played before has already seen cards go home by themselves
@@ -3325,10 +3520,45 @@ function frame(t) {
   }
   moving.sort((a, b) => D[a.u].t0 - D[b.u].t0);
   for (const m of moving) { const p = dispPos(m.u, t); drawCardAt(m.u, p.x, p.y, t, p.lift, p.rot, m.wastePip); }
-  if (S.mode === 'spider' && L.piles.stock && S.piles.stock.length) {
-    const b = L.piles.stock, n = S.piles.stock.length / 10;
-    ctx.fillStyle = 'rgba(20,18,31,.82)'; const bw = cw * .42, bh = cw * .3; rrect(ctx, b.x + cw - bw - 3, b.y + ch - bh - 3, bw, bh, bh / 2); ctx.fill();
-    ctx.fillStyle = '#F4F2EC'; ctx.font = '700 ' + bh * .66 + 'px ' + DECO; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(n), b.x + cw - bw / 2 - 3, b.y + ch - bh / 2 - 2);
+  if (!cascade && S.mode === 'spider' && L.piles.stock && S.piles.stock.length) {
+    const b = L.piles.stock, tc = b.cards && b.cards.length ? b.cards[b.cards.length - 1] : b, n = Math.ceil(S.piles.stock.length / 10);
+    const bw = cw * .42, bh = cw * .3, bx = tc.x + cw - bw - 3, by = tc.y + ch - bh - 3;
+    ctx.save(); ctx.fillStyle = 'rgba(16,24,19,.86)'; ctx.strokeStyle = 'rgba(233,200,115,.5)'; ctx.lineWidth = 1;
+    rrect(ctx, bx, by, bw, bh, bh / 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#F4F2EC'; ctx.font = '700 ' + bh * .66 + 'px ' + DECO; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(n), bx + bw / 2, by + bh / 2 + .5); ctx.restore();
+  }
+  if (!cascade && S.mode === 'klondike' && L.piles.stock && S.piles.stock.length) {
+    const b = L.piles.stock, n = S.piles.stock.length;
+    const bw = Math.max(22, cw * .44), bh = Math.max(15, cw * .28), bx = b.x + cw - bw - 3, by = b.y + ch - bh - 3;
+    ctx.save(); ctx.fillStyle = 'rgba(16,24,19,.88)'; ctx.strokeStyle = 'rgba(233,200,115,.55)'; ctx.lineWidth = 1;
+    rrect(ctx, bx, by, bw, bh, bh / 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#F4F2EC'; ctx.font = '700 ' + Math.max(9.5, bh * .66) + 'px ' + DECO; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(n), bx + bw / 2, by + bh / 2 + .5); ctx.restore();
+  }
+  if (!cascade && S.mode === 'klondike' && L.piles.stock && !S.piles.stock.length && S.piles.waste.length && S.recycles >= 1 && settings.scoring !== 'none') {
+    const b = L.piles.stock, tag = S.opts.draw === 3 ? '−20' : '−50';
+    const bw = Math.max(28, cw * .58), bh = Math.max(15, cw * .27), bx = b.x + (cw - bw) / 2, by = b.y + ch - bh - 4;
+    ctx.save(); ctx.fillStyle = 'rgba(26,18,14,.92)'; ctx.strokeStyle = '#E9C873'; ctx.lineWidth = 1.2;
+    rrect(ctx, bx, by, bw, bh, bh / 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#FFE0A3'; ctx.font = '700 ' + Math.max(9.5, bh * .66) + 'px ' + DECO; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(tag, bx + bw / 2, by + bh / 2 + .5); ctx.restore();
+  }
+  if (!cascade && S.mode === 'freecell' && L.piles.c0 && L.piles.c3) {
+    const label = 'Max move: ' + capacity(null), c0 = L.piles.c0, c1 = L.piles.c1, c2 = L.piles.c2, c3 = L.piles.c3;
+    const fs = clamp(cw * .14, 10, 12.5), bh = Math.round(fs * 1.65);
+    ctx.save(); ctx.font = '700 ' + fs + 'px ' + DECO;
+    const bw = Math.ceil(ctx.measureText(label).width + 16);
+    const leftX = Math.min(c0.x, c1.x, c2.x, c3.x), rightX = Math.max(c0.x, c1.x, c2.x, c3.x) + cw;
+    const bx = clamp(Math.round((leftX + rightX - bw) / 2), L.margin, W - L.margin - bw);
+    const t0y = L.piles.t0 ? L.piles.t0.y : c0.y + ch + bh + 4;
+    const by = L.arr === 'side'
+      ? Math.min(H - L.margin - bh - 2, Math.round(Math.max(c0.y, c1.y, c2.y, c3.y) + ch + 10))
+      : (c0.y >= bh + 18 ? Math.round(c0.y - bh - 5) : Math.round((c0.y + ch + t0y - bh) / 2));
+    ctx.fillStyle = 'rgba(16,24,19,.88)'; ctx.strokeStyle = 'rgba(233,200,115,.55)'; ctx.lineWidth = 1;
+    rrect(ctx, bx, by, bw, bh, bh / 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#EDE3C8'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, bx + bw / 2, by + bh / 2 + .5); ctx.restore();
   }
   if (hintState && hintState.until > t) {
     const a = reducedMotion() ? .88 : (.55 + .45 * Math.sin(t / 140));
@@ -4370,11 +4600,21 @@ function updateHUD() {
   syncMirror();
 }
 // How far from a win: the cards on the foundations (Spider: in finished runs) as a thin jade line under the bar, and as words for the pointer and a screen reader.
+// Secondary warm-brass track renders face-down reveal momentum without altering #goal > i (CD-WF5-07); touch-visible counter sits in #subRow (#homeCount).
 function homeCount() { let n = 0; for (const id in S.piles) if (kindOf(id) === 'found') n += S.piles[id].length; return n; }
+function downCount(st = S) {
+  let n = 0; const cols = MODES[st.mode].cols;
+  for (let i = 0; i < cols; i++) for (const u of st.piles['t' + i]) if (!st.up[u]) n++;
+  return n;
+}
 function updateGoal() {
   const n = homeCount(), all = S.cards.length, g = $('#goal'), text = n + ' of ' + all + ' cards home';
   g.setAttribute('aria-valuemax', all); g.setAttribute('aria-valuenow', n); g.setAttribute('aria-valuetext', text); g.title = 'Home ' + n + '/' + all;
   g.firstElementChild.style.width = (100 * n / all) + '%';
+  const initDown = typeof S.initDown === 'number' ? S.initDown : (S.mode === 'spider' ? 44 : S.mode === 'freecell' ? 0 : 21);
+  const revFrac = initDown > 0 ? clamp((initDown - downCount()) / initDown, 0, 1) : 0;
+  const revEl = g.children[1]; if (revEl) revEl.style.width = (100 * revFrac) + '%';
+  const hc = $('#homeCount'); if (hc) hc.textContent = S.mode === 'spider' ? (S.runs + '/8') : (n + '/' + all);
 }
 function updateTime() {
   if (!S) return;
@@ -4505,7 +4745,7 @@ function closeModal(back) {
   if (!modalKind) return;
   const was = modalKind; modalKind = null; modalAnimUntil = 0; modalEl.classList.remove('on'); sheet.innerHTML = '';
   clockMark = now(); syncAudio();
-  if (back && modalReturn && modalReturn !== was) { const r = modalReturn; modalReturn = null; openModal(r); return; }
+  if (back && modalReturn && modalReturn !== was) { const r = modalReturn; modalReturn = null; openModal(r, r === 'stuck' && stuckFact ? { fact: FACTS[stuckFact.fi] } : undefined); return; }
   modalReturn = null; syncInert(); setTimeout(tipShow, 500);
   const op = modalOpener; modalOpener = null;
   const canFocus = (el) => el && el.isConnected && !el.disabled && !el.closest('[hidden], [inert]') && el.getClientRects().length > 0;
@@ -4537,7 +4777,7 @@ function openModal(kind, data) {
     const ae = document.activeElement;
     modalOpener = ae && ae !== document.body && !modalEl.contains(ae) ? ae : null;
   }
-  if (modalKind && kind !== modalKind && ['settings', 'backs', 'stats', 'help', 'deal', 'daily', 'records'].includes(kind) && modalKind === 'menu') modalReturn = 'menu';
+  if (modalKind && kind !== modalKind && (['settings', 'backs', 'stats', 'help', 'deal', 'daily', 'records'].includes(kind) && modalKind === 'menu' || (modalKind === 'stuck' && kind === 'confirm'))) modalReturn = modalKind;
   modalKind = kind; syncInert();
   sheet.className = 'sheet' + (kind === 'backs' || kind === 'help' ? ' wide' : '') + (kind === 'win' ? ' win' : '') + (kind === 'win' && !reducedMotion() ? ' rise' : '');
   if (kind === 'win') {
@@ -4561,7 +4801,7 @@ function openModal(kind, data) {
 }
 modalEl.addEventListener('pointerdown', (e) => { if (e.target === modalEl && modalKind !== 'win') closeModal(true); });
 
-const seg = (key, opts) => '<div class="seg" role="group">' + opts.map(([v, l]) => '<button type="button" data-set="' + key + '" data-val="' + v + '" aria-pressed="' + (String(settings[key]) === String(v)) + '">' + l + '</button>').join('') + '</div>';
+const seg = (key, opts, wrap) => '<div class="seg' + (wrap ? ' seg-wrap' : '') + '" role="group">' + opts.map(([v, l]) => '<button type="button" data-set="' + key + '" data-val="' + v + '" aria-pressed="' + (String(settings[key]) === String(v)) + '">' + l + '</button>').join('') + '</div>';
 const tog = (key, label) => '<button type="button" class="tog" role="switch" data-tog="' + key + '" aria-checked="' + !!settings[key] + '" aria-label="' + label + '"></button>';
 const timerNote = () => settings.scoring === 'timed'
   ? (settings.showTimer ? 'Timed scoring counts elapsed time for the win speed bonus' : 'Clock hidden; Timed scoring still counts elapsed time for the win speed bonus')
@@ -4598,8 +4838,7 @@ const MODALS = {
     '<div class="set"><label>Auto-move to foundations<small>Safe moves only cards nothing else needs</small></label>' + seg('autoFoundation', [['off', 'Off'], ['safe', 'Safe'], ['all', 'All']]) + '</div>' +
     '<div class="set"><label>Move a card by<small id="tapNote">' + TAP_NOTES[tapMode()] + '</small></label>' + seg('tapMove', [['tap', 'Tap'], ['double', 'Double-tap'], ['drag', 'Drag only']]) + '</div>' +
     '<div class="set"><label>Scoring<small>Standard is calm points with no countdown. Timed adds a speed bonus on a win. None hides the score</small></label>' + seg('scoring', [['standard', 'Standard'], ['timed', 'Timed'], ['none', 'None']]) + '</div>' +
-    '<div class="set"><label>Deal difficulty<small>Random deals a solver has won, picked by how much searching they took. Not FreeCell or Spider with 2 or 4 suits</small></label>' + seg('dealGrade', [['any', 'Any'], ['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']]) + '</div>' +
-    '<div class="set"><label>Winnable deals only<small>A solver wins random deals first. Not FreeCell or four-suit Spider</small></label>' + tog('winnable', 'Winnable deals only') + '</div>' +
+    '<div class="set set-wide"><label>Deal fairness<small>Winnable deals are verified before play across all seven games. Choose a challenge tier, or Classic Random for an unchecked shuffle.</small></label>' + seg('dealFairness', [['winnable', 'Winnable (Any)'], ['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard'], ['random', 'Classic Random']], true) + '</div>' +
     '<div class="set"><label>Show timer<small id="timerNote">' + timerNote() + '</small></label>' + tog('showTimer', 'Show timer') + '</div>' +
     '<div class="set"><label>Show tips<small>Short hints while you play</small></label>' + tog('tips', 'Show tips') + '</div>' +
     '<div class="row" style="margin-top:8px"><button class="btn" data-a="tipsAgain">Show tips again</button></div>' +
@@ -4631,7 +4870,7 @@ const MODALS = {
   daily: () => {
     const day = todayStr();
     const list = [['klondike', { draw: 1 }], ['klondike', { draw: 3 }], ['freecell', {}], ['spider', { suits: 1 }], ['spider', { suits: 2 }], ['spider', { suits: 4 }], ['yukon', {}]];
-    return head('Daily deals') + '<p>Everyone gets the same deals today (' + day + '). A new set arrives at midnight. All but FreeCell and four-suit Spider are checked winnable.</p><div class="menu">' +
+    return head('Daily deals') + '<p>Everyone gets the same seven winnable deals today (' + day + '). A new set arrives at midnight.</p><div class="menu">' +
       list.map(([m, o], i) => {
         const k = modeKey(m, Object.assign({ draw: 1, suits: 1 }, o)); const st = meta.daily[day + '|' + k];
         const [name, sub] = modeKeyLabel(k).split(' · ');
@@ -4702,7 +4941,7 @@ const ACTIONS = {
     S = null; undoStack = []; redoStack = []; held = null; drag = null; cascade = null; hintState = null;
     save('current', null); closeModal(); showTitle(true); toast('Saved game cleared.');
   },
-  resume: () => closeModal(), new: () => confirmAbandon({ mode: S ? S.mode : meta.lastMode }), restart: () => confirmAbandon(null, true), undo: () => { closeModal(); undo(); },
+  resume: () => closeModal(), new: () => confirmAbandon({ mode: S ? S.mode : meta.lastMode }), restart: () => confirmAbandon(null, true), undo: () => { const fromStuck = modalKind === 'stuck'; closeModal(); if (fromStuck) stuckSuppressed = true; undo(); },
   deal: () => openModal('deal'), daily: () => openModal('daily'), title: () => { closeModal(); showTitle(true); },
   backs: () => openModal('backs'), settings: () => openModal('settings'), stats: () => openModal('stats'), help: () => openModal('help'),
   tipsAgain: () => { Object.assign(settings, { tips: true, tipStep: 0, tipModes: '' }); saveSettings(); openModal('settings'); },
@@ -4821,7 +5060,21 @@ function setSetting(k, v) {
   if (k === 'sound') { settings.sound = !!v; if (v) initAudio(); }
   else if (k === 'volume') { settings.volume = clamp(+v, 0, 1); if (master) master.gain.value = volumeGain(settings.volume, settings.volumeCurve); }
   else if (k === 'musicVol' || k === 'ambVol') settings[k] = clamp(+v, 0, 1);
-  else if (k in DEFAULT_SETTINGS) settings[k] = typeof DEFAULT_SETTINGS[k] === 'boolean' ? !!v : v;
+  else if (k === 'dealFairness') {
+    if (!SETTING_ENUMS.dealFairness.includes(v)) return;
+    settings.dealFairness = v;
+    settings.winnable = v !== 'random';
+    settings.dealGrade = ['easy', 'medium', 'hard'].includes(v) ? v : 'any';
+  } else if (k === 'dealGrade') {
+    if (!SETTING_ENUMS.dealGrade.includes(v)) return;
+    settings.dealGrade = v;
+    if (v === 'any') settings.dealFairness = settings.winnable ? 'winnable' : 'random';
+    else { settings.dealFairness = v; settings.winnable = true; }
+  } else if (k === 'winnable') {
+    settings.winnable = !!v;
+    if (!settings.winnable) { settings.dealFairness = 'random'; settings.dealGrade = 'any'; }
+    else settings.dealFairness = settings.dealGrade !== 'any' ? settings.dealGrade : 'winnable';
+  } else if (k in DEFAULT_SETTINGS) settings[k] = typeof DEFAULT_SETTINGS[k] === 'boolean' ? !!v : v;
   saveSettings();
   if (k === 'tips' && !settings.tips) tipHide();
   if (k === 'motion') syncMotion();
@@ -4856,7 +5109,7 @@ window.__game = {
     return { scene: sceneName(), modal: modalKind, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, piles: notePiles(),
       score: S.score, moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, winnable: !!S.winnable, grade: S.winnable && Object.hasOwn(GRADE_RANK, S.grade) ? S.grade : '', started: S.started, canAutoComplete: canAutoComplete(),
       undoDepth: undoStack.length, redoDepth: redoStack.length, replay: !!S.replay, finishing: !!(finishRun && winTimer), ceremony: !!cascade, held: held ? Object.assign({}, held) : null, dropTarget: drag ? dropTarget(drag) : null, cursor: Object.assign({}, cursor),
-      settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, stuck: stuckVerdict, lost: lostVerdict, hinting: !!hintJob, storageOK };
+      settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, maxMove: S.mode === 'freecell' ? capacity(null) : null, stuck: stuckVerdict, lost: lostVerdict, hinting: !!hintJob, storageOK };
   },
   setState(s) {
     fitHold = 1;
@@ -4864,8 +5117,10 @@ window.__game = {
     const st = newState(mode, s.opts || {}, s.deal || 1, s.daily || null);
     st.cards = []; st.up = []; for (const id in st.piles) st.piles[id] = [];
     for (const id in s.piles || {}) { if (!st.piles[id]) continue; for (const n of s.piles[id]) { const c = parseNote(n); st.piles[id].push(st.cards.length); st.cards.push({ s: c.s, r: c.r }); st.up.push(c.up); } }
+    st.initDown = downCount(st);
     if (s.grade) { st.winnable = true; st.grade = s.grade; }
     if (s.score != null) st.score = s.score; if (s.moves != null) st.moves = s.moves;
+    if (s.recycles != null) st.recycles = s.recycles;
     S = st; scoreFx = []; undoStack = []; redoStack = []; held = null; drag = null; cascade = null; hintState = null; lastWin = null; clearStuck();
     clearTimeout(winTimer); winTimer = 0; finishRun = false;
     closeModal(); showTitle(false); relayout(true); updateHUD(); markDirty();
@@ -4918,8 +5173,15 @@ window.__game = {
   newGame(o) { return newGame(o || {}); },
   heroTags: () => JSON.parse(JSON.stringify(heroShown)),
   winConfig: () => WIN_SEARCH, // [positions, candidates]; a daily tries 160
-  solve(mode, o, deal, budget) { // search one deal by itself
-    const sv = makeSolver(newState(mode, Object.assign({ draw: 1, suits: 1 }, o), deal, null), budget), result = sv.step(budget + 1);
+  seedPools: () => ({ spider2: SEED_POOLS.spider2, spider4: SEED_POOLS.spider4, freecell: SEED_POOLS.freecell }),
+  stockPlays: () => (S ? stockPlays() : []),
+  solve(mode, o, deal, budget, opts) { // search one deal by itself
+    const sv = makeSolver(newState(mode, Object.assign({ draw: 1, suits: 1 }, o), deal, null), budget, opts), result = sv.step(budget + 1);
+    return { result, used: sv.used, moves: sv.moves };
+  },
+  solveState(budget, opts) { // search the live table position S
+    if (!S) return null;
+    const sv = makeSolver(S, budget || LOST_BUDGET, opts), result = sv.step((budget || LOST_BUDGET) + 1);
     return { result, used: sv.used, moves: sv.moves };
   },
   act(name, ...a) {
