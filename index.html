@@ -5118,7 +5118,7 @@ function makeAudioKit(ctx, out, opt = {}) {
     play(score, o = {}) {
       const at = o.at ?? ctx.currentTime + 0.03, fade = o.fade ?? 1.2;
       if (cur && cur.score === score) return;
-      if (cur && score) {
+      if (cur && score && (ctx.state === 'running' || cur.bar > 0)) {
         // Zero-clash Title <-> Table breath: fade departing score briskly (0.05 s if started <250 ms ago, else 0.45 s) + 0.35 s breath (W6-S5-06).
         const age = at - cur.startedAt;
         const outFade = o.outFade != null ? o.outFade : (age < 0.25 ? 0.05 : 0.45);
@@ -5314,9 +5314,9 @@ function makeCues(ctx, dest) {
         case 'pick': noise(t, .05, 'bandpass', 3200, .42, 1.2, pan); tone(t, 420, .045, 'sine', .2, .003, pan); break;
         case 'place': {
           const n = clamp(arg || 1, 1, 6), v = lastPlace ^ 1; lastPlace = v; // two filter centres, never the same one twice running
-          noise(t, .07, 'lowpass', v ? 1600 : 1200, .44, 1, pan);
-          tone(t, 170 * (1 - .035 * (n - 1)), .09 + .012 * n, 'sine', .22 * (1 + .09 * (n - 1)), .004, pan);
-          noise(t + .004, .025, 'bandpass', 2400, .2, 1, pan); break;
+          noise(t, .07, 'lowpass', v ? 1600 : 1200, .33, 1, pan);
+          tone(t, 170 * (1 - .035 * (n - 1)), .09 + .012 * n, 'sine', .18 * (1 + .09 * (n - 1)), .004, pan);
+          noise(t + .004, .025, 'bandpass', 2400, .15, 1, pan); break;
         }
         // Turned-brass mechanical detent (W6-S5-10): warm click + damped G5 brass ping (<=1.6 kHz).
         case 'tick': noise(t, .02, 'bandpass', 2200, .4, 1.8, pan); tone(t, 783.99, .05, 'triangle', .32, .002, pan, 1600); tone(t, 1567.98, .025, 'sine', .08, .002, pan); break;
@@ -5774,7 +5774,7 @@ document.addEventListener('visibilitychange', () => {
     clearTimeout(suspendTimer); suspendTimer = 0;
     syncAudio();
     if (document.hidden) {
-      suspendTimer = setTimeout(() => { suspendTimer = 0; if (document.hidden && AC) try { AC.suspend().catch(() => {}); } catch (e) { /* context already closed */ } }, 25);
+      try { AC.suspend().catch(() => {}); } catch (e) { /* context already closed */ }
     } else {
       try { AC.resume().catch(() => {}); } catch (e) { /* context already closed */ }
     }
