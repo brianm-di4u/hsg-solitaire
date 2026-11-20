@@ -442,15 +442,17 @@ export const tests = [
       t.equal(await t.page.getAttribute('#vol', 'aria-valuetext'), '45%', 'slider aria-valuetext updates live');
 
       await t.game('scene', 'backs');
-      const backsAria = await t.page.evaluate(() => {
+      const bkLive = await t.page.evaluate(() => document.getElementById('bkCap').getAttribute('aria-live'));
+      await t.page.click('#btab-tables');
+      const backsAria = await t.page.evaluate((bkLive) => {
         const tbl = document.querySelector('[data-table="marble"]');
         if (tbl) tbl.focus();
         return {
-          bkLive: document.getElementById('bkCap').getAttribute('aria-live'),
+          bkLive,
           tblLive: document.getElementById('tblCap').getAttribute('aria-live'),
           tblCapText: document.getElementById('tblCap').textContent,
         };
-      });
+      }, bkLive);
       t.equal([backsAria.bkLive, backsAria.tblLive], ['polite', 'polite'], '#bkCap and #tblCap carry aria-live="polite"');
       t.expect(/Marble|Fordyce|wins/i.test(backsAria.tblCapText), 'focusing [data-table] updates #tblCap via onfocus: ' + backsAria.tblCapText);
 

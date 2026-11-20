@@ -15,13 +15,15 @@ export const tests = [
       t.log(Object.keys(MANIFEST).length + ' assets, ' + MB.toFixed(2) + ' MB');
       t.expect(MB <= 6, 'asset folder ≤ 6 MB (' + MB.toFixed(2) + ')');
       await baseSettings(t);
-      await t.game('scene', 'backs'); // the picker requests every back and table
+      await t.game('loadAllArt'); // diagnostic hook verifies every manifest asset decodes without forcing production BIND.backs() to preload unused art (CD-WF3-07)
       await t.waitForStable();
       const a = await t.game('art');
       const missing = Object.keys(MANIFEST).filter((n) => !a.loaded.includes(n));
       t.equal(missing, [], 'every manifest asset decoded');
       const unknown = a.wanted.filter((n) => !MANIFEST[n]);
       t.equal(unknown, [], 'the game asks only for packed assets');
+      await t.game('scene', 'backs');
+      await t.waitForStable();
       await t.shot('art-50-backs');
       await t.game('newGame', { mode: 'freecell', deal: 1 });
       await t.shot('art-50-courts');

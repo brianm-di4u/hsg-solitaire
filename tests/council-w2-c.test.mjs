@@ -26,47 +26,72 @@ const coachText = (t) => t.page.evaluate(() => document.getElementById('coachTx'
 
 export const tests = [
   {
-    name: 'w2c S3-03 a new player starts with the classic back and the felt, sees what is locked and how to open it',
+    name: 'w2c S3-03 Day-1 Starter Suite opens 4 backs and Felt/Marble at Win 0, caps unlocks at 21 wins, and shows full stories in 2-tab Backs & Tables',
     async run(t) {
       let m = await meta(t);
-      t.equal(m.unlock.ids, [], 'a fresh profile has nothing unlocked');
+      t.equal(m.unlock.ids, [], 'a fresh profile has zero earned unlocks yet');
       await t.game('scene', 'backs');
-      t.equal(await t.page.locator('.bk.lk[data-back]').count(), 11, 'eleven backs locked');
-      t.equal(await t.page.locator('.bk.lk[data-table]').count(), 5, 'five tables locked');
-      t.expect(await t.page.locator('.bk:not(.lk)[data-back="skylight"]').count() === 1 && await t.page.locator('.bk:not(.lk)[data-table="felt"]').count() === 1, 'the classic back and the felt are open');
-      const note = await t.page.locator('[data-back="lozenge"] small').textContent();
-      t.equal(note, 'Win 1 game to unlock', 'the first lock says what opens it');
-      t.expect((await t.page.locator('[data-back="neon"] small').textContent()).startsWith('Win 32 games to unlock'), 'a later one names its count');
-      t.equal(await t.page.locator('[data-back="lozenge"]').getAttribute('aria-disabled'), 'true', 'a locked back is marked disabled for screen readers');
-      await t.page.locator('[data-back="lozenge"]').click({ force: true });
+      t.equal(await t.page.locator('#bpanel-backs .bk.lk[data-back]').count(), 8, 'eight earnable backs locked (4 starter backs open at Win 0)');
+      for (const id of ['skylight', 'lozenge', 'ironwork', 'pines']) {
+        t.equal(await t.page.locator('#bpanel-backs .bk:not(.lk)[data-back="' + id + '"]').count(), 1, 'starter back ' + id + ' is open at Win 0');
+      }
+      t.equal(await t.page.locator('#bpanel-tables').isHidden(), true, 'Parlor Tables tabpanel starts hidden (2-tab lazy gallery)');
+      await t.page.click('#btab-tables');
+      t.equal(await t.page.locator('#bpanel-tables .bk.lk[data-table]').count(), 4, 'four earnable tables locked (Felt & Marble open at Win 0)');
+      for (const id of ['felt', 'marble']) {
+        t.equal(await t.page.locator('#bpanel-tables .bk:not(.lk)[data-table="' + id + '"]').count(), 1, 'starter table ' + id + ' is open at Win 0');
+      }
+      t.expect(/Win 21/.test(await t.page.locator('[data-table="linen"] small').textContent()), 'final prestige table caps at 21 wins');
+      await t.page.click('#btab-backs');
+      const note = await t.page.locator('[data-back="paterae"] small').textContent();
+      t.equal(note, 'Win 1 game', 'the first lock says what opens it');
+      t.expect(/Win 18/.test(await t.page.locator('[data-back="neon"] small').textContent()), 'Neon Night caps <= 21 wins with a mastery fast-track');
+      t.equal(await t.page.locator('[data-back="paterae"]').getAttribute('aria-disabled'), 'true', 'a locked back is marked disabled for screen readers');
+      // Locked previews preserve muted full color (never grayscale(1)) + corner brass lock badge
+      const lkStyle = await t.page.evaluate(() => ({
+        filter: getComputedStyle(document.querySelector('[data-back="paterae"] canvas')).filter,
+        hasBadge: !!document.querySelector('[data-back="paterae"] .bk-lock'),
+      }));
+      t.expect(!lkStyle.filter.includes('grayscale') && lkStyle.hasBadge, 'locked preview uses muted color + corner brass lock badge: ' + JSON.stringify(lkStyle));
+      await t.page.locator('[data-back="paterae"]').click({ force: true });
       t.equal((await t.state()).settings.back, 'skylight', 'tapping a locked back does not select it');
-      t.expect((await t.page.locator('#bkCap').textContent()).includes('Win 1 game to unlock'), 'and the caption gives the condition');
+      const bkCap = await t.page.locator('#bkCap').textContent();
+      t.expect(bkCap.includes('Superior Bathhouse') && bkCap.includes('Win 1 game to unlock'), 'locked caption preserves the Hot Springs story AND unlock condition: ' + bkCap);
       await t.game('setSettings', { back: 'neon', table: 'linen' });
-      const s = (await t.state()).settings; t.equal([s.back, s.table], ['skylight', 'felt'], 'a locked choice is refused by the settings too');
+      let s = (await t.state()).settings; t.equal([s.back, s.table], ['skylight', 'felt'], 'a locked choice is refused by the settings too');
+      await t.game('setSettings', { back: 'lozenge', table: 'marble' });
+      s = (await t.state()).settings; t.equal([s.back, s.table], ['lozenge', 'marble'], 'Day-1 starter back & Marble table equip cleanly at Win 0');
+      await t.game('setSettings', { back: 'skylight', table: 'felt' });
       await shot(t, 'S3-03', 'locked-backs');
       await t.checkLayout();
     },
   },
   {
-    name: 'w2c S3-03 the first win opens the first back inside a first session, lists what was earned, and it survives a reload',
+    name: 'w2c S3-03 the first win opens Superior Medallions with inline Equip now chip, lists what was earned, and survives a reload',
     async run(t) {
       await baseSettings(t, { sound: false });
       await winNow(t);
       const m = await meta(t);
-      t.equal(m.unlock.ids, ['b:lozenge'], 'one win opens the Fordyce Lozenge back');
+      t.equal(m.unlock.ids, ['b:paterae'], 'one win opens the Superior Medallions back');
       const txt = await t.page.locator('#sheet .earn').textContent();
-      t.expect(txt.includes('Unlocked: Fordyce Lozenge back'), 'the ticket says so: ' + txt);
+      t.expect(txt.includes('Unlocked: Superior Medallions back'), 'the ticket says so: ' + txt);
+      const eqBtn = t.page.locator('#sheet [data-equip="b:paterae"]');
+      t.equal(await eqBtn.textContent(), 'Equip now', 'Win ticket shows inline Equip now chip');
+      await eqBtn.click();
+      t.equal((await t.state()).settings.back, 'paterae', 'inline Equip now equips unlocked back live');
+      t.equal(await eqBtn.textContent(), 'Equipped ✓', 'Equip now flips to Equipped ✓ in place');
       for (const n of ['First Soak', 'Parlor Game', 'Quick Dip', 'Steam Rush', 'Steady Hand', 'Own Two Hands']) t.expect(txt.includes(n), 'earned ' + n);
       t.expect(!txt.includes('New personal best'), 'a first win is not a "new" best');
       await shot(t, 'S3-03', 'win-earned');
       t.equal(Object.keys(m.ach).sort(), ['alone', 'first', 'klon', 'quick', 'rush', 'steady'], 'six achievements recorded with a date');
       await reloadGame(t);
-      const m2 = await meta(t); t.equal(m2.unlock.ids, ['b:lozenge'], 'the unlock record survives a reload'); t.equal(Object.keys(m2.ach).length, 6, 'so do the achievements');
+      const m2 = await meta(t); t.equal(m2.unlock.ids, ['b:paterae'], 'the unlock record survives a reload'); t.equal(Object.keys(m2.ach).length, 6, 'so do the achievements');
+      t.equal((await t.state()).settings.back, 'paterae', 'equipped unlocked back survives reload');
       await t.game('scene', 'backs');
-      t.equal(await t.page.locator('.bk.lk[data-back]').count(), 10, 'ten backs still locked');
-      await t.page.locator('[data-back="lozenge"]').click();
-      t.equal((await t.state()).settings.back, 'lozenge', 'the opened back can be picked');
-      t.equal(await t.page.locator('[data-back="paterae"] small').textContent(), 'Win 3 games to unlock (1 so far)', 'the next lock counts progress');
+      t.equal(await t.page.locator('#bpanel-backs .bk.lk[data-back]').count(), 7, 'seven backs still locked');
+      await t.page.locator('[data-back="quapaw"]').click({ force: true });
+      const qCap = await t.page.locator('#bkCap').textContent();
+      t.expect(qCap.includes('Win 2 games (1 so far)') && qCap.includes('win FreeCell'), 'the next lock shows live progress and dual mastery fast-track: ' + qCap);
     },
   },
   {
@@ -74,38 +99,38 @@ export const tests = [
     async run(t) {
       await put(t, OLD); await reloadGame(t);
       const m = await meta(t), s = (await t.state()).settings;
-      t.equal(m.unlock.ids.length, 16, 'all 11 backs and 5 tables are open'); t.equal([s.back, s.table], ['neon', 'linen'], 'the chosen back and table are kept');
+      t.equal(m.unlock.ids.length, 12, 'all 12 earnable unlocks (+ 6 starters = all 12 backs & 6 tables) are open'); t.equal([s.back, s.table], ['neon', 'linen'], 'the chosen back and table are kept');
       t.equal([s.sound, s.volume], [false, 0.4], 'settings are kept');
       t.equal((await t.game('stats')).klondike1.won, 3, 'records are untouched'); t.equal(m.totalWins, 3, 'wins are untouched');
       await t.game('scene', 'backs');
-      t.equal(await t.page.locator('.bk.lk').count(), 0, 'nothing shows as locked');
+      t.equal(await t.page.locator('.bk.lk').count(), 0, 'nothing shows as locked on Card Backs or Parlor Tables');
       await reloadGame(t);
-      t.equal((await meta(t)).unlock.ids.length, 16, 'the record survives a reload');
+      t.equal((await meta(t)).unlock.ids.length, 12, 'the record survives a reload');
     },
   },
   {
     name: 'w2c S3-03 a damaged unlock record on an old save opens everything; a hand-edited locked choice falls back',
     async run(t) {
       await put(t, Object.assign({}, OLD, { meta: Object.assign({}, OLD.meta, { unlock: 'oops', ach: 7 }) })); await reloadGame(t);
-      let m = await meta(t); t.equal(m.unlock.ids.length, 16, 'a damaged record on an old save is treated as an old save'); t.equal(m.ach, {}, 'a damaged achievement record is empty');
-      await put(t, { meta: Object.assign({}, OLD.meta, { unlock: { ids: ['b:lozenge', 'b:nonsense'] } }), settings: { sound: false, back: 'neon', table: 'linen', tips: false } }); await reloadGame(t);
+      let m = await meta(t); t.equal(m.unlock.ids.length, 12, 'a damaged record on an old save opens all 12 earnable unlocks'); t.equal(m.ach, {}, 'a damaged achievement record is empty');
+      await put(t, { meta: Object.assign({}, OLD.meta, { unlock: { ids: ['b:paterae', 'b:nonsense'] } }), settings: { sound: false, back: 'neon', table: 'linen', tips: false } }); await reloadGame(t);
       m = await meta(t); const s = (await t.state()).settings;
-      t.equal(m.unlock.ids, ['b:lozenge'], 'unknown ids are dropped'); t.equal([s.back, s.table], ['skylight', 'felt'], 'a setting that points at locked content falls back to the default');
+      t.equal(m.unlock.ids, ['b:paterae'], 'unknown ids are dropped'); t.equal([s.back, s.table], ['skylight', 'felt'], 'a setting that points at locked content falls back to the default');
       await t.game('newGame', { mode: 'klondike' }); t.equal((await t.state()).scene, 'game', 'and the game runs');
     },
   },
   {
-    name: 'w2c S3-03 the achievement list is specific, unique and checked against the records',
+    name: 'w2c S3-03 the achievement list is specific, unique and checked against the records (21-win cap earns Fully Furnished ACH[w40])',
     viewports: ['desktop'],
     async run(t) {
       await put(t, { stats: { klondike3: { played: 9, won: 8, streak: 3, bestStreak: 7, bestTimeMs: 100000, fewestMoves: 80, bestScore: 1, totalMs: 1 }, spider2: { played: 2, won: 1, streak: 1, bestStreak: 1, bestTimeMs: 1, fewestMoves: 1, bestScore: 1, totalMs: 1 } },
-        meta: { totalWins: 21, daily: {}, unlock: { ids: [] } }, settings: { sound: false, tips: false } });
+        meta: { totalWins: 20, daily: {}, unlock: { ids: [] } }, settings: { sound: false, tips: false } });
       await reloadGame(t);
-      await baseSettings(t, { sound: false }); await winNow(t);
+      await baseSettings(t, { sound: false }); await winNow(t); // 21st win — Full Course!
       const m = await meta(t), got = Object.keys(m.ach);
-      for (const id of ['first', 'klon', 'draw3', 'spid', 'spid2', 'st3', 'st7', 'w10', 'w21']) t.expect(got.includes(id), 'earned ' + id + ' from the records: ' + got);
-      for (const id of ['spid4', 'free', 'yuk', 'w40', 'w50', 'w100', 'd1', 'd7all', 'run']) t.expect(!got.includes(id), 'did not earn ' + id);
-      t.equal(m.unlock.ids.length, 11, 'the 22nd win opens everything up to 21 wins: ' + m.unlock.ids);
+      for (const id of ['first', 'klon', 'draw3', 'spid', 'spid2', 'st3', 'st7', 'w10', 'w21', 'w40']) t.expect(got.includes(id), 'earned ' + id + ' at 21 wins (OQ-WF1-02, OQ-WF6-02): ' + got);
+      for (const id of ['spid4', 'free', 'yuk', 'w50', 'w100', 'd1', 'd7all', 'run']) t.expect(!got.includes(id), 'did not earn ' + id);
+      t.equal(m.unlock.ids.length, 12, 'the 21st win opens all 12 earnable cosmetics (all 12 backs & 6 tables): ' + m.unlock.ids);
       await t.game('scene', 'records');
       await t.page.click('#ltab-ach');
       const body = await t.page.locator('#lpanel-ach').textContent();
@@ -175,9 +200,19 @@ export const tests = [
       await t.game('scene', 'daily');
       const txt = await t.page.locator('#sheet').textContent();
       t.expect(txt.includes('Streak: 3 days · best 3 · full baths (all seven): 1'), 'streak line: ' + txt.slice(txt.indexOf('Streak')));
-      t.expect(await t.page.locator('.cal i.f').count() >= 1, 'a full day gets a star cell'); t.expect(await t.page.locator('.cal i.t').count() <= 1, 'today is outlined once');
-      t.expect(await t.page.locator('.cal i.w, .cal i.f').count() >= 1, 'won days are marked');
-      const full = await t.page.locator('.cal i.f small').first().textContent(); t.equal(full, '★', 'the star');
+      t.expect(await t.page.locator('.cal button.f').count() >= 1, 'a full day gets a star button cell'); t.expect(await t.page.locator('.cal button.t').count() <= 1, 'today is outlined once');
+      t.expect(await t.page.locator('.cal button.w, .cal button.f').count() >= 1, 'won days are marked');
+      const full = await t.page.locator('.cal button.f small').first().textContent(); t.equal(full, '★', 'the star');
+      const fullBg = await t.page.evaluate(() => getComputedStyle(document.querySelector('.cal button.f')).backgroundColor);
+      t.equal(fullBg, 'rgb(217, 178, 86)', 'Full Bath calendar cell renders solid brushed gold (#D9B256)');
+      // Past dates are clickable <button> cells that load that date's deals in place; future dates are disabled 'Upcoming'
+      const pastBtn = t.page.locator('.cal button[data-day="' + d1 + '"]');
+      if (await pastBtn.count()) {
+        await pastBtn.click();
+        t.expect((await t.page.locator('#dailyDayWrap').textContent()).includes('Archive deals for ' + d1), 'clicking a past calendar date loads its archive deals in place');
+        await t.page.click('#dailyTodayBtn');
+        t.expect((await t.page.locator('#dailyDayWrap').textContent()).includes('today (' + d0 + ')'), 'Back to today restores today');
+      }
       await t.page.evaluate(() => { const s = document.getElementById('sheet'); s.scrollTop = s.scrollHeight; });
       await shot(t, 'S3-04', 'calendar');
       const before = await t.page.locator('.cm b').textContent();

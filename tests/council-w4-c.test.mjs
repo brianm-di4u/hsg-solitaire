@@ -67,9 +67,14 @@ export const tests = [
       await t.seed(11); await t.game('newGame', { mode: 'klondike', draw: 1 });
       await t.game('scene', 'backs');
       await t.waitForStable();
-      const m = await t.page.evaluate(() => [...document.querySelectorAll('#sheet .bk')].map((b) => { const c = b.querySelector('canvas').getBoundingClientRect(), l = b.querySelector('b').getBoundingClientRect(), r = b.getBoundingClientRect(), lh = parseFloat(getComputedStyle(b.querySelector('b')).lineHeight), fs = parseFloat(getComputedStyle(b.querySelector('b')).fontSize);
+      const measureBks = () => t.page.evaluate(() => [...document.querySelectorAll('#sheet .bk')].filter((b) => !b.closest('[hidden]')).map((b) => { const c = b.querySelector('canvas').getBoundingClientRect(), l = b.querySelector('b').getBoundingClientRect(), r = b.getBoundingClientRect(), lh = parseFloat(getComputedStyle(b.querySelector('b')).lineHeight), fs = parseFloat(getComputedStyle(b.querySelector('b')).fontSize);
         return { name: b.querySelector('b').textContent, gap: l.top - c.bottom, below: r.bottom - l.bottom, lines: Math.round(l.height / lh), lhRatio: lh / fs }; }));
-      t.expect(m.length >= 8, 'the picker lists the backs: ' + m.length);
+      const mBacks = await measureBks();
+      await t.page.click('#btab-tables');
+      await t.waitForStable();
+      const mTables = await measureBks();
+      const m = [...mBacks, ...mTables];
+      t.expect(mBacks.length === 12 && mTables.length === 6, 'the 2-tab picker lists 12 backs and 6 tables: ' + mBacks.length + '+' + mTables.length);
       t.expect(m.every((x) => x.gap >= 5.5), 'every caption sits at least 6 px under its picture: ' + m.map((x) => x.gap.toFixed(1)).join(', '));
       t.expect(m.every((x) => x.below >= 9.5), 'and 10 px above the bottom of its button');
       t.expect(m.every((x) => x.lhRatio >= 1.2), 'a caption that wraps has room between its lines');

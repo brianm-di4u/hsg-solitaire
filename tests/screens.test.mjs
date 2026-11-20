@@ -84,9 +84,10 @@ async function touchTargets(t) {
 const UI_TEXT = [
   '#modeName', '#modeSub', '#assistTag', '#status span', '#status b', '.tb:not(:disabled)', '.chip', '.btn',
   '.sheet p', '.sheet h2', '.sheet h3', '.sheet label', '.set small', '.tag', '.credit', '.tile p', '.tile h2', '.tile .tsub', '#title h1',
-  '.fact', '.fact .k', '.fact .q', '.fact .a', '.fact .src', '.earn', '.earn .pb',
-  '.menu .btn.day b', '.menu .btn.day small', '.menu .btn.day em', '.cal i', '.cal i small',
-  '.ach li', '.ach li b', '.ach li small', '.fnd li', '.fnd li b', '.rec b', '.rec small',
+  '.fact', '.fact .k', '.fact .q', '.fact .a', '.fact .src', '.earn', '.earn .pb', '.equip-chip',
+  '.menu .btn.day b', '.menu .btn.day small', '.menu .btn.day em', '.cal i', '.cal i small', '.cal button:not(:disabled)', '.cal button:not(:disabled) small',
+  '.ach li', '.ach li b', '.ach li small', '.fnd li', '.fnd li b', '.fnd li .fq', '.fnd li .fx', '.fnd li .fs', '.fnd-empty', '.rec b', '.rec small',
+  '.journey-hd b', '.journey-hd small', '.jstop b', '.jseal',
   '.cap', '.hp summary', '.ticket .hd', '.ticket .big', '.ticket .grid', '.ticket .grid b', '.ticket .meta', '.ticket .best',
   'table.st td', 'table.keys td', 'kbd', '#coach', '#toast', '#dealing', '#tabNote',
 ];
@@ -446,6 +447,9 @@ export const tests = [
           await t.page.click('#stab-audio'); await check('settings-audio');
           await t.page.click('[data-tog="sound"]'); await check('settings-audio-muted');
           await t.page.click('[data-tog="sound"]');
+        } else if (sc === 'backs') {
+          await check('backs-cards');
+          await t.page.click('#btab-tables'); await check('backs-tables');
         } else if (sc === 'records') {
           await check('ledger-overview');
           await t.page.click('#ltab-facts'); await check('ledger-facts');
@@ -506,6 +510,9 @@ export const tests = [
           await t.page.click('#stab-audio'); await check('settings-audio');
           await t.page.click('[data-tog="sound"]'); await check('settings-audio-muted');
           await t.page.click('[data-tog="sound"]');
+        } else if (sc === 'backs') {
+          await check('backs-cards');
+          await t.page.click('#btab-tables'); await check('backs-tables');
         } else if (sc === 'records') {
           await check('ledger-overview');
           await t.page.click('#ltab-facts'); await check('ledger-facts');

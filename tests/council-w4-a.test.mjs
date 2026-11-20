@@ -653,4 +653,159 @@ export const tests = [
       t.expect(tMed.ms > tShort.ms && tMed.ms <= 6000, 'longer toast scales duration proportionally: ' + JSON.stringify(tMed));
     },
   },
+  {
+    name: 'w4a W4-B02 4-tab Ledger (21-Bath Journey + sourced Facts), 2-tab lazy Backs & Tables (Starter Suite + fast-tracks), Next Daily / Equip now Win, archive-safe 400-day calendar & venue-biased pickFact (W6-S2-04, W6-S3-07)',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced' });
+      const daysAgo = (n) => t.page.evaluate((n) => { const d = new Date(); d.setDate(d.getDate() - n); const p = (x) => String(x).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }, n);
+
+      // 1. Bathhouse Ledger at Win 0: visible 21-Bath Row Stamp Journey (8 stops + 7/14/21 seals) + Win-0 Facts invitation
+      await t.game('scene', 'ledger');
+      const ledger0 = await t.page.evaluate(() => ({
+        stops: [...document.querySelectorAll('#lpanel-overview .jstop b')].map((x) => x.textContent),
+        seals: [...document.querySelectorAll('#lpanel-overview .jseal')].map((x) => x.textContent),
+        overviewText: document.getElementById('lpanel-overview').textContent,
+      }));
+      t.equal(ledger0.stops, ['Superior', 'Hale', 'Maurice', 'Fordyce', 'Quapaw', 'Ozark', 'Buckstaff', 'Lamar'], '21-Bath Row Stamp Journey lists all 8 historic bathhouses north-to-south from Win 0');
+      t.equal(ledger0.seals, ['7 · Maurice', '14 · Ozark', '21 · Lamar'], '7/14/21 milestone seals visible from Win 0');
+      t.expect(ledger0.overviewText.includes('0 of 21 baths') && ledger0.overviewText.includes('Superior Medallions'), 'Overview previews 0/21 journey and next unlock');
+      await t.page.click('#ltab-facts');
+      t.expect(await t.page.locator('#lpanel-facts .fnd-empty').isVisible(), 'Facts tab shows a warm Win-0 invitation instead of an empty list');
+
+      // 2. 2-Tab Lazy-Loaded Backs & Tables (CD-WF2-08, CD-WF3-07, OQ-WF1-02): zero unused Painted courts or inactive table cuts
+      await t.game('scene', 'backs');
+      await t.waitForStable();
+      const artOnBacksTab = await t.game('art');
+      t.expect(artOnBacksTab.wanted.every((n) => !n.startsWith('court-')), 'Card Backs tab never eagerly preloads unused Painted court-*.webp (CD-WF3-07)');
+      t.expect(!artOnBacksTab.wanted.includes('tex-quapaw') && !artOnBacksTab.wanted.includes('tex-pool') && !artOnBacksTab.wanted.includes('tex-linen'), 'Card Backs tab does not eagerly preload inactive Parlor Tables');
+      t.expect(await t.page.locator('#bpanel-backs [data-a="reseed"]').isVisible(), 'Skylight Reshuffle is docked visibly inside Card Backs tab');
+      const bkBarBox = await t.page.locator('#bpanel-backs .bk-bar').boundingBox();
+      t.expect(bkBarBox && bkBarBox.y + bkBarBox.height <= t.vp.height, 'sticky caption & Skylight Reshuffle appear above the fold');
+      await t.page.click('#btab-tables');
+      await t.waitForStable();
+      const artOnTablesTab = await t.game('art');
+      t.expect(artOnTablesTab.wanted.includes('tex-quapaw') && artOnTablesTab.wanted.includes('tex-pool'), 'switching to Parlor Tables lazy-loads table art on demand');
+      t.expect(artOnTablesTab.wanted.every((n) => !n.startsWith('court-')), 'Parlor Tables tab still loads zero Painted court-*.webp');
+      // Locked table story remains visible on focus alongside unlock requirement
+      const tblLockStory = await t.page.evaluate(() => {
+        const el = document.querySelector('[data-table="linen"]');
+        el.focus();
+        return document.getElementById('tblCap').textContent;
+      });
+      t.expect(tblLockStory.includes('postcard') && tblLockStory.includes('Win 21') && tblLockStory.includes('7-day Daily'), 'locked table focus preserves Hot Springs story + 21-win / Daily fast-track: ' + tblLockStory);
+      await t.page.click('#sheet [data-close]');
+
+      // 3. Dual mastery fast-track (OQ-WF1-02): winning FreeCell at Win 1 opens BOTH Win-1 Superior Medallions AND FreeCell fast-track Quapaw Dome!
+      await t.game('setState', {
+        mode: 'freecell', deal: 601,
+        piles: {
+          c0: [], c1: [], c2: [], c3: [],
+          f0: ['AC', '2C', '3C', '4C', '5C', '6C', '7C', '8C', '9C', 'TC', 'JC', 'QC', 'KC'],
+          f1: ['AD', '2D', '3D', '4D', '5D', '6D', '7D', '8D', '9D', 'TD', 'JD', 'QD', 'KD'],
+          f2: ['AH', '2H', '3H', '4H', '5H', '6H', '7H', '8H', '9H', 'TH', 'JH', 'QH', 'KH'],
+          f3: ['AS', '2S', '3S', '4S', '5S', '6S', '7S', '8S', '9S', 'TS', 'JS', 'QS'],
+          t0: ['KS'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [], t7: [],
+        },
+      });
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'win', null, { timeout: 15000 });
+      const fastMeta = await t.game('meta');
+      t.expect(fastMeta.unlock.ids.includes('b:paterae') && fastMeta.unlock.ids.includes('b:quapaw'), 'FreeCell Win 1 unlocks both Win-1 Paterae and FreeCell fast-track Quapaw Dome: ' + JSON.stringify(fastMeta.unlock.ids));
+      // Full sourced Fact (Q, A, explanation, source) now appears in Bathhouse Ledger -> Facts
+      await t.page.click('#sheet [data-close]');
+      await t.game('scene', 'ledger', { tab: 'facts' });
+      const factRow = await t.page.evaluate(() => {
+        const li = document.querySelector('#lpanel-facts .fnd li');
+        return li ? { a: li.querySelector('b').textContent, q: li.querySelector('.fq').textContent, x: li.querySelector('.fx').textContent, s: li.querySelector('.fs').textContent } : null;
+      });
+      t.expect(factRow && factRow.a && factRow.q && factRow.x && factRow.s.startsWith('Source: '), 'Facts archive displays full Q, A, explanation, and Source: ' + JSON.stringify(factRow));
+
+      // 4. Archive-Safe Interactive 400-Day Calendar & Same-Day Daily Streak Integrity (CD-WF6-04, wf-6 §7.3 #4)
+      const d0 = await daysAgo(0), d1 = await daysAgo(1), d2 = await daysAgo(2), d3 = await daysAgo(3);
+      await t.page.evaluate(([p, d2, d3]) => {
+        const m = JSON.parse(localStorage.getItem(p + 'meta') || '{}');
+        m.daily = { [d3 + '|klondike1']: 'won', [d2 + '|klondike1']: 'won' };
+        m.dailyBest = 2;
+        localStorage.setItem(p + 'meta', JSON.stringify(m));
+      }, [P, d2, d3]);
+      await reloadGame(t);
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced' });
+      await t.game('scene', 'daily');
+      // Future dates (if any exist in current month) are disabled 'Upcoming'; past dates in 400d window are playable buttons
+      const calCheck = await t.page.evaluate(([d0, d1]) => {
+        const fut = [...document.querySelectorAll('#calW button.cday:disabled')];
+        const past = document.querySelector('#calW button[data-day="' + d1 + '"]');
+        const note = document.querySelector('#sheet .cal-note');
+        return {
+          futValid: fut.every((b) => /Upcoming|Outside/.test(b.getAttribute('aria-label') || '')),
+          hasPastInCurMonth: !!past,
+          hasNote: !!(note && /same-day wins/.test(note.textContent)),
+        };
+      }, [d0, d1]);
+      t.equal(calCheck.futValid, true, 'disabled calendar dates are labeled Upcoming / Outside archive');
+      t.equal(calCheck.hasNote, true, 'calendar shows 1-line archive vs. same-day streak footer note');
+      // Navigate to d1 (stepping to previous month if today is day 1 of the month) and select it
+      if (!calCheck.hasPastInCurMonth) await t.page.locator('[data-mo]').first().click();
+      await t.page.click('#calW button[data-day="' + d1 + '"]');
+      t.expect((await t.page.locator('#dailyDayWrap').textContent()).includes('Archive deals for ' + d1), 'clicking past calendar cell loads archive deals for ' + d1);
+      await t.page.click('#sheet [data-close]');
+
+      // Win ALL 7 archive deals on d1 (simulating a 1-afternoon backfill on yesterday) -> must record 'won-archive', earn Full Bath star & d7all, and NOT extend consecutive-day streak or earn d3!
+      await t.page.evaluate(([p, d1]) => {
+        const m = JSON.parse(localStorage.getItem(p + 'meta') || '{}');
+        for (const k of ['klondike3', 'freecell', 'spider1', 'spider2', 'spider4', 'yukon']) m.daily[d1 + '|' + k] = 'won-archive';
+        localStorage.setItem(p + 'meta', JSON.stringify(m));
+      }, [P, d1]);
+      await reloadGame(t);
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced' });
+      const winsBefore = (await t.game('meta')).totalWins;
+      await t.game('setState', Object.assign(nearWinKlondike(), { daily: d1, deal: 701 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'win', null, { timeout: 15000 });
+      const afterArchive = await t.page.evaluate(() => ({
+        meta: window.__game.meta(),
+        ds: window.__game.dailyStats(),
+        footerBtns: [...document.querySelectorAll('#sheet .row button')].map((b) => b.textContent.trim()),
+      }));
+      t.equal(afterArchive.meta.daily[d1 + '|klondike1'], 'won-archive', 'past-date archive win records distinctly as won-archive (CD-WF6-04)');
+      t.equal(afterArchive.meta.totalWins, winsBefore + 1, 'archive win advances meta.totalWins and 21-Bath Course');
+      t.expect(!!afterArchive.meta.ach.d7all, '7/7 archive completion still earns Full Bath achievement (d7all)');
+      t.equal(afterArchive.ds.streak, 0, 'archive win does NOT backfill dailyStreak() (CD-WF6-04)');
+      t.equal(afterArchive.ds.best, 2, 'archive win does NOT inflate dailyRun() past same-day best of 2 (CD-WF6-04)');
+      t.expect(!afterArchive.meta.ach.d3, 'archive win does NOT exploit ACH[d3] Three Days Running (CD-WF6-04)');
+      t.equal(afterArchive.ds.allDays[d1], 7, 'calendar/allDays counts all 7 archive wins for the ★ Full Bath star');
+      t.expect(afterArchive.footerBtns.length <= 3, 'MODALS.win keeps <= 3 footer buttons (CD-WF2-08): ' + JSON.stringify(afterArchive.footerBtns));
+
+      // 5. Contextual MODALS.win Daily Chain ('Next Daily (1/7)' primary CTA swap with <= 3 footer buttons)
+      await t.game('setState', Object.assign(nearWinKlondike(), { daily: d0, deal: 702 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'win', null, { timeout: 15000 });
+      const winDaily = await t.page.evaluate(() => ({
+        footerBtns: [...document.querySelectorAll('#sheet .row button')].map((b) => b.textContent.trim()),
+        metaVal: window.__game.meta().daily,
+      }));
+      t.equal(winDaily.metaVal[d0 + '|klondike1'], 'won', 'same-day daily win records plain won');
+      t.equal(winDaily.footerBtns.length, 3, 'Daily win footer stays strictly 3 buttons (CD-WF2-08)');
+      t.equal(winDaily.footerBtns[0], 'Next Daily (1/7)', 'Daily win swaps primary button to Next Daily (1/7)');
+      await t.page.click('#sheet [data-a="nextDaily"]');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'game', null, { timeout: 10000 });
+      const nextSt = await t.state();
+      t.equal([nextSt.daily, nextSt.mode, nextSt.opts.draw], [d0, 'klondike', 3], 'clicking Next Daily (1/7) deals the next remaining daily (Klondike Draw 3)');
+
+      // 6. Venue-biased pickFact() gently favors active Hot Springs venue/back while preserving unseen-first invariant
+      await t.game('unlockAll');
+      await t.game('setSettings', { table: 'pool', back: 'steam' });
+      let matched = 0;
+      for (let i = 0; i < 8; i++) {
+        await t.page.evaluate(([p]) => { const m = JSON.parse(localStorage.getItem(p + 'meta') || '{}'); m.seenFacts = []; localStorage.setItem(p + 'meta', JSON.stringify(m)); }, [P]);
+        await t.game('setState', Object.assign(nearWinKlondike(), { deal: 810 + i }));
+        await t.game('act', 'move', 't0', 'f3');
+        await t.page.waitForFunction(() => window.__game.getState().modal === 'win', null, { timeout: 15000 });
+        const ftxt = await t.page.locator('#sheet .fact').textContent();
+        if (/thermal|143°F|700,000|4,400|tufa|\b47\b|Hot Springs Creek/i.test(ftxt)) matched++;
+        await t.page.click('#sheet [data-close]');
+      }
+      t.expect(matched >= 3, 'Thermal Pool + Thermal Steam venue biases unseen fact picks toward thermal facts (' + matched + '/8 matched)');
+    },
+  },
 ];

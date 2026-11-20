@@ -247,7 +247,13 @@
   .seal::after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;font-weight:700;font-size:.85rem;color:#3A2810}
   .menu .btn.solid{grid-column:1/-1;min-height:52px;flex-direction:row;font-size:1rem;border-radius:999px}
   .menu .btn.solid svg{color:currentColor}
-  @media (max-width:480px){.menu{grid-template-columns:repeat(2,1fr)}}
+  .menu.daily-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+  .menu.daily-grid .btn.day{flex:0 1 calc(25% - 6px);min-width:120px;min-height:78px;padding:6px 4px}
+  .menu.daily-grid .btn.day canvas{height:38px}
+  .daily-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 0 8px}
+  .daily-hd p{margin:0;flex:1 1 220px}
+  .daily-hd .chip{flex:none;font-size:.8rem}
+  @media (max-width:480px){.menu{grid-template-columns:repeat(2,1fr)}.menu.daily-grid .btn.day{flex:0 1 calc(50% - 4px);min-width:0}}
   .set{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--color-border);min-height:52px}
   .set.set-wide{flex-wrap:wrap;row-gap:8px}
   .set.set-wide label{flex:1 1 240px}
@@ -298,12 +304,19 @@
   .tog[aria-checked=true]::before{background:#2E6A3C;border-color:#C9A04A;box-shadow:inset 0 2px 3px rgba(0,0,0,.45)}
   .tog[aria-checked=true]::after{left:31px}
   .backs{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px}
-  .bk{border:2px solid transparent;border-radius:var(--radius-lg);background:transparent;padding:6px 6px 10px;cursor:pointer;text-align:center;
+  .bk{position:relative;border:2px solid transparent;border-radius:var(--radius-lg);background:transparent;padding:6px 6px 10px;cursor:pointer;text-align:center;
     display:flex;flex-direction:column;align-items:center;gap:6px;font-size:.8rem}
   .bk canvas{width:84px;height:118px;display:block}
   .bk.tbl canvas{width:120px;height:72px}
   .bk[aria-pressed=true]{border-color:var(--color-primary);background:var(--chip)}
   .bk b{font-size:.85rem;line-height:1.25}
+  .bk-bar{position:sticky;top:-4px;z-index:2;background:var(--sheet);padding:6px 0 8px;margin:0 0 10px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .bk-bar .cap{margin:0;flex:1 1 240px;min-height:2.4em}
+  .bk-bar .btn{flex:none;min-height:44px;padding:0 14px;font-size:.82rem}
+  .bk-lock{position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;background:rgba(16,24,19,.88);border:1.5px solid #C9A04A;color:#E9C873;display:grid;place-items:center;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.55)}
+  .bk-lock svg{width:13px;height:13px}
+  .bk.lk.wiggle{animation:bkWiggle .16s ease-in-out}
+  @keyframes bkWiggle{0%,100%{transform:none}33%{transform:translateX(-3px)}66%{transform:translateX(3px)}}
   .cap{color:var(--color-muted);min-height:2.6em;margin:6px 0 0;font-size:.85rem}
   .tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
   .tabs .chip{flex:none}
@@ -323,6 +336,9 @@
   .jstop .jdots i{width:10px;height:10px;border-radius:50%;border:1.4px solid #B8862C;display:inline-block}
   .jstop .jdots i.f{background:#E9C873;border-color:#E9C873}
   .jstop .jdots i.m{box-shadow:0 0 0 1px #6FC3A8}
+  .journey-seals{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:8px}
+  .jseal{padding:2px 9px;border-radius:999px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-muted);font-size:.72rem;font-weight:700;letter-spacing:.04em}
+  .jseal.got{background:#D9B256;color:#1B1408;border-color:#E9C873}
   .fnd-empty{padding:14px;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--chip);color:var(--color-text);text-align:center}
   .fnd li .fq{display:block;font-weight:600;color:var(--color-text);margin:2px 0}
   .fnd li .fx{display:block;color:var(--color-text);font-size:.82rem;margin:4px 0 2px}
@@ -393,7 +409,9 @@
     #modeName{font-size:.86rem} #modeSub{font-size:.68rem;letter-spacing:.02em}
     .course{gap:2px} .course i{width:8px;height:8px;border-width:1.2px}
     .tb{font-size:.64rem;letter-spacing:.06em}
-    .sheet{padding:20px 20px 22px}
+    #modal{padding-left:max(6px,env(safe-area-inset-left));padding-right:max(6px,env(safe-area-inset-right))}
+    .sheet-frame{padding:4px} .sheet-frame::after{border-width:16px}
+    .sheet{padding:16px 14px 18px}
   }
   /* Short landscape screens (phones on their side): a slim status bar and the actions in a rail beside the table,
      so the cards get the height. Left-handed puts the rail on the left. */
@@ -415,6 +433,10 @@
     #bar .ib:focus-visible{outline-offset:-2px;box-shadow:none}
     #modeName{font-size:.98rem} #modeSub{font-size:.66rem}
     #status{gap:14px;font-size:.58rem} #status b{font-size:1.02rem;margin-top:0}
+    .sheet-frame.daily{width:min(860px,100%)}
+    .daily-cols{display:grid;grid-template-columns:1.1fr 1fr;gap:12px;align-items:start}
+    .menu.daily-grid .btn.day{flex:0 1 calc(33.33% - 6px);min-width:0;min-height:66px}
+    .menu.daily-grid .btn.day canvas{height:28px}
   }
   @media (orientation:landscape) and (max-height:360px){
     #tools{gap:4px;padding:4px}
@@ -437,21 +459,34 @@
   #bHint.pt{outline:3px solid var(--color-highlight);outline-offset:2px}
   :root:not(.rm) #bHint.pt:not(.st){animation:pt 1.3s ease-in-out infinite}
   @keyframes pt{50%{outline-offset:6px}}
-  .bk small{display:block;font-size:.7rem;color:var(--color-muted)} .bk.lk canvas{filter:grayscale(1);opacity:.4} .bk.lk{cursor:default}
+  .bk small{display:block;font-size:.7rem;color:var(--color-muted)} .bk.lk canvas{filter:saturate(.55) brightness(.82);opacity:.78} .bk.lk{cursor:default}
   .earn{margin:0 auto 12px;max-width:460px;text-align:center;font-size:.9rem} .earn b{font-family:var(--font-deco)} .earn .pb{color:#6FC3A8;font-weight:700}
+  .earn-u{display:flex;align-items:center;justify-content:center;gap:6px 8px;flex-wrap:wrap;margin-top:4px}
+  .equip-chip{min-height:44px;min-width:44px;padding:0 12px;font-size:.78rem;flex:none}
+  .equip-chip[aria-pressed=true]{background:#1F3A2E;color:#8FE0C2;border-color:#6FC3A8;cursor:default}
+  .tier-up{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin:6px auto 10px;max-width:460px;font-size:.84rem;color:var(--color-muted)}
   .rec{border-bottom:1px solid var(--color-border);padding:6px 0} .rec b{font-family:var(--font-deco)} .rec small{display:block;color:var(--color-muted)}
   .ach{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}
   .ach li{padding:6px 8px;border:1px solid var(--color-border);border-radius:8px;font-size:.85rem} .ach li.got{border-color:#B8862C;background:var(--chip)}
   .fnd{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}
   .fnd li{padding:6px 8px;border:1px solid #B8862C;border-radius:8px;font-size:.85rem;background:var(--chip)} .fnd li b{display:block}
   .ach li b{display:block} .ach li small{color:var(--color-muted)}
-  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;font-size:.8rem;margin:6px 0}
-  .cal i{font-style:normal;min-height:44px;border:1px solid var(--color-border);border-radius:6px;padding:2px;display:flex;flex-direction:column;justify-content:center}
-  .cal i small{font-size:.62rem;color:var(--color-muted)} .cal i.w{background:var(--chip);border-color:#B8862C} .cal i.f{background:#D9B256;color:#1B1408} .cal i.f small{color:#1B1408}
-  .cal i.t{outline:2px solid var(--color-primary)} .cal i.h{border:0;min-height:0;font-weight:700;color:var(--color-muted)}
+  .cal-wrap{overflow-x:auto;max-width:100%}
+  .cal{display:grid;grid-template-columns:repeat(7,minmax(44px,1fr));gap:3px;text-align:center;font-size:.8rem;margin:6px 0}
+  .cal i,.cal .cday{font-style:normal;min-height:44px;min-width:44px;border:1px solid var(--color-border);border-radius:6px;padding:2px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:transparent;color:var(--color-text);font-family:var(--font-deco);font-size:.8rem;line-height:1.15}
+  .cal .cday{cursor:pointer}
+  .cal .cday:hover:not(:disabled){border-color:#E9C873;background:var(--chip)}
+  .cal i small,.cal .cday small{font-size:.62rem;color:var(--color-muted)}
+  .cal .cday.w,.cal i.w{background:var(--chip);border-color:#B8862C}
+  .cal .cday.f,.cal i.f{background:#D9B256;color:#1B1408;border-color:#E9C873;font-weight:700} .cal .cday.f small,.cal i.f small{color:#1B1408}
+  .cal .cday.t,.cal i.t{box-shadow:inset 0 0 0 2px var(--color-primary)}
+  .cal .cday.sel{outline:2px solid #6FC3A8;outline-offset:-2px;border-color:#6FC3A8}
+  .cal .cday:disabled{opacity:.42;cursor:default;border-style:dashed}
+  .cal i.h{border:0;min-height:0;min-width:0;font-weight:700;color:var(--color-muted)}
+  .cal-note{margin:6px 0 0;min-height:0;font-size:.78rem}
   .cm{display:flex;align-items:center;justify-content:space-between;gap:8px} .cm b{font-family:var(--font-deco)} .cm .btn{min-width:44px}
   :root.rm #goal i,:root.rm #goal .rev,:root.rm #goal .reveal,:root.rm .tb,:root.rm #toast,:root.rm #dealing,:root.rm .tog::after,:root.rm .hp summary::after{transition:none}
-  :root.rm .sheet-frame.rise,:root.rm .sheet.rise,:root.rm .sheet.rise .ticket,:root.rm .sheet.rise .ticket .punch,:root.rm .sheet.rise .course i.new,:root.rm #bHint.pt{animation:none}
+  :root.rm .sheet-frame.rise,:root.rm .sheet.rise,:root.rm .sheet.rise .ticket,:root.rm .sheet.rise .ticket .punch,:root.rm .sheet.rise .course i.new,:root.rm #bHint.pt,:root.rm .bk.lk.wiggle{animation:none}
   :root.rm .course i.new{box-shadow:0 0 0 2px #E9C873}
   @media (forced-colors: active){
     .tog::before{background:Canvas;border:2px solid ButtonText;forced-color-adjust:none}
@@ -2132,12 +2167,32 @@ function earn(c) {
   const got = ACH.filter((a) => !meta.ach[a[0]] && a[3](c)); got.forEach((a) => { meta.ach[a[0]] = todayStr(); });
   return got.map((a) => a[1]);
 }
-// A win shows a fact the player has not met yet (chosen from the deal, so a deal always picks the same one from the same unmet set). Once all
-// are found, it picks among the half shown longest ago. The list only ever grows to the number of facts; it is also the Records collection.
+// A win shows a fact the player has not met yet, gently biased (~65%) toward the active Hot Springs table or card back (W6-S3-07).
+// Once all are found, it picks among the half shown longest ago. The list only ever grows to the number of facts; it is also the Ledger collection.
+const FACT_AFFINITY = {
+  't:marble': /Fordyce|DeSoto|skylight/i, 't:quapaw': /Quapaw|sculpin/i,
+  't:pool': /thermal|143°F|700,000|4,400|tufa|\b47\b/i, 't:midnight': /Southern Club|Capone|KTHS|McClard|Arlington/i,
+  't:linen': /Baden-Baden|1832|National Park|quarter|Tower|Alligator|Bridge Street|Bathtubs|Mountain Valley/i,
+  't:felt': /Bathhouse Row|Buckstaff|Hale|Lamar|Ozark|Superior|21-bath/i,
+  'b:skylight': /Fordyce|DeSoto|skylight|Condie-Bray/i, 'b:lozenge': /Fordyce|Bathhouse Row/i,
+  'b:quapaw': /Quapaw/i, 'b:sculpin': /sculpin|Quapaw/i, 'b:paterae': /Superior/i,
+  'b:ironwork': /Bathhouse Row|eagles|Hale|Buckstaff|Lamar/i, 'b:neon': /Southern Club|KTHS|Arlington/i,
+  'b:deco': /Art Deco|Ozark|Tower|Arlington/i, 'b:pines': /Ouachita|novaculite|oak|Dunbar|Forest/i,
+  'b:steam': /thermal|143°F|700,000|4,400|tufa|Hot Springs Creek/i,
+  'b:lake': /Lake Ouachita|Lake Hamilton|Carpenter Dam/i, 'b:silks': /Diamond Jo|Bathtubs|Arlington/i,
+};
+function factMatchesVenue(i, tableId, backId) {
+  const txt = FACTS[i][1] + ' ' + FACTS[i][2] + ' ' + FACTS[i][3];
+  const rt = FACT_AFFINITY['t:' + tableId], rb = FACT_AFFINITY['b:' + backId];
+  return !!((rt && rt.test(txt)) || (rb && rb.test(txt)));
+}
 function pickFact(seed) {
   const n = FACTS.length, seen = [...new Set(meta.seenFacts.filter((i) => i < n))], unseen = [];
   for (let i = 0; i < n; i++) if (!seen.includes(i)) unseen.push(i);
-  const pool = unseen.length ? unseen : seen.slice(0, Math.ceil(n / 2)), i = pool[fnv1a(seed) % pool.length];
+  const base = unseen.length ? unseen : seen.slice(0, Math.ceil(n / 2)), h = fnv1a(seed);
+  const themed = base.filter((idx) => factMatchesVenue(idx, settings.table, settings.back));
+  const pool = themed.length && (h % 100) < 65 ? themed : base;
+  const i = pool[h % pool.length];
   meta.seenFacts = seen.filter((x) => x !== i).concat(i);
   return i;
 }
@@ -2176,14 +2231,18 @@ function onWin(delay) {
   meta.wonDeals = meta.wonDeals.filter((x) => x !== dealKey).concat(dealKey).slice(-WON_DEALS_KEPT);
   saveStats();
   if (!replay) meta.totalWins = (meta.totalWins || 0) + 1;
-  if (S.daily) meta.daily[S.daily + '|' + k] = 'won';
+  if (S.daily) {
+    const dk = S.daily + '|' + k;
+    // Same-day completions record 'won' (counting toward consecutive-day streaks); past-date archive completions record 'won-archive' (never downgrading 'won', CD-WF6-04).
+    if (meta.daily[dk] !== 'won') meta.daily[dk] = S.daily === todayStr() ? 'won' : 'won-archive';
+  }
   meta.dailyBest = dailyRun();
-  const opened = replay ? [] : UNLOCKS.filter(([id, n]) => meta.totalWins >= n && !meta.unlock.ids.includes(id)).map(([id]) => id);
+  const opened = replay ? [] : UNLOCKS.filter((u) => !meta.unlock.ids.includes(u[0]) && (meta.totalWins >= u[1] || (u[4] && u[4]()))).map((u) => u[0]);
   if (opened.length) meta.unlock.ids.push(...opened);
   const ach = replay ? [] : earn({ wins: meta.totalWins, w: { ms: S.elapsedMs, usedUndo: S.usedUndo, usedHint: S.usedHint } });
   const factIdx = pickFact(S.mode + ':' + S.deal);
   save('meta', meta); save('current', null);
-  lastWin = { ach, opened: opened.map(unlockName), pb, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, scoring, bonus, moves: S.moves, ms: S.elapsedMs,
+  lastWin = { ach, opened: opened.map(unlockName), openedIds: opened, pb, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, scoring, bonus, moves: S.moves, ms: S.elapsedMs,
     best, totalWins: meta.totalWins, streak: clean ? st.streak : 0, assisted: S.assisted, replay, fact: FACTS[factIdx] };
   syncMusicIntensity();
   announce(scoring === 'none' ? 'You won!' : 'You won! Score ' + S.score);
@@ -2740,14 +2799,39 @@ const TABLES = [
     cap: 'Sun-washed azure sky and textured rag stock like a classic Hot Springs souvenir postcard.' },
 ];
 
-const UNLOCKS = [['b:lozenge', 1], ['t:marble', 2], ['b:paterae', 3], ['b:ironwork', 5], ['b:quapaw', 7], ['t:quapaw', 9], ['b:sculpin', 11], ['b:deco', 13],
-  ['b:pines', 15], ['t:pool', 18], ['b:steam', 21], ['b:lake', 24], ['b:silks', 28], ['b:neon', 32], ['t:midnight', 36], ['t:linen', 40]];
-const UNLOCK_WINS = Object.fromEntries(UNLOCKS);
-const isOpen = (kind, id) => (kind === 'b' ? id === 'skylight' : id === 'felt') || meta.unlock.ids.includes(kind + ':' + id);
+// Day-1 Starter Suite (4 varied Hot Springs backs + Card-Room Felt & tuned Fordyce Bath Hall) open at Win 0 (OQ-WF1-02).
+const STARTER_BACKS = new Set(['skylight', 'lozenge', 'ironwork', 'pines']);
+const STARTER_TABLES = new Set(['felt', 'marble']);
+// Twelve earnable cosmetics capped at 21 wins (1 Full Bathhouse Course) with dual mastery fast-tracks (OQ-WF1-02, W6-S3-07).
+const UNLOCKS = [
+  ['b:paterae', 1, '', '', null],
+  ['b:quapaw', 2, 'FreeCell', 'win FreeCell', () => anyWon((k) => k === 'freecell')],
+  ['t:quapaw', 4, 'Spider', 'win Spider', () => anyWon((k) => k.startsWith('spider'))],
+  ['b:sculpin', 6, 'Yukon', 'win Yukon', () => anyWon((k) => k === 'yukon')],
+  ['b:deco', 8, 'Draw 3', 'win Klondike Draw 3', () => anyWon((k) => k === 'klondike3')],
+  ['t:pool', 10, '3-day Daily', 'a 3-day Daily streak', () => dailyRun() >= 3],
+  ['b:steam', 12, 'Spider 2-suit', 'win Spider (2 suits)', () => anyWon((k) => k === 'spider2')],
+  ['b:lake', 14, 'Medium/Hard', 'win a Medium or Hard deal', () => (meta.gradeWins.medium + meta.gradeWins.hard) >= 1],
+  ['b:silks', 16, 'Hard deal', 'win a Hard deal', () => meta.gradeWins.hard >= 1],
+  ['b:neon', 18, '7/7 Daily', 'a 7/7 Full Bath daily', () => Object.values(dailyDays(true)).some((n) => n >= 7)],
+  ['t:midnight', 20, 'Spider 4-suit', 'win Spider (4 suits)', () => anyWon((k) => k === 'spider4')],
+  ['t:linen', 21, '7-day Daily', 'a 7-day Daily streak', () => dailyRun() >= 7],
+];
+const UNLOCK_BY_ID = Object.fromEntries(UNLOCKS.map((u) => [u[0], u]));
+const isOpen = (kind, id) => (kind === 'b' ? STARTER_BACKS.has(id) : STARTER_TABLES.has(id)) || meta.unlock.ids.includes(kind + ':' + id);
 const unlockName = (u) => (u[0] === 'b' ? BACKS : TABLES).find((x) => x.id === u.slice(2)).name + (u[0] === 'b' ? ' back' : ' table');
-const lockNote = (u) => { const n = UNLOCK_WINS[u], have = meta.totalWins || 0; return 'Win ' + n + (n > 1 ? ' games' : ' game') + ' to unlock' + (have ? ' (' + have + ' so far)' : ''); };
+const lockNote = (u) => {
+  const row = UNLOCK_BY_ID[u]; if (!row) return '';
+  const n = row[1], alt = row[3], have = meta.totalWins || 0;
+  return 'Win ' + n + (n > 1 ? ' games' : ' game') + (have ? ' (' + have + ' so far)' : '') + (alt ? ', or ' + alt : ' to unlock');
+};
+const lockShort = (u) => {
+  const row = UNLOCK_BY_ID[u]; if (!row) return '';
+  return 'Win ' + row[1] + (row[2] ? ' · or ' + row[2] : row[1] > 1 ? ' games' : ' game');
+};
 const anyWon = (f) => MODE_KEYS.some((k) => f(k) && statFor(k).won > 0);
 const bestOf = (f) => Math.max(0, ...MODE_KEYS.map((k) => statFor(k)[f]));
+const isDailyWon = (v) => v === 'won' || v === 'won-archive';
 const ACH = [
   ['first', 'First Soak', 'Win your first game.', (c) => c.wins >= 1],
   ['klon', 'Parlor Game', 'Win a game of Klondike.', () => anyWon((k) => k.startsWith('klondike'))],
@@ -2769,16 +2853,24 @@ const ACH = [
   ['w40', 'Fully Furnished', 'Open every card back and parlor table.', () => BACKS.every((b) => isOpen('b', b.id)) && TABLES.every((t) => isOpen('t', t.id))],
   ['w50', 'Season Ticket', 'Win 50 games.', (c) => c.wins >= 50],
   ['w100', 'Hundred Waters', 'Win 100 games.', (c) => c.wins >= 100],
-  ['d1', 'Today’s Soak', 'Win a daily deal.', () => Object.values(meta.daily).includes('won')],
+  ['d1', 'Today’s Soak', 'Win a daily deal.', () => Object.values(meta.daily).some(isDailyWon)],
   ['d3', 'Three Days Running', 'Win a daily deal three days in a row.', () => dailyRun() >= 3],
   ['d7', 'A Week of Waters', 'Win a daily deal seven days in a row.', () => dailyRun() >= 7],
-  ['d7all', 'Full Bath', 'Win all seven daily deals on one day.', () => Object.values(dailyDays()).some((n) => n >= 7)],
+  ['d7all', 'Full Bath', 'Win all seven daily deals on one day.', () => Object.values(dailyDays(true)).some((n) => n >= 7)],
 ];
-function dailyDays() { const d = {}; for (const k in meta.daily) if (meta.daily[k] === 'won') { const s = k.slice(0, 10); d[s] = (d[s] || 0) + 1; } return d; }
+// Same-day 'won' counts toward streaks; archive 'won-archive' counts toward calendar seals and Full Bath stars (CD-WF6-04).
+function dailyDays(includeArchive) {
+  const d = {};
+  for (const k in meta.daily) {
+    const v = meta.daily[k];
+    if (v === 'won' || (includeArchive && v === 'won-archive')) { const s = k.slice(0, 10); d[s] = (d[s] || 0) + 1; }
+  }
+  return d;
+}
 const dayShift = (s, n) => { const [y, m, d] = s.split('-').map(Number); return todayStr(new Date(y, m - 1, d + n)); };
-function dailyStreak() { const d = dailyDays(); let t = todayStr(); if (!d[t]) t = dayShift(t, -1); let n = 0; for (; d[t]; t = dayShift(t, -1)) n++; return n; }
+function dailyStreak() { const d = dailyDays(false); let t = todayStr(); if (!d[t]) t = dayShift(t, -1); let n = 0; for (; d[t]; t = dayShift(t, -1)) n++; return n; }
 function dailyRun() {
-  const d = dailyDays(), days = Object.keys(d).sort(); let best = 0, run = 0, prev = '';
+  const d = dailyDays(false), days = Object.keys(d).sort(); let best = 0, run = 0, prev = '';
   for (const s of days) { run = prev && dayShift(prev, 1) === s ? run + 1 : 1; prev = s; best = Math.max(best, run); }
   return Math.max(best, meta.dailyBest || 0);
 }
@@ -5536,6 +5628,7 @@ document.addEventListener('click', (e) => {
   if ((el.dataset.tog === 'sound' || el.dataset.a === 'toggleMute') && !settings.sound) { Promise.resolve().then(() => { if (settings.sound) sfx('tick'); }); return; }
   if (el.dataset.a === 'reseed') { sfx('glass'); return; }
   if (el.classList.contains('bk')) { sfx(el.classList.contains('lk') ? 'latch' : 'brush'); return; }
+  if (el.dataset.equip) { sfx('brush'); return; }
   if (MODAL_BRUSH_IDS.has(el.id) || MODAL_BRUSH_ACTIONS.has(el.dataset.a)) { sfx('brush'); return; }
   sfx('tick');
 }, true);
@@ -6100,6 +6193,8 @@ function focusSelectorFor(el) {
   if (el.dataset.table) return '[data-table="' + el.dataset.table + '"]';
   if (el.dataset.stab) return '[data-stab="' + el.dataset.stab + '"]';
   if (el.dataset.ltab) return '[data-ltab="' + el.dataset.ltab + '"]';
+  if (el.dataset.btab) return '[data-btab="' + el.dataset.btab + '"]';
+  if (el.dataset.day) return '[data-day="' + el.dataset.day + '"]';
   if (el.dataset.key) return '[data-key="' + el.dataset.key + '"]';
   return null;
 }
@@ -6138,10 +6233,9 @@ function trapFocus(e) {
   if (e.shiftKey && cur === first) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && cur === last) { e.preventDefault(); first.focus(); }
 }
-const muteIcon = (on) => on
-  ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>'
-  : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg>';
-const head = (title, extra) => '<div class="sheet-head"><h2 id="mT">' + title + '</h2><div class="head-acts">' + (extra || '') + '<button type="button" class="ib x" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div></div>';
+const svgI = (d, s = 1.9) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + s + '" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>';
+const muteIcon = (on) => svgI('<path d="M11 5 6 9H3v6h3l5 4z"/>' + (on ? '<path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/>' : '<path d="m22 9-6 6M16 9l6 6"/>'), 2);
+const head = (title, extra) => '<div class="sheet-head"><h2 id="mT">' + title + '</h2><div class="head-acts">' + (extra || '') + '<button type="button" class="ib x" data-close aria-label="Close">' + svgI('<path d="M6 6l12 12M18 6 6 18"/>', 2.4) + '</button></div></div>';
 function openModal(kind, data, opts) {
   clearHover(); cancelDrag(); tickClock(); tipHide();
   if (kind === 'stats') { kind = 'ledger'; data = Object.assign({ tab: 'games' }, data || {}); }
@@ -6163,7 +6257,7 @@ function openModal(kind, data, opts) {
     modalStack.push({ kind: modalKind, data: snapData, scrollTop: sheet.scrollTop, focusSelector: focusSelectorFor(document.activeElement) });
   }
   modalKind = kind; modalData = data ? Object.assign({}, data) : {}; syncInert();
-  const cls = (kind === 'backs' || kind === 'help' || kind === 'ledger' ? ' wide' : '') + (kind === 'win' ? ' win' : '') + (kind === 'win' && !reducedMotion() ? ' rise' : '');
+  const cls = (kind === 'backs' || kind === 'help' || kind === 'ledger' ? ' wide' : '') + (kind === 'daily' ? ' daily' : '') + (kind === 'win' ? ' win' : '') + (kind === 'win' && !reducedMotion() ? ' rise' : '');
   sheetFrame.className = 'sheet-frame' + cls;
   sheet.className = 'sheet' + cls;
   let myEpoch = winEpoch;
@@ -6200,6 +6294,20 @@ const sliderRow = (id, label, val, rowId, muted) => {
   return '<div class="set set-slider' + (muted ? ' is-muted' : '') + '"' + (rowId ? ' id="' + rowId + '"' : '') + '><div class="sl-head"><label for="' + id + '" id="lbl-' + id + '">' + label + '</label><output class="sl-val" id="val-' + id + '" for="' + id + '">' + pct + '</output></div>' +
     '<div class="sl-ctrl"><input type="range" id="' + id + '" min="0" max="1" step="0.05" value="' + clamp(+val || 0, 0, 1) + '" style="--pct:' + pct + '" aria-valuetext="' + pct + '"></div></div>';
 };
+const tabBar = (label, tp, pp, attr, items, active) => '<div class="tabs main-tabs" role="tablist" aria-label="' + label + '">' +
+  items.map(([id, tx]) => '<button type="button" id="' + tp + '-' + id + '" class="chip' + (active === id ? ' solid' : '') + '" data-' + attr + '="' + id + '" role="tab" aria-selected="' + (active === id) + '" aria-controls="' + pp + '-' + id + '" tabindex="' + (active === id ? '0' : '-1') + '"' + (active === id ? ' data-focus="1"' : '') + '>' + tx + '</button>').join('') + '</div>';
+function wireTabs(attr, ids, pp, onSwitch) {
+  const tabs = [...sheet.querySelectorAll('[data-' + attr + ']')];
+  const sw = (id) => {
+    modalData.tab = id;
+    tabs.forEach((t) => { const on = t.dataset[attr] === id; t.classList.toggle('solid', on); t.setAttribute('aria-selected', String(on)); t.setAttribute('tabindex', on ? '0' : '-1'); });
+    for (const pid of ids) { const p = $('#' + pp + '-' + pid); if (p) p.hidden = pid !== id; }
+    if (onSwitch) onSwitch(id);
+  };
+  tabs.forEach((t) => (t.onclick = () => sw(t.dataset[attr])));
+  bindTablist(sheet.querySelector('.main-tabs[role="tablist"]'), (tab) => { if (tab && tab.dataset[attr]) sw(tab.dataset[attr]); });
+  return sw;
+}
 function bindTablist(root, onSelect) {
   const list = root && (root.getAttribute && root.getAttribute('role') === 'tablist' ? root : root.querySelector('[role="tablist"]'));
   if (!list) return;
@@ -6249,6 +6357,40 @@ function ledgerGameHTML(k) {
     (storageOK ? '' : '<p class="cap">Stats can\'t be saved in this browser.</p>') +
     '<div class="row"><button class="btn" data-a="resetStats" data-key="' + k + '">Reset ' + modeKeyLabel(k) + ' stats</button></div>';
 }
+const DAILY_LIST = [['klondike', { draw: 1 }], ['klondike', { draw: 3 }], ['freecell', {}], ['spider', { suits: 1 }], ['spider', { suits: 2 }], ['spider', { suits: 4 }], ['yukon', {}]];
+const LOCK_BADGE = '<span class="bk-lock" aria-hidden="true">' + svgI('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>', 2.2) + '</span>';
+function nextDailyFor(day, curKey) {
+  if (!day) return { next: null, won: 0 };
+  let won = 0, next = null;
+  const curIdx = DAILY_LIST.findIndex(([m, o]) => modeKey(m, Object.assign({ draw: 1, suits: 1 }, o)) === curKey);
+  for (let i = 0; i < DAILY_LIST.length; i++) {
+    const [m, o] = DAILY_LIST[i];
+    if (isDailyWon(meta.daily[day + '|' + modeKey(m, Object.assign({ draw: 1, suits: 1 }, o))])) won++;
+  }
+  for (let step = 1; step <= DAILY_LIST.length; step++) {
+    const cand = DAILY_LIST[(Math.max(0, curIdx) + step) % DAILY_LIST.length];
+    if (!isDailyWon(meta.daily[day + '|' + modeKey(cand[0], Object.assign({ draw: 1, suits: 1 }, cand[1]))])) { next = cand; break; }
+  }
+  return { next, won };
+}
+function dailyDayHTML(day) {
+  const today = todayStr(), live = liveDeal(), isToday = day === today;
+  const intro = isToday
+    ? '<p>Everyone gets the same seven winnable deals today (' + day + '). A new set arrives at midnight.</p>'
+    : '<p>Archive deals for <b>' + day + '</b> — all seven are winnable. Archive wins earn seals, Full Bath stars, and course progress.</p><button type="button" class="chip" id="dailyTodayBtn" data-day="' + today + '">Back to today</button>';
+  return '<div class="daily-hd">' + intro + '</div><div class="menu daily-grid">' +
+    DAILY_LIST.map(([m, o], i) => {
+      const k = modeKey(m, Object.assign({ draw: 1, suits: 1 }, o));
+      const st = meta.daily[day + '|' + k];
+      const isWon = isDailyWon(st);
+      const isActive = !isWon && !!((!titleOn && S && !S.won && S.daily === day && modeKey(S.mode, S.opts) === k) || (live && live.daily === day && modeKey(live.mode, live.opts) === k));
+      const [name, sub] = modeKeyLabel(k).split(' · ');
+      const subText = sub || (m === 'freecell' ? 'Classic' : 'No stock');
+      const statusText = isWon ? 'Won' : isActive ? 'In progress · Resume' : st ? 'Attempted' : 'Not played';
+      return '<button type="button" class="btn day' + (isWon ? ' won' : isActive ? ' active-day' : '') + '"' + (i === 0 ? ' data-focus' : '') + ' data-daily="' + i + '"' + (isActive ? ' data-active-daily="1"' : '') + '><canvas aria-hidden="true" data-hand="' + m + '"></canvas><b>' + name + '</b><small>' + subText + '</small>' +
+        '<em>' + statusText + '</em>' + (isWon ? '<i class="seal" aria-hidden="true"></i>' : '') + '</button>';
+    }).join('') + '</div>';
+}
 // One fold of the help sheet: the game's own hand of cards beside its name; the game being played starts open.
 const hp = (title, hand, body) => '<details class="hp"' + (hand && S && S.mode === hand ? ' open' : '') + '><summary>' + (hand ? '<canvas aria-hidden="true" data-hand="' + hand + '"></canvas>' : '') + title + '</summary>' + body + '</details>';
 const MODALS = {
@@ -6268,27 +6410,24 @@ const MODALS = {
     }
     const wonRecall = !!(S && S.won && lastWin);
     const primaryBtn = wonRecall
-      ? '<button class="btn solid" data-a="ticket" data-focus><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4z"/><path d="M15 5v14"/></svg>View Bath Ticket</button>'
-      : '<button class="btn solid" data-a="resume" data-focus><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5v14l11-7z"/></svg>Resume</button>';
+      ? '<button class="btn solid" data-a="ticket" data-focus>' + svgI('<path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4z"/><path d="M15 5v14"/>') + 'View Bath Ticket</button>'
+      : '<button class="btn solid" data-a="resume" data-focus>' + svgI('<path d="M8 5v14l11-7z"/>') + 'Resume</button>';
+    const mBtn = (a, d, l) => '<button class="btn" data-a="' + a + '">' + svgI(d) + l + '</button>';
     return head('Menu', muteBtn) + varStrip + '<div class="menu">' + primaryBtn +
-      '<button class="btn" data-a="help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.3-.9.8-.9 1.4v.6M12 17h.01"/></svg>How to play</button>' +
-      '<button class="btn" data-a="new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="11" height="15" rx="2"/><path d="M9 21h9a2 2 0 0 0 2-2V8"/></svg>New deal</button>' +
-      '<button class="btn" data-a="restart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M4 4v4h4"/></svg>Restart this deal</button>' +
-      '<button class="btn" data-a="deal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/></svg>Choose deal number…</button>' +
-      '<button class="btn" data-a="daily"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Daily deals</button>' +
-      '<button class="btn" data-a="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10l8-6 8 6v10"/><path d="M9 20v-6h6v6"/></svg>Change game</button>' +
-      '<button class="btn" data-a="backs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="9" height="13" rx="1.5"/><rect x="11" y="7" width="9" height="13" rx="1.5"/><path d="M15.5 11.5l-2 2 2 2 2-2z"/></svg>Backs &amp; tables</button>' +
-      '<button class="btn" data-a="ledger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h11a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M8 9h7M8 13h7M8 17h4"/></svg>Bathhouse Ledger</button>' +
-      '<button class="btn" data-a="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Settings</button></div>';
+      mBtn('help', '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.3-.9.8-.9 1.4v.6M12 17h.01"/>', 'How to play') +
+      mBtn('new', '<rect x="5" y="3" width="11" height="15" rx="2"/><path d="M9 21h9a2 2 0 0 0 2-2V8"/>', 'New deal') +
+      mBtn('restart', '<path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M4 4v4h4"/>', 'Restart this deal') +
+      mBtn('deal', '<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>', 'Choose deal number…') +
+      mBtn('daily', '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>', 'Daily deals') +
+      mBtn('title', '<path d="M4 20V10l8-6 8 6v10"/><path d="M9 20v-6h6v6"/>', 'Change game') +
+      mBtn('backs', '<rect x="4" y="4" width="9" height="13" rx="1.5"/><rect x="11" y="7" width="9" height="13" rx="1.5"/><path d="M15.5 11.5l-2 2 2 2 2-2z"/>', 'Backs &amp; tables') +
+      mBtn('ledger', '<path d="M6 4h11a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M8 9h7M8 13h7M8 17h4"/>', 'Bathhouse Ledger') +
+      mBtn('settings', '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>', 'Settings') + '</div>';
   },
   settings: (d) => {
     const tab = ['gameplay', 'comfort', 'audio'].includes(d && d.tab) ? d.tab : 'gameplay';
-    const tabs = [['gameplay', 'Gameplay'], ['comfort', 'Table & Comfort'], ['audio', 'Audio']];
     const sndOff = !settings.sound;
-    return head('Settings') +
-      '<div class="tabs main-tabs" role="tablist" aria-label="Settings sections">' +
-      tabs.map(([id, label]) => '<button type="button" id="stab-' + id + '" class="chip' + (tab === id ? ' solid' : '') + '" data-stab="' + id + '" role="tab" aria-selected="' + (tab === id) + '" aria-controls="spanel-' + id + '" tabindex="' + (tab === id ? '0' : '-1') + '"' + (tab === id ? ' data-focus="1"' : '') + '>' + label + '</button>').join('') +
-      '</div>' +
+    return head('Settings') + tabBar('Settings sections', 'stab', 'spanel', 'stab', [['gameplay', 'Gameplay'], ['comfort', 'Table & Comfort'], ['audio', 'Audio']], tab) +
       '<div id="spanel-gameplay" role="tabpanel" aria-labelledby="stab-gameplay"' + (tab === 'gameplay' ? '' : ' hidden') + '>' +
         '<div class="set set-wide"><label id="lbl-dealFairness">Deal fairness<small id="desc-dealFairness">Fair, playable deals across all seven games—choose a challenge tier, or Classic Random for an open shuffle.</small></label>' + seg('dealFairness', [['winnable', 'Winnable (Any)'], ['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard'], ['random', 'Classic Random']], true, 'desc-dealFairness') + '</div>' +
         '<div class="set"><label id="lbl-scoring">Scoring<small id="desc-scoring">Standard awards calm points with no countdown. Timed adds a win speed bonus. None hides the score.</small></label>' + seg('scoring', [['standard', 'Standard'], ['timed', 'Timed'], ['none', 'None']], false, 'desc-scoring') + '</div>' +
@@ -6320,17 +6459,28 @@ const MODALS = {
       '</div>' +
       (storageOK ? '' : '<p class="cap">Settings and stats can\'t be saved in this browser.</p>');
   },
-  backs: () => head('Card backs &amp; tables') + '<div class="backs" id="bkGrid">' +
-    BACKS.map((b) => { const lk = !isOpen('b', b.id); return '<button class="bk' + (lk ? ' lk" aria-disabled="true' : '') + '" data-back="' + b.id + '" aria-pressed="' + (settings.back === b.id) + '"><canvas width="168" height="236"></canvas><b>' + b.name + '</b>' + (lk ? '<small>' + lockNote('b:' + b.id) + '</small>' : '') + '</button>'; }).join('') +
-    '</div><p class="cap" id="bkCap" aria-live="polite"></p><div class="row" style="margin-top:6px"><button class="btn" data-a="reseed">Reshuffle the skylight glass</button></div>' +
-    '<h3>Tables</h3><div class="backs">' + TABLES.map((t) => { const lk = !isOpen('t', t.id); return '<button class="bk tbl' + (lk ? ' lk" aria-disabled="true' : '') + '" data-table="' + t.id + '" aria-pressed="' + (settings.table === t.id) + '"><canvas width="240" height="144"></canvas><b>' + t.name + '</b>' + (lk ? '<small>' + lockNote('t:' + t.id) + '</small>' : '') + '</button>'; }).join('') + '</div>' +
-    '<p class="cap" id="tblCap" aria-live="polite">' + esc(tableInfo().cap || '') + '</p>',
+  backs: (d) => {
+    const tab = d && d.tab === 'tables' ? 'tables' : 'backs';
+    return head('Card backs &amp; tables') + tabBar('Backs and tables', 'btab', 'bpanel', 'btab', [['backs', 'Card Backs (' + BACKS.length + ')'], ['tables', 'Parlor Tables (' + TABLES.length + ')']], tab) +
+      '<div id="bpanel-backs" role="tabpanel" aria-labelledby="btab-backs"' + (tab === 'backs' ? '' : ' hidden') + '>' +
+        '<div class="bk-bar"><p class="cap" id="bkCap" aria-live="polite"></p><button type="button" class="btn" data-a="reseed">Reshuffle the skylight glass</button></div>' +
+        '<div class="backs" id="bkGrid">' +
+        BACKS.map((b) => { const lk = !isOpen('b', b.id); return '<button type="button" class="bk' + (lk ? ' lk" aria-disabled="true' : '') + '" data-back="' + b.id + '" aria-pressed="' + (settings.back === b.id) + '"><canvas width="168" height="236"></canvas>' + (lk ? LOCK_BADGE : '') + '<b>' + b.name + '</b>' + (lk ? '<small>' + lockShort('b:' + b.id) + '</small>' : '') + '</button>'; }).join('') +
+        '</div>' +
+      '</div>' +
+      '<div id="bpanel-tables" role="tabpanel" aria-labelledby="btab-tables"' + (tab === 'tables' ? '' : ' hidden') + '>' +
+        '<div class="bk-bar"><p class="cap" id="tblCap" aria-live="polite"></p></div>' +
+        '<div class="backs" id="tblGrid">' +
+        TABLES.map((t) => { const lk = !isOpen('t', t.id); return '<button type="button" class="bk tbl' + (lk ? ' lk" aria-disabled="true' : '') + '" data-table="' + t.id + '" aria-pressed="' + (settings.table === t.id) + '"><canvas width="240" height="144"></canvas>' + (lk ? LOCK_BADGE : '') + '<b>' + t.name + '</b>' + (lk ? '<small>' + lockShort('t:' + t.id) + '</small>' : '') + '</button>'; }).join('') +
+        '</div>' +
+      '</div>';
+  },
   ledger: (d) => {
     const tab = ['overview', 'games', 'facts', 'ach'].includes(d && d.tab) ? d.tab : 'overview';
     const k = (d && d.key) || (S ? modeKey(S.mode, S.opts) : 'klondike1');
     const found = [...new Set(meta.seenFacts)].filter((i) => i < FACTS.length).sort((a, b) => a - b);
     const achGot = ACH.filter((a) => meta.ach[a[0]]).length;
-    const nx = UNLOCKS.find((u) => !meta.unlock.ids.includes(u[0]));
+    const nx = UNLOCKS.find((u) => !isOpen(u[0][0], u[0].slice(2)));
     const tw = Math.max(0, meta.totalWins || 0), filled = tw > 0 ? ((tw - 1) % 21) + 1 : 0, courses = tw > 0 ? Math.floor((tw - 1) / 21) : 0;
     let bathIdx = 0;
     const journeyStops = BATH_ROW_STOPS.map(([name, count]) => {
@@ -6342,17 +6492,19 @@ const MODALS = {
       }).join('');
       return '<div class="jstop' + (done ? ' done' : '') + '"><b>' + name + '</b><div class="jdots">' + dots + '</div></div>';
     }).join('');
+    const seals = [[7, '7 · Maurice'], [14, '14 · Ozark'], [21, '21 · Lamar']].map(([m, lbl]) => {
+      const got = courses > 0 || filled >= m;
+      return '<span class="jseal' + (got ? ' got' : '') + '">' + lbl + (got ? ' ✓' : '') + '</span>';
+    }).join('');
     const ltabs = [['overview', 'Overview'], ['games', 'By Game'], ['facts', 'Facts (' + found.length + '/' + FACTS.length + ')'], ['ach', 'Achievements (' + achGot + '/' + ACH.length + ')']];
-    return head('Bathhouse Ledger') +
-      '<div class="tabs main-tabs" role="tablist" aria-label="Bathhouse Ledger sections">' +
-      ltabs.map(([id, label]) => '<button type="button" id="ltab-' + id + '" class="chip' + (tab === id ? ' solid' : '') + '" data-ltab="' + id + '" role="tab" aria-selected="' + (tab === id) + '" aria-controls="lpanel-' + id + '" tabindex="' + (tab === id ? '0' : '-1') + '"' + (tab === id ? ' data-focus="1"' : '') + '>' + label + '</button>').join('') +
-      '</div>' +
+    return head('Bathhouse Ledger') + tabBar('Bathhouse Ledger sections', 'ltab', 'lpanel', 'ltab', ltabs, tab) +
       '<div id="lpanel-overview" role="tabpanel" aria-labelledby="ltab-overview"' + (tab === 'overview' ? '' : ' hidden') + '>' +
         '<p>Baths won: <b>' + tw + '</b> · Daily streak: <b>' + dailyStreak() + '</b> (best ' + dailyRun() + ')' +
-        (nx ? '<br>Next to open: ' + esc(unlockName(nx[0])) + '. ' + lockNote(nx[0]) + '.' : '') +
+        (nx ? '<br>Next to open: ' + esc(unlockName(nx[0])) + ' — ' + lockNote(nx[0]) + '.' : '<br>All 12 card backs and 6 parlor tables open.') +
         (meta.gradeWins.easy + meta.gradeWins.medium + meta.gradeWins.hard > 0 ? '<br>Graded deals won: Easy <b>' + meta.gradeWins.easy + '</b> · Medium <b>' + meta.gradeWins.medium + '</b> · Hard <b>' + meta.gradeWins.hard + '</b>' : '') + '</p>' +
         '<div class="journey" role="region" aria-label="21-Bath Row Stamp Journey"><div class="journey-hd"><b>21-Bath Row Stamp Journey</b><small>' + filled + ' of 21 baths' + (courses > 0 ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : ' · North to south along Central Avenue') + '</small></div>' +
-        '<div class="journey-row" role="img" aria-label="Course progress ' + filled + ' of 21 across eight bathhouses">' + journeyStops + '</div></div>' +
+        '<div class="journey-row" role="img" aria-label="Course progress ' + filled + ' of 21 across eight bathhouses">' + journeyStops + '</div>' +
+        '<div class="journey-seals" aria-label="Course seals">' + seals + '</div></div>' +
         '<h3>By game</h3>' +
         MODE_KEYS.map((mk) => { const st = statFor(mk); return '<div class="rec"><b>' + esc(modeKeyLabel(mk)) + '</b><small>Won ' + st.won + ' of ' + st.played + ' · streak ' + st.streak + ' (best ' + st.bestStreak + ')</small><small>' +
           (st.bestTimeMs ? 'Best ' + fmtTime(st.bestTimeMs) + ' · ' + st.fewestMoves + ' moves' + bestScoresLabel(mk, st) : st.won ? 'No unaided first win yet' : 'No wins yet') + '</small></div>'; }).join('') +
@@ -6375,21 +6527,11 @@ const MODALS = {
   deal: (d) => head('Choose a deal') + '<p>' + (d.mode === 'freecell' || (!d.mode && S && S.mode === 'freecell') ? 'FreeCell deals 1–32,000 match the classic numbered set (1–1,000,000 allowed).' : 'Any number from 1 to 2,147,483,646 gives the same layout every time.') + '</p>' +
     '<div class="dl"><input class="numin" id="dealIn" inputmode="numeric" aria-label="Deal number" value="' + esc(d.draft != null ? d.draft : (S ? S.deal : 1)) + '"><button class="btn solid" data-a="goDeal" data-focus>Deal</button></div>' +
     '<p class="cap" id="dealNote" role="status" aria-live="polite" hidden>Deal ' + FC_UNWINNABLE.toLocaleString('en-US') + ' is the famously unsolved FreeCell deal. You can still play it.</p>',
-  daily: () => {
-    const day = todayStr(), live = liveDeal();
-    const list = [['klondike', { draw: 1 }], ['klondike', { draw: 3 }], ['freecell', {}], ['spider', { suits: 1 }], ['spider', { suits: 2 }], ['spider', { suits: 4 }], ['yukon', {}]];
-    return head('Daily deals') + '<p>Everyone gets the same seven winnable deals today (' + day + '). A new set arrives at midnight.</p><div class="menu">' +
-      list.map(([m, o], i) => {
-        const k = modeKey(m, Object.assign({ draw: 1, suits: 1 }, o));
-        const st = meta.daily[day + '|' + k];
-        const isWon = st === 'won' || st === 'won-archive';
-        const isActive = !isWon && !!((!titleOn && S && !S.won && S.daily === day && modeKey(S.mode, S.opts) === k) || (live && live.daily === day && modeKey(live.mode, live.opts) === k));
-        const [name, sub] = modeKeyLabel(k).split(' · ');
-        const subText = sub || (m === 'freecell' ? 'Classic' : 'No stock');
-        const statusText = isWon ? 'Won' : isActive ? 'In progress · Resume' : st ? 'Attempted' : 'Not played';
-        return '<button class="btn day' + (isWon ? ' won' : isActive ? ' active-day' : '') + '"' + (i === 0 ? ' data-focus' : '') + ' data-daily="' + i + '"' + (isActive ? ' data-active-daily="1"' : '') + '><canvas aria-hidden="true" data-hand="' + m + '"></canvas><b>' + name + '</b><small>' + subText + '</small>' +
-          '<em>' + statusText + '</em>' + (isWon ? '<i class="seal" aria-hidden="true"></i>' : '') + '</button>';
-      }).join('') + '</div>' + dailyHistory();
+  daily: (d) => {
+    const today = todayStr(), minDay = dayShift(today, -DAILY_KEEP_DAYS);
+    const sel = d && d.day && d.day >= minDay && d.day <= today ? d.day : today;
+    const ym = (d && d.ym) || sel.slice(0, 7);
+    return head('Daily deals') + '<div class="daily-cols"><div id="dailyDayWrap">' + dailyDayHTML(sel) + '</div><div class="daily-hist">' + dailyHistory(sel, ym) + '</div></div>';
   },
   help: () => head('How to play') +
     '<p><b>Goal:</b> move every card to the foundations, building each up by suit from Ace to King (Spider: complete eight King-to-Ace runs).</p>' +
@@ -6417,6 +6559,25 @@ const MODALS = {
     const k = modeKey(w.mode, w.opts), tw = Math.max(0, w.totalWins || 0);
     const filled = tw > 0 ? ((tw - 1) % 21) + 1 : 0, courses = tw > 0 ? Math.floor((tw - 1) / 21) : 0, punched = !w.replay && tw > 0;
     const f = w.fact, noScore = w.scoring === 'none';
+    const nd = nextDailyFor(w.daily, k);
+    const primaryBtn = nd.next
+      ? '<button type="button" class="btn solid" data-a="nextDaily" data-focus>Next Daily (' + nd.won + '/7)</button>'
+      : '<button type="button" class="btn solid" data-a="new" data-focus>New deal</button>';
+    const unlockedHtml = (w.opened || []).length
+      ? '<div class="earn-u"><span>Unlocked: ' + w.opened.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</span>' +
+        (w.openedIds && w.openedIds.length
+          ? w.openedIds.map((uid) => {
+              const eq = uid[0] === 'b' ? settings.back === uid.slice(2) : settings.table === uid.slice(2);
+              return '<button type="button" class="chip equip-chip" data-equip="' + uid + '" aria-pressed="' + eq + '">' + (eq ? 'Equipped ✓' : 'Equip now') + '</button>';
+            }).join('')
+          : '') + '</div>'
+      : '';
+    let tierHtml = '';
+    if (!w.daily && !w.replay && !w.assisted) {
+      const st = statFor(k), cleanCnt = Math.max(0, st.won - st.assistedWon);
+      if (k === 'klondike1' && cleanCnt >= 3 && statFor('klondike3').won === 0) tierHtml = '<div class="tier-up"><span>Ready for a deeper hand?</span><button type="button" class="chip equip-chip" data-tier-mode="klondike" data-tier-draw="3">Try Draw 3</button></div>';
+      else if (k === 'spider1' && cleanCnt >= 3 && statFor('spider2').won === 0) tierHtml = '<div class="tier-up"><span>Ready for two suits?</span><button type="button" class="chip equip-chip" data-tier-mode="spider" data-tier-suits="2">Try 2 suits</button></div>';
+    }
     return head('Your bath is drawn') +
       '<div class="ticket" role="group" aria-label="Bath ticket"><div class="hd">Spa City Bath Ticket</div>' +
       '<div class="serial" aria-hidden="true">No. ' + String(w.deal).padStart(6, '0') + '</div>' + (punched ? '<div class="punch" aria-hidden="true"></div>' : '') +
@@ -6425,9 +6586,10 @@ const MODALS = {
       '<div class="meta">' + esc(modeKeyLabel(k)) + ' · ' + (w.daily ? 'Daily ' + w.daily : 'Deal #' + w.deal) + (w.bonus ? ' · time bonus +' + w.bonus : '') + (w.replay ? ' · replay' : '') + (w.assisted ? ' · assisted' : '') + '</div>' +
       '<div class="course" role="img" aria-label="Course progress ' + filled + ' of 21">' + Array.from({ length: 21 }, (_, i) => '<i class="' + (i < filled ? 'f' : '') + (punched && i === filled - 1 ? ' new' : '') + ((i + 1) % 7 === 0 ? ' m' : '') + '"' + ((i + 1) % 7 === 0 ? ' title="' + (i + 1) + ' baths"' : '') + '></i>').join('') + '</div>' +
       '<div class="meta">Course of 21 baths: ' + filled + ' of 21' + (courses > 0 ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : '') + '</div></div>' +
-      (w.pb || w.streak >= 3 || (w.ach || []).length || (w.opened || []).length ? '<div class="earn" role="status">' + (w.pb ? '<div class="pb">New personal best</div>' : '') + (w.streak >= 3 ? '<div>' + w.streak + ' wins in a row</div>' : '') + ((w.ach || []).length ? '<div>' + (w.ach.length > 1 ? 'Achievements' : 'Achievement') + ': ' + w.ach.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + ((w.opened || []).length ? '<div>Unlocked: ' + w.opened.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + '</div>' : '') +
+      (w.pb || w.streak >= 3 || (w.ach || []).length || (w.opened || []).length ? '<div class="earn" role="status">' + (w.pb ? '<div class="pb">New personal best</div>' : '') + (w.streak >= 3 ? '<div>' + w.streak + ' wins in a row</div>' : '') + ((w.ach || []).length ? '<div>' + (w.ach.length > 1 ? 'Achievements' : 'Achievement') + ': ' + w.ach.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + unlockedHtml + '</div>' : '') +
+      tierHtml +
       '<div class="fact"><div class="k">Did you know?</div><div class="q">' + esc(f[1]) + '</div><div class="a">' + esc(f[2]) + '</div><div>' + esc(f[3]) + '</div><div class="src">Source: ' + esc(f[4]) + '</div></div>' +
-      '<div class="row"><button class="btn solid" data-a="new" data-focus>New deal</button><button class="btn" data-a="restart">Replay this deal</button><button class="btn" data-a="title">Change game</button></div>';
+      '<div class="row">' + primaryBtn + '<button type="button" class="btn" data-a="restart">Replay this deal</button><button type="button" class="btn" data-a="title">Change game</button></div>';
   },
   confirm: (d) => head(d.title) + '<p>' + d.text + '</p><div class="row"><button class="btn solid" data-a="yes">' + d.yes + '</button><button class="btn" data-close data-focus>Cancel</button></div>',
   fault: () => head('Something went wrong') + '<p>The table could not be drawn as it should, so it has been redrawn. Your game is still here.</p><p>If it keeps happening, clear the saved game and start again.</p>' +
@@ -6497,27 +6659,41 @@ const BIND = {
       };
     });
   },
-  win() { BIND._common(); },
+  win() {
+    BIND._common();
+    const ndBtn = sheet.querySelector('[data-a="nextDaily"]');
+    if (ndBtn && lastWin && lastWin.daily) {
+      ndBtn.onclick = () => {
+        const nd = nextDailyFor(lastWin.daily, modeKey(lastWin.mode, lastWin.opts));
+        if (nd.next) newGame(Object.assign({ mode: nd.next[0], daily: lastWin.daily }, nd.next[1]));
+        else ACTIONS.new();
+      };
+    }
+    sheet.querySelectorAll('[data-equip]').forEach((b) => {
+      b.onclick = () => {
+        const uid = b.dataset.equip, kind = uid[0], id = uid.slice(2);
+        if (!isOpen(kind, id)) return;
+        setSetting(kind === 'b' ? 'back' : 'table', id);
+        sheet.querySelectorAll('[data-equip]').forEach((x) => {
+          const xu = x.dataset.equip, on = xu[0] === 'b' ? settings.back === xu.slice(2) : settings.table === xu.slice(2);
+          x.setAttribute('aria-pressed', String(on));
+          x.textContent = on ? 'Equipped ✓' : 'Equip now';
+        });
+        announce('Equipped ' + unlockName(uid));
+      };
+    });
+    sheet.querySelectorAll('[data-tier-mode]').forEach((b) => {
+      b.onclick = () => {
+        const m = b.dataset.tierMode;
+        newGame(m === 'klondike' ? { mode: m, draw: +b.dataset.tierDraw } : { mode: m, suits: +b.dataset.tierSuits });
+      };
+    });
+  },
   stuck() { BIND._common(); },
   fault() { BIND._common(); },
   settings(d) {
     BIND._common();
-    const tabs = [...sheet.querySelectorAll('[data-stab]')];
-    const switchTab = (id) => {
-      modalData.tab = id;
-      tabs.forEach((t) => {
-        const on = t.dataset.stab === id;
-        t.classList.toggle('solid', on);
-        t.setAttribute('aria-selected', String(on));
-        t.setAttribute('tabindex', on ? '0' : '-1');
-      });
-      for (const pid of ['gameplay', 'comfort', 'audio']) {
-        const p = $('#spanel-' + pid);
-        if (p) p.hidden = pid !== id;
-      }
-    };
-    tabs.forEach((t) => (t.onclick = () => switchTab(t.dataset.stab)));
-    bindTablist(sheet.querySelector('[role="tablist"]'), (tab) => { if (tab && tab.dataset.stab) switchTab(tab.dataset.stab); });
+    wireTabs('stab', ['gameplay', 'comfort', 'audio'], 'spanel');
     const syncTimerNote = () => { const tn = $('#timerNote'); if (tn) tn.textContent = timerNote(); };
     const syncAudioMuteUI = () => {
       const off = !settings.sound;
@@ -6546,40 +6722,40 @@ const BIND = {
     bindSlider('ambVol', 'ambVol', false);
     void d;
   },
-  backs() {
+  backs(d) {
     BIND._common();
     const cap = $('#bkCap'), tcap = $('#tblCap');
-    const show = (id) => { const b = BACKS.find((x) => x.id === id); cap.textContent = b.name + ': ' + (isOpen('b', id) ? b.cap : lockNote('b:' + id)); };
-    const showTbl = (id) => { const t = TABLES.find((x) => x.id === id); tcap.textContent = isOpen('t', id) ? (t.cap || t.name) : t.name + ': ' + lockNote('t:' + id); };
-    loadArt([...BACKS.map((b) => 'back-' + b.id), ...TABLES.flatMap((t) => tableArt(t.id, true)), ...courtSet('deco'), ...courtSet('painted'), ...LATE_ART, 'title-hero']);
+    const show = (id) => {
+      const b = BACKS.find((x) => x.id === id); if (!b || !cap) return;
+      cap.textContent = b.name + ': ' + b.cap + (isOpen('b', id) ? '' : ' — Locked: ' + lockNote('b:' + id) + '.');
+    };
+    const showTbl = (id) => {
+      const t = TABLES.find((x) => x.id === id); if (!t || !tcap) return;
+      tcap.textContent = t.name + ': ' + (t.cap || t.name) + (isOpen('t', id) ? '' : ' — Locked: ' + lockNote('t:' + id) + '.');
+    };
+    const wiggle = (el) => {
+      if (reducedMotion()) return;
+      el.classList.remove('wiggle'); void el.offsetWidth; el.classList.add('wiggle');
+    };
+    const loadTabArt = (tab) => { loadArt(tab === 'tables' ? TABLES.flatMap((t) => tableArt(t.id, false)) : BACKS.map((b) => 'back-' + b.id)); };
+    wireTabs('btab', ['backs', 'tables'], 'bpanel', (id) => { loadTabArt(id); paintPickers(); });
+    const initTab = d && d.tab === 'tables' ? 'tables' : 'backs';
+    modalData.tab = initTab;
+    loadTabArt(initTab);
     paintPickers();
     sheet.querySelectorAll('[data-back]').forEach((b) => {
-      b.onclick = () => { if (!isOpen('b', b.dataset.back)) { show(b.dataset.back); return; } setSetting('back', b.dataset.back); sheet.querySelectorAll('[data-back]').forEach((x) => x.setAttribute('aria-pressed', x === b)); show(b.dataset.back); };
+      b.onclick = () => { if (!isOpen('b', b.dataset.back)) { show(b.dataset.back); wiggle(b); return; } setSetting('back', b.dataset.back); sheet.querySelectorAll('[data-back]').forEach((x) => x.setAttribute('aria-pressed', x === b)); show(b.dataset.back); };
       b.onfocus = () => show(b.dataset.back);
     });
     show(settings.back);
     sheet.querySelectorAll('[data-table]').forEach((b) => {
-      b.onclick = () => { if (!isOpen('t', b.dataset.table)) { showTbl(b.dataset.table); return; } setSetting('table', b.dataset.table); sheet.querySelectorAll('[data-table]').forEach((x) => x.setAttribute('aria-pressed', x === b)); showTbl(b.dataset.table); };
+      b.onclick = () => { if (!isOpen('t', b.dataset.table)) { showTbl(b.dataset.table); wiggle(b); return; } setSetting('table', b.dataset.table); sheet.querySelectorAll('[data-table]').forEach((x) => x.setAttribute('aria-pressed', x === b)); showTbl(b.dataset.table); };
       b.onfocus = () => showTbl(b.dataset.table);
     });
+    showTbl(settings.table);
   },
   ledger(d) {
-    const mainTabs = [...sheet.querySelectorAll('[data-ltab]')];
-    const switchMain = (id) => {
-      modalData.tab = id;
-      mainTabs.forEach((t) => {
-        const on = t.dataset.ltab === id;
-        t.classList.toggle('solid', on);
-        t.setAttribute('aria-selected', String(on));
-        t.setAttribute('tabindex', on ? '0' : '-1');
-      });
-      for (const pid of ['overview', 'games', 'facts', 'ach']) {
-        const p = $('#lpanel-' + pid);
-        if (p) p.hidden = pid !== id;
-      }
-    };
-    mainTabs.forEach((t) => (t.onclick = () => switchMain(t.dataset.ltab)));
-    bindTablist(sheet.querySelector('.main-tabs[role="tablist"]'), (tab) => { if (tab && tab.dataset.ltab) switchMain(tab.dataset.ltab); });
+    wireTabs('ltab', ['overview', 'games', 'facts', 'ach'], 'lpanel');
     const subTabs = [...sheet.querySelectorAll('.sub-tabs [data-key]')];
     const bindReset = () => {
       const rb = sheet.querySelector('[data-a="resetStats"]');
@@ -6626,21 +6802,58 @@ const BIND = {
     const note = () => { const mode = d.mode || (S ? S.mode : 'klondike'); $('#dealNote').hidden = !(mode === 'freecell' && parseInt($('#dealIn').value.replace(/[^0-9]/g, ''), 10) === FC_UNWINNABLE); };
     $('#dealIn').oninput = note; note();
   },
-  daily() {
-    const day = todayStr();
-    const list = [['klondike', { draw: 1 }], ['klondike', { draw: 3 }], ['freecell', {}], ['spider', { suits: 1 }], ['spider', { suits: 2 }], ['spider', { suits: 4 }], ['yukon', {}]];
-    sheet.querySelectorAll('[data-daily]').forEach((b) => (b.onclick = () => {
-      const [m, o] = list[+b.dataset.daily];
-      const k = modeKey(m, Object.assign({ draw: 1, suits: 1 }, o));
-      // Non-destructive resume when clicking the active live 'In progress · Resume' daily (CD-WF5-07, W6-S2-04).
-      if (b.dataset.activeDaily === '1') {
-        if (!titleOn && S && !S.won && S.daily === day && modeKey(S.mode, S.opts) === k) { closeModal(false); showTitle(false); return; }
-        const live = liveDeal();
-        if (live && live.daily === day && modeKey(live.mode, live.opts) === k) { if (!resumeSaved()) { closeModal(false); showTitle(false); } return; }
+  daily(d) {
+    const today = todayStr(), minDay = dayShift(today, -DAILY_KEEP_DAYS);
+    modalData.day = d && d.day && d.day >= minDay && d.day <= today ? d.day : today;
+    modalData.ym = (d && d.ym) || modalData.day.slice(0, 7);
+    const selectDay = (ds, keepFocus) => {
+      if (!ds || ds < minDay || ds > today) return;
+      modalData.day = ds;
+      const wrap = $('#dailyDayWrap');
+      if (wrap) { wrap.innerHTML = dailyDayHTML(ds); paintHands('#sheet'); bindTiles(); }
+      const targetYm = ds.slice(0, 7);
+      if (modalData.ym !== targetYm) {
+        modalData.ym = targetYm;
+        const w = $('#calW');
+        if (w) { w.innerHTML = calendar(targetYm, ds); bindCal(); }
+      } else {
+        sheet.querySelectorAll('#calW [data-day]').forEach((b) => {
+          const on = b.dataset.day === ds;
+          b.classList.toggle('sel', on);
+          b.setAttribute('aria-pressed', String(on));
+        });
       }
-      confirmAbandon(Object.assign({ mode: m, daily: true }, o));
-    }));
-    const bindCal = () => sheet.querySelectorAll('[data-mo]').forEach((b) => (b.onclick = () => { const w = $('#calW'), dir = b.getAttribute('aria-label'); w.innerHTML = calendar(b.dataset.mo); bindCal(); const f = w.querySelector('[aria-label="' + dir + '"]:not(:disabled)') || w.querySelector('[data-mo]:not(:disabled)'); if (f) f.focus({ preventScroll: true }); }));
+      if (keepFocus) { const f = sheet.querySelector('#calW [data-day="' + ds + '"]'); if (f) f.focus({ preventScroll: true }); }
+      announce('Daily deals for ' + ds);
+    };
+    const bindTiles = () => {
+      const selDay = modalData.day;
+      sheet.querySelectorAll('[data-daily]').forEach((b) => (b.onclick = () => {
+        const [m, o] = DAILY_LIST[+b.dataset.daily];
+        const k = modeKey(m, Object.assign({ draw: 1, suits: 1 }, o));
+        // Non-destructive resume when clicking the active live 'In progress · Resume' daily (CD-WF5-07, W6-S2-04).
+        if (b.dataset.activeDaily === '1') {
+          if (!titleOn && S && !S.won && S.daily === selDay && modeKey(S.mode, S.opts) === k) { closeModal(false); showTitle(false); return; }
+          const live = liveDeal();
+          if (live && live.daily === selDay && modeKey(live.mode, live.opts) === k) { if (!resumeSaved()) { closeModal(false); showTitle(false); } return; }
+        }
+        confirmAbandon(Object.assign({ mode: m, daily: selDay }, o));
+      }));
+      const tb = $('#dailyTodayBtn');
+      if (tb) tb.onclick = () => selectDay(today, false);
+    };
+    const bindCal = () => {
+      sheet.querySelectorAll('[data-mo]').forEach((b) => (b.onclick = () => {
+        const w = $('#calW'), dir = b.getAttribute('aria-label');
+        modalData.ym = b.dataset.mo;
+        w.innerHTML = calendar(modalData.ym, modalData.day);
+        bindCal();
+        const f = w.querySelector('[aria-label="' + dir + '"]:not(:disabled)') || w.querySelector('[data-mo]:not(:disabled)');
+        if (f) f.focus({ preventScroll: true });
+      }));
+      sheet.querySelectorAll('#calW [data-day]').forEach((b) => (b.onclick = () => selectDay(b.dataset.day, true)));
+    };
+    bindTiles();
     bindCal();
   },
   confirm(d) {
@@ -6656,27 +6869,32 @@ const BIND = {
 };
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-function dailyHistory() {
-  const day = todayStr(), full = Object.values(dailyDays()).filter((n) => n >= 7).length;
-  return '<h3>Your dailies</h3><p>Streak: <b>' + dailyStreak() + '</b> ' + (dailyStreak() === 1 ? 'day' : 'days') + ' · best ' + dailyRun() + ' · full baths (all seven): ' + full + '</p><div id="calW">' + calendar(day.slice(0, 7)) + '</div>';
+function dailyHistory(selDay, ym) {
+  const day = todayStr(), full = Object.values(dailyDays(true)).filter((n) => n >= 7).length;
+  return '<h3>Your dailies</h3><p>Streak: <b>' + dailyStreak() + '</b> ' + (dailyStreak() === 1 ? 'day' : 'days') + ' · best ' + dailyRun() + ' · full baths (all seven): ' + full + '</p><div id="calW">' + calendar(ym || day.slice(0, 7), selDay || day) + '</div><p class="cap cal-note">Past dates within 400 days are playable for seals, Full Bath stars, and course progress; consecutive-day streaks count same-day wins.</p>';
 }
-function calendar(ym) {
-  const [Y, M] = ym.split('-').map(Number), pad = (n) => String(n).padStart(2, '0'), won = dailyDays(), today = todayStr();
-  const lo = dayShift(today, -DAILY_KEEP_DAYS).slice(0, 7), prev = M === 1 ? (Y - 1) + '-12' : Y + '-' + pad(M - 1), next = M === 12 ? (Y + 1) + '-01' : Y + '-' + pad(M + 1);
+function calendar(ym, selDay) {
+  const [Y, M] = ym.split('-').map(Number), pad = (n) => String(n).padStart(2, '0'), won = dailyDays(true), today = todayStr(), minDay = dayShift(today, -DAILY_KEEP_DAYS), sel = selDay || today;
+  const lo = minDay.slice(0, 7), prev = M === 1 ? (Y - 1) + '-12' : Y + '-' + pad(M - 1), next = M === 12 ? (Y + 1) + '-01' : Y + '-' + pad(M + 1);
   let cells = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((x) => '<i class="h" aria-hidden="true">' + x + '</i>').join('') + '<i class="h"></i>'.repeat(new Date(Y, M - 1, 1).getDay());
   for (let d = 1, n = new Date(Y, M, 0).getDate(); d <= n; d++) {
-    const ds = ym + '-' + pad(d), c = won[ds] || 0;
-    cells += '<i role="img" aria-label="' + MONTHS[M - 1] + ' ' + d + ': ' + c + ' of 7 won" class="' + (c >= 7 ? 'f' : c ? 'w' : '') + (ds === today ? ' t' : '') + '">' + d + '<small>' + (c >= 7 ? '★' : c ? c + '/7' : '&nbsp;') + '</small></i>';
+    const ds = ym + '-' + pad(d), c = won[ds] || 0, inRange = ds >= minDay && ds <= today, future = ds > today;
+    const label = MONTHS[M - 1] + ' ' + d + ': ' + (future ? 'Upcoming' : inRange ? c + ' of 7 won' + (ds === today ? ', today' : '') : 'Outside 400-day archive');
+    cells += '<button type="button" class="cday' + (c >= 7 ? ' f' : c ? ' w' : '') + (ds === today ? ' t' : '') + (ds === sel ? ' sel' : '') + '"' +
+      (inRange ? ' data-day="' + ds + '" aria-pressed="' + (ds === sel) + '"' : ' disabled title="' + (future ? 'Upcoming' : 'Outside 400-day archive') + '"') +
+      ' aria-label="' + label + '">' + d + '<small>' + (c >= 7 ? '★' : c ? c + '/7' : future ? 'Soon' : '&nbsp;') + '</small></button>';
   }
-  const nav = (to, label, off) => '<button class="btn" data-mo="' + to + '" aria-label="' + label + '"' + (off ? ' disabled' : '') + '>' + (label[0] === 'P' ? '‹' : '›') + '</button>';
-  return '<div class="cm">' + nav(prev, 'Previous month', ym <= lo) + '<b>' + MONTHS[M - 1] + ' ' + Y + '</b>' + nav(next, 'Next month', ym >= today.slice(0, 7)) + '</div><div class="cal">' + cells + '</div>';
+  const nav = (to, label, off) => '<button type="button" class="btn" data-mo="' + to + '" aria-label="' + label + '"' + (off ? ' disabled' : '') + '>' + (label[0] === 'P' ? '‹' : '›') + '</button>';
+  return '<div class="cm">' + nav(prev, 'Previous month', ym <= lo) + '<b>' + MONTHS[M - 1] + ' ' + Y + '</b>' + nav(next, 'Next month', ym >= today.slice(0, 7)) + '</div><div class="cal-wrap"><div class="cal">' + cells + '</div></div>';
 }
 
 function paintPickers() {
   sheet.querySelectorAll('[data-back]').forEach((b) => {
+    if (b.closest('[hidden]')) return;
     const c = b.querySelector('canvas'); const g = c.getContext('2d'); g.setTransform(c.width / 84, 0, 0, c.height / 118, 0, 0); g.clearRect(0, 0, 84, 118); drawBack(g, b.dataset.back, 84, 118, settings.deckSeed);
   });
   sheet.querySelectorAll('[data-table]').forEach((b) => {
+    if (b.closest('[hidden]')) return;
     const c = b.querySelector('canvas'); const g = c.getContext('2d'); g.setTransform(c.width / 120, 0, 0, c.height / 72, 0, 0); drawTable(g, b.dataset.table, 120, 72);
   });
 }
@@ -6914,7 +7132,9 @@ window.__game = {
   setSettings(o) { for (const k in o) setSetting(k, o[k]); return Object.assign({}, settings); },
   freecellDeal(n) { const cols = [[], [], [], [], [], [], [], []]; freecellOrder(n).forEach((c, i) => cols[i % 8].push(RANKS[c >> 2] + SUITS[c & 3])); return cols; },
   stats() { return JSON.parse(JSON.stringify(stats)); },
+  dailyStats: () => ({ streak: dailyStreak(), best: dailyRun(), sameDay: dailyDays(false), allDays: dailyDays(true) }),
   art() { return { on: ART_ON, wanted: [...artWant], loaded: Object.keys(art) }; },
+  loadAllArt() { return loadArt([...BACKS.map((b) => 'back-' + b.id), ...TABLES.flatMap((t) => tableArt(t.id, true)), ...courtSet('deco'), ...courtSet('painted'), ...BRASS_ART, 'ace-medallion', ...LATE_ART, 'title-hero']); },
 };
 
 // A script error or a broken promise must not leave a frozen table with no word: redraw, say so once, offer a way out.

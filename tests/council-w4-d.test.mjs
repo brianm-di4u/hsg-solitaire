@@ -122,12 +122,18 @@ export const tests = [
       // Verify player-facing Backs, Tables & Settings prose avoids fourth-wall historiography caveats (W6-S1-04)
       await t.game('unlockAll');
       await t.game('scene', 'backs');
-      const caps = await t.page.evaluate(() => {
+      const backCaps = await t.page.evaluate(() => {
         const out = [];
         for (const b of document.querySelectorAll('#sheet [data-back]')) { b.focus(); out.push(document.getElementById('bkCap').textContent); }
+        return out.join(' || ');
+      });
+      await t.page.click('#btab-tables');
+      const tableCaps = await t.page.evaluate(() => {
+        const out = [];
         for (const tb of document.querySelectorAll('#sheet [data-table]')) { tb.focus(); out.push(document.getElementById('tblCap').textContent); }
         return out.join(' || ');
       });
+      const caps = backCaps + ' || ' + tableCaps;
       t.expect(!/not documented|invented colors|No real stable colors|no club's own table|how much searching/i.test(caps), 'Backs & Tables speak in warm 1920s parlor prose without historiography caveats: ' + caps.slice(0, 200));
     },
   },
