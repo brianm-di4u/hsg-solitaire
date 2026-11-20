@@ -195,7 +195,7 @@
   "file": "brass-cell.webp",
   "w": 300,
   "h": 420,
-  "bytes": 23198
+  "bytes": 16738
  },
  "brass-recycle": {
   "file": "brass-recycle.webp",
@@ -267,7 +267,7 @@
   "file": "deco-qc.webp",
   "w": 660,
   "h": 440,
-  "bytes": 34766
+  "bytes": 36248
  },
  "deco-kc": {
   "file": "deco-kc.webp",
@@ -291,7 +291,7 @@
   "file": "deco-kd.webp",
   "w": 660,
   "h": 440,
-  "bytes": 30150
+  "bytes": 32526
  },
  "deco-jh": {
   "file": "deco-jh.webp",
@@ -303,13 +303,13 @@
   "file": "deco-qh.webp",
   "w": 660,
   "h": 440,
-  "bytes": 25124
+  "bytes": 27554
  },
  "deco-kh": {
   "file": "deco-kh.webp",
   "w": 660,
   "h": 440,
-  "bytes": 34226
+  "bytes": 36200
  },
  "deco-js": {
   "file": "deco-js.webp",
@@ -327,7 +327,7 @@
   "file": "deco-ks.webp",
   "w": 660,
   "h": 440,
-  "bytes": 24260
+  "bytes": 27670
  },
  "brass-frame": {
   "file": "brass-frame.webp",

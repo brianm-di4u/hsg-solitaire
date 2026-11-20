@@ -122,9 +122,10 @@
     text-shadow:0 1px 8px rgba(0,0,0,.95);max-width:34em;padding:2px 10px;border-radius:999px;background:rgba(8,12,10,.38)}
   .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
   @media (max-width:760px){.tiles{grid-template-columns:1fr 1fr;gap:10px}}
-  .tile{background:#111A15 linear-gradient(#1D2A23,#0F1612);color:var(--t-ink);border:14px solid #B8862C;border-radius:7px;
-    border-image:url(assets/brass-frame.webp) 118 / 14px stretch;background-clip:padding-box;padding:4px 6px 8px;
-    display:flex;flex-direction:column;gap:6px;box-shadow:0 10px 26px rgba(0,0,0,.55)}
+  .tile{position:relative;background:#111A15 linear-gradient(#1D2A23,#0F1612);background-clip:border-box;color:var(--t-ink);border:0;border-radius:5px;
+    padding:18px 20px 22px;display:flex;flex-direction:column;gap:6px;box-shadow:0 10px 26px rgba(0,0,0,.55)}
+  .tile::after{content:"";position:absolute;inset:0;border:14px solid transparent;border-image:url(assets/brass-frame.webp) 118 / 14px stretch;
+    border-radius:5px;pointer-events:none;z-index:2}
   .tile canvas{width:100%;height:clamp(70px,11vw,104px);display:block}
   .tile h2{margin:0;font-family:var(--font-display);font-weight:400;font-size:1.3rem;letter-spacing:.03em;color:var(--t-brass);text-align:center}
   .tile .tsub{display:block;text-align:center;font-family:var(--font-deco);font-size:.74rem;letter-spacing:.04em;color:var(--t-ink);margin-top:-4px}
@@ -173,13 +174,20 @@
     padding-bottom:max(12px,calc(env(safe-area-inset-bottom) + var(--tools-h) + 6px));
     padding-left:max(12px,calc(env(safe-area-inset-left) + 8px))}
   #modal.on{display:flex}
-  /* dialogs: dark lacquer inside a Blender-rendered brass frame across both OS color schemes, used as a 9-slice border */
-  .sheet{background:var(--sheet) linear-gradient(45deg,rgba(184,134,44,.075) 1px,transparent 1px) 0 0/20px 20px;color:var(--color-text);border:22px solid #B8862C;border-radius:9px;
-    border-image:url(assets/brass-frame.webp) 118 / 22px stretch;background-clip:padding-box;
-    width:min(660px,100%);max-height:100%;overflow-y:auto;overflow-x:hidden;padding:4px 8px 8px;box-shadow:0 18px 50px rgba(0,0,0,.5);
-    font-family:var(--font-deco)}
+  /* dialogs: opaque dark-lacquer border-box shell topped by a pointer-events:none ::after 9-slice brass-frame.webp overlay (CD-WF3-03, CD-WF1-08) */
+  .sheet-frame{position:relative;display:flex;width:min(660px,100%);max-height:100%;border-radius:7px;padding:6px;
+    background:var(--sheet) linear-gradient(45deg,rgba(184,134,44,.075) 1px,transparent 1px) 0 0/20px 20px;background-clip:border-box;
+    box-shadow:0 18px 50px rgba(0,0,0,.5)}
+  .sheet-frame.wide{width:min(900px,100%)}
+  .sheet-frame.win{background:#121A15 linear-gradient(#1A2620,#0E1411)}
+  .sheet-frame.rise{animation:rise .5s cubic-bezier(.2,.9,.3,1.15) both}
+  .sheet-frame::after{content:"";position:absolute;inset:0;border:22px solid transparent;border-image:url(assets/brass-frame.webp) 118 / 22px stretch;
+    border-radius:7px;pointer-events:none;z-index:3}
+  .sheet{position:relative;flex:1;min-width:0;max-height:100%;overflow-y:auto;overflow-x:hidden;
+    background:var(--sheet) linear-gradient(45deg,rgba(184,134,44,.075) 1px,transparent 1px) -6px -6px/20px 20px;color:var(--color-text);
+    border:0;border-radius:4px;padding:20px 24px 24px;font-family:var(--font-deco)}
   .sheet .btn,.sheet .chip,.sheet button{font-family:var(--font-deco)}
-  .sheet.wide{width:min(900px,100%)}
+  .sheet.wide{width:100%}
   .sheet-head{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding-bottom:8px;
     border-bottom:2px solid transparent;border-image:linear-gradient(90deg,#B8862C,#E9C873 30%,rgba(184,134,44,0)) 1}
   .sheet-head h2{font-family:var(--font-display);font-weight:400;letter-spacing:.03em;margin:0;font-size:1.45rem;color:var(--color-primary);flex:1;min-width:0}
@@ -279,7 +287,6 @@
   .course{display:flex;flex-wrap:nowrap;gap:2px;justify-content:center;margin-top:5px}
   .course i{width:clamp(6px,1.9vw,9px);aspect-ratio:1;border-radius:50%;border:1.2px solid #8E3622;display:block;flex:none}
   .course i.f{background:#8E3622}
-  .sheet.rise{animation:rise .5s cubic-bezier(.2,.9,.3,1.15) both}
   .sheet.win{position:relative;background:#121A15 linear-gradient(#1A2620,#0E1411);color:#EDE3C8;--focus-ring:#E9C873;--focus-moat:#101813}
   .sheet.win .sheet-head{position:relative;justify-content:center}
   .sheet.win .sheet-head h2{color:#E9C873;text-align:center;font-size:clamp(1.35rem,5.5vw,1.9rem);padding:0 48px;text-shadow:0 2px 0 #000}
@@ -308,7 +315,7 @@
     #modeName{font-size:.86rem} #modeSub{font-size:.68rem;letter-spacing:.02em}
     .course{gap:2px} .course i{width:8px;height:8px;border-width:1.2px}
     .tb{font-size:.64rem;letter-spacing:.06em}
-    .sheet{padding:14px 14px 16px}
+    .sheet{padding:20px 20px 22px}
   }
   /* Short landscape screens (phones on their side): a slim status bar and the actions in a rail beside the table,
      so the cards get the height. Left-handed puts the rail on the left. */
@@ -366,7 +373,7 @@
   .cal i.t{outline:2px solid var(--color-primary)} .cal i.h{border:0;min-height:0;font-weight:700;color:var(--color-muted)}
   .cm{display:flex;align-items:center;justify-content:space-between;gap:8px} .cm b{font-family:var(--font-deco)} .cm .btn{min-width:44px}
   :root.rm #goal i,:root.rm #goal .rev,:root.rm #goal .reveal,:root.rm .tb,:root.rm #toast,:root.rm #dealing,:root.rm .tog::after,:root.rm .hp summary::after{transition:none}
-  :root.rm .sheet.rise,:root.rm .sheet.rise .ticket,:root.rm .sheet.rise .ticket .punch,:root.rm .sheet.rise .course i.new,:root.rm #bHint.pt{animation:none}
+  :root.rm .sheet-frame.rise,:root.rm .sheet.rise,:root.rm .sheet.rise .ticket,:root.rm .sheet.rise .ticket .punch,:root.rm .sheet.rise .course i.new,:root.rm #bHint.pt{animation:none}
   :root.rm .course i.new{box-shadow:0 0 0 2px #E9C873}
   @media (forced-colors: active){
     .tog::before{background:Canvas;border:2px solid ButtonText;forced-color-adjust:none}
@@ -430,7 +437,7 @@
   </div>
 </section>
 
-<div id="modal"><div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="mT"></div></div>
+<div id="modal"><div class="sheet-frame" id="sheetFrame"><div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="mT"></div></div></div>
 <div id="dealing" aria-hidden="true">Finding a winnable deal…</div>
 <div id="sr" class="sr-only" role="status" aria-live="polite"></div>
 <script>
@@ -807,31 +814,34 @@ function pushUndo() { undoStack.push(snapshot()); redoStack.length = 0; }
 // A score change of 5 points or more also floats up from the pile it happened at (S3-14), so the points can be learned by playing. Not with reduced motion,
 // and not when scoring is None; the change shown is the one the score really made (it never goes below 0).
 let scoreFx = [];
-const SCORE_FX_MIN = 5, SCORE_FX_LIFE = 1000;
-const addScore = (n, pile) => {
+const suppressLandFx = new Set(), milestoneLandFx = new Set();
+const SCORE_FX_MIN = 5, SCORE_FX_LIFE = 900;
+const addScore = (n, pile, uid) => {
   const before = S.score; S.score = Math.max(0, S.score + n);
   const d = S.score - before;
-  if (pile && Math.abs(d) >= SCORE_FX_MIN && settings.scoring !== 'none' && !reducedMotion()) scoreFx.push({ text: (d > 0 ? '+' : '−') + Math.abs(d), neg: d < 0, pile, t0: now() + 170 });
+  if (pile && Math.abs(d) >= SCORE_FX_MIN && settings.scoring !== 'none' && !reducedMotion()) {
+    scoreFx.push({ text: (d > 0 ? '+' : '−') + Math.abs(d), neg: d < 0, pile, uid: uid != null ? uid : -1, t0: now() + 170, synced: false });
+  }
 };
 
-function scoreMove(from, to, n) {
+function scoreMove(from, to, n, leadUid) {
   const fk = kindOf(from), tk = kindOf(to);
   if (fk === 'found' && tk === 'found') return;
   if (S.mode === 'spider') return;
   if (S.mode === 'freecell') {
-    if (tk === 'found') addScore(10 * n, to); else if (fk === 'found') addScore(-10 * n, to);
+    if (tk === 'found') addScore(10 * n, to, leadUid); else if (fk === 'found') addScore(-10 * n, to, leadUid);
     return;
   }
-  if (tk === 'found') addScore(10, to);
-  else if (fk === 'waste' && tk === 'tab') addScore(5, to);
-  else if (fk === 'found' && tk === 'tab') addScore(-15, to);
+  if (tk === 'found') addScore(10, to, leadUid);
+  else if (fk === 'waste' && tk === 'tab') addScore(5, to, leadUid);
+  else if (fk === 'found' && tk === 'tab') addScore(-15, to, leadUid);
 }
 
 function rawMove(from, idx, to, delay) {
   const run = S.piles[from].splice(idx);
   S.piles[to].push(...run);
   for (const u of run) { S.up[u] = true; if (delay) animDelay[u] = delay; }
-  scoreMove(from, to, run.length);
+  scoreMove(from, to, run.length, run[0]);
   return run;
 }
 
@@ -850,15 +860,16 @@ function settleTableau(delayBase) {
       const id = 't' + i; const p = S.piles[id];
       if (p.length && !S.up[p[p.length - 1]]) {
         const u = p[p.length - 1]; S.up[u] = true; flipQueue.push(u);
-        if (S.mode === 'klondike' || S.mode === 'yukon') addScore(5, id);
+        if (S.mode === 'klondike' || S.mode === 'yukon') addScore(5, id, u);
         changed = true;
       }
       if (def().runs && endsInRun(p)) {
         let f = 0; while (S.piles['f' + f].length) f++;
         const run = p.splice(p.length - 13); run.reverse();
         S.piles['f' + f].push(...run);
-        run.forEach((u, j) => { animDelay[u] = d + j * 28; });
-        d += 400; S.runs++; addScore(100, 'f' + f); changed = true; sfx('run');
+        // Coalesce 13-card Spider run VFX into one milestone burst on the final card (CD-WF4-06).
+        run.forEach((u, j) => { animDelay[u] = d + j * 28; if (j < run.length - 1) suppressLandFx.add(u); else milestoneLandFx.add(u); });
+        d += 400; S.runs++; addScore(100, 'f' + f, run[run.length - 1]); changed = true; sfx('run');
         if (!S.replay) { syncShared(); const a = earn({ wins: meta.totalWins, w: null, run: true }); if (a.length) { save('meta', meta); setTimeout(() => achToast(a), 900); } }
         announce('Completed a run of ' + SUIT_NAME[card(run[0]).s]);
       }
@@ -993,7 +1004,7 @@ function stockAction() {
 
 function undo() {
   if (!undoStack.length || !S || S.won) return { ok: false };
-  redoStack.push(snapshot()); restore(undoStack.pop()); scoreFx = [];
+  redoStack.push(snapshot()); restore(undoStack.pop()); scoreFx = []; landFx = [];
   S.usedUndo = true; S.assisted = true; hintState = null; tipEvent('undo');
   sfx('undo'); announce('Undone'); relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   return { ok: true };
@@ -1894,7 +1905,7 @@ function startDeal(mode, opts, deal, daily, winnable, grade) {
   abandonCurrent();
   clearTimeout(winTimer); winTimer = 0; finishRun = false;
   syncShared();
-  S = newState(mode, opts, deal, daily); musicHush = false; scoreFx = [];
+  S = newState(mode, opts, deal, daily); musicHush = false; clearTransientFx(true);
   if (winnable) S.winnable = true;
   if (winnable && grade) S.grade = grade;
   const dk = modeKey(mode, S.opts) + ':' + deal;
@@ -2097,10 +2108,11 @@ function loadArt(names) {
   if (!ART_ON) return Promise.resolve();
   return Promise.all(names.filter((n) => !artWant.has(n)).map((n) => {
     artWant.add(n); artPending++; const im = new Image(); im.decoding = 'async'; im.src = 'assets/' + n + '.webp';
-    return im.decode().then(() => { if (COURT_FOCUS[n]) im.focusX = COURT_FOCUS[n]; art[n] = im; artChanged(); }, () => {}).finally(() => { artPending--; });
+    return im.decode().then(() => { if (COURT_FOCUS[n] != null) im.focusX = COURT_FOCUS[n]; im.artName = n; art[n] = im; artChanged(); }, () => {}).finally(() => { artPending--; });
   }));
 }
-const COURT_FOCUS = {"deco-jc":0.645,"deco-qc":0.712,"deco-kc":0.666,"deco-jd":0.687,"deco-qd":0.644,"deco-kd":0.713,"deco-jh":0.527,"deco-qh":0.75,"deco-kh":0.739,"deco-js":0.608,"deco-qs":0.572,"deco-ks":0.732};
+const COURT_FOCUS = {"deco-jc":0.645,"deco-qc":0.515,"deco-kc":0.666,"deco-jd":0.687,"deco-qd":0.644,"deco-kd":0.521,"deco-jh":0.527,"deco-qh":0.562,"deco-kh":0.532,"deco-js":0.608,"deco-qs":0.572,"deco-ks":0.53};
+const COURT_MOB = { 'deco-js': { zoom: 1.28, ay: .14 } };
 function artChanged() {
   if (artTick) return;
   artTick = requestAnimationFrame(() => {
@@ -2187,8 +2199,10 @@ const PIPS = { // [column, f] with column L/C/R and f in 0..1 down the pip area
   10: [['L', 0], ['R', 0], ['C', 1 / 6], ['L', 1 / 3], ['R', 1 / 3], ['L', 2 / 3], ['R', 2 / 3], ['C', 5 / 6], ['L', 1], ['R', 1]],
 };
 
-// Only on phones: desktop cards shrunk to fit a long column keep the normal proportions.
-const idxScale = (w, large) => w < 70 && innerWidth < 560 ? { rs: .46, ss: .30 } : large ? { rs: .40, ss: .29 } : { rs: .30, ss: .22 };
+// Phones get jumbo indices (rs=0.46 standard, rs=0.52 large); desktop Large moderates to rs=0.37 to clear court art & pips cleanly.
+const idxScale = (w, large) => w < 70 && innerWidth < 560
+  ? (large ? { rs: .52, ss: .34 } : { rs: .46, ss: .30 })
+  : large ? { rs: .37, ss: .26 } : { rs: .30, ss: .22 };
 let idxMeasure = null;
 function indexBottom(w, h, large) {
   const { rs } = idxScale(w, large), size = w * rs;
@@ -2196,7 +2210,16 @@ function indexBottom(w, h, large) {
   idxMeasure.font = '700 ' + size + 'px ' + SERIF; let desc = 0, asc = 0;
   for (const ch of ['Q', 'J', '3', 'A']) { const m = idxMeasure.measureText(ch); desc = Math.max(desc, m.actualBoundingBoxDescent || size * .2); asc = Math.max(asc, m.actualBoundingBoxAscent || size * .72); }
   const base = h * .02 + size * .86;
-  return { full: base + desc, cap: base - asc * .1 + 1 };
+  return { full: base + desc, cap: base + desc * .85 };
+}
+function drawCornerIndex(ctx, c, w, h, rs, ss, col, tight10) {
+  const lab = RANK_LABEL[c.r];
+  ctx.fillStyle = col; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  ctx.font = '700 ' + rs + 'px ' + SERIF;
+  ctx.save(); ctx.translate(w * (tight10 ? .05 : .06), h * .02 + rs * .86);
+  if (lab === '10') ctx.scale(tight10 ? .76 : .84, 1);
+  ctx.fillText(lab, 0, 0); ctx.restore();
+  drawSuit(ctx, c.s, w - w * (tight10 ? .06 : .07) - ss * .45, h * .03 + ss / 2 + rs * .1, ss, col);
 }
 function drawWasteMicroSuit(ctx, c, w, h, large, col) {
   const small = w < 58, ms = w * (small ? .195 : .17), cx = w * (small ? .145 : .138);
@@ -2213,41 +2236,37 @@ function drawWasteMicroSuit(ctx, c, w, h, large, col) {
   drawSuit(ctx, c.s, cx, cy, ms, col);
   ctx.restore();
 }
+function pipLayout(r, w, h, large) {
+  const ps = w * (r >= 9 ? .155 : .175);
+  const xs = { L: w * .305, C: w * .5, R: w * .695 };
+  const topF = large ? .41 : .375, spanF = large ? .335 : .365;
+  return (PIPS[r] || []).map(([cl, f]) => ({ x: xs[cl], y: h * (topF + f * spanF), size: ps, flip: f > .5 }));
+}
 function drawFace(ctx, c, w, h, large, wastePip) {
   const col = suitColor(c.s);
   cardStock(ctx, w, h);
-  const small = w < 58;
+  const phoneJumbo = w < 70 && innerWidth < 560, small = w < 58 || phoneJumbo, tight10 = phoneJumbo && large;
   const { rs: rsK, ss: ssK } = idxScale(w, large);
-  const rs = w * rsK;
-  ctx.fillStyle = col; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
-  ctx.font = '700 ' + rs + 'px ' + SERIF;
-  const lab = RANK_LABEL[c.r];
-  ctx.save(); ctx.translate(w * .06, h * .02 + rs * .86);
-  if (lab === '10') ctx.scale(.84, 1);
-  ctx.fillText(lab, 0, 0); ctx.restore();
-  const ss = w * ssK;
-  drawSuit(ctx, c.s, w - w * .07 - ss * .45, h * .03 + ss / 2 + rs * .1, ss, col);
-  const tallCourt = c.r > 10 && !small && artImg(courtArt(c)); // painted courts fill the card instead
+  const rs = w * rsK, ss = w * ssK, lab = RANK_LABEL[c.r];
+  drawCornerIndex(ctx, c, w, h, rs, ss, col, tight10);
+  const tallCourt = c.r > 10 && !small && artImg(courtArt(c)); // painted & Deco courts fill the card instead
   if (c.r > 10 && settings.courts !== 'painted' && artImg(courtArt(c))) {
-    drawDecoCourt(ctx, c, w, h, small, rs, ss, col);
+    drawDecoCourt(ctx, c, w, h, small, rs, ss, col, large);
   } else {
     if (!small && !tallCourt) {
+      // Mirror the top corner split on the bottom edge (inverted rank bottom-right, inverted suit bottom-left) so ranks 4-10 clear pips >= 4 px (W6-S4-03).
       ctx.save(); ctx.translate(w, h); ctx.rotate(Math.PI);
-      const bs = w * .19; ctx.font = '700 ' + bs + 'px ' + SERIF; ctx.fillStyle = col;
-      ctx.save(); ctx.translate(w * .06, bs * .9 + h * .015); if (lab === '10') ctx.scale(.84, 1); ctx.fillText(lab, 0, 0); ctx.restore();
-      drawSuit(ctx, c.s, w * .06 + bs * .36, bs * .9 + h * .015 + bs * .52, bs * .62, col); // the suit under the rank, as on a printed deck
+      const bs = w * .155, bss = w * .125;
+      ctx.fillStyle = col; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left'; ctx.font = '700 ' + bs + 'px ' + SERIF;
+      ctx.save(); ctx.translate(w * .06, h * .02 + bs * .86); if (lab === '10') ctx.scale(.84, 1); ctx.fillText(lab, 0, 0); ctx.restore();
+      drawSuit(ctx, c.s, w - w * .07 - bss * .45, h * .025 + bss / 2 + bs * .08, bss, col);
       ctx.restore();
     }
-    if (c.r > 10) drawCourtPanel(ctx, c, w, h, small);
+    if (c.r > 10) drawCourtPanel(ctx, c, w, h, small, large);
     else if (c.r === 1) drawAce(ctx, c, w, h, small);
     else if (small) drawSuit(ctx, c.s, w * .5, h * .64, w * .52, col);
     else {
-      const ps = w * (c.r >= 9 ? .17 : .19);
-      const xs = { L: w * .3, C: w * .5, R: w * .7 };
-      for (const [cl, f] of PIPS[c.r]) {
-        const y = h * (.37 + f * .44) + ps * .1;
-        drawSuit(ctx, c.s, xs[cl], y, ps, col, f > .5);
-      }
+      for (const p of pipLayout(c.r, w, h, large)) drawSuit(ctx, c.s, p.x, p.y, p.size, col, p.flip);
     }
   }
   if (wastePip) drawWasteMicroSuit(ctx, c, w, h, large, col);
@@ -2283,16 +2302,21 @@ function drawAce(ctx, c, w, h, small) {
 
 // Court cards: original era-costume archetypes (bath attendant / jockey jacks, promenade queens,
 const courtArt = (c, set = settings.courts) => (set === 'painted' ? 'court-' : 'deco-') + 'jqk'[c.r - 11] + 'cdhs'[c.s];
-function drawCourtPanel(ctx, c, w, h, small) {
+function drawCourtPanel(ctx, c, w, h, small, large) {
   const col = suitColor(c.s);
   const img = artImg(courtArt(c)), tall = img && !small;
-  const x = w * (small ? .1 : tall ? .075 : .14), y = h * (small ? .33 : tall ? .235 : .25), pw = w - 2 * x, ph = h * (small ? .62 : tall ? .72 : .615);
+  // Sliver-free panel inset: desktop y=0.31*h (ph=0.64*h), mobile y>=0.46*h clear of portrait fanUp (CD-WF1-07, W6-S4-03).
+  const x = w * (small ? .09 : tall ? .075 : .14);
+  const mobTop = small ? Math.max(h * .46, indexBottom(w, h, large).full + h * .025) : 0;
+  const y = small ? mobTop : h * .31;
+  const pw = w - 2 * x;
+  const ph = small ? Math.max(h * .44, h - y - h * .04) : h * (tall ? .64 : .54);
   ctx.save(); rrect(ctx, x, y, pw, ph, w * .04); ctx.clip();
   if (img) {
     const hh = ph / 2;
     ctx.fillStyle = '#F4EDE0'; ctx.fillRect(x, y, pw, ph);
-    ctx.save(); ctx.beginPath(); ctx.rect(x, y, pw, hh); ctx.clip(); coverImg(ctx, img, x, y, pw, hh, .5, .1, 1.3); ctx.restore();
-    ctx.save(); ctx.translate(x + pw, y + ph); ctx.rotate(Math.PI); ctx.beginPath(); ctx.rect(0, 0, pw, hh); ctx.clip(); coverImg(ctx, img, 0, 0, pw, hh, .5, .1, 1.3); ctx.restore();
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, pw, hh); ctx.clip(); coverImg(ctx, img, x, y, pw, hh, .5, .08, 1.08); ctx.restore();
+    ctx.save(); ctx.translate(x + pw, y + ph); ctx.rotate(Math.PI); ctx.beginPath(); ctx.rect(0, 0, pw, hh); ctx.clip(); coverImg(ctx, img, 0, 0, pw, hh, .5, .08, 1.08); ctx.restore();
     courtBand(ctx, x, y + hh, pw, w, col);
   } else {
     ctx.fillStyle = isRed(c.s) ? '#F5E4DA' : '#E4E9E1'; ctx.fillRect(x, y, pw, ph);
@@ -2303,47 +2327,66 @@ function drawCourtPanel(ctx, c, w, h, small) {
   ctx.restore();
   gildFrame(ctx, x, y, pw, ph, w);
   if (!small) {
-    const ss = w * .13; drawSuit(ctx, c.s, x + ss * .75, y + ss * .75, ss, col);
+    const ss = w * .125; drawSuit(ctx, c.s, x + ss * .75, y + ss * .75, ss, col);
     if (img) drawSuit(ctx, c.s, x + pw - ss * .75, y + ph - ss * .75, ss, col, true);
   }
 }
-function drawDecoCourt(ctx, c, w, h, small, rs, ss, col) {
+function drawDecoCourt(ctx, c, w, h, small, rs, ss, col, large) {
   const img = artImg(courtArt(c));
   const px = w * .05, py = h * .035, pw = w - 2 * px, r = w * .04;
+  const tight10 = w < 70 && innerWidth < 560 && large;
   const lab = RANK_LABEL[c.r]; ctx.font = '700 ' + rs + 'px ' + SERIF;
-  const rankW = ctx.measureText(lab).width, ib = indexBottom(w, h, small || rs / w > .35);
-  const nr = { x: px, y: py, w: w * .06 + rankW + w * .035 - px, h: ib.full + h * .012 - py };
-  const sx0 = w - w * .07 - ss * .9 - w * .035; const ns = { x: sx0, y: py, w: w - px - sx0, h: h * .03 + ss + rs * .1 + h * .012 - py };
+  const rankW = ctx.measureText(lab).width * (lab === '10' ? (tight10 ? .76 : .84) : 1);
+  const ib = indexBottom(w, h, large);
+  const nr = { x: px, y: py, w: w * (tight10 ? .05 : .06) + rankW + w * .03 - px, h: ib.full + h * .01 - py };
+  const sx0 = w - w * (tight10 ? .06 : .07) - ss * .9 - w * .03;
+  const ns = { x: sx0, y: py, w: w - px - sx0, h: h * .03 + ss + rs * .1 + h * .01 - py };
+  const fx = img.focusX != null ? img.focusX : .55;
   if (small) {
-    const top = Math.max(nr.h, ns.h) + py + h * .01, ph = h - top - py;
+    // Raise mobile small Deco top clear of portrait fanUp & clamp dx/dy strictly to prevent cream voids (CD-WF2-01, W6-S4-03).
+    const top = Math.max(nr.h + py + h * .03, ns.h + py + h * .03, h * .46), ph = Math.max(h * .44, h - top - py);
     ctx.save(); rrect(ctx, px, top, pw, ph, r); ctx.clip(); ctx.fillStyle = '#F4EDE0'; ctx.fillRect(px, top, pw, ph);
-    const fx = img.focusX != null ? img.focusX : .56; const zoom = 1.45, k = Math.max(pw / img.naturalWidth, ph / img.naturalHeight) * zoom;
+    const mob = COURT_MOB[img.artName] || { zoom: 1.38, ay: .06 };
+    const k = Math.max(pw / img.naturalWidth, ph / img.naturalHeight) * mob.zoom;
     const dw = img.naturalWidth * k, dh = img.naturalHeight * k;
-    ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, px + pw / 2 - fx * dw, top - dh * .04, dw, dh); ctx.restore();
+    const dx = clamp(px + pw / 2 - fx * dw, px + pw - dw, px);
+    const dy = clamp(top + (ph - dh) * mob.ay, top + ph - dh, top);
+    ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, dx, dy, dw, dh); ctx.restore();
     gildFrame(ctx, px, top, pw, ph, w); return;
   }
+  // Full-height gilded desktop Art Deco frame with focal-centered 1.22x zoom & strict horizontal clamping (CD-WF2-01, OQ-WF2-02).
   ctx.save(); rrect(ctx, px, py, pw, h - 2 * py, r); ctx.clip();
   ctx.fillStyle = '#F4EDE0'; ctx.fillRect(0, 0, w, h);
-  const hh = h / 2 - py;
-  ctx.save(); ctx.beginPath(); ctx.rect(px, py, pw, hh); ctx.clip(); coverImg(ctx, img, px, py, pw, hh, .55, .12); ctx.restore();
-  ctx.save(); ctx.translate(w, h); ctx.rotate(Math.PI); ctx.beginPath(); ctx.rect(px, py, pw, hh); ctx.clip(); coverImg(ctx, img, px, py, pw, hh, .55, .12); ctx.restore();
+  const hh = h / 2 - py, zoom = 1.22, k = Math.max(pw / img.naturalWidth, hh / img.naturalHeight) * zoom;
+  const dw = img.naturalWidth * k, dh = img.naturalHeight * k;
+  const dx = clamp(px + pw / 2 - fx * dw, px + pw - dw, px);
+  const dy = clamp(py + (hh - dh) * .12, py + hh - dh, py);
+  ctx.save(); ctx.beginPath(); ctx.rect(px, py, pw, hh); ctx.clip(); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, dx, dy, dw, dh); ctx.restore();
+  ctx.save(); ctx.translate(w, h); ctx.rotate(Math.PI); ctx.beginPath(); ctx.rect(px, py, pw, hh); ctx.clip(); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, dx, dy, dw, dh); ctx.restore();
+  const corners = [];
   for (const n of [nr, ns]) for (const q of [n, { x: w - n.x - n.w, y: h - n.y - n.h, w: n.w, h: n.h }]) {
-    const cx = q.x + q.w / 2, cy = q.y + q.h / 2, rr = Math.max(q.w, q.h) * .85;
-    const g = ctx.createRadialGradient(cx, cy, rr * .45, cx, cy, rr);
-    g.addColorStop(0, 'rgba(250,245,234,.97)'); g.addColorStop(1, 'rgba(250,245,234,0)');
+    corners.push(q);
+    const cx = q.x + q.w / 2, cy = q.y + q.h / 2, rr = Math.max(q.w, q.h) * .65;
+    const g = ctx.createRadialGradient(cx, cy, rr * .38, cx, cy, rr);
+    g.addColorStop(0, 'rgba(250,245,234,.96)'); g.addColorStop(1, 'rgba(250,245,234,0)');
     ctx.fillStyle = g; ctx.fillRect(cx - rr, cy - rr, rr * 2, rr * 2);
   }
   ctx.restore();
-  ctx.save(); rrect(ctx, px, py, pw, h - 2 * py, r);
+  // Break the gilded/charcoal border stroke cleanly across all four index corners so no line slices behind rank or suit glyphs.
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, 0, w, h);
+  const pad = Math.max(1.5, w * .018);
+  for (const q of corners) ctx.rect(q.x - pad, q.y - pad, q.w + pad * 2, q.h + pad * 2);
+  ctx.clip('evenodd');
+  rrect(ctx, px, py, pw, h - 2 * py, r);
   const g = ctx.createLinearGradient(0, 0, w, h); g.addColorStop(0, '#E9C873'); g.addColorStop(.45, '#B8862C'); g.addColorStop(.55, '#D9B256'); g.addColorStop(1, '#9C6E1E');
   ctx.strokeStyle = g; ctx.lineWidth = Math.max(1.2, w * .02); ctx.stroke();
-  ctx.strokeStyle = 'rgba(31,42,36,.7)'; ctx.lineWidth = Math.max(.6, w * .006); ctx.stroke(); ctx.restore();
+  ctx.strokeStyle = 'rgba(31,42,36,.7)'; ctx.lineWidth = Math.max(.6, w * .006); ctx.stroke();
+  ctx.restore();
   courtBand(ctx, px, h / 2, pw, w, col);
   for (const turn of [false, true]) {
     ctx.save(); if (turn) { ctx.translate(w, h); ctx.rotate(Math.PI); }
-    ctx.fillStyle = col; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left'; ctx.font = '700 ' + rs + 'px ' + SERIF;
-    ctx.save(); ctx.translate(w * .06, h * .02 + rs * .86); if (lab === '10') ctx.scale(.84, 1); ctx.fillText(lab, 0, 0); ctx.restore();
-    drawSuit(ctx, c.s, w - w * .07 - ss * .45, h * .03 + ss / 2 + rs * .1, ss, col);
+    drawCornerIndex(ctx, c, w, h, rs, ss, col, tight10);
     ctx.restore();
   }
 }
@@ -2977,30 +3020,54 @@ function skyline(ctx, x, y, w, h, ink, alpha) {
   });
   ctx.fill(); ctx.fillRect(x, y, w, Math.max(2, h * .05)); ctx.restore();
 }
+let lastInlay = null;
+function frameMetrics(w, h) {
+  const compact = Math.min(w, h) < 560;
+  const m = compact ? 2 : Math.max(5, Math.round(Math.min(w, h) * .012));
+  const inlayInset = compact ? m + 2 : m + 6;
+  const cornerS = clamp(Math.round(Math.min(w, h) * .13), 44, 128);
+  return { compact, m, inlayInset, cornerS };
+}
 function brassInlay(ctx, W, H) {
-  const fan = artImg('brass-corner'), narrow = W < 560, m = narrow ? 2 : Math.max(5, Math.round(Math.min(W, H) * .012));
+  const fm = frameMetrics(W, H), narrow = fm.compact, m = fm.m, s = fm.cornerS, fan = artImg('brass-corner');
   const g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#E9C873'); g.addColorStop(.35, '#9C6E1E'); g.addColorStop(.6, '#D9B256'); g.addColorStop(1, '#7A5418');
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 3; ctx.shadowOffsetY = 1;
   ctx.strokeStyle = g; ctx.lineWidth = 2; ctx.strokeRect(m + .5, m + .5, W - 2 * m - 1, H - 2 * m - 1);
   if (!narrow) { ctx.lineWidth = 1; ctx.strokeRect(m + 5.5, m + 5.5, W - 2 * m - 11, H - 2 * m - 11); }
   ctx.restore();
-  if (!fan) return;
-  const s = clamp(Math.round(Math.min(W, H) * .13), 44, 128);
+  const topChevrons = [];
   ctx.save(); ctx.imageSmoothingQuality = 'high';
   if (!narrow) {
     ctx.save(); ctx.strokeStyle = g; ctx.lineWidth = 1.5;
     for (const [x, y, sx] of [[m + 9, m + 9, 1], [W - m - 9, m + 9, -1]]) {
-      ctx.beginPath();
-      for (let k = 0; k < 3; k++) { const o = k * 4, l = 30 - k * 8; ctx.moveTo(x + sx * o, y + o + l); ctx.lineTo(x + sx * o, y + o); ctx.lineTo(x + sx * (o + l), y + o); }
-      ctx.stroke();
+      let maxArm = 30;
+      if (L && L.piles) {
+        for (const id in L.piles) {
+          const b = L.piles[id], dx = sx > 0 ? b.x - x : x - (b.x + L.cw), dy = b.y - y;
+          if (dx < 34 && dy < 34) maxArm = Math.min(maxArm, Math.max(dx - 4, dy - 4));
+        }
+      }
+      if (maxArm >= 12) {
+        ctx.beginPath();
+        for (let k = 0; k < 3; k++) {
+          const o = k * 4, l = maxArm - k * 8;
+          if (l >= 4) { ctx.moveTo(x + sx * o, y + o + l); ctx.lineTo(x + sx * o, y + o); ctx.lineTo(x + sx * (o + l), y + o); }
+        }
+        ctx.stroke();
+        topChevrons.push({ x: sx > 0 ? x : x - maxArm, y, w: maxArm, h: maxArm });
+      }
     }
     ctx.restore();
   }
-  [[W - m, H - m, -Math.PI / 2], [m, H - m, 0]].forEach(([x, y, a]) => {
-    ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.drawImage(fan, -1, -s + 1, s, s); ctx.restore();
-  });
+  const drawBottomFans = !!(fan && !(narrow && W > H));
+  if (drawBottomFans) {
+    [[W - m, H - m, -Math.PI / 2], [m, H - m, 0]].forEach(([x, y, a]) => {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.drawImage(fan, -1, -s + 1, s, s); ctx.restore();
+    });
+  }
   ctx.restore();
+  lastInlay = { compact: narrow, m, inlayInset: fm.inlayInset, topChevrons, hasBottomFans: drawBottomFans, cornerS: s };
 }
 
 function drawTable(ctx, id, W, H, band) {
@@ -3229,10 +3296,10 @@ function sideRails() {
 }
 const CARD_CAP = 200;
 function computeLayout(fit = 1) {
-  const d = def(), cols = d.cols, compact = Math.min(W, H) < 560; // phones, either way up
-  const margin = compact ? 6 : Math.max(12, Math.round(W * .018));
+  const d = def(), cols = d.cols, fm = frameMetrics(W, H), compact = fm.compact;
   const size = settings.cardSize;
-  const gr = size === 'large' ? (compact ? .05 : .08) : size === 'compact' ? .18 : (compact ? .07 : .14);
+  const margin = compact ? (size === 'large' ? 3 : 6) : Math.max(fm.inlayInset + 6, Math.round(W * .018));
+  const gr = size === 'large' ? (compact ? .025 : .08) : size === 'compact' ? .18 : (compact ? .07 : .14);
   const rails = sideRails(), nl = rails ? rails.left.length : 0, nr = rails ? rails.right.length : 0, seams = (nl ? 1 : 0) + (nr ? 1 : 0);
   const fitW = (units, s) => (W - 2 * margin) / (units + (units - 1 + s * .6) * gr);
   const topBase = Math.min(fitW(cols, 0), (H - 2 * margin) / (1.4 * 4.3));
@@ -3247,7 +3314,7 @@ function computeLayout(fit = 1) {
   const rowW = units * cw + (units - 1) * gap + s * seam, x0 = Math.round((W - rowW) / 2);
   const slotX = (i) => Math.round(x0 + i * (cw + gap));
   const portrait = H > W * 1.25, lower = portrait && !side ? Math.round(clamp((H / W - 1.4) * W * .22, 0, H * .07)) : 0;
-  const vgap = Math.max(8, ch * .14), topY = margin + lower, tabY = side ? topY : Math.round(topY + ch + vgap);
+  const vgap = Math.max(8, ch * .14), topY = Math.max(compact ? margin : fm.inlayInset + 6, margin + lower), tabY = side ? topY : Math.round(topY + ch + vgap);
   const piles = {};
   if (side) {
     let x = x0;
@@ -3256,13 +3323,17 @@ function computeLayout(fit = 1) {
     for (let i = 0; i < cols; i++) { piles['t' + i] = { x: Math.round(x), y: tabY }; x += cw + gap; }
     if (nr) x += seam; rail(rails.right);
   } else {
-    topSlots().forEach((id, i) => { if (id) piles[id] = { x: slotX(i), y: topY }; });
+    // Wide-only FreeCell top-row zone seam between c3 and f0; compact portrait preserves 44px width & t0..t7 alignment (CD-WF2-05).
+    const fcSeam = S.mode === 'freecell' && !compact && gap >= cw * .14 ? Math.min(cw * .45, Math.max(0, W - 2 * margin - rowW)) : 0;
+    const topX0 = fcSeam > 0 ? Math.round((W - (rowW + fcSeam)) / 2) : x0;
+    const topSlotX = (i) => Math.round(topX0 + i * (cw + gap) + (i >= 4 ? fcSeam : 0));
+    topSlots().forEach((id, i) => { if (id) piles[id] = { x: topSlotX(i), y: topY }; });
     for (let i = 0; i < cols; i++) piles['t' + i] = { x: slotX(i), y: tabY };
   }
-  const largeIdx = size === 'large' || cw < 58;
+  const largeIdx = size === 'large';
   const ib = indexBottom(cw, ch, largeIdx);
   return { cw, ch, gap, margin, piles, arr: side ? 'side' : 'top', bottom: H - margin - (compact ? 2 : 8), largeIdx, portrait, fit,
-    fanUp: Math.max(ch * (portrait ? .46 : largeIdx ? .31 : .25), ch * .28, ib.full + 3), fanMin: ib.full + 1,
+    fanUp: Math.max(ch * (portrait ? (largeIdx ? .48 : .46) : largeIdx ? .31 : .25), ch * .28, ib.full + 3), fanMin: ib.full + 1,
     idxFull: ib.full, idxCap: ib.cap, fanDown: ch * (portrait ? .27 : .14), downMin: ch * .06 };
 }
 function computeTargets() {
@@ -3301,8 +3372,8 @@ function computeTargets() {
   }
   return T;
 }
-// Long columns may shrink the board, but never below 80% of a Standard-size card (Large cards may give up a bit more).
-const FIT_FLOOR = () => settings.cardSize === 'large' ? .7 : .8;
+// Long columns may shrink the board, keeping Q/J descenders intact (FIT_FLOOR 0.64 Large / 0.74 Standard).
+const FIT_FLOOR = () => settings.cardSize === 'large' ? .64 : .74;
 let bandSig = '', targets = [], lastCw = 0, fitHold = 1; // fitHold: the smallest board scale used this deal
 const ease = (t) => 1 - Math.pow(1 - t, 3);
 const easeBack = (t) => { const c = 1.4; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); }; // overshoots ~4%, then settles
@@ -3327,7 +3398,11 @@ function relayout(instant) {
     fit = Math.max(FIT_FLOOR(), fit * .94);
   }
   fitHold = fit;
-  { const b = placeBand(), sig = b ? Math.round(b.top) + '|' + Math.round(b.bottom) + '|' + S.mode : ''; if (sig !== bandSig) { bandSig = sig; tableDirty = true; } } // the place marks follow the free band
+  {
+    const b = placeBand(), p0 = L.piles.t0 || { x: 0, y: 0 };
+    const sig = (b ? Math.round(b.top) + '|' + Math.round(b.bottom) : '') + '|' + S.mode + '|' + L.cw + '|' + p0.x + '|' + p0.y;
+    if (sig !== bandSig) { bandSig = sig; tableDirty = true; }
+  }
   if (lastCw !== L.cw) { sprites.clear(); lastCw = L.cw; }
   targets = computeTargets();
   const t = now(), rm = reducedMotion();
@@ -3340,52 +3415,112 @@ function relayout(instant) {
       const p = dispPos(u, t); const dist = Math.hypot(T.x - p.x, T.y - p.y);
       d.sx = p.x; d.sy = p.y; d.tx = T.x; d.ty = T.y; d.t0 = t + (rm ? 0 : delay); d.dur = rm ? 0 : glideMs(dist, .3, 190, 420);
       d.back = false; d.arc = rm ? 0 : clamp(dist * .1, 0, L.ch * .45); d.spin = rm ? 0 : clamp((T.x - p.x) / Math.max(1, W), -1, 1) * .16;
-      if (!rm && T.pile && kindOf(T.pile) === 'found' && d.pile !== T.pile) landFx.push({ u, at: d.t0 + d.dur });
+      if (!rm && T.pile && kindOf(T.pile) === 'found' && d.pile !== T.pile && !suppressLandFx.has(u)) {
+        landFx.push({ u, at: d.t0 + d.dur, milestone: milestoneLandFx.has(u) || card(u).r === 13 });
+      }
     }
     d.pile = T.pile;
     if (d.up !== S.up[u]) { d.up = S.up[u]; d.f0 = rm ? -1e9 : t + delay; }
   }
-  animDelay = {};
+  // Sync newly spawned scoreFx floaters to card arrival while honoring w4b S3-14 lifetime window.
+  for (const q of scoreFx) {
+    if (q.synced) continue;
+    q.synced = true;
+    const d = q.uid >= 0 ? D[q.uid] : null;
+    if (d && d.dur > 0) q.t0 = d.t0 > t ? (d.t0 + d.dur - 30) : Math.min(t + 220, d.t0 + d.dur - 30);
+  }
+  animDelay = {}; suppressLandFx.clear(); milestoneLandFx.clear();
   startLoop();
 }
 // How long a card glides to its place. Farther is slower, between lo and hi; a card already within 20 px of its place settles in as little as 90 ms
 // instead of waiting out the floor, so a drop that lands right on the slot is not followed by a pause.
 const GLIDE_NEAR = 20, GLIDE_MIN = 90;
 const glideMs = (dist, k, lo, hi) => (dist < GLIDE_NEAR ? GLIDE_MIN + dist * (lo - GLIDE_MIN) / GLIDE_NEAR : clamp(170 + dist * k, lo, hi));
-let landFx = [], fx = [];
-function glints(x, y, n, spread, t0) {
-  if (lowFx) return;
-  for (let i = 0; i < n; i++) {
-    const a = Math.random() * Math.PI * 2, v = spread * (.35 + Math.random() * .65);
-    fx.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - spread * .3, t0: t0 + Math.random() * 60, life: 420 + Math.random() * 380, r: 1.2 + Math.random() * 2.4 });
+// Bounded zero-GC dark-haloed source-over VFX pools (CD-WF4-06: hard cap <=64 sparks, <=8 rings, zero additive whiteout).
+const MAX_SPARKS = 64, MAX_RINGS = 8;
+const sparkPool = Array.from({ length: MAX_SPARKS }, () => ({ active: false, x: 0, y: 0, vx: 0, vy: 0, t0: 0, life: 0, r: 0, jade: false }));
+const ringPool = Array.from({ length: MAX_RINGS }, () => ({ active: false, x: 0, y: 0, w: 0, h: 0, t0: 0, life: 0, milestone: false }));
+let landFx = [], sparkCursor = 0, ringCursor = 0;
+function activeSparkCount() { let n = 0; for (let i = 0; i < MAX_SPARKS; i++) if (sparkPool[i].active) n++; return n; }
+function activeRingCount() { let n = 0; for (let i = 0; i < MAX_RINGS; i++) if (ringPool[i].active) n++; return n; }
+function clearTransientFx(hideToast) {
+  scoreFx = []; landFx = []; steam = []; shakes = {};
+  for (let i = 0; i < MAX_SPARKS; i++) sparkPool[i].active = false;
+  for (let i = 0; i < MAX_RINGS; i++) ringPool[i].active = false;
+  if (hideToast) { clearTimeout(toastTimer); toastTimer = 0; toastEl.classList.remove('on'); tipHide(); }
+}
+function glints(x, y, n, spread, t0, milestone, rect) {
+  if (lowFx || reducedMotion()) return;
+  const rg = ringPool[ringCursor]; ringCursor = (ringCursor + 1) % MAX_RINGS;
+  rg.active = true; rg.x = rect ? rect.x : x - L.cw / 2; rg.y = rect ? rect.y : y - L.ch * .35;
+  rg.w = rect ? rect.w : L.cw; rg.h = rect ? rect.h : L.ch;
+  rg.t0 = t0; rg.life = milestone ? 340 : 180; rg.milestone = !!milestone;
+  const count = Math.min(n, MAX_SPARKS);
+  for (let i = 0; i < count; i++) {
+    const sp = sparkPool[sparkCursor]; sparkCursor = (sparkCursor + 1) % MAX_SPARKS;
+    const a = (i / count) * Math.PI * 2 + (Math.random() - .5) * .45;
+    const v = spread * (milestone ? .75 + Math.random() * .85 : .55 + Math.random() * .7);
+    sp.active = true; sp.x = x; sp.y = y; sp.vx = Math.cos(a) * v; sp.vy = Math.sin(a) * v - spread * .2;
+    sp.t0 = t0 + Math.random() * 45; sp.life = (milestone ? 520 : 380) + Math.random() * 240;
+    sp.r = (milestone ? 2.2 : 1.5) + Math.random() * (milestone ? 2.2 : 1.5); sp.jade = !!milestone && (i % 3 === 0);
   }
 }
 function drawScoreFx(t) {
   scoreFx = scoreFx.filter((q) => t < q.t0 + SCORE_FX_LIFE);
-  ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; ctx.font = '700 ' + clamp(L.cw * .3, 13, 24) + 'px ' + SERIF;
+  const fs = clamp(L.cw * .3, 13, 24), pileSeen = {};
+  ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; ctx.font = '700 ' + fs + 'px ' + SERIF;
   for (const q of scoreFx) {
     if (t < q.t0 || !L.piles[q.pile]) continue;
-    const k = (t - q.t0) / SCORE_FX_LIFE, b = L.piles[q.pile], c = b.cards.length ? b.cards[b.cards.length - 1] : { x: b.x, y: b.y, w: L.cw, h: L.ch };
-    const x = c.x + c.w / 2, y = c.y + c.h * .08 - L.ch * .4 * k;
-    ctx.globalAlpha = k < .15 ? k / .15 : 1 - ((k - .15) / .85) ** 2; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(20,10,0,.75)'; ctx.strokeText(q.text, x, y);
+    const k = clamp((t - q.t0) / SCORE_FX_LIFE, 0, 1), b = L.piles[q.pile], c = b.cards.length ? b.cards[b.cards.length - 1] : { x: b.x, y: b.y, w: L.cw, h: L.ch };
+    const idx = pileSeen[q.pile] || 0; pileSeen[q.pile] = idx + 1;
+    const startY = Math.max(28, c.y + c.h * .28) + idx * 18;
+    const minY = Math.max(14, fs * .85);
+    const rise = Math.min(L.ch * .28, Math.max(0, startY - minY));
+    const x = c.x + c.w / 2, y = Math.max(minY, startY - rise * ease(k));
+    ctx.globalAlpha = k < .15 ? k / .15 : 1 - ((k - .15) / .85) ** 2; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(20,10,0,.78)'; ctx.strokeText(q.text, x, y);
     ctx.fillStyle = q.neg ? '#FF8F7E' : '#F8E7A6'; ctx.fillText(q.text, x, y);
   }
   ctx.restore();
 }
 function drawFx(t) {
   if (landFx.length) {
-    landFx = landFx.filter((q) => { if (t < q.at) return true; const d = D[q.u]; if (d) glints(d.tx + L.cw / 2, d.ty + L.ch * .3, 14, L.cw * 1.4, q.at); return false; });
+    landFx = landFx.filter((q) => {
+      if (t < q.at) return true;
+      const d = D[q.u];
+      if (d) glints(d.tx + L.cw / 2, d.ty + L.ch * .35, q.milestone ? 14 : 5, L.cw * (q.milestone ? 1.5 : 1.05), q.at, q.milestone, { x: d.tx, y: d.ty, w: L.cw, h: L.ch });
+      return false;
+    });
   }
   if (scoreFx.length) drawScoreFx(t);
-  if (!fx.length) return;
-  fx = fx.filter((p) => t < p.t0 + p.life);
-  ctx.save(); ctx.globalCompositeOperation = 'lighter';
-  for (const p of fx) {
-    if (t < p.t0) continue; const k = (t - p.t0) / p.life, s = (t - p.t0) / 1000;
-    const x = p.x + p.vx * s, y = p.y + p.vy * s + 260 * s * s, r = p.r * (1 - k * .6), a = (1 - k) * .95;
-    ctx.fillStyle = 'rgba(255,214,120,' + a.toFixed(3) + ')';
-    ctx.beginPath(); ctx.moveTo(x, y - r * 3); ctx.lineTo(x + r * .6, y); ctx.lineTo(x, y + r * 3); ctx.lineTo(x - r * .6, y); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(x - r * 3, y); ctx.lineTo(x, y + r * .6); ctx.lineTo(x + r * 3, y); ctx.lineTo(x, y - r * .6); ctx.closePath(); ctx.fill();
+  let hasRing = false, hasSpark = false;
+  for (let i = 0; i < MAX_RINGS; i++) if (ringPool[i].active) { if (t >= ringPool[i].t0 + ringPool[i].life) ringPool[i].active = false; else hasRing = true; }
+  for (let i = 0; i < MAX_SPARKS; i++) if (sparkPool[i].active) { if (t >= sparkPool[i].t0 + sparkPool[i].life) sparkPool[i].active = false; else hasSpark = true; }
+  if (!hasRing && !hasSpark) return;
+  ctx.save(); ctx.globalCompositeOperation = 'source-over';
+  if (hasRing) {
+    for (let i = 0; i < MAX_RINGS; i++) {
+      const rg = ringPool[i]; if (!rg.active || t < rg.t0) continue;
+      const k = clamp((t - rg.t0) / rg.life, 0, 1), a = Math.pow(1 - k, 1.8);
+      const grow = rg.milestone ? (.06 + k * .22) : (.02 + k * .12);
+      const rx = rg.x - rg.w * grow * .5, ry = rg.y - rg.h * grow * .5, rw = rg.w * (1 + grow), rh = rg.h * (1 + grow);
+      rrect(ctx, rx, ry, rw, rh, L.cw * .09);
+      ctx.globalAlpha = a * .52; ctx.strokeStyle = 'rgba(42,26,8,.75)'; ctx.lineWidth = rg.milestone ? 5.5 : 4; ctx.stroke();
+      ctx.globalAlpha = a * (rg.milestone ? .92 : .78); ctx.strokeStyle = rg.milestone ? '#5FE0B8' : '#F8DF8A'; ctx.lineWidth = rg.milestone ? 2.6 : 1.8; ctx.stroke();
+    }
+  }
+  if (hasSpark) {
+    for (let i = 0; i < MAX_SPARKS; i++) {
+      const p = sparkPool[i]; if (!p.active || t < p.t0) continue;
+      const k = clamp((t - p.t0) / p.life, 0, 1), s = (t - p.t0) / 1000, dragK = (1 - Math.exp(-5 * s)) / 5;
+      const x = p.x + p.vx * dragK, y = p.y + p.vy * dragK + 90 * s * s, r = p.r * (1 - k * .5), a = Math.pow(1 - k, 2.2) * .95;
+      ctx.globalAlpha = a;
+      ctx.beginPath();
+      ctx.moveTo(x, y - r * 2.8); ctx.lineTo(x + r * .65, y - r * .65); ctx.lineTo(x + r * 2.8, y); ctx.lineTo(x + r * .65, y + r * .65);
+      ctx.lineTo(x, y + r * 2.8); ctx.lineTo(x - r * .65, y + r * .65); ctx.lineTo(x - r * 2.8, y); ctx.lineTo(x - r * .65, y - r * .65);
+      ctx.closePath();
+      ctx.lineWidth = 1.6; ctx.strokeStyle = 'rgba(42,26,8,.55)'; ctx.stroke();
+      ctx.fillStyle = p.jade ? '#5FE0B8' : '#F8DF8A'; ctx.fill();
+    }
   }
   ctx.restore();
 }
@@ -3425,7 +3560,7 @@ const markDirty = startLoop;
 function tweensActive(t) {
   if (!S) return false;
   for (let u = 0; u < S.cards.length; u++) { const d = D[u]; if (d && (t < d.t0 + d.dur || t < d.f0 + FLIP_MS)) return true; }
-  return landFx.length > 0 || fx.length > 0 || scoreFx.length > 0;
+  return landFx.length > 0 || activeSparkCount() > 0 || activeRingCount() > 0 || scoreFx.length > 0;
 }
 let frozenAt = null, modalAnimUntil = 0;
 const fstat = { n: 0, sum: 0, max: 0, xs: [] }; // CPU time spent drawing frames, for the performance tests
@@ -3434,16 +3569,32 @@ let lowFx = /[?&]fx=low\b/.test(location.search), fxEma = 0;
 function loop() {
   rafId = 0; if (frozenAt !== null) return; const t = now();
   frame(t); const ft = now() - t; fstat.n++; fstat.sum += ft; if (ft > fstat.max) fstat.max = ft; if (fstat.xs.length < 4000) fstat.xs.push(ft);
-  fxEma = fxEma * .95 + ft * .05; if (!lowFx && fstat.n > 60 && fxEma > 12) { lowFx = true; fx = []; }
+  fxEma = fxEma * .95 + ft * .05; if (!lowFx && fstat.n > 60 && fxEma > 12) { lowFx = true; for (let i = 0; i < MAX_SPARKS; i++) sparkPool[i].active = false; for (let i = 0; i < MAX_RINGS; i++) ringPool[i].active = false; }
   // frame() may already have queued the next frame (startLoop); never queue a second one
   if (!rafId && (tweensActive(t) || drag || (cascade && !cascade.calm) || steam.length || Object.keys(shakes).length || (!reducedMotion() && hintState && hintState.until > t))) rafId = requestAnimationFrame(loop);
 }
 function drawTableLayer() {
   tctx.setTransform(DPR, 0, 0, DPR, 0, 0); drawTable(tctx, settings.table, W, H, placeBand()); tableDirty = false;
 }
+function drawOpenTray(x, y, cw, ch, stroke) {
+  const tick = Math.max(5, Math.round(cw * .15)), r = cw * .07;
+  ctx.save(); ctx.strokeStyle = stroke; ctx.lineWidth = Math.max(1.2, cw * .018); ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x + 1, y + tick); ctx.lineTo(x + 1, y + r); ctx.arcTo(x + 1, y + 1, x + tick, y + 1, r); ctx.lineTo(x + tick, y + 1);
+  ctx.moveTo(x + cw - tick, y + 1); ctx.lineTo(x + cw - r, y + 1); ctx.arcTo(x + cw - 1, y + 1, x + cw - 1, y + tick, r); ctx.lineTo(x + cw - 1, y + tick);
+  ctx.moveTo(x + cw - 1, y + ch - tick); ctx.lineTo(x + cw - 1, y + ch - r); ctx.arcTo(x + cw - 1, y + ch - 1, x + cw - tick, y + ch - 1, r); ctx.lineTo(x + cw - tick, y + ch - 1);
+  ctx.moveTo(x + tick, y + ch - 1); ctx.lineTo(x + r, y + ch - 1); ctx.arcTo(x + 1, y + ch - 1, x + 1, y + ch - tick, r); ctx.lineTo(x + 1, y + ch - tick);
+  ctx.stroke(); ctx.restore();
+}
 function brassPlaceholder(id, b) {
   const { cw, ch } = L; const k = kindOf(id); const plate = artImg(k === 'cell' ? 'brass-cell' : 'brass-slot');
   if (!plate || !TABLE_LOOK[settings.table]) return false;
+  // Non-droppable empty Klondike Waste & depleted non-recyclable Stock render as flat, recessed-free open corner-tick trays (W6-S4-05).
+  const nonDrop = k === 'waste' || (k === 'stock' && S.mode === 'klondike' && !S.piles.waste.length) || (k === 'stock' && S.mode === 'spider' && !S.piles.stock.length);
+  if (nonDrop) {
+    drawOpenTray(b.x, b.y, cw, ch, TABLE_LOOK[settings.table].light ? 'rgba(84,60,24,.46)' : 'rgba(233,200,115,.44)');
+    return true;
+  }
   ctx.save(); ctx.fillStyle = TABLE_LOOK[settings.table].light ? 'rgba(20,12,4,.3)' : 'rgba(0,0,0,.2)'; rrect(ctx, b.x + 2, b.y + 2, cw - 4, ch - 4, cw * .07); ctx.fill();
   ctx.globalAlpha = 1; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(plate, b.x - cw * .02, b.y - ch * .02, cw * 1.04, ch * 1.04); ctx.restore();
   const engrave = (draw) => { // dark recess, then a bright lower lip, like lettering cut into brass
@@ -3467,6 +3618,10 @@ function brassPlaceholder(id, b) {
 function placeholder(id, b) {
   if (brassPlaceholder(id, b)) return;
   const { cw, ch } = L; const ti = tableInfo(); const k = kindOf(id);
+  if (k === 'waste' || (k === 'stock' && S.mode === 'klondike' && !S.piles.waste.length) || (k === 'stock' && S.mode === 'spider' && !S.piles.stock.length)) {
+    drawOpenTray(b.x, b.y, cw, ch, ti.ink);
+    return;
+  }
   rrect(ctx, b.x + 1, b.y + 1, cw - 2, ch - 2, cw * .075);
   ctx.lineWidth = Math.max(1.2, cw * .02); ctx.strokeStyle = ti.ink; ctx.setLineDash(k === 'cell' ? [cw * .08, cw * .06] : []); ctx.stroke(); ctx.setLineDash([]);
   ctx.fillStyle = ti.ink; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -3549,12 +3704,33 @@ function hintArrow(x0, y0, x1, y1, t) {
   ctx.lineTo(x1 - Math.cos(ang + .45) * head, y1 - Math.sin(ang + .45) * head); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.restore();
 }
-// A glowing rim: wide faint strokes under a crisp one. (shadowBlur looks the same but costs a full blur pass a frame.)
-function glowRect(x, y, w, h, color, alpha, width) {
-  ctx.save(); ctx.strokeStyle = color; rrect(ctx, x - 2, y - 2, w + 4, h + 4, L.cw * .09);
-  ctx.globalAlpha = alpha * .18; ctx.lineWidth = width + 9; ctx.stroke();
-  ctx.globalAlpha = alpha * .3; ctx.lineWidth = width + 4; ctx.stroke();
+// 3-shape dark-keylined VFX dictionary (OQ-WF2-01, W6-S4-05):
+// (1) Held / Dragged / Hint Origin: continuous warm gold (#F6C933) backed by dark contrast keyline (#1A1408).
+function glowRect(x, y, w, h, color, alpha, width, keyline = '#1A1408') {
+  ctx.save(); rrect(ctx, x - 2, y - 2, w + 4, h + 4, L.cw * .09);
+  if (keyline) { ctx.strokeStyle = keyline; ctx.globalAlpha = Math.min(1, alpha * .88); ctx.lineWidth = width + 3.2; ctx.stroke(); }
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = alpha * .22; ctx.lineWidth = width + 7; ctx.stroke();
   ctx.globalAlpha = alpha; ctx.lineWidth = width; ctx.stroke(); ctx.restore();
+}
+// (2) Legal Drop / Hint Destination: Thermal Jade (#5FE0B8) inward L-shaped corner snap brackets with #0E241C dark keyline,
+// projected 4 px outside target card bounds and drawn BENEATH dragged/held cards so pips stay unobstructed.
+function drawDropBrackets(x, y, w, h, alpha = 1) {
+  const pad = 4, bx = x - pad, by = y - pad, bw = w + pad * 2, bh = h + pad * 2;
+  const arm = clamp(Math.round(Math.min(w, h) * .28), 11, 24), r = Math.min(L.cw * .085, arm * .45);
+  const trace = () => {
+    ctx.beginPath();
+    ctx.moveTo(bx, by + arm); ctx.lineTo(bx, by + r); ctx.arcTo(bx, by, bx + r, by, r); ctx.lineTo(bx + arm, by);
+    ctx.moveTo(bx + bw - arm, by); ctx.lineTo(bx + bw - r, by); ctx.arcTo(bx + bw, by, bx + bw, by + r, r); ctx.lineTo(bx + bw, by + arm);
+    ctx.moveTo(bx + bw, by + bh - arm); ctx.lineTo(bx + bw, by + bh - r); ctx.arcTo(bx + bw, by + bh, bx + bw - r, by + bh, r); ctx.lineTo(bx + bw - arm, by + bh);
+    ctx.moveTo(bx + arm, by + bh); ctx.lineTo(bx + r, by + bh); ctx.arcTo(bx, by + bh, bx, by + bh - r, r); ctx.lineTo(bx, by + bh - arm);
+  };
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  trace();
+  ctx.strokeStyle = '#0E241C'; ctx.globalAlpha = Math.min(1, alpha * .92); ctx.lineWidth = 6.5; ctx.stroke();
+  ctx.strokeStyle = '#5FE0B8'; ctx.globalAlpha = alpha * .26; ctx.lineWidth = 9; ctx.stroke();
+  ctx.globalAlpha = alpha; ctx.lineWidth = 3.5; ctx.stroke();
+  ctx.restore();
 }
 function frame(t) {
   if (!S || !L) return;
@@ -3562,7 +3738,21 @@ function frame(t) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
   const { cw, ch } = L;
   const cerK = cascade ? (cascade.calm ? .55 : clamp((t - cascade.t0) / 350, 0, 1)) : 0;
-  if (cerK < 1) { ctx.globalAlpha = 1 - cerK; for (const id in L.piles) placeholder(id, L.piles[id]); ctx.globalAlpha = 1; }
+  if (cerK < 1) {
+    ctx.globalAlpha = 1 - cerK;
+    for (const id in L.piles) placeholder(id, L.piles[id]);
+    // FreeCell top-row brass divider tick between free cells and foundations (CD-WF2-05).
+    if (S.mode === 'freecell' && L.arr === 'top' && L.piles.c3 && L.piles.f0) {
+      const lp = settings.leftHanded ? L.piles.f3 : L.piles.c3, rp = settings.leftHanded ? L.piles.c0 : L.piles.f0;
+      const mx = Math.round((lp.x + cw + rp.x) / 2), y0 = lp.y + Math.round(ch * .12), y1 = lp.y + Math.round(ch * .88), my = (y0 + y1) / 2;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(233,200,115,.65)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(mx, y0); ctx.lineTo(mx, y1); ctx.stroke();
+      ctx.fillStyle = '#E9C873'; ctx.beginPath(); ctx.moveTo(mx, my - 4); ctx.lineTo(mx + 3.5, my); ctx.lineTo(mx, my + 4); ctx.lineTo(mx - 3.5, my); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  }
   if (cerK > 0) {
     const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .2, W / 2, H / 2, Math.hypot(W, H) * .6);
     g.addColorStop(0, 'rgba(0,0,0,' + (.08 * cerK) + ')'); g.addColorStop(1, 'rgba(0,0,0,' + (.5 * cerK) + ')');
@@ -3575,6 +3765,7 @@ function frame(t) {
   }
   const skip = new Set();
   if (drag) for (const u of drag.run) skip.add(u);
+  if (held && S.piles[held.from]) for (let i = held.index; i < S.piles[held.from].length; i++) skip.add(S.piles[held.from][i]);
   if (cascade) for (const u of cascade.gone) skip.add(u);
   const moving = [];
   for (const id of pileIds(S.mode)) {
@@ -3636,26 +3827,42 @@ function frame(t) {
       const m = hintState.cur; const src = L.piles[m.from].cards; const first = src[m.index]; const last = src[src.length - 1];
       if (first) glowRect(first.x, first.y, cw, last.y + ch - first.y, '#F6C933', a, 3);
       const dst = L.piles[m.to]; const dl = dst.cards.length ? dst.cards[dst.cards.length - 1] : { x: dst.x, y: dst.y };
-      glowRect(dl.x, dl.y, cw, ch, '#FFF3D0', .35 + .4 * a, 2);
+      drawDropBrackets(dl.x, dl.y, cw, ch, .45 + .45 * a);
       if (first) hintArrow(first.x + cw / 2, first.y + Math.min(ch, L.fanUp) * .5, dl.x + cw / 2, dl.y + ch * .45, t);
     } else if (hintState.stockHint && L.piles.stock) {
       const sb = L.piles.stock, stc = sb.cards && sb.cards.length ? sb.cards[sb.cards.length - 1] : sb;
       glowRect(stc.x, stc.y, cw, ch, '#F6C933', a, 3);
     }
   }
-  if (held) {
-    const cs = L.piles[held.from].cards;
-    for (let i = held.index; i < cs.length; i++) { /* drawn lifted below */ }
-    const first = cs[held.index]; if (first) glowRect(first.x, first.y, cw, cs[cs.length - 1].y + ch - first.y, '#F6C933', 1, 3);
+  if (held && S.piles[held.from] && L.piles[held.from]) {
+    const p = S.piles[held.from], cs = L.piles[held.from].cards;
+    const hLift = reducedMotion() ? 0 : .85, dy = reducedMotion() ? 0 : -Math.max(4, Math.round(cw * .06));
+    for (let i = held.index; i < p.length; i++) {
+      const c = cs[i]; if (c) drawCardAt(p[i], c.x, c.y + dy, t, hLift);
+    }
+    const first = cs[held.index], last = cs[cs.length - 1];
+    if (first && last) glowRect(first.x, first.y + dy, cw, last.y + ch - first.y, '#F6C933', 1, 3);
   }
+  // (3) Sky Cyan (#4FC3FF) double-line keyboard/gamepad cursor with #0B1A24 dark inner keyline (OQ-WF2-01).
   if (kbMode && cursor.pile && L.piles[cursor.pile]) {
     const b = L.piles[cursor.pile]; const c = b.cards[cursor.depth] || b.cards[b.cards.length - 1] || { x: b.x, y: b.y };
     const hgt = b.cards.length && kindOf(cursor.pile) === 'tab' ? b.cards[b.cards.length - 1].y + ch - c.y : ch;
     ctx.save(); rrect(ctx, c.x - 5, c.y - 5, cw + 10, hgt + 10, cw * .11);
-    ctx.strokeStyle = 'rgba(255,248,230,.85)'; ctx.lineWidth = 5; ctx.stroke();
-    ctx.strokeStyle = '#B8862C'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.restore();
+    ctx.strokeStyle = '#0B1A24'; ctx.lineWidth = 5.5; ctx.stroke();
+    ctx.strokeStyle = '#4FC3FF'; ctx.lineWidth = 2.6; ctx.stroke(); ctx.restore();
+  }
+  // Live Thermal Jade drop brackets when keyboard-held stack hovers a legal target pile (layered above cursor corners, beneath any drag).
+  if (kbMode && held && cursor.pile && cursor.pile !== held.from && L.piles[cursor.pile] && S.piles[held.from]) {
+    const run = S.piles[held.from].slice(held.index);
+    if (canDrop(run, cursor.pile, held.from)) {
+      const tb = L.piles[cursor.pile], tc = tb.cards.length ? tb.cards[tb.cards.length - 1] : tb;
+      drawDropBrackets(tc.x, tc.y, cw, ch, .95);
+    }
   }
   if (drag) {
+    // Draw Thermal Jade drop-target corner brackets BENEATH dragged stack so dragged card pips stay 100% unobstructed (W6-S4-05, OQ-WF2-01).
+    const tg = dropTarget(drag);
+    if (tg) { const b = L.piles[tg], tc = b.cards.length ? b.cards[b.cards.length - 1] : b; drawDropBrackets(tc.x, tc.y, cw, ch, .95); }
     if (reducedMotion()) { drag.tilt = 0; drag.vx = 0; }
     else { drag.tilt = (drag.tilt || 0) * .82 + clamp((drag.vx || 0) * .003, -.12, .12) * .18; drag.vx = (drag.vx || 0) * .7; }
     const n = drag.run.length, hgt = (n - 1) * (drag.fan || 0) + ch;
@@ -3663,10 +3870,8 @@ function frame(t) {
     if (!lowFx && !reducedMotion() && drag.trail) drag.trail.forEach((q, k) => { ctx.globalAlpha = .12 + k * .08; ctx.drawImage(faceSprite(drag.run[0]), q.x, q.y, cw, ch); });
     ctx.globalAlpha = 1;
     drag.run.forEach((u, i) => drawCardAt(u, drag.x, drag.y + i * (drag.fan || 0), t, 1.35));
-    glowRect(drag.x - cw * .035, drag.y - ch * .035, cw * 1.07, hgt + ch * .07, '#F6C933', .75, 2.5);
+    glowRect(drag.x - cw * .035, drag.y - ch * .035, cw * 1.07, hgt + ch * .07, '#F6C933', .82, 2.5);
     ctx.restore();
-    const tg = dropTarget(drag); // the rim goes over the held card so it shows even where the card covers the pile
-    if (tg) { const b = L.piles[tg], tc = b.cards.length ? b.cards[b.cards.length - 1] : b; glowRect(tc.x, tc.y, cw, ch, '#FFE08A', .9, 2.5); }
     if (!reducedMotion() && Math.abs(drag.tilt) > .002) startLoop();
   }
   drawFx(t);
@@ -3750,7 +3955,7 @@ function ambientSync() {
 const CER = { gather: 950, hold: 650, spray: 2600, steamEvery: 90, stampR: .42 }; // steam rises from the ring's centre every steamEvery ms; the Spa City mark is stamped at stampR of the ring's radius
 function startCascade() {
   if (!S) return;
-  tipHide();
+  clearTransientFx(true);
   if (reducedMotion()) {
     const cx = W / 2, cy = H * .5, reach = Math.hypot(L.cw, L.ch) * .5 + 10, R = Math.max(L.ch, Math.min(W / 2, H / 2) - reach);
     const run = { calm: true, t0: now(), cx, cy, R, gone: new Set(), stampA: 1, steamed: 0, timer: 0 };
@@ -4802,7 +5007,9 @@ const TILES = [
   { mode: 'yukon', sub: 'Quiet as the Quapaw', desc: 'No stock: move any face-up card along with everything on top of it.', chips: [['Play', {}]] },
 ];
 const HANDS = { klondike: [[13, 3], [12, 2], [11, 0], 'back'], freecell: [[1, 3], [1, 2], [1, 1], [1, 0]], spider: [[13, 3], [12, 3], [11, 3], [10, 3]], yukon: ['back', 'back', [13, 2], [12, 0]] };
+let titleHandsPainted = 0;
 function paintHands(scope = '#tiles') {
+  if (scope === '#tiles') titleHandsPainted++;
   document.querySelectorAll(scope + ' canvas[data-hand]').forEach((c) => {
     const w = c.clientWidth, h = c.clientHeight; if (!w) return; const dpr = Math.min(2, window.devicePixelRatio || 1);
     c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -4890,7 +5097,7 @@ function showTitle(on) {
 }
 
 // --- Dialogs ---
-const sheet = $('#sheet'), modalEl = $('#modal');
+const sheet = $('#sheet'), sheetFrame = $('#sheetFrame'), modalEl = $('#modal');
 let modalReturn = null, modalOpener = null;
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
 function closeModal(back) {
@@ -4932,7 +5139,9 @@ function openModal(kind, data) {
   }
   if (modalKind && kind !== modalKind && (['settings', 'backs', 'stats', 'help', 'deal', 'daily', 'records'].includes(kind) && modalKind === 'menu' || (modalKind === 'stuck' && kind === 'confirm'))) modalReturn = modalKind;
   modalKind = kind; syncInert();
-  sheet.className = 'sheet' + (kind === 'backs' || kind === 'help' ? ' wide' : '') + (kind === 'win' ? ' win' : '') + (kind === 'win' && !reducedMotion() ? ' rise' : '');
+  const cls = (kind === 'backs' || kind === 'help' ? ' wide' : '') + (kind === 'win' ? ' win' : '') + (kind === 'win' && !reducedMotion() ? ' rise' : '');
+  sheetFrame.className = 'sheet-frame' + cls;
+  sheet.className = 'sheet' + cls;
   if (kind === 'win') {
     modalAnimUntil = reducedMotion() ? 0 : now() + 1250;
     if (lastWin && !lastWin.replay && (lastWin.totalWins || 0) > 0) setTimeout(() => { if (modalKind === 'win') sfx('place', 3); }, reducedMotion() ? 150 : 650); // the ticket punch (always audible regardless of reducedMotion; omitted on 0-win/replay tickets)
@@ -5090,7 +5299,7 @@ const MODALS = {
 };
 const ACTIONS = {
   resetSaved: () => { // a table that will not come right: forget it and go back to the title
-    clearTimeout(saveTimer); saveTimer = 0; clearTimeout(winTimer); winTimer = 0; finishRun = false; clearStuck(); tipHide(); pullbackHold.clear();
+    clearTimeout(saveTimer); saveTimer = 0; clearTimeout(winTimer); winTimer = 0; finishRun = false; clearStuck(); tipHide(); pullbackHold.clear(); clearTransientFx(false);
     S = null; undoStack = []; redoStack = []; held = null; drag = null; cascade = null; hintState = null;
     save('current', null); closeModal(); showTitle(true); toast('Saved game cleared.');
   },
@@ -5191,10 +5400,11 @@ function paintPickers() {
 }
 function saveSettings() { save('settings', settings); }
 function applyLook() {
-  steam = []; fx = []; landFx = []; scoreFx = [];
+  clearTransientFx(false);
   document.documentElement.classList.toggle('lh', !!settings.leftHanded); const r = stage.getBoundingClientRect();
   if (Math.round(r.width) !== W || Math.round(r.height) !== H) { resize(); updateHUD(); return; }
   loadArt(essentialArt()); sprites.clear(); tableDirty = true; relayout(true); markDirty(); updateHUD();
+  if (titleOn) paintHands();
 }
 // Dragging the master volume plays a card cue now and then, so the level can be judged by ear.
 let lastPreview = 0;
@@ -5204,11 +5414,11 @@ function syncMotion() {
   document.documentElement.classList.toggle('rm', rm);
   const bh = $('#bHint'); if (bh) bh.classList.toggle('st', rm);
   if (rm) {
-    steam = []; fx = []; landFx = []; scoreFx = []; shakes = {};
+    clearTransientFx(false);
     if (drag) { drag.tilt = 0; drag.vx = 0; }
     if (skyRaf) { cancelAnimationFrame(skyRaf); skyRaf = 0; }
     if (titleOn) drawSky(now());
-    if (modalKind === 'win') { sheet.classList.remove('rise'); modalAnimUntil = 0; }
+    if (modalKind === 'win') { sheet.classList.remove('rise'); sheetFrame.classList.remove('rise'); modalAnimUntil = 0; }
     scheduleHintClear();
   } else {
     clearTimeout(hintClearTimer); hintClearTimer = 0;
@@ -5283,7 +5493,7 @@ window.__game = {
     if (s.grade) { st.winnable = true; st.grade = s.grade; }
     if (s.score != null) st.score = s.score; if (s.moves != null) st.moves = s.moves;
     if (s.recycles != null) st.recycles = s.recycles;
-    S = st; scoreFx = []; undoStack = []; redoStack = []; pullbackHold.clear(); held = null; drag = null; cascade = null; hintState = null; lastWin = null; clearStuck();
+    S = st; clearTransientFx(false); undoStack = []; redoStack = []; pullbackHold.clear(); held = null; drag = null; cascade = null; hintState = null; lastWin = null; clearStuck();
     clearTimeout(winTimer); winTimer = 0; finishRun = false;
     closeModal(); showTitle(false); tipHide(); tipGoalShown = null; relayout(true); updateHUD(); markDirty();
     return true;
@@ -5319,6 +5529,32 @@ window.__game = {
     return m.map((v) => v / k);
   },
   placeMarks: () => (placeDrawn ? JSON.parse(JSON.stringify(placeDrawn)) : null),
+  inlayMetrics: () => (lastInlay ? JSON.parse(JSON.stringify(lastInlay)) : null),
+  vfxCounts: () => ({ sparks: activeSparkCount(), rings: activeRingCount(), maxSparks: MAX_SPARKS, maxRings: MAX_RINGS, composite: 'source-over' }),
+  titleHandsPainted: () => titleHandsPainted,
+  cardGeometry(w, h, large) {
+    const { rs: rsK, ss: ssK } = idxScale(w, large), rs = w * rsK, ss = w * ssK, ib = indexBottom(w, h, large);
+    const bs = w * .155, bss = w * .125;
+    if (!idxMeasure) idxMeasure = document.createElement('canvas').getContext('2d');
+    idxMeasure.font = '700 ' + rs + 'px ' + SERIF;
+    const topRankW = idxMeasure.measureText('10').width * .84;
+    idxMeasure.font = '700 ' + bs + 'px ' + SERIF;
+    const botRankW = idxMeasure.measureText('10').width * .84, botDesc = idxMeasure.measureText('Q').actualBoundingBoxDescent || bs * .22;
+    const botIdxH = h * .02 + bs * .86 + botDesc;
+    const topBoxes = [
+      { x: w * .06, y: h * .02, w: topRankW, h: ib.full - h * .02 },
+      { x: w - w * .07 - ss * .9, y: h * .03 + rs * .1, w: ss * .9, h: ss },
+    ];
+    const botBoxes = [
+      { x: w - w * .06 - botRankW, y: h - botIdxH, w: botRankW, h: botIdxH - h * .02 },
+      { x: w * .07, y: h - (h * .025 + bss + bs * .08), w: bss * .9, h: bss },
+    ];
+    const ranks = {};
+    for (let r = 2; r <= 10; r++) {
+      ranks[r] = pipLayout(r, w, h, large).map((p) => ({ x: p.x - p.size * .45, y: p.y - p.size / 2, w: p.size * .9, h: p.size }));
+    }
+    return { w, h, large: !!large, topBoxes, botBoxes, ranks, courtFocus: Object.assign({}, COURT_FOCUS) };
+  },
   cuesPlayed(clear) { const r = CUE_LOG.slice(); if (clear) CUE_LOG.length = 0; return r; },
   frameStats(reset) {
     const xs = fstat.xs.slice().sort((a, b) => a - b), q = (f) => xs.length ? +xs[Math.min(xs.length - 1, Math.floor(xs.length * f))].toFixed(2) : 0;

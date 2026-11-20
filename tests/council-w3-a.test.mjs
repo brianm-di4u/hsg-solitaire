@@ -183,12 +183,12 @@ export const tests = [
       await t.waitForStable();
       const lay = await t.game('getLayout');
       const src = lay.piles.t1.cards[0], dst = lay.piles.t0.cards[0];
-      // brass pixels in a strip above the target card, where the held card does not cover the rim
-      const brass = (b) => t.page.evaluate((b) => {
-        const cv = document.querySelector('#cv'), c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height;
-        const x = c.getContext('2d'); x.drawImage(cv, 0, 0); const k = cv.width / cv.getBoundingClientRect().width;
-        const d = x.getImageData(Math.max(0, Math.round(b.x * k)), Math.max(0, Math.round(b.y * k)), Math.round(b.w * k), Math.round(b.h * k)).data;
-        let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 235 && d[i + 1] > 195 && d[i + 2] < 175 && d[i + 2] > 90) n++; return n;
+      // Thermal Jade (#5FE0B8, OQ-WF2-01) corner bracket pixels in a strip above the target card, drawn beneath the held stack
+      const jade = (b) => t.page.evaluate((b) => {
+        const cv = document.querySelector('#cv'), r = cv.getBoundingClientRect(), c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height;
+        const x = c.getContext('2d'); x.drawImage(cv, 0, 0); const k = cv.width / r.width;
+        const d = x.getImageData(Math.max(0, Math.round((b.x - r.left) * k)), Math.max(0, Math.round((b.y - r.top) * k)), Math.round(b.w * k), Math.round(b.h * k)).data;
+        let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] < 150 && d[i + 1] > 175 && d[i + 2] > 135 && d[i + 1] > d[i] + 50) n++; return n;
       }, b);
       const strip = { x: dst.x - 8, y: dst.y - 8, w: dst.w + 16, h: 12 };
       const sx = src.x + src.w / 2, sy = src.y + 14;
@@ -196,13 +196,17 @@ export const tests = [
       await t.page.mouse.move(sx, sy + 200, { steps: 6 });
       await t.waitForStable();
       t.equal((await t.state()).dropTarget, null, 'no pile is lit while the card is held away');
-      t.equal(await brass(strip), 0, 'and no brass is drawn above the target');
+      t.equal(await jade(strip), 0, 'and no Thermal Jade bracket is drawn above the target');
       await t.page.mouse.move(dst.x + dst.w / 2, dst.y + dst.h * .55, { steps: 8 });
       await t.page.waitForFunction(() => window.__game.getState().dropTarget === 't0', null, { timeout: 8000 });
       let over = 0; const until = Date.now() + 8000;
-      while (Date.now() < until) { over = await brass(strip); if (over > 30) break; await t.page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r()))); }
+      while (Date.now() < until) { over = await jade(strip); if (over > 30) break; await t.page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r()))); }
+      // Verify the drop brackets render BENEATH the dragged 5H card (zero Thermal Jade bleeding across the dragged card's interior)
+      const interior = { x: dst.x + dst.w * .25, y: dst.y + dst.h * .7, w: dst.w * .5, h: dst.h * .4 };
+      const bleed = await jade(interior);
       await t.page.mouse.up();
-      t.expect(over > 30, 'brass pixels show above the target once the pile is lit (' + over + ')');
+      t.expect(over > 30, 'Thermal Jade corner brackets show above the target once the pile is lit (' + over + ')');
+      t.equal(bleed, 0, 'drop brackets stay strictly beneath the dragged card face (0 jade bleed pixels)');
     },
   },
   {
