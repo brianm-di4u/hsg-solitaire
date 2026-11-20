@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { baseSettings } from './_util.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SHOTS = path.resolve(HERE, '..', '..', '_council', 'hsg-solitaire', 'wave-4b', 'shots');
+const SHOTS = process.env.HS_ARTIFACT_DIR ? path.resolve(process.env.HS_ARTIFACT_DIR, 'wave-4b', 'shots') : path.resolve(HERE, '..', 'screenshots', 'council-waves', 'wave-4b', 'shots');
 const shot = async (t, id, name) => { fs.mkdirSync(SHOTS, { recursive: true }); await t.waitForStable(); await t.page.screenshot({ path: path.join(SHOTS, id + '-' + name + '-' + t.viewport + '.png') }); };
 const MK = 'spa-solitaire:v1:meta';
 const DEAD = { mode: 'klondike', piles: { stock: [], waste: [], t0: ['5C'], t1: ['5S'], t2: [], t3: [], t4: [], t5: [], t6: [] } };

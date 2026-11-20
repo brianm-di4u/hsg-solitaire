@@ -10,8 +10,6 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = process.env.HS_ARTIFACT_DIR ? path.resolve(process.env.HS_ARTIFACT_DIR, 'wave-4', 'shots') : path.resolve(HERE, '..', 'screenshots', 'council-waves', 'wave-4', 'shots');
 const shot = async (t, id, name) => { fs.mkdirSync(SHOTS, { recursive: true }); await t.waitForStable(); await t.page.screenshot({ path: path.join(SHOTS, id + '-' + name + '-' + t.viewport + '.png') }); };
 const MK = 'spa-solitaire:v1:meta';
-// The order of the facts in the page's own list (the game's hooks do not list them)
-const FACT_IDS = [...fs.readFileSync(path.resolve(HERE, '..', 'index.html'), 'utf8').split('const FACTS = [')[1].split('\n];')[0].matchAll(/^\s*\["(hs-\d+)"/gm)].map((m) => m[1]);
 const DEAD = { mode: 'klondike', piles: { stock: [], waste: [], t0: ['5C'], t1: ['5S'], t2: [], t3: [], t4: [], t5: [], t6: [] } };
 const ART = 'Art: painted with AI image tools for this game.';
 
@@ -55,8 +53,9 @@ export const tests = [
     name: 'w4d C4-06 + S2-21 the dead-end dialog shows a fact (a new one first) and the brewery fact says 2013',
     async run(t) {
       await baseSettings(t, { tips: false, motion: 'reduced' });
+      const FACT_IDS = (await t.game('facts')).map((f) => f[0]);
       const i = FACT_IDS.indexOf('hs-0102');
-      t.expect(i >= 0 && FACT_IDS.length === 50, 'the fact list read from the page: ' + FACT_IDS.length + ' facts, brewery at ' + i);
+      t.expect(i >= 0 && FACT_IDS.length === 50, 'the fact list read via window.__game.facts(): ' + FACT_IDS.length + ' facts, brewery at ' + i);
       await t.page.evaluate(([k, seen]) => { const m = JSON.parse(localStorage.getItem(k) || '{}'); m.seenFacts = seen; localStorage.setItem(k, JSON.stringify(m)); }, [MK, FACT_IDS.map((_, n) => n).filter((n) => n !== i)]);
       await t.reload();
       await t.game('setState', DEAD);
@@ -92,6 +91,7 @@ export const tests = [
     viewports: ['desktop'],
     async run(t) {
       await baseSettings(t, { tips: false, motion: 'reduced' });
+      const FACT_IDS = (await t.game('facts')).map((f) => f[0]);
       // Verify hs-0065 (Condie-Bray) and hs-0088 (1927 purchase / 1940s remodel) via dead-end fact cards
       for (const [id, want, forbid] of [
         ['hs-0065', 'Condie-Bray Glass & Paint Co.', 'Condi-Neal'],

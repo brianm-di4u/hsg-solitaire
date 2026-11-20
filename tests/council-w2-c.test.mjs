@@ -393,10 +393,8 @@ export const tests = [
     name: 'w2c S2-01 every tip is twelve words or fewer, and the words follow the input in use',
     viewports: ['desktop'],
     async run(t) {
-      const src = fs.readFileSync(path.join(HERE, '..', 'index.html'), 'utf8');
-      const block = src.slice(src.indexOf('const TIP_GOAL'), src.indexOf('function tipHide'));
-      const lines = [...block.matchAll(/'([A-Z][^'\n]{10,})'/g)].map((m) => m[1]);
-      t.expect(lines.length >= 11, 'found the tip strings: ' + lines.length);
+      const lines = await t.game('tipsCatalog');
+      t.expect(lines.length >= 11, 'found the tip strings via window.__game.tipsCatalog(): ' + lines.length);
       for (const l of lines) t.expect(l.split(/\s+/).length <= 12, '"' + l + '" is ' + l.split(/\s+/).length + ' words');
       await t.game('newGame', { mode: 'klondike', deal: 5 }); await waitCoach(t);
       await t.page.keyboard.press('ArrowRight'); await t.page.click('#coachOk');

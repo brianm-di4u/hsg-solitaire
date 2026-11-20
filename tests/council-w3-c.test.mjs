@@ -175,8 +175,9 @@ export const tests = [
       t.expect(!fs.existsSync(path.join(root, 'research', 'trivia-bank.json')) && !fs.existsSync(path.join(root, 'research', 'visual-style-guide.md')), 'those files really are not here');
       const doc = fs.readFileSync(path.join(root, 'research', 'town-content.md'), 'utf8');
       t.expect(/painted images in `assets\/`/.test(doc) && /six tables/.test(doc) && /not in this repo/.test(doc), 'town-content.md says what shipped');
-      const src = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-      t.expect(!/subset of research\/trivia-bank\.json/.test(src), 'the source comment no longer points at it');
+      const facts = await t.game('facts');
+      t.equal(facts.length, 50, 'window.__game.facts() ships the 50 hand-picked items');
+      t.expect(facts.every((f) => typeof f[4] === 'string' && f[4].trim().length > 0), 'every shipped fact names its source');
     },
   },
   {

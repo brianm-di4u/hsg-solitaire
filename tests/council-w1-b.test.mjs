@@ -1,15 +1,5 @@
 // Council wave 1, batch B: input and fact cards (S1-09, S4-02, P-N03).
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { baseSettings } from './_util.mjs';
-
-const HTML = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html');
-function readFacts() {
-  const src = fs.readFileSync(HTML, 'utf8');
-  const a = src.indexOf('const FACTS = ['); const b = src.indexOf('\n];', a);
-  return (0, eval)('(' + src.slice(a + 'const FACTS = '.length, b + 2) + ')');
-}
 
 export const tests = [
   {
@@ -41,8 +31,9 @@ export const tests = [
   },
   {
     name: 'w1b P-N03 the Arlington card duration matches its dates',
+    viewports: ['desktop'],
     async run(t) {
-      const a = readFacts().find((f) => f[0] === 'hs-0076'); const m = /Begun (\w+)\. (\d+), (\d+), it was completed (\w+)\. (\d+), (\d+)/.exec(a[3]);
+      const a = (await t.game('facts')).find((f) => f[0] === 'hs-0076'); const m = /Begun (\w+)\. (\d+), (\d+), it was completed (\w+)\. (\d+), (\d+)/.exec(a[3]);
       t.expect(!!m, 'hs-0076 explanation has parseable dates');
       const mon = { Oct: 9, Nov: 10 };
       const d0 = new Date(Date.UTC(+m[3], mon[m[1]], +m[2])), d1 = new Date(Date.UTC(+m[6], mon[m[4]], +m[5]));
@@ -55,8 +46,9 @@ export const tests = [
   },
   {
     name: 'w1b S4-02 fact cards are unique and do not repeat or contradict themselves',
+    viewports: ['desktop'],
     async run(t) {
-      const F = readFacts(); const byId = Object.fromEntries(F.map((f) => [f[0], f]));
+      const F = await t.game('facts'); const byId = Object.fromEntries(F.map((f) => [f[0], f]));
       t.equal(new Set(F.map((f) => f[0])).size, F.length, 'card ids are unique');
       t.expect(!byId['hs-0034'], 'national park number card folded into hs-0033');
       t.expect(/18th/.test(byId['hs-0033'][3]), 'hs-0033 keeps the 18th national park fact');

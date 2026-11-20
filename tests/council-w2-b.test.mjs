@@ -13,15 +13,6 @@ const shot = async (t, name) => { fs.mkdirSync(SHOTS, { recursive: true }); awai
 const KEYS = { klondike1: ['klondike', { draw: 1 }], klondike3: ['klondike', { draw: 3 }], yukon: ['yukon', {}], spider1: ['spider', { suits: 1 }], spider2: ['spider', { suits: 2 }] };
 const full = (o) => Object.assign({ draw: 1, suits: 1 }, o);
 
-// The solver and the attempt rule, cut out of index.html, for tests that need no browser.
-function loadSolver() {
-  const html = fs.readFileSync(path.join(HERE, '..', 'index.html'), 'utf8');
-  const cut = (a, b) => html.slice(html.indexOf(a), html.indexOf(b));
-  const code = 'const isObj=(v)=>v&&typeof v==="object";\n' + cut('function mulberry32', 'function todayStr') + cut('const isRed =', '// --- Rule primitives ---') +
-    cut('const makeSolver', '// --- Dead-end search') + cut('const WIN_SEARCH', 'let dealPending') + 'return { newState, makeSolver, WIN_SEARCH, candidateDeal, fnv1a };';
-  return new Function(code)();
-}
-
 // Replay the solver's winning line through the game's own rules, move by move, with auto-move off. The solver also sends
 // safe cards home by itself (an ace or deuce, or both opposite colours close behind), so the replay does the same after each move.
 const replayInPage = async ([mode, opts, deal, budget]) => {
@@ -66,30 +57,33 @@ const replayInPage = async ([mode, opts, deal, budget]) => {
 export const tests = [
   {
     name: 'w2b S3-01 the solver gives the same answer however its work is cut into slices',
-    node: true,
+    viewports: ['desktop'],
     async run(t) {
-      const G = loadSolver();
-      let compared = 0;
-      for (const [key, [mode, o]] of Object.entries(KEYS)) {
-        const opts = full(o), budget = G.WIN_SEARCH[key][0];
-        for (let d = 1; d <= 6; d++) {
-          const deal = d * 7919;
-          const run = (chunk) => {
-            const sv = G.makeSolver(G.newState(mode, opts, deal, null), budget); let r = 'more', calls = 0;
-            while (r === 'more' && calls++ < 1e6) r = sv.step(chunk);
-            return r + ':' + sv.used;
-          };
-          const whole = run(1e9), tiny = run(1), odd = run(37);
-          t.equal(tiny, whole, key + ' deal ' + deal + ' one position at a time = whole search');
-          t.equal(odd, whole, key + ' deal ' + deal + ' slices of 37 = whole search');
-          compared++;
+      const res = await t.page.evaluate(([keys]) => {
+        const g = window.__game, cfg = g.winConfig(), fails = [];
+        let compared = 0;
+        for (const [key, [mode, o]] of Object.entries(keys)) {
+          const opts = Object.assign({ draw: 1, suits: 1 }, o), budget = cfg[key][0];
+          for (let d = 1; d <= 6; d++) {
+            const deal = d * 7919;
+            const run = (chunk) => { const r = g.solveChunked(mode, opts, deal, budget, chunk); return r.result + ':' + r.used; };
+            const whole = run(1e9), tiny = run(1), odd = run(37);
+            if (tiny !== whole) fails.push(key + ' deal ' + deal + ' tiny ' + tiny + ' != ' + whole);
+            if (odd !== whole) fails.push(key + ' deal ' + deal + ' odd ' + odd + ' != ' + whole);
+            compared++;
+          }
         }
-      }
-      t.expect(compared >= 30, 'compared ' + compared + ' searches');
-      const sv = G.makeSolver(G.newState('klondike', full({}), 5, null), 1); sv.step(1e9);
-      t.expect(sv.used <= 1, 'a limit of one position stops after one: ' + sv.used);
-      t.equal(G.candidateDeal(77, 0, 'x'), 77, 'attempt zero is the deal itself');
-      t.expect(G.candidateDeal(77, 1, 'x') !== 77 && G.candidateDeal(77, 1, 'x') === G.candidateDeal(5, 1, 'x'), 'later attempts depend on the tag and attempt only');
+        const one = g.solveChunked('klondike', { draw: 1, suits: 1 }, 5, 1, 1e9);
+        return {
+          compared, fails, oneUsed: one.used,
+          c0: g.candidateDeal(77, 0, 'x'), c1: g.candidateDeal(77, 1, 'x'), c2: g.candidateDeal(5, 1, 'x'),
+        };
+      }, [KEYS]);
+      t.equal(res.fails, [], 'sliced solver matches whole search across all 30 deals');
+      t.expect(res.compared >= 30, 'compared ' + res.compared + ' searches');
+      t.expect(res.oneUsed <= 1, 'a limit of one position stops after one: ' + res.oneUsed);
+      t.equal(res.c0, 77, 'attempt zero is the deal itself');
+      t.expect(res.c1 !== 77 && res.c1 === res.c2, 'later attempts depend on the tag and attempt only');
     },
   },
   {
@@ -138,7 +132,6 @@ export const tests = [
   {
     name: 'w2b S3-01 under Winnable (Any) live-searched modes follow the fixed attempt rule and Spider 2-suit serves its verified pool instantly',
     async run(t) {
-      const G = loadSolver();
       await baseSettings(t, { motion: 'reduced', dealFairness: 'winnable' });
       const cfg = await t.game('winConfig');
       for (const [key, [mode, o]] of Object.entries(KEYS)) {
@@ -154,9 +147,10 @@ export const tests = [
           if (key === 'spider2') {
             t.equal((await t.game('solve', mode, opts, s.deal, 3000)).result, 'won', key + ' seed ' + seed + ': pre-verified pool deal solves via makeSolver');
           } else {
-            let at = -1; for (let a = 0; a < tries && at < 0; a++) if (G.candidateDeal(seed, a, String(seed)) === s.deal) at = a;
+            const cands = await t.page.evaluate(([sd, tr]) => Array.from({ length: tr }, (_, a) => window.__game.candidateDeal(sd, a, String(sd))), [seed, tries]);
+            const at = cands.indexOf(s.deal);
             t.expect(at >= 0, key + ' seed ' + seed + ': the deal is in the fixed sequence (attempt ' + (at + 1) + ')');
-            for (let a = 0; a < at; a++) t.expect((await t.game('solve', mode, opts, G.candidateDeal(seed, a, String(seed)), budget)).result !== 'won', key + ' seed ' + seed + ': earlier attempt ' + (a + 1) + ' would not have won');
+            for (let a = 0; a < at; a++) t.expect((await t.game('solve', mode, opts, cands[a], budget)).result !== 'won', key + ' seed ' + seed + ': earlier attempt ' + (a + 1) + ' would not have won');
             t.equal((await t.game('solve', mode, opts, s.deal, budget)).result, 'won', key + ' seed ' + seed + ': the dealt deal solves again inside the limit');
           }
           await t.seed(seed); await t.page.evaluate(([m, op]) => window.__game.newGame(Object.assign({ mode: m }, op)), [mode, opts]);
@@ -195,7 +189,6 @@ export const tests = [
   {
     name: 'w2b S3-01 all seven daily deals are winnable, deterministic, rotate across Easy/Medium/Hard (zero 0%-Hard exclusion), and restart keeps them',
     async run(t) {
-      const G = loadSolver();
       await baseSettings(t, { motion: 'reduced' });
       const cfg = await t.game('winConfig');
       const ALL = Object.assign({}, KEYS, { spider4: ['spider', { suits: 4 }], freecell: ['freecell', {}] });
@@ -211,11 +204,14 @@ export const tests = [
         if (key === 'spider2') {
           t.equal((await t.game('solve', mode, opts, a.deal, 3000)).result, 'won', key + ' the daily pool deal solves via makeSolver');
         } else if (key !== 'spider4' && key !== 'freecell') {
-          const tag = '2026-11-13|' + key, base = 1 + G.fnv1a(tag) % 2000000000;
-          const seq = (n) => G.candidateDeal(base, n, tag);
-          let at = -1; for (let n = 0; n < 160 && at < 0; n++) if (seq(n) === a.deal) at = n;
+          const tag = '2026-11-13|' + key;
+          const cands = await t.page.evaluate((tg) => {
+            const base = 1 + window.__game.fnv1a(tg) % 2000000000;
+            return Array.from({ length: 160 }, (_, n) => window.__game.candidateDeal(base, n, tg));
+          }, tag);
+          const at = cands.indexOf(a.deal);
           t.expect(at >= 0, key + ' the daily is attempt ' + (at + 1) + ' of date|key|attempt');
-          for (let n = 0; n < at; n++) t.expect((await t.game('solve', mode, opts, seq(n), budget)).result !== 'won', key + ' attempt ' + (n + 1) + ' would not have won');
+          for (let n = 0; n < at; n++) t.expect((await t.game('solve', mode, opts, cands[n], budget)).result !== 'won', key + ' attempt ' + (n + 1) + ' would not have won');
           t.equal((await t.game('solve', mode, opts, a.deal, budget)).result, 'won', key + ' the daily deal solves again inside the limit');
         }
         await day('2026-11-14'); const c = await t.state();

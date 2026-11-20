@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 // Packs generated art into compact WebP game assets, using the harness's own Chromium (no image libs).
 //
-//   node shared/test-harness/art-pack.mjs games/<slug> [--only name1,name2]
+//   node shared/test-harness/art-pack.mjs <gameDir> [--only name1,name2] [--from-assets]
 //
-// Reads games/<slug>/art-src/art.json:
+// Reads <gameDir>/art-src/art.json:
 //   { "quality": 0.82, "items": [ { "name": "court-qh", "src": "court-qh.png", "w": 420, "h": 588,
 //       "fit": "cover"|"contain", "crop": [x, y, w, h] (0..1, optional), "keyWhite": 0..60 (optional),
 //       "quality": 0.85 (optional) } ] }
-// Writes games/<slug>/assets/<name>.webp, games/<slug>/assets/manifest.json and a review contact
-// sheet at games/<slug>/art-src/sheet.png (open it with the Read tool).
+// Writes <gameDir>/assets/<name>.webp, <gameDir>/assets/manifest.json and a review contact
+// sheet at <gameDir>/art-src/sheet.png (open it with the Read tool).
+// --from-assets falls back to existing <gameDir>/assets/<name>.webp whenever raw art-src/<src>
+// masters are absent (preserving exact bytes if dimensions match and no crop is requested).
 // keyWhite turns near-white background connected to the image edge into transparency (for motifs
 // generated on flat white); the value is the per-channel tolerance below 255.
 
@@ -22,7 +24,8 @@ const ROOT = path.resolve(HERE, '..', '..');
 const args = process.argv.slice(2);
 const target = args.find((a, i) => !a.startsWith('--') && args[i - 1] !== '--only');
 const only = (() => { const i = args.indexOf('--only'); return i >= 0 ? args[i + 1].split(',') : null; })();
-if (!target) { console.error('usage: node shared/test-harness/art-pack.mjs games/<slug> [--only a,b]'); process.exit(2); }
+const fromAssets = args.includes('--from-assets');
+if (!target) { console.error('usage: node shared/test-harness/art-pack.mjs <gameDir> [--only a,b] [--from-assets]'); process.exit(2); }
 
 const gameDir = path.resolve(ROOT, target);
 const srcDir = path.join(gameDir, 'art-src');
@@ -40,9 +43,23 @@ const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
 let failed = 0;
 for (const it of spec.items) {
   if (only && !only.includes(it.name)) continue;
-  const file = path.join(srcDir, it.src);
-  if (!fs.existsSync(file)) { console.log(`  missing  ${it.name} (${it.src})`); failed++; continue; }
+  let file = path.join(srcDir, it.src);
+  let fallback = false;
+  if (!fs.existsSync(file)) {
+    const packed = path.join(outDir, it.name + '.webp');
+    if (fromAssets && fs.existsSync(packed)) { file = packed; fallback = true; }
+    else { console.log(`  missing  ${it.name} (${it.src})`); failed++; continue; }
+  }
   const url = `data:${MIME[path.extname(file).toLowerCase()] || 'image/png'};base64,` + fs.readFileSync(file).toString('base64');
+  if (fallback && !it.crop) {
+    const dim = await page.evaluate(async (u) => { const im = new Image(); im.src = u; await im.decode(); return { w: im.naturalWidth, h: im.naturalHeight }; }, url);
+    if (dim.w === it.w && dim.h === it.h) {
+      const bytes = fs.statSync(file).size;
+      manifest[it.name] = { file: it.name + '.webp', w: it.w, h: it.h, bytes };
+      console.log(`  kept     ${it.name.padEnd(22)} ${it.w}x${it.h}  ${(bytes / 1024).toFixed(1)} KB (from assets)`);
+      continue;
+    }
+  }
   const b64 = await page.evaluate(async ({ url, it, q }) => {
     const img = new Image(); img.src = url; await img.decode();
     const [cx, cy, cw, chh] = it.crop || [0, 0, 1, 1];
@@ -50,7 +67,7 @@ for (const it of spec.items) {
     let src = document.createElement('canvas'); src.width = Math.round(sw); src.height = Math.round(sh);
     src.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, src.width, src.height);
     if (it.keyWhite) {
-      // Flood-fill from the border through near-white pixels, then feather the alpha edge.
+      // Flood-fill from the border through near-white pixels, then feather and 1 px defringe the alpha edge (WF-3 §1.3).
       const g = src.getContext('2d'), W = src.width, H = src.height, d = g.getImageData(0, 0, W, H), p = d.data;
       const lim = 255 - it.keyWhite, seen = new Uint8Array(W * H), stack = [];
       const white = (i) => p[i * 4] >= lim && p[i * 4 + 1] >= lim && p[i * 4 + 2] >= lim;
@@ -62,11 +79,28 @@ for (const it of spec.items) {
         if (x > 0) stack.push(i - 1); if (x < W - 1) stack.push(i + 1);
         if (y > 0) stack.push(i - W); if (y < H - 1) stack.push(i + W);
       }
+      const edgePx = [];
       for (let i = 0; i < W * H; i++) {
         if (seen[i]) { p[i * 4 + 3] = 0; continue; }
         const x = i % W, y = (i / W) | 0;
         const edge = (x > 0 && seen[i - 1]) || (x < W - 1 && seen[i + 1]) || (y > 0 && seen[i - W]) || (y < H - 1 && seen[i + W]);
-        if (edge) { const m = Math.min(p[i * 4], p[i * 4 + 1], p[i * 4 + 2]); p[i * 4 + 3] = Math.min(255, Math.round((255 - m) * 255 / (255 - lim + 1))); }
+        if (edge) {
+          const m = Math.min(p[i * 4], p[i * 4 + 1], p[i * 4 + 2]);
+          p[i * 4 + 3] = Math.min(255, Math.round((255 - m) * 255 / (255 - lim + 1)));
+          edgePx.push(i);
+        }
+      }
+      // 1 px interior-color defringe replaces white matte halo on semi-transparent edge pixels.
+      for (const i of edgePx) {
+        const x = i % W, y = (i / W) | 0;
+        let r = 0, gr = 0, b = 0, n = 0;
+        for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+          const j = ny * W + nx;
+          if (!seen[j] && p[j * 4 + 3] === 255) { r += p[j * 4]; gr += p[j * 4 + 1]; b += p[j * 4 + 2]; n++; }
+        }
+        if (n) { p[i * 4] = Math.round(r / n); p[i * 4 + 1] = Math.round(gr / n); p[i * 4 + 2] = Math.round(b / n); }
       }
       g.putImageData(d, 0, 0);
     }

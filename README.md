@@ -1,6 +1,6 @@
 # Spa City Solitaire
 
-Klondike, FreeCell, Spider with town-themed cards. Part of **Hot Springs Games**, an open-source (MIT) collection of browser games set in
+Klondike, FreeCell, Spider, and Yukon with town-themed cards. Part of **Hot Springs Games**, an open-source (MIT) collection of browser games set in
 Hot Springs, Arkansas. The game ships as a self-contained `index.html`: art is drawn in code or painted into
 `assets/`, sound is synthesized with WebAudio, and nothing loads from the network.
 

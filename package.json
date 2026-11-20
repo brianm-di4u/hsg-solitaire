@@ -6,6 +6,12 @@
   "license": "MIT",
   "scripts": {
     "setup": "cd shared/test-harness && npm install && npx playwright install chromium",
-    "test": "node shared/test-harness/run.mjs ."
+    "test": "node shared/test-harness/run.mjs .",
+    "build:fonts": "node tools/build-fonts.mjs",
+    "build:brass": "blender -b --factory-startup --python art-src/blender/brass.py -- art-src/blender/renders",
+    "pack:art": "node shared/test-harness/art-pack.mjs . --from-assets",
+    "check:offline": "node tools/check-file-url.mjs",
+    "check:pipeline": "node tools/check-pipeline.mjs",
+    "verify": "npm run check:pipeline && npm run check:offline && npm test"
   }
 }

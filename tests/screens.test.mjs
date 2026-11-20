@@ -213,7 +213,8 @@ export const tests = [
     viewports: ['desktop'],
     async run(t) {
       await t.game('setSettings', { motion: 'auto', sound: false });
-      await t.waitForStable(); // let the painted art finish loading (isIdle also covers it)
+      await t.game('newGame', { mode: 'klondike', deal: 1 });
+      await t.waitForStable(); // let the lazy tablePlayArt() finish loading (isIdle also covers it)
       await t.game('newGame', { mode: 'klondike', deal: 9 });
       t.equal(await t.game('isIdle'), true, 'no deal animation with reduced motion');
       await t.game('act', 'draw');
