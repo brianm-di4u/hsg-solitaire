@@ -129,7 +129,7 @@ export const tests = [
           await t.game('setSettings', { back: id });
           await t.game('newGame', { mode: 'spider', suits: 1, deal: 11 });
           const r = await t.shot('screens-26-back-' + id);
-          seen.add(r.stats.mean + '/' + r.stats.stddev);
+          seen.add(r.stats.mean + '/' + r.stats.stddev + '/' + r.stats.colors);
         }
         t.equal(seen.size, 12, 'all twelve backs render differently');
       }

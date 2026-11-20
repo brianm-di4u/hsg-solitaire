@@ -80,9 +80,9 @@ export const tests = [
       const html = fs.statSync(path.join(GAME, 'index.html')).size, fonts = fs.statSync(path.join(GAME, 'assets', 'fonts.css')).size;
       const total = art + html + fonts, all = Object.values(MANIFEST).reduce((s, m) => s + m.bytes, 0);
       t.log('first load: html ' + KB(html) + ' + fonts ' + KB(fonts) + ' + ' + a.wanted.length + ' images ' + KB(art) + ' = ' + KB(total) + '; whole assets folder ' + KB(all + fonts));
-      // 1.6 MB since wave 3 (the owner's decision, 14 November 2026): it was 1.5 MB, and waves 1 and 2 had filled it to within 2 KB.
-      t.expect(total <= 1.6 * 1024 * 1024, 'first load ≤ 1.6 MB (' + KB(total) + ')');
-      t.expect(all + fonts <= 6 * 1024 * 1024, 'all assets ≤ 6 MB');
+      // 1.75 MB first load / 5.0 MB total assets ratified by owner decision OQ-WF1-03 (CD-WF1-07 preserves zero-first-load Painted courts).
+      t.expect(total <= 1.75 * 1024 * 1024, 'first load ≤ 1.75 MB (' + KB(total) + ')');
+      t.expect(all + fonts <= 5 * 1024 * 1024, 'all assets ≤ 5 MB (' + KB(all + fonts) + ')');
     },
   },
   {
