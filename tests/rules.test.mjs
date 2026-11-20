@@ -557,4 +557,178 @@ export const tests = [
       t.equal((await t.state()).maxMove, 4, 'FreeCell Max move updates to 4 when a free cell is used');
     },
   },
+  {
+    name: 'rules-25 controller exploits: found->found Ace farming, F-key stock leak, autoplay boomerang/Yukon 2s, bestDestination mis-routes, & async Cancel race (W6-S3-05, CD-WF1-06)',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { autoFoundation: 'off', motion: 'reduced', tips: false, scoring: 'standard' });
+      // 1. found -> found Ace score farming rejected across Klondike, FreeCell, and Yukon
+      for (const mode of ['klondike', 'freecell', 'yukon']) {
+        const piles = mode === 'freecell'
+          ? { c0: [], c1: [], c2: [], c3: [], f0: ['AS'], f1: [], f2: [], f3: [], t0: ['KH'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [], t7: [] }
+          : { stock: [], waste: [], f0: ['AS'], f1: [], f2: [], f3: [], t0: ['KH'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] };
+        await t.game('setState', { mode, score: 10, piles });
+        const r = await t.game('act', 'move', 'f0', 'f1');
+        const st = await t.state();
+        t.equal([r.ok, st.score, st.moves, st.piles.f0, st.piles.f1], [false, 10, 0, ['AS'], []], mode + ': found->found Ace transfer rejected with 0 pts');
+      }
+
+      // 2. Keyboard F on face-down stock / foundation / face-down tableau card never leaks hidden card identity
+      const probeF = async (stockTop) => {
+        await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: { stock: [stockTop], waste: [], f0: ['AS'], f1: [], f2: [], f3: [], t0: ['#AH'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] } });
+        await t.game('cuesPlayed', true);
+        // Move keyboard cursor onto the stock pile
+        await t.game('act', 'key', '1');
+        await t.game('act', 'key', 'ArrowUp');
+        for (let step = 0; step < 8 && (await t.state()).cursor.pile !== 'stock'; step++) await t.game('act', 'key', 'ArrowRight');
+        const curBefore = (await t.state()).cursor.pile;
+        await t.game('act', 'key', 'f');
+        const cues = (await t.game('cuesPlayed', true)).map((c) => c.name);
+        const sr = await t.page.evaluate(() => document.getElementById('sr').textContent);
+        return { curBefore, cues, sr, stock: (await t.state()).piles.stock };
+      };
+      const aceStock = await probeF('#AH'), nonAceStock = await probeF('#9C');
+      t.equal(aceStock.curBefore, 'stock', 'cursor reached stock');
+      t.equal(aceStock.cues, nonAceStock.cues, 'F on hidden Ace stock produces identical cues to non-Ace stock (zero info leak)');
+      t.expect(aceStock.cues.includes('nope') && aceStock.sr === 'No foundation move', 'F on hidden stock always refuses with nope + No foundation move');
+      t.equal(aceStock.stock, ['#AH'], 'hidden Ace stays in stock');
+      // F on foundation f0 (with Ace and empty f1) and on face-down t0 also refuse cleanly
+      await t.game('act', 'key', '1');
+      await t.game('cuesPlayed', true);
+      await t.game('act', 'key', 'f');
+      t.expect((await t.game('cuesPlayed', true)).some((c) => c.name === 'nope'), 'F on face-down tableau card refuses');
+
+      // 3. Autoplay boomerang prevention & per-deal pullback hold Set + Yukon 2s safety
+      await t.game('setSettings', { autoFoundation: 'safe' });
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 }, score: 100,
+        piles: { stock: [], waste: [], f0: ['AC', '2C'], f1: [], f2: [], f3: [], t0: ['3D'], t1: ['9H'], t2: ['TS'], t3: ['AD'], t4: [], t5: [], t6: [] },
+      });
+      t.equal((await t.game('act', 'move', 'f0', 't0')).ok, true, 'pulling 2C down from f0 to t0 is legal');
+      let st = await t.state();
+      t.equal([st.piles.t0, st.piles.f0, st.score], [['3D', '2C'], ['AC'], 85], '2C stays on t0 (no boomerang back to f0, -15 once)');
+      // Moving another card elsewhere still respects pullbackHold on 2C while allowing AD to autoplay normally
+      t.equal((await t.game('act', 'move', 't1', 't2')).ok, true, 'unrelated move t1 -> t2');
+      st = await t.state();
+      t.equal([st.piles.t0, st.piles.f0], [['3D', '2C'], ['AC']], '2C remains held on t0 during subsequent autoplay');
+      t.expect(st.piles.f1.includes('AD') || st.piles.f2.includes('AD') || st.piles.f3.includes('AD'), 'unheld AD still autoplays home');
+      // Manually sending 2C back home clears the pullback hold cleanly
+      t.equal((await t.game('act', 'move', 't0', 'f0')).ok, true, 'manual return 2C -> f0 succeeds');
+      t.equal((await t.state()).piles.f0, ['AC', '2C'], '2C returned home');
+      // Undo of a pullback restores clean state without stranding hold
+      await t.game('act', 'move', 'f0', 't0');
+      await t.game('act', 'undo');
+      t.equal((await t.state()).piles.f0, ['AC', '2C'], 'Undo after pullback restores 2C to f0');
+
+      // Yukon 2s safety: safe autoplay holds 2H while black Ace AS is missing, then auto-sends 2H once both AC & AS are home
+      await t.game('setState', {
+        mode: 'yukon',
+        piles: { f0: ['AC'], f1: [], f2: ['AH'], f3: [], t0: ['2H'], t1: ['AS'], t2: ['8H'], t3: ['9S'], t4: [], t5: [], t6: [] },
+      });
+      await t.game('act', 'move', 't2', 't3');
+      t.equal((await t.state()).piles.f2, ['AH', '2H'], 'once AS autoplays to f1 (both opposite-color Aces home), Yukon 2H safely autoplays to f2');
+      await t.game('setSettings', { autoFoundation: 'off' });
+
+      // 4. bestDestination() & tapAt(): foundation-first (CD-WF1-06), Spider same-suit bond protection & run-length tie-break, FreeCell free-cell preference, ordered-run fallback excluding Yukon
+      // (a) Foundation-first preserved under autoFoundation: 'safe'
+      await t.game('setSettings', { autoFoundation: 'safe' });
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: { stock: [], waste: ['4H'], f0: ['AH', '2H', '3H'], f1: [], f2: [], f3: [], t0: ['5S'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      await t.game('act', 'tap', 'waste', 0);
+      t.equal((await t.state()).piles.f0, ['AH', '2H', '3H', '4H'], 'CD-WF1-06: tapping 4H sends it to foundation ahead of tableau 5S even under Safe autoplay');
+      await t.game('setSettings', { autoFoundation: 'off' });
+
+      // (b) Spider: tapping bonded 6S refuses off-suit 7H; prefers longest same-suit target run; upward run fallback moves whole ['7S','6S'] onto 8S
+      await t.game('setState', {
+        mode: 'spider', opts: { suits: 2 },
+        piles: { stock: [], f0: [], f1: [], f2: [], f3: [], f4: [], f5: [], f6: [], f7: [], t0: ['9H', '7S', '6S'], t1: ['7H'], t2: ['2H'], t3: ['2H'], t4: ['2H'], t5: ['2H'], t6: ['2H'], t7: ['2H'], t8: ['2H'], t9: ['2H'] },
+      });
+      t.equal((await t.game('act', 'tap', 't0', 2)).ok, false, 'Spider tap refuses ripping bonded 6S off 7S onto off-suit 7H');
+      t.equal((await t.state()).piles.t0, ['9H', '7S', '6S'], 'Spider same-suit bond stayed intact');
+      // Also verify tapping bonded 6S when t2 is empty moves the WHOLE intact [7S, 6S] run rather than ripping 6S off 7S!
+      await t.game('setState', {
+        mode: 'spider', opts: { suits: 2 },
+        piles: { stock: [], f0: [], f1: [], f2: [], f3: [], f4: [], f5: [], f6: [], f7: [], t0: ['9H', '7S', '6S'], t1: ['7H'], t2: [], t3: ['2H'], t4: ['2H'], t5: ['2H'], t6: ['2H'], t7: ['2H'], t8: ['2H'], t9: ['2H'] },
+      });
+      t.equal((await t.game('act', 'tap', 't0', 2)).ok, true, 'Spider tap with empty column moves intact bonded run via upward fallback');
+      t.equal([(await t.state()).piles.t0, (await t.state()).piles.t2], [['9H'], ['7S', '6S']], 'intact [7S, 6S] moved together (6S was NOT ripped off 7S)');
+      // Same-suit tie-breaking by contiguous target run length (unbonded 6S picks 8S-7S over bare 7S)
+      await t.game('setState', {
+        mode: 'spider', opts: { suits: 2 },
+        piles: { stock: [], f0: [], f1: [], f2: [], f3: [], f4: [], f5: [], f6: [], f7: [], t0: ['9H', '6S'], t1: ['7S'], t2: ['9S', '8S', '7S'], t3: [], t4: [], t5: [], t6: [], t7: [], t8: [], t9: [] },
+      });
+      t.equal((await t.game('act', 'tap', 't0', 1)).ok, true, 'unbonded 6S taps to best same-suit column');
+      t.equal((await t.state()).piles.t2, ['9S', '8S', '7S', '6S'], 'Spider tie-breaker picks longer contiguous same-suit target run (t2 over t1)');
+      // Upward run fallback in Spider: tapping bottom 6S of ['#KH','7S','6S'] moves entire ['7S','6S'] onto 8S
+      await t.game('setState', {
+        mode: 'spider', opts: { suits: 2 },
+        piles: { stock: [], f0: [], f1: [], f2: [], f3: [], f4: [], f5: [], f6: [], f7: [], t0: ['#KH', '7S', '6S'], t1: ['7H'], t2: ['8S'], t3: [], t4: [], t5: [], t6: [], t7: [], t8: [], t9: [] },
+      });
+      t.equal((await t.game('act', 'tap', 't0', 2)).ok, true, 'tapping 6S falls back upward to move bonded run [7S, 6S]');
+      t.equal([(await t.state()).piles.t0, (await t.state()).piles.t2], [['KH'], ['8S', '7S', '6S']], 'whole run moved onto 8S and flipped #KH');
+
+      // (c) FreeCell: single non-King prefers open free cell ahead of empty column; single King prefers empty column; cell card does not bounce to another cell
+      await t.game('setState', {
+        mode: 'freecell',
+        piles: { c0: [], c1: [], c2: [], c3: [], f0: [], f1: [], f2: [], f3: [], t0: ['9C', '5H'], t1: ['8C', 'KS'], t2: [], t3: ['2C'], t4: ['2D'], t5: ['2H'], t6: ['2S'], t7: ['3C'] },
+      });
+      await t.game('act', 'tap', 't0', 1); // tap single non-King 5H
+      st = await t.state();
+      t.equal([st.piles.c0, st.piles.t2, st.maxMove], [['5H'], [], 8], 'FreeCell single non-King prefers open free cell c0 ahead of empty column t2 (preserving 2^empty maxMove=8)');
+      await t.game('act', 'tap', 't1', 1); // tap single King KS
+      st = await t.state();
+      t.equal(st.piles.t2, ['KS'], 'FreeCell single King prefers empty column t2 ahead of free cell');
+      // Card in c0 with no tableau build and no empty column refuses instead of bouncing c0 -> c1
+      t.equal((await t.game('act', 'tap', 'c0', 0)).ok, false, 'FreeCell tap on c0 does not bounce pointlessly to c1');
+
+      // (d) Klondike ordered-run fallback vs Yukon lift==='any' exclusion
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['#2C', '8H', '7S'], t1: ['9C'], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      t.equal((await t.game('act', 'tap', 't0', 2)).ok, true, 'Klondike tapping 7S falls back upward to move [8H, 7S] onto 9C');
+      t.equal((await t.state()).piles.t1, ['9C', '8H', '7S'], 'ordered run moved cleanly');
+      await t.game('setState', {
+        mode: 'yukon',
+        piles: { f0: [], f1: [], f2: [], f3: [], t0: ['8H', '3S', 'QD'], t1: ['9S'], t2: ['2C'], t3: ['2D'], t4: ['2H'], t5: ['2S'], t6: ['3C'] },
+      });
+      t.equal((await t.game('act', 'tap', 't0', 2)).ok, false, 'Yukon (lift === any) strictly excludes upward run fallback when tapping QD');
+      t.equal((await t.state()).piles.t0, ['8H', '3S', 'QD'], 'Yukon stack untouched');
+
+      // 5. Async dealPending Cancel Race: cancelling Confirm while a >45 ms search is pending aborts dealPending and preserves live board & streak
+      await t.game('setSettings', { dealFairness: 'hard' });
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 1234 });
+      await t.game('act', 'draw'); // started = true, moves = 1
+      await t.page.evaluate(() => {
+        const k = 'spa-solitaire:v1:stats', s = JSON.parse(localStorage.getItem(k) || '{}');
+        s.klondike1 = Object.assign(s.klondike1 || {}, { played: 5, won: 4, streak: 4, bestStreak: 4 });
+        localStorage.setItem(k, JSON.stringify(s));
+        // Force slice(45) to yield immediately so newGame enters the async dealPending branch deterministically
+        const origNow = performance.now.bind(performance);
+        let bumps = 0;
+        window.__origNow = origNow;
+        performance.now = () => origNow() + (++bumps) * 60;
+      });
+      await t.page.click('#bNew');
+      t.equal((await t.state()).modal, 'confirm', 'Confirm modal opened over live deal');
+      await t.page.click('#sheet [data-a="yes"]');
+      const midSearch = await t.page.evaluate(() => ({
+        dealingOn: document.getElementById('dealing').classList.contains('on'),
+        yesDisabled: !!document.querySelector('#sheet [data-a="yes"]')?.disabled,
+      }));
+      t.equal([midSearch.dealingOn, midSearch.yesDisabled], [true, true], 'active async search shows #dealing and disables confirm button');
+      // Cancel the modal while dealPending is active -> must abort search immediately
+      await t.page.click('#sheet [data-close]:not(.x)');
+      await t.page.evaluate(() => { if (window.__origNow) performance.now = window.__origNow; });
+      await t.page.waitForTimeout(300);
+      const afterCancel = await t.page.evaluate(() => ({
+        st: window.__game.getState(),
+        stats: window.__game.stats().klondike1,
+        dealingOn: document.getElementById('dealing').classList.contains('on'),
+      }));
+      t.equal([afterCancel.st.deal, afterCancel.st.moves, afterCancel.stats.streak, afterCancel.dealingOn], [1234, 1, 4, false], 'cancelling modal aborted dealPending without wiping live board or win streak');
+    },
+  },
 ];

@@ -237,4 +237,87 @@ export const tests = [
       await t.checkLayout();
     },
   },
+  {
+    name: 'play-32 clean-run parity: autoplay/autoComplete move & recycle parity, superseded hint non-stamping, and drag/waste refusal feedback (W6-S3-08, W6-S2-03)',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced', scoring: 'standard', tips: false });
+      // 1. autoplay() increments S.moves per autoplayed card while remaining one Undo snapshot
+      await t.game('setSettings', { autoFoundation: 'safe' });
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['AH', '5S'], t1: ['6H'], t2: ['2H'], t3: [], t4: [], t5: [], t6: [] },
+      });
+      await t.game('act', 'move', 't0', 't1'); // 1 manual move + 2 autoplayed cards (AH, 2H) = 3 moves, 1 undo step
+      let s = await t.state();
+      t.equal([s.piles.f0, s.moves, s.undoDepth], [['AH', '2H'], 3, 1], 'autoplay counts each autoplayed card in S.moves inside a single Undo snapshot');
+      await t.game('act', 'undo');
+      s = await t.state();
+      t.equal([s.piles.f0, s.moves, s.undoDepth], [[], 0, 0], 'single Undo reverts manual move plus all autoplayed cards and restores S.moves');
+      await t.game('setSettings', { autoFoundation: 'off' });
+
+      // 2. autoComplete() increments S.moves per card/draw/recycle AND applies Klondike Pass 2+ recycle fees
+      // 1st pass (recycles: 1 already) with 1 card in waste (2S) and 1 card on tableau (AS) ->
+      // Finish plays AS (move 1, +10), recycles waste->stock (move 2, recycles becomes 2 -> -50 fee!), draws 2S (move 3), plays 2S (move 4, +10)
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 }, score: 100, moves: 10, recycles: 1,
+        piles: {
+          stock: [], waste: ['KS', 'QS'],
+          f0: run('C'), f1: run('D'), f2: run('H'), f3: run('S', 11),
+          t0: [], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [],
+        },
+      });
+      // Wait: with waste=['KS','QS'] (QS is top of waste), QS plays directly -> f3 (+10, move 1), then KS is exposed on waste -> f3 (+10, move 2) -> no recycle needed.
+      // To force a recycle inside autoComplete, put KS on top of waste and QS buried under KS in waste (waste=['QS','KS']), stock=[]:
+      // Recycle waste->stock (stock=['KS','QS'], QS on top! recycles 1->2 => -50 pts, move +1), draw QS (move +1), play QS (+10, move +1), draw KS (move +1), play KS (+10, move +1) => +5 moves, net -30 pts (score 70)!
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 }, score: 100, moves: 10, recycles: 1,
+        piles: {
+          stock: [], waste: ['QS', 'KS'],
+          f0: run('C'), f1: run('D'), f2: run('H'), f3: run('S', 11),
+          t0: [], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [],
+        },
+      });
+      t.equal((await t.state()).canAutoComplete, true, 'Finish enabled on waste-recycle endgame');
+      t.equal((await t.game('act', 'autoComplete')).ok, true, 'autoComplete succeeds');
+      await t.page.waitForFunction(() => window.__game.getState().won, null, { timeout: 10000 });
+      s = await t.state();
+      t.equal([s.moves, s.score, s.undoDepth], [15, 70, 1], 'autoComplete applies exact per-action moves (+5), Pass 2 recycle fee (-50 + 20 = 70), and single Undo snapshot');
+
+      // 3. Superseded async hint(true) never stamps S.assisted
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: { stock: ['#2C'], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['9H'], t1: ['TS'], t2: ['AS'], t3: [], t4: [], t5: [], t6: [] },
+      });
+      await t.page.evaluate(() => {
+        document.getElementById('bHint').click(); // queues async hintJob via setTimeout(..., 0)
+        window.__game.act('move', 't0', 't1');    // supersedes hintJob before its turn fires
+      });
+      await t.page.waitForTimeout(150);
+      t.equal(await t.page.locator('#assistTag').isHidden(), true, 'superseded async Hint does not stamp assisted tag');
+
+      // 4. refuseDrag() explains non-capacity illegal drags via explain(tapReason()) & Waste drops explain waste rule
+      await t.game('setState', {
+        mode: 'spider', opts: { suits: 2 },
+        piles: { stock: [], f0: [], f1: [], f2: [], f3: [], f4: [], f5: [], f6: [], f7: [], t0: ['7H', '6S'], t1: ['8H'], t2: [], t3: [], t4: [], t5: [], t6: [], t7: [], t8: [], t9: [] },
+      });
+      await dragCard(t, 't0', 0, 't1'); // mixed-suit 7H-6S cannot lift
+      t.equal(await t.page.evaluate(() => document.getElementById('toast').textContent), 'Only a run of one suit, in order, moves together', 'refuseDrag explains mixed-suit Spider refusal');
+
+      await t.game('setState', {
+        mode: 'freecell',
+        piles: { c0: [], c1: [], c2: [], c3: [], f0: [], f1: [], f2: [], f3: [], t0: ['8S', '6C'], t1: ['9H'], t2: [], t3: [], t4: [], t5: [], t6: [], t7: [] },
+      });
+      await dragCard(t, 't0', 0, 't1'); // non-alternating/non-sequential stack cannot lift
+      t.equal(await t.page.evaluate(() => document.getElementById('toast').textContent), 'Only a run that builds down in alternating colors moves together', 'refuseDrag explains non-alternating FreeCell refusal');
+
+      // Dropping onto Klondike Waste explains the Waste rule
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: { stock: ['#2C'], waste: ['8H'], f0: [], f1: [], f2: [], f3: [], t0: ['7S'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      await dragCard(t, 't0', 0, 'waste');
+      t.equal(await t.page.evaluate(() => document.getElementById('toast').textContent), 'Cards draw from the waste, not onto it', 'dropping onto Klondike Waste explains Waste rule');
+    },
+  },
 ];

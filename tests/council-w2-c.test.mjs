@@ -2,10 +2,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { baseSettings, nearWinKlondike } from './_util.mjs';
+import { baseSettings, clickCard, nearWinKlondike } from './_util.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SHOTS = path.resolve(HERE, '..', '..', '_council', 'hsg-solitaire', 'wave-2', 'shots');
+const SHOTS = process.env.HS_ARTIFACT_DIR ? path.resolve(process.env.HS_ARTIFACT_DIR, 'wave-2', 'shots') : path.resolve(HERE, '..', 'screenshots', 'council-waves', 'wave-2', 'shots');
 const P = 'spa-solitaire:v1:';
 const reloadGame = async (t) => { await t.page.reload(); await t.page.waitForFunction(() => !!window.__game); };
 const shot = async (t, id, name) => { fs.mkdirSync(SHOTS, { recursive: true }); await t.waitForStable(); await t.page.screenshot({ path: path.join(SHOTS, id + '-' + name + '-' + t.viewport + '.png') }); };
@@ -226,69 +226,131 @@ export const tests = [
     },
   },
   {
-    name: 'w2c S2-01 a new player gets the goal, then the move, hint and stock tips, one at a time, each gone when done',
+    name: 'w2c S2-01 a new player gets goal, move (dismissed by real tap), and stock tips with no Move-1 Hint trap, plus passive idle Hint awareness',
     async run(t) {
       await t.game('newGame', { mode: 'klondike', deal: 5 });
       await waitCoach(t);
       t.equal(await coachText(t), 'Build each suit from Ace to King on the foundations.', 'the goal comes first');
+      t.expect(await t.page.locator('#coachOk').isVisible(), 'a Got it button is visible');
       t.expect(await t.page.locator('#coachSkip').isVisible(), 'a Skip tips control is visible while tips show');
-      t.expect((await t.page.locator('#coachSkip').boundingBox()).height >= 44, 'and is a 44 px target');
+      t.expect((await t.page.locator('#coachOk').boundingBox()).height >= 44, 'Got it is a 44 px target');
+      t.expect((await t.page.locator('#coachSkip').boundingBox()).height >= 44, 'Skip tips is a 44 px target');
       t.equal(await t.page.evaluate(() => document.getElementById('sr').textContent), 'Build each suit from Ace to King on the foundations.', 'announced through the live region');
       await shot(t, 'S2-01', 'tip-goal');
-      await t.page.click('#coachTx');
+      await t.page.click('#coachOk');
       await waitText(t, /send it where it fits/);
       let s = await t.state(); t.equal(s.settings.tipModes, 'klondike', 'the goal is recorded as seen');
       t.expect(/^(Click|Tap) a card to send it where it fits/.test(await coachText(t)), 'then the move tip: ' + await coachText(t));
       t.expect((await coachText(t)).split(/\s+/).length <= 12, 'twelve words or fewer');
       await shot(t, 'S2-01', 'tip-move');
-      await move(t);
-      await waitText(t, /Hint/);
-      t.expect(await t.page.locator('#bHint.pt').count() === 1, 'the Hint button is marked');
-      await shot(t, 'S2-01', 'tip-hint');
-      await t.game('act', 'hint');
+      // Real pointer tap on a playable card (covering tapAt() -> why === 'tap') must dismiss the move tip and advance to stock (never pulsing Hint!)
+      const m = (await t.game('legalMoves')).find((x) => x.to && x.from !== 'stock' && (x.count || 1) === 1);
+      t.expect(!!m, 'a single-card playable move exists on deal 5');
+      const pilesBefore = (await t.state()).piles;
+      await clickCard(t, m.from, pilesBefore[m.from].length - 1);
       await waitText(t, /stock/);
-      t.equal(await t.page.locator('#bHint.pt').count(), 0, 'the mark is gone');
+      t.equal(await t.page.locator('#bHint.pt').count(), 0, 'Hint button never pulses after Move 1 (CD-WF2-06)');
+      t.equal(await t.page.locator('#assistTag').isHidden(), true, 'clean Move 1 never stamps assisted');
       await shot(t, 'S2-01', 'tip-stock');
+      // Capture the >=25 s idle timer when stock completes so we can verify passive non-pulsing idle Hint awareness without sleeping 25 s
+      await t.page.evaluate(() => {
+        window.__idleTips = [];
+        const orig = window.setTimeout.bind(window);
+        window.setTimeout = (fn, ms, ...rest) => {
+          if (ms >= 25000) window.__idleTips.push({ fn, ms });
+          return orig(fn, ms, ...rest);
+        };
+      });
       await t.game('act', 'draw');
       await waitCoach(t, false);
-      await t.page.waitForTimeout(1200);
-      t.expect(await t.page.evaluate(() => document.getElementById('coach').hidden), 'after the last tip nothing more shows');
-      s = await t.state(); t.equal(s.settings.tipStep, 3, 'all three steps are recorded');
+      await t.page.waitForTimeout(1100);
+      t.expect(await t.page.evaluate(() => document.getElementById('coach').hidden), 'after stock tip, no immediate Hint nag shows');
+      s = await t.state(); t.equal(s.settings.tipStep, 2, 'both core independent steps (move, stock) are recorded');
+      // Trigger the captured >= 25 s idle reminder
+      const idleMeta = await t.page.evaluate(() => {
+        const list = window.__idleTips || [];
+        if (!list.length) return { count: 0 };
+        const last = list[list.length - 1];
+        last.fn();
+        return {
+          count: list.length,
+          ms: last.ms,
+          hidden: document.getElementById('coach').hidden,
+          text: document.getElementById('coachTx').textContent,
+          pulsing: document.getElementById('bHint').classList.contains('pt'),
+        };
+      });
+      t.expect(idleMeta.count >= 1 && idleMeta.ms >= 25000, 'idle Hint reminder is scheduled at >= 25 s: ' + JSON.stringify(idleMeta));
+      t.equal([idleMeta.hidden, idleMeta.pulsing], [false, false], 'idle Hint reminder appears passively without #bHint.pt pulse');
+      t.expect(/Hint/.test(idleMeta.text) && /Undo/.test(idleMeta.text), 'idle reminder mentions Hint and Undo: ' + idleMeta.text);
+      // Pressing Hint during the idle reminder STILL marks S.assisted (zero guided-hint loophole per CD-WF2-06 / CD-WF1-04)
+      await t.game('act', 'hint');
+      t.equal(await t.page.locator('#assistTag').isHidden(), false, 'Hint during idle reminder still stamps assisted (CD-WF2-06)');
       await reloadGame(t); await t.game('newGame', { mode: 'klondike', deal: 6 }); await t.page.waitForTimeout(2300);
-      t.expect(await t.page.evaluate(() => document.getElementById('coach').hidden), 'after a reload the tips do not come back');
+      t.expect(await t.page.evaluate(() => document.getElementById('coach').hidden), 'after a reload the core tips do not come back');
     },
   },
   {
-    name: 'w2c S2-01 doing the thing before its tip appears skips that tip',
+    name: 'w2c S2-01 doing the thing before its tip appears skips that tip (move -> stock)',
     viewports: ['desktop'],
     async run(t) {
       await t.game('newGame', { mode: 'klondike', deal: 5 });
-      await waitCoach(t); await t.page.click('#coachTx');
+      await waitCoach(t); await t.page.click('#coachOk');
       await move(t);
-      await waitText(t, /Hint/);
-      t.equal((await t.state()).settings.tipStep, 1, 'the move tip counts as done, the hint tip is next');
+      await waitText(t, /stock/);
+      t.equal((await t.state()).settings.tipStep, 1, 'the move tip counts as done, the stock tip is next');
+      t.equal(await t.page.locator('#bHint.pt').count(), 0, 'no Hint pulse');
     },
   },
   {
-    name: 'w2c S2-01 tips wait: the goal fades by itself, Skip tips turns them off for good, Show tips again brings them back',
+    name: 'w2c S2-01 FreeCell/Yukon goals teach core verbs, passive fade does not burn unread tips, modals/setState hide tips, and Skip/Show again work',
     viewports: ['desktop'],
     async run(t) {
       await t.game('newGame', { mode: 'freecell', deal: 3 });
       await waitCoach(t);
-      t.equal(await coachText(t), 'Move every card to the foundations, Ace up to King.', 'FreeCell has its own goal');
+      const fcGoal = await coachText(t);
+      t.expect(/four free cells/i.test(fcGoal) && fcGoal.split(/\s+/).length <= 12, 'FreeCell goal teaches the four free cells in <=12 words: ' + fcGoal);
+      // Opening Settings must immediately hide #coach and prevent leaking behind modal
+      await t.game('scene', 'settings');
+      t.equal(await t.page.evaluate(() => document.getElementById('coach').hidden), true, 'opening a modal hides #coach cleanly');
+      await t.page.click('#sheet [data-close]');
+      await waitCoach(t);
+      // Switch to Yukon and verify Yukon goal teaches lift-any-face-up-stack rule in <= 12 words
+      await t.game('newGame', { mode: 'yukon', deal: 3 });
+      await waitCoach(t);
+      const ykGoal = await coachText(t);
+      t.expect(/lift any face-up card/i.test(ykGoal) && ykGoal.split(/\s+/).length <= 12, 'Yukon goal teaches lift-any-face-up-stack in <=12 words: ' + ykGoal);
+      // Calling setState across modes must immediately hide #coach and cancel pending timers (no Spider tip stranding on Klondike!)
+      await t.game('newGame', { mode: 'spider', suits: 1, deal: 4 });
+      await waitCoach(t);
+      t.equal(await coachText(t), 'Build King-to-Ace runs of one suit; each leaves the table.', 'Spider has its own goal');
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: { stock: ['#2C'], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['9H'], t1: ['TS'], t2: [], t3: [], t4: [], t5: [], t6: [] } });
+      t.equal(await t.page.evaluate(() => document.getElementById('coach').hidden), true, 'setState hides #coach immediately across modes');
+      await t.page.waitForTimeout(1600);
+      t.equal(await t.page.evaluate(() => document.getElementById('coach').hidden), true, 'no stale delayed tip leaks after setState');
+      // Passive fade hides #coach visually WITHOUT permanently burning the unread goal tip
+      await t.game('newGame', { mode: 'spider', suits: 1, deal: 4 });
+      await waitCoach(t);
+      await waitCoach(t, false);
+      const afterFade = await t.state();
+      t.expect(!afterFade.settings.tipModes.split(',').includes('spider'), 'passive fade does not permanently burn unread Spider goal tip');
+      // Skip tips turns tips off for good; Show tips again brings them back
+      await t.game('newGame', { mode: 'freecell', deal: 3 });
+      await waitCoach(t);
       await t.page.click('#coachSkip');
       t.expect(await t.page.evaluate(() => document.getElementById('coach').hidden), 'Skip hides the tip');
       t.equal((await t.state()).settings.tips, false, 'and turns tips off');
-      await t.game('newGame', { mode: 'spider', suits: 1, deal: 4 }); await t.page.waitForTimeout(2300);
+      await t.game('newGame', { mode: 'spider', suits: 1, deal: 4 }); await t.page.waitForTimeout(2000);
       t.expect(await t.page.evaluate(() => document.getElementById('coach').hidden), 'no tip in the next game');
       await reloadGame(t); t.equal((await t.state()).settings.tips, false, 'the choice survives a reload');
       await t.game('scene', 'settings');
       await t.page.click('[data-a="tipsAgain"]'); await t.page.click('#sheet [data-close]');
       t.equal((await t.state()).settings.tips, true, 'Show tips again turns them on');
       await t.game('newGame', { mode: 'spider', suits: 1, deal: 4 }); await waitCoach(t);
-      t.equal(await coachText(t), 'Build King-to-Ace runs of one suit; each leaves the table.', 'Spider has its own goal');
-      await t.page.waitForTimeout(7200);
-      t.expect(/Click a card/.test(await coachText(t)), 'the goal gave way to the next tip by waiting: ' + await coachText(t));
+      t.equal(await coachText(t), 'Build King-to-Ace runs of one suit; each leaves the table.', 'Spider goal re-appears after Show tips again');
+      await t.page.click('#coachOk');
+      await waitText(t, /Click a card/);
+      t.expect(/Click a card/.test(await coachText(t)), 'acknowledging Got it advances cleanly to move tip: ' + await coachText(t));
     },
   },
   {
@@ -301,27 +363,36 @@ export const tests = [
       t.expect(lines.length >= 11, 'found the tip strings: ' + lines.length);
       for (const l of lines) t.expect(l.split(/\s+/).length <= 12, '"' + l + '" is ' + l.split(/\s+/).length + ' words');
       await t.game('newGame', { mode: 'klondike', deal: 5 }); await waitCoach(t);
-      await t.page.keyboard.press('ArrowRight'); await t.page.click('#coachTx');
+      await t.page.keyboard.press('ArrowRight'); await t.page.click('#coachOk');
       await waitText(t, /Arrows move/);
     },
   },
   {
-    name: 'w2c S2-01 a touch player is told to tap, and reduced motion gets a still marker',
+    name: 'w2c S2-01 a touch player is told to tap, real touch tap dismisses move tip, and #coach buttons never clip on mobile',
     viewports: ['mobile'],
     reducedMotion: true,
     async run(t) {
       await t.page.touchscreen.tap(5, 5);
       await t.game('newGame', { mode: 'klondike', deal: 5 }); await waitCoach(t);
       await shot(t, 'S2-01', 'tip-goal-touch');
-      await t.page.locator('#coachTx').tap();
+      const gBoxes = await t.page.evaluate(() => {
+        const c = document.getElementById('coach').getBoundingClientRect();
+        const ok = document.getElementById('coachOk').getBoundingClientRect();
+        const sk = document.getElementById('coachSkip').getBoundingClientRect();
+        return { c, ok, sk, vw: innerWidth };
+      });
+      t.expect(gBoxes.c.left >= 0 && gBoxes.c.right <= gBoxes.vw + 1, 'coach pill fits phone width');
+      t.expect(gBoxes.ok.right <= gBoxes.c.right + 1 && gBoxes.sk.right <= gBoxes.c.right + 1, 'Got it and Skip tips never clip past #coach border');
+      t.expect(gBoxes.ok.height >= 44 && gBoxes.sk.height >= 44, 'both #coach buttons meet 44 px touch floor');
+      await t.page.locator('#coachOk').tap();
       await waitText(t, /Tap a card to send it where it fits\./);
-      await move(t);
-      await waitText(t, /Stuck\? Tap Hint to see a move\./);
-      const anim = await t.page.evaluate(() => getComputedStyle(document.getElementById('bHint')).animationName);
-      t.equal(anim, 'none', 'no pulsing under reduced motion; the outline is the static marker');
-      const box = await t.page.locator('#coach').boundingBox(), vp = t.vp;
-      t.expect(box.x >= 0 && box.x + box.width <= vp.width, 'the strip fits the phone width');
-      await shot(t, 'S2-01', 'tip-hint-touch');
+      // Real touch tap on a playable card must dismiss the move tip via tapAt() -> why === 'tap'
+      const m = (await t.game('legalMoves')).find((x) => x.to && x.from !== 'stock' && (x.count || 1) === 1);
+      const lay = await t.game('getLayout'), cards = lay.piles[m.from].cards, c = cards[cards.length - 1];
+      await t.page.touchscreen.tap(c.x + c.w / 2, c.y + 10);
+      await waitText(t, /Tap the stock pile for more cards\./);
+      t.equal(await t.page.locator('#bHint.pt').count(), 0, 'no Hint button pulse on mobile');
+      await shot(t, 'S2-01', 'tip-stock-touch');
       await t.checkLayout();
     },
   },

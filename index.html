@@ -49,7 +49,7 @@
     border-bottom:2px solid var(--brass);border-image:var(--brass-rule) 1;box-shadow:0 3px 10px rgba(0,0,0,.45)}
   #goal{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(0,0,0,.5);pointer-events:none}
   #goal i{position:relative;z-index:2;display:block;height:100%;width:0;background:linear-gradient(90deg,#3E9C80,#8FE0C2);transition:width .35s ease}
-  #goal .rev{position:absolute;left:0;top:0;bottom:0;width:0;z-index:1;background:linear-gradient(90deg,rgba(201,160,74,.45),rgba(233,200,115,.68));transition:width .35s ease}
+  #goal .rev,#goal .reveal{position:absolute;left:0;top:0;bottom:0;width:0;z-index:1;background:linear-gradient(90deg,rgba(201,160,74,.45),rgba(233,200,115,.68));transition:width .35s ease}
   #ttl{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15}
   #modeName{font-family:var(--font-display);font-weight:400;font-size:1.12rem;letter-spacing:.03em;color:var(--brass-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #modeSub{font-family:var(--font-deco);font-size:.74rem;letter-spacing:.04em;color:var(--lac-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -336,16 +336,19 @@
     .tb{gap:1px;padding:2px;font-size:.56rem}
     .tb svg{width:17px;height:17px}
   }
-  #coach{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:max-content;max-width:94%;display:flex;align-items:center;gap:8px;z-index:5;
+  #coach{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:max-content;max-width:min(94%,calc(100% - 24px));display:flex;align-items:center;gap:8px;z-index:5;
     background:rgba(16,24,19,.94);color:var(--lac-ink);border:1px solid rgba(233,200,115,.6);border-radius:var(--radius-pill);padding:4px 6px 4px 16px;
     font-family:var(--font-deco);font-weight:600;font-size:.92rem;box-shadow:0 4px 14px rgba(0,0,0,.45)}
+  #coachTx{min-width:0;flex:1 1 auto;line-height:1.25}
+  @media (min-width:560px){#coach{max-width:min(94%,calc(100% - 108px))}}
   #coach[hidden]{display:none} #coach ~ #toast{bottom:74px} #coach[hidden] ~ #toast{bottom:14px}
   #tabNote{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:max-content;max-width:94%;display:flex;align-items:center;gap:8px;z-index:5;
     background:rgba(16,24,19,.94);color:var(--lac-ink);border:1px solid rgba(233,200,115,.6);border-radius:22px;padding:4px 12px 4px 16px;
     font-family:var(--font-deco);font-weight:600;font-size:.86rem;box-shadow:0 4px 14px rgba(0,0,0,.45)}
   #tabNote[hidden]{display:none} #tabNote:not([hidden]) ~ #coach,#tabNote:not([hidden]) ~ #toast{bottom:84px} #tabNote:not([hidden]) ~ #coach:not([hidden]) ~ #toast{bottom:144px}
   #tabNote button{flex:none;min-height:44px;min-width:44px;padding:0 14px;border-radius:var(--radius-pill);border:1px solid rgba(233,200,115,.6);background:transparent;color:inherit;font:inherit;font-size:.8rem;cursor:pointer;white-space:nowrap}
-  #coach button{min-height:44px;min-width:44px;padding:0 14px;border-radius:var(--radius-pill);border:1px solid rgba(233,200,115,.6);background:transparent;color:inherit;font:inherit;font-size:.8rem;cursor:pointer;white-space:nowrap}
+  #coach button{flex:none;min-height:44px;min-width:44px;padding:0 12px;border-radius:var(--radius-pill);border:1px solid rgba(233,200,115,.6);background:transparent;color:inherit;font:inherit;font-size:.8rem;cursor:pointer;white-space:nowrap}
+  @media (max-width:520px){#coach{padding:4px 6px 4px 12px;gap:6px;font-size:.82rem}#coach button{padding:0 10px;font-size:.76rem}}
   #bHint.pt{outline:3px solid var(--color-highlight);outline-offset:2px}
   :root:not(.rm) #bHint.pt:not(.st){animation:pt 1.3s ease-in-out infinite}
   @keyframes pt{50%{outline-offset:6px}}
@@ -362,7 +365,7 @@
   .cal i small{font-size:.62rem;color:var(--color-muted)} .cal i.w{background:var(--chip);border-color:#B8862C} .cal i.f{background:#D9B256;color:#1B1408} .cal i.f small{color:#1B1408}
   .cal i.t{outline:2px solid var(--color-primary)} .cal i.h{border:0;min-height:0;font-weight:700;color:var(--color-muted)}
   .cm{display:flex;align-items:center;justify-content:space-between;gap:8px} .cm b{font-family:var(--font-deco)} .cm .btn{min-width:44px}
-  :root.rm #goal i,:root.rm #goal .rev,:root.rm .tb,:root.rm #toast,:root.rm #dealing,:root.rm .tog::after,:root.rm .hp summary::after{transition:none}
+  :root.rm #goal i,:root.rm #goal .rev,:root.rm #goal .reveal,:root.rm .tb,:root.rm #toast,:root.rm #dealing,:root.rm .tog::after,:root.rm .hp summary::after{transition:none}
   :root.rm .sheet.rise,:root.rm .sheet.rise .ticket,:root.rm .sheet.rise .ticket .punch,:root.rm .sheet.rise .course i.new,:root.rm #bHint.pt{animation:none}
   :root.rm .course i.new{box-shadow:0 0 0 2px #E9C873}
   @media (forced-colors: active){
@@ -386,7 +389,7 @@
       <span id="sScoreW">Score<small id="sBonus" hidden></small><b id="sScore">0</b></span><span>Moves<b id="sMoves">0</b></span><span id="sTimeW">Time<b id="sTime">0:00</b></span>
     </div>
     <button class="ib" id="bHelp" aria-label="How to play" title="How to play (?)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.3-.9.8-.9 1.4v.6M12 17h.01"/></svg></button>
-    <div id="goal" role="progressbar" aria-label="Cards home" aria-valuemin="0" aria-valuemax="52" aria-valuenow="0" aria-valuetext="0 of 52 cards home"><i></i><span class="rev" aria-hidden="true"></span></div>
+    <div id="goal" role="progressbar" aria-label="Cards home" aria-valuemin="0" aria-valuemax="52" aria-valuenow="0" aria-valuetext="0 of 52 cards home"><i></i><span class="rev reveal" aria-hidden="true"></span></div>
   </header>
   <main id="stage">
     <canvas id="tbl" aria-hidden="true"></canvas>
@@ -395,7 +398,7 @@
       aria-label="Card table. Arrow keys move the cursor, Enter picks up or drops cards, H for a hint, U to undo, S to hear the table. Press question mark for help."></canvas>
     <div id="mirror" class="sr-only" role="group" aria-label="Table piles. Press a pile to pick up or drop cards." hidden></div>
     <div id="tabNote" hidden><span>Also open in another tab: the last move made in either tab is the one kept.</span><button id="tabNoteX" type="button">Got it</button></div>
-    <div id="coach" hidden><span id="coachTx"></span><button id="coachSkip" type="button">Skip tips</button></div>
+    <div id="coach" hidden><span id="coachTx"></span><button id="coachOk" type="button">Got it</button><button id="coachSkip" type="button">Skip tips</button></div>
     <div id="toast" aria-hidden="true"></div>
   </main>
   <nav id="tools" aria-label="Game actions">
@@ -683,7 +686,7 @@ function canDrop(run, to, from) {
   if (to === from || !run.length) return false;
   const k = kindOf(to); const p = S.piles[to];
   if (k === 'stock' || k === 'waste') return false;
-  if (k === 'found') return !def().runs && run.length === 1 && foundationFits(run[0], to);
+  if (k === 'found') return !def().runs && (!from || kindOf(from) !== 'found') && run.length === 1 && foundationFits(run[0], to);
   if (k === 'cell') return run.length === 1 && !p.length;
   if (!p.length) {
     if (def().empty === 'king' && card(run[0]).r !== 13) return false;
@@ -780,6 +783,7 @@ function finishWins() {
 
 // 5. Game controller: moves, undo/redo, scoring, autoplay, hints, auto-complete
 let undoStack = [], redoStack = [];
+let pullbackHold = new Set(); // card UIDs manually pulled down from a foundation; suppressed from autoplay until sent home or undone
 let animDelay = {};          // uid → ms delay before its next tween starts (staggered autoplay)
 let flipQueue = [];          // uids that just turned face up (for flip animation + sound)
 let hintState = null;        // {list, i, until}
@@ -792,10 +796,11 @@ let nextDeal = null;         // set by __game.seed(n)
 
 function snapshot() {
   const piles = {}; for (const k in S.piles) piles[k] = S.piles[k].slice();
-  return { piles, up: S.up.slice(), score: S.score, moves: S.moves, recycles: S.recycles, runs: S.runs, won: S.won };
+  return { piles, up: S.up.slice(), score: S.score, moves: S.moves, recycles: S.recycles, runs: S.runs, won: S.won, pullback: [...pullbackHold] };
 }
 function restore(sn) {
   S.piles = sn.piles; S.up = sn.up; S.score = sn.score; S.moves = sn.moves; S.recycles = sn.recycles; S.runs = sn.runs; S.won = sn.won;
+  pullbackHold = new Set(Array.isArray(sn.pullback) ? sn.pullback : []);
 }
 function pushUndo() { undoStack.push(snapshot()); redoStack.length = 0; }
 
@@ -811,6 +816,7 @@ const addScore = (n, pile) => {
 
 function scoreMove(from, to, n) {
   const fk = kindOf(from), tk = kindOf(to);
+  if (fk === 'found' && tk === 'found') return;
   if (S.mode === 'spider') return;
   if (S.mode === 'freecell') {
     if (tk === 'found') addScore(10 * n, to); else if (fk === 'found') addScore(-10 * n, to);
@@ -853,7 +859,7 @@ function settleTableau(delayBase) {
         S.piles['f' + f].push(...run);
         run.forEach((u, j) => { animDelay[u] = d + j * 28; });
         d += 400; S.runs++; addScore(100, 'f' + f); changed = true; sfx('run');
-        { syncShared(); const a = earn({ wins: meta.totalWins, w: null, run: true }); if (a.length) { save('meta', meta); setTimeout(() => achToast(a), 900); } }
+        if (!S.replay) { syncShared(); const a = earn({ wins: meta.totalWins, w: null, run: true }); if (a.length) { save('meta', meta); setTimeout(() => achToast(a), 900); } }
         announce('Completed a run of ' + SUIT_NAME[card(run[0]).s]);
       }
     }
@@ -878,11 +884,11 @@ function autoplay(delayBase) {
     moved = false;
     for (const id of sourcePiles()) {
       const u = top(id); if (u < 0 || !S.up[u]) continue;
-      if (kindOf(id) === 'found') continue;
+      if (kindOf(id) === 'found' || pullbackHold.has(u)) continue;
       const f = foundationFor(u);
       if (f && (mode === 'all' || safeToAutoplay(u))) {
         if (!settings.autoNoted) { settings.autoNoted = true; saveSettings(); toast('Moved the ' + describeCard(u).replace(/^./, (c) => c.toLowerCase()) + ' up. Turn this off in Settings.'); } // said once, the first time a card moves by itself
-        rawMove(id, S.piles[id].length - 1, f, d + 1); cueOnLand('found', card(u).r, 0, u, true); d += 90; moved = true; settleTableau(d); break;
+        rawMove(id, S.piles[id].length - 1, f, d + 1); S.moves++; cueOnLand('found', card(u).r, 0, u, true); d += 90; moved = true; settleTableau(d); break;
       }
     }
   }
@@ -902,13 +908,16 @@ function startClock() {
     syncShared();
     S.started = true; clockMark = now();
     const k = modeKey(S.mode, S.opts); const st = statFor(k); st.played++; saveStats();
-    if (S.daily) { meta.daily[S.daily + '|' + k] = meta.daily[S.daily + '|' + k] || 'played'; save('meta', meta); }
+    const dk = k + ':' + S.deal;
+    meta.seenDeals = meta.seenDeals.filter((x) => x !== dk).concat(dk).slice(-WON_DEALS_KEPT);
+    if (S.daily) meta.daily[S.daily + '|' + k] = meta.daily[S.daily + '|' + k] || 'played';
+    save('meta', meta);
   }
 }
 
 function afterAction(opts = {}) {
   let d = settleTableau(opts.delay || 0);
-  d = autoplay(d + (opts.delay ? 0 : 120));
+  if (!opts.noAutoplay) d = autoplay(d + (opts.delay ? 0 : 120));
   hintState = null;
   if (!S.won && isWon()) { S.won = true; onWin(d); }
   if (flipQueue.length) { sfx('flip'); flipQueue.length = 0; }
@@ -933,13 +942,15 @@ function tryMove(from, idx, to, why = 'player') {
   if (!canPick(from, idx)) return { ok: false, reason: 'cannot pick' };
   const run = S.piles[from].slice(idx);
   if (!canDrop(run, to, from)) return { ok: false, reason: 'illegal drop' };
-  pushUndo(); startClock(); stuckSuppressed = false; if (why === 'player') tipEvent('move');
+  const fk = kindOf(from), tk = kindOf(to);
+  pushUndo(); startClock(); stuckSuppressed = false; if (why === 'player' || why === 'tap') tipEvent('move');
+  if (fk === 'found') pullbackHold.add(run[0]);
+  else if (tk === 'found') pullbackHold.delete(run[0]);
   rawMove(from, idx, to);
   S.moves++; if (S.mode === 'spider') addScore(-1);
-  { const b = L && L.piles[to]; cueOnLand(kindOf(to) === 'found' ? 'found' : 'place', kindOf(to) === 'found' ? card(run[0]).r : run.length, b ? (b.x + L.cw / 2) / W * 2 - 1 : 0, run[0]); }
+  { const b = L && L.piles[to]; cueOnLand(tk === 'found' ? 'found' : 'place', tk === 'found' ? card(run[0]).r : run.length, b ? (b.x + L.cw / 2) / W * 2 - 1 : 0, run[0]); }
   announce(describeRun(run) + ' to ' + pileName(to));
-  afterAction();
-  void why;
+  afterAction({ noAutoplay: fk === 'found' });
   return { ok: true };
 }
 
@@ -983,7 +994,7 @@ function stockAction() {
 function undo() {
   if (!undoStack.length || !S || S.won) return { ok: false };
   redoStack.push(snapshot()); restore(undoStack.pop()); scoreFx = [];
-  S.usedUndo = true; S.assisted = true; hintState = null;
+  S.usedUndo = true; S.assisted = true; hintState = null; tipEvent('undo');
   sfx('undo'); announce('Undone'); relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   return { ok: true };
 }
@@ -995,7 +1006,7 @@ function redoCue(was, runs) {
 function redo() {
   if (!redoStack.length || !S) return { ok: false };
   const was = {}, runs = S.runs; for (const id in S.piles) if (kindOf(id) === 'found') was[id] = S.piles[id].length;
-  undoStack.push(snapshot()); restore(redoStack.pop()); scoreFx = []; stuckSuppressed = false;
+  undoStack.push(snapshot()); restore(redoStack.pop()); scoreFx = []; stuckSuppressed = false; tipResetIdle();
   sfx(...redoCue(was, runs)); announce('Redone'); relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   if (!S.won && isWon()) { S.won = true; onWin(0); }
   return { ok: true };
@@ -1574,17 +1585,23 @@ function autoComplete() {
       const u = top(id); if (u < 0 || !S.up[u]) continue;
       const f = foundationFor(u); if (f && (!best || card(u).r < card(best.u).r)) best = { id, u, f };
     }
-    if (best) { rawMove(best.id, S.piles[best.id].length - 1, best.f, d + 1); cueOnLand('found', card(best.u).r, 0, best.u, true); d += 70; moved = true; stall = 0; settleTableau(d); }
+    if (best) { rawMove(best.id, S.piles[best.id].length - 1, best.f, d + 1); S.moves++; cueOnLand('found', card(best.u).r, 0, best.u, true); d += 70; moved = true; stall = 0; settleTableau(d); }
     if (!moved && def().stock === 'draw') {
       const st = S.piles.stock, w = S.piles.waste;
       if (stall > st.length + w.length + 2) break;
-      if (st.length) { const n = Math.min(S.opts.draw, st.length); for (let i = 0; i < n; i++) { const u = st.pop(); w.push(u); S.up[u] = true; animDelay[u] = d + 1; } }
-      else if (w.length) { while (w.length) { const u = w.pop(); st.push(u); S.up[u] = false; } }
-      else break;
+      if (st.length) {
+        const n = Math.min(S.opts.draw, st.length);
+        for (let i = 0; i < n; i++) { const u = st.pop(); w.push(u); S.up[u] = true; animDelay[u] = d + 1; }
+        S.moves++;
+      } else if (w.length) {
+        S.recycles++;
+        if (S.recycles > 1) addScore(S.opts.draw === 3 ? -20 : -50, 'stock');
+        while (w.length) { const u = w.pop(); st.push(u); S.up[u] = false; }
+        S.moves++;
+      } else break;
       stall++; d += 40;
     } else if (!moved) break;
   }
-  S.moves++;
   sfx('deal');
   if (!S.won && isWon()) { S.won = true; finishRun = d > 300; onWin(d); }
   relayout(); flushLandCues(); updateHUD(); scheduleSave(); scheduleStuckCheck();
@@ -1594,21 +1611,51 @@ function autoComplete() {
 function bestDestination(from, idx) {
   if (!canPick(from, idx)) return null;
   const p = S.piles[from]; const run = p.slice(idx); const d = def();
-  if (run.length === 1 && kindOf(from) !== 'found') { const f = foundationFor(run[0]); if (f) return f; }
-  let best = null, bestSc = -1e9;
+  const fk = kindOf(from);
+  if (run.length === 1 && fk !== 'found') { const f = foundationFor(run[0]); if (f) return f; }
+  let bonded = false, srcAbove = 0;
+  if (d.lift === 'suit' && fk === 'tab' && idx > 0 && S.up[p[idx - 1]] && suitDesc(p[idx - 1], run[0])) {
+    bonded = true; srcAbove = 1;
+    while (idx - 1 - srcAbove >= 0 && S.up[p[idx - 1 - srcAbove]] && suitDesc(p[idx - 1 - srcAbove], p[idx - srcAbove])) srcAbove++;
+  }
+  let bestBuild = null, bestBuildSc = -1e9, bestEmpty = null;
   for (let i = 0; i < d.cols; i++) {
     const to = 't' + i; if (!canDrop(run, to, from)) continue;
-    const empty = !S.piles[to].length;
-    if (empty && kindOf(from) === 'tab' && idx === 0) continue;
-    let sc = empty ? 0 : 20;
-    if (kindOf(from) === 'tab' && idx > 0 && !S.up[p[idx - 1]]) sc += 10;
-    if (!empty && d.lift === 'suit' && card(top(to)).s === card(run[0]).s) sc += 15;
+    const q = S.piles[to], empty = !q.length;
+    if (empty) {
+      if (fk === 'tab' && idx === 0) continue;
+      if (bonded) continue; // protect Spider same-suit runs from splitting into empty columns
+      if (!bestEmpty) bestEmpty = to;
+      continue;
+    }
+    let sc = 20;
+    if (d.lift === 'suit') {
+      const sameSuit = card(q[q.length - 1]).s === card(run[0]).s;
+      if (bonded && !sameSuit) continue; // never rip a Spider card off a same-suit run onto an off-suit column
+      if (sameSuit) {
+        let tRun = 1;
+        while (tRun < q.length && S.up[q[q.length - 1 - tRun]] && suitDesc(q[q.length - 1 - tRun], q[q.length - tRun])) tRun++;
+        if (bonded && tRun <= srcAbove) continue; // only transfer a bonded Spider tail onto a strictly longer same-suit run
+        sc += 15 + Math.min(tRun, 12);
+      }
+    }
     sc -= i * 0.01; // stable: leftmost wins ties
-    if (sc > bestSc) { bestSc = sc; best = to; }
+    if (sc > bestBuildSc) { bestBuildSc = sc; bestBuild = to; }
   }
-  if (best) return best;
-  if (run.length === 1) for (let i = 0; i < d.cells; i++) if (canDrop(run, 'c' + i, from)) return 'c' + i;
-  return null;
+  if (bestBuild) return bestBuild;
+  const openCell = () => {
+    if (run.length !== 1 || fk === 'cell') return null;
+    for (let i = 0; i < d.cells; i++) if (canDrop(run, 'c' + i, from)) return 'c' + i;
+    return null;
+  };
+  // In FreeCell, prefer an open free cell ahead of an empty tableau column for single non-Kings (preserves supermove capacity)
+  if (d.cells && run.length === 1 && card(run[0]).r !== 13) {
+    const c = openCell(); if (c) return c;
+    if (bestEmpty) return bestEmpty;
+    return null;
+  }
+  if (bestEmpty) return bestEmpty;
+  return openCell();
 }
 // Why a card will not go: the words for a drop the rules refuse. '' where there is nothing to say (the same pile, the stock, a pile that is no target).
 const rankWord = (r) => RANK_NAME[r].toLowerCase();
@@ -1616,9 +1663,11 @@ const aRank = (r) => (r === 1 || r === 8 ? 'an ' : 'a ') + rankWord(r);
 function refusalReason(run, to, from) {
   if (!run.length || to === from) return '';
   const k = kindOf(to), p = S.piles[to], U = card(run[0]);
-  if (k === 'stock' || k === 'waste') return '';
+  if (k === 'stock') return '';
+  if (k === 'waste') return 'Cards draw from the waste, not onto it';
   if (k === 'found') {
     if (def().runs) return '';
+    if (from && kindOf(from) === 'found') return 'That card is already on a foundation';
     if (run.length > 1) return 'Only one card at a time goes home';
     if (!p.length) return 'An Ace starts a foundation';
     const T = card(p[p.length - 1]);
@@ -1638,8 +1687,12 @@ function capacityReason(run, to) {
 }
 // A card tapped that has nowhere to go: a word on what is in the way.
 function tapReason(from, idx) {
-  const p = S.piles[from];
-  if (!canPick(from, idx)) return !S.up[p[idx]] ? 'That card is face down' : runTooLong(from, idx) ? 'Not enough free cells for that run' : def().lift === 'suit' ? 'Only a run of one suit, in order, moves together' : 'Only a run that builds down in alternating colors moves together';
+  const p = S.piles[from], k = kindOf(from);
+  if (!canPick(from, idx)) {
+    if (k === 'found') return def().runs ? 'Completed runs stay in the foundation' : 'Only the top foundation card moves';
+    if (k === 'waste') return 'Only the top waste card plays';
+    return !S.up[p[idx]] ? 'That card is face down' : runTooLong(from, idx) ? 'Not enough free cells for that run' : def().lift === 'suit' ? 'Only a run of one suit, in order, moves together' : 'Only a run that builds down in alternating colors moves together';
+  }
   if (idx < p.length - 1) return 'No column takes that run yet';
   return def().cells ? 'No free cell or column for that card' : 'No pile takes that card yet';
 }
@@ -1656,9 +1709,17 @@ function tapAt(from, idx) {
   const p = S.piles[from];
   if (idx == null) idx = p.length - 1;
   if (idx < 0) return { ok: false, reason: 'empty' };
-  const to = bestDestination(from, idx);
+  let pick = idx, to = bestDestination(from, idx);
+  // Upward ordered-run fallback strictly in ordered-lift modes (explicitly excluding Yukon where lift === 'any')
+  if (!to && kindOf(from) === 'tab' && def().lift !== 'any' && canPick(from, idx)) {
+    for (let i = idx - 1; i >= 0; i--) {
+      if (!canPick(from, i)) break;
+      const cand = bestDestination(from, i);
+      if (cand) { pick = i; to = cand; break; }
+    }
+  }
   if (!to) { sfx('nope'); shake(from, idx); explain(tapReason(from, idx)); return { ok: false, reason: 'no destination' }; }
-  return tryMove(from, idx, to, 'tap');
+  return tryMove(from, pick, to, 'tap');
 }
 
 // --- Naming for announcements ---
@@ -1762,7 +1823,11 @@ function pickPoolDeal(key, want, daily, seed) {
   return { deal: flat[idx][0], grade: flat[idx][1] };
 }
 let dealPending = null;
-const showDealing = (on) => { $('#dealing').classList.toggle('on', on); if (on) announce('Finding a winnable deal'); };
+const showDealing = (on) => {
+  $('#dealing').classList.toggle('on', !!on);
+  if (modalKind && sheet) sheet.querySelectorAll('[data-a="yes"], [data-daily], [data-a="goDeal"]').forEach((b) => { b.disabled = !!on; });
+  if (on) announce('Finding a winnable deal');
+};
 
 function newGame(o = {}) {
   const mode = MODES[o.mode] ? o.mode : (S ? S.mode : meta.lastMode || 'klondike');
@@ -1828,13 +1893,17 @@ function newGame(o = {}) {
 function startDeal(mode, opts, deal, daily, winnable, grade) {
   abandonCurrent();
   clearTimeout(winTimer); winTimer = 0; finishRun = false;
+  syncShared();
   S = newState(mode, opts, deal, daily); musicHush = false; scoreFx = [];
   if (winnable) S.winnable = true;
   if (winnable && grade) S.grade = grade;
+  const dk = modeKey(mode, S.opts) + ':' + deal;
+  if (meta.seenDeals.includes(dk) || meta.wonDeals.includes(dk) || meta.wonDeals.includes(mode + ':' + deal)) S.replay = true;
+  pullbackHold.clear();
   undoStack = []; redoStack = []; hintState = null; held = null; drag = null; cascade = null; cursor = { pile: null, depth: 0 }; clearStuck();
   tabSuperseded = false; tabNoteHide();
-  syncShared(); meta.lastMode = mode; meta.lastOpts = { draw: S.opts.draw, suits: S.opts.suits }; save('meta', meta);
-  closeModal(); showTitle(false); tipHide(); setTimeout(tipShow, 1400);
+  meta.lastMode = mode; meta.lastOpts = { draw: S.opts.draw, suits: S.opts.suits }; save('meta', meta);
+  closeModal(); showTitle(false); tipHide(); tipGoalShown = null; tipSchedule(1650);
   dealAnimation(); updateHUD(); scheduleSave();
   sfx('deal'); steamBurst();
   announce(MODES[mode].name + ' ' + variantLabel(mode, S.opts) + ', deal ' + deal);
@@ -1995,9 +2064,9 @@ function resumeSaved() {
   clearTimeout(winTimer); winTimer = 0; finishRun = false;
   const prev = { S, undoStack, tabSuperseded };
   try {
-    S = c.state; undoStack = c.undo; redoStack = []; hintState = null; held = null; drag = null; cascade = null; fitHold = 1; clearStuck();
+    S = c.state; undoStack = c.undo; redoStack = []; pullbackHold.clear(); hintState = null; held = null; drag = null; cascade = null; fitHold = 1; clearStuck();
     tabSuperseded = false; tabNoteHide();
-    clockMark = now(); closeModal(); showTitle(false); relayout(true); dealAnimation(); updateHUD();
+    clockMark = now(); closeModal(); showTitle(false); tipHide(); tipGoalShown = null; relayout(true); dealAnimation(); updateHUD(); tipResetIdle();
   } catch (e) {
     S = prev.S; undoStack = prev.undoStack; tabSuperseded = prev.tabSuperseded; save('current', null); showTitle(true); toast('Your saved game could not be restored.');
     return false;
@@ -2469,7 +2538,7 @@ for (const k in DEFAULT_SETTINGS) {
 }
 if (hadSave && typeof storedSettings.tips !== 'boolean') settings.tips = false;
 if (hadSave && typeof storedSettings.autoNoted !== 'boolean') settings.autoNoted = true; // someone who has played before has already seen cards go home by themselves
-settings.tipStep = clamp(Math.floor(settings.tipStep), 0, 3);
+settings.tipStep = clamp(Math.floor(settings.tipStep), 0, 2); // TIP_ORDER.length
 settings.volume = clamp(settings.volume, 0, 1); settings.musicVol = clamp(settings.musicVol, 0, 1); settings.ambVol = clamp(settings.ambVol, 0, 1);
 function normalizeMeta() {
   if (!MODES[meta.lastMode]) meta.lastMode = 'klondike';
@@ -2478,6 +2547,7 @@ function normalizeMeta() {
   if (typeof meta.totalWins !== 'number' || !isFinite(meta.totalWins)) meta.totalWins = 0;
   if (!isObj(meta.daily)) meta.daily = {};
   meta.wonDeals = Array.isArray(meta.wonDeals) ? meta.wonDeals.filter((x) => typeof x === 'string').slice(-WON_DEALS_KEPT) : []; // the last deals won, so a replay can be told from a first win
+  meta.seenDeals = Array.isArray(meta.seenDeals) ? meta.seenDeals.filter((x) => typeof x === 'string').slice(-WON_DEALS_KEPT) : []; // bounded ring buffer of started deals, preventing Deal # / Daily pre-win replay bypasses
   const cut = dayShift(todayStr(), -DAILY_KEEP_DAYS); for (const k in meta.daily) if (k.slice(0, 10) < cut) delete meta.daily[k];
   const gw = isObj(meta.gradeWins) ? meta.gradeWins : {};
   meta.gradeWins = {}; for (const g of ['easy', 'medium', 'hard']) meta.gradeWins[g] = typeof gw[g] === 'number' && isFinite(gw[g]) && gw[g] > 0 ? Math.floor(gw[g]) : 0; // first wins of graded deals
@@ -3568,7 +3638,10 @@ function frame(t) {
       const dst = L.piles[m.to]; const dl = dst.cards.length ? dst.cards[dst.cards.length - 1] : { x: dst.x, y: dst.y };
       glowRect(dl.x, dl.y, cw, ch, '#FFF3D0', .35 + .4 * a, 2);
       if (first) hintArrow(first.x + cw / 2, first.y + Math.min(ch, L.fanUp) * .5, dl.x + cw / 2, dl.y + ch * .45, t);
-    } else if (hintState.stockHint && L.piles.stock) glowRect(L.piles.stock.x, L.piles.stock.y, cw, ch, '#F6C933', a, 3);
+    } else if (hintState.stockHint && L.piles.stock) {
+      const sb = L.piles.stock, stc = sb.cards && sb.cards.length ? sb.cards[sb.cards.length - 1] : sb;
+      glowRect(stc.x, stc.y, cw, ch, '#F6C933', a, 3);
+    }
   }
   if (held) {
     const cs = L.piles[held.from].cards;
@@ -3677,6 +3750,7 @@ function ambientSync() {
 const CER = { gather: 950, hold: 650, spray: 2600, steamEvery: 90, stampR: .42 }; // steam rises from the ring's centre every steamEvery ms; the Spa City mark is stamped at stampR of the ring's radius
 function startCascade() {
   if (!S) return;
+  tipHide();
   if (reducedMotion()) {
     const cx = W / 2, cy = H * .5, reach = Math.hypot(L.cw, L.ch) * .5 + 10, R = Math.max(L.ch, Math.min(W / 2, H / 2) - reach);
     const run = { calm: true, t0: now(), cx, cy, R, gone: new Set(), stampA: 1, steamed: 0, timer: 0 };
@@ -3817,13 +3891,14 @@ function runTooLong(id, idx) {
 function refuseDrag(pile, index) {
   if (kindOf(pile) === 'stock') return;
   shake(pile, index); sfx('nope');
-  if (runTooLong(pile, index)) toast('Not enough free cells for that run');
+  explain(tapReason(pile, index));
 }
 const DOUBLE_TAP_MS = 320; // two presses on the same card this close are a double-tap
 const TAP_NOTES = { tap: 'Tap sends a card to its best pile', double: 'Double-tap sends a card to its best pile', drag: 'Drag only: a tap never moves a card' }; // the line under the Settings choice
 const tapMode = () => (['tap', 'double', 'drag'].includes(settings.tapMove) ? settings.tapMove : 'tap');
 cv.addEventListener('pointerdown', (e) => {
   initAudio(); kbMode = false; kbClass(); cv.focus({ preventScroll: true });
+  if (!tip) tipResetIdle();
   if (cascade) { endCascade(); return; }
   if (finishRun && winTimer) { skipFinish(); return; }
   if (!S || S.won || e.button > 0) return;
@@ -3946,8 +4021,11 @@ function gameKey(e) {
     case 'Escape': if (held) { held = null; announce('Put back'); break; } openModal('menu'); break;
     case 't': case 'T': kbMode = true; held = null; tapAt(cursor.pile, P.length ? cursor.depth : -1); setCursorAfterMove(); break;
     case 'f': case 'F': {
-      kbMode = true; held = null; const u = top(cursor.pile); const f = u >= 0 ? foundationFor(u) : null;
-      if (f) tryMove(cursor.pile, P.length - 1, f); else { sfx('nope'); announce('No foundation move'); }
+      kbMode = true; held = null;
+      const ck = kindOf(cursor.pile), u = ck !== 'stock' && ck !== 'found' ? top(cursor.pile) : -1;
+      const f = u >= 0 && S.up[u] && canPick(cursor.pile, P.length - 1) ? foundationFor(u) : null;
+      if (f && tryMove(cursor.pile, P.length - 1, f).ok) { /* moved */ }
+      else { sfx('nope'); announce('No foundation move'); }
       setCursorAfterMove(); break;
     }
     case 'd': case 'D': stockAction(); break;
@@ -3963,6 +4041,7 @@ function gameKey(e) {
       if (/^[0-9]$/.test(k)) { const n = k === '0' ? 9 : +k - 1; if (n < R.tab.length) { kbMode = true; setCursor(R.tab[n]); } break; }
       return false;
   }
+  if (!tip) tipResetIdle();
   kbClass(); markDirty(); return true;
 }
 function kbClass() { cv.classList.toggle('kb', kbMode); }
@@ -4527,11 +4606,16 @@ let toastTimer = 0;
 function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('on'), 2400); announce(msg); }
 function achToast(names) { sfx('ach'); toast('Achievement: ' + names[0] + (names.length > 1 ? ' and ' + (names.length - 1) + ' more' : '')); }
 
-const TIP_GOAL = { klondike: 'Build each suit from Ace to King on the foundations.', freecell: 'Move every card to the foundations, Ace up to King.',
-  spider: 'Build King-to-Ace runs of one suit; each leaves the table.', yukon: 'Build each suit from Ace to King on the foundations.' };
+const TIP_GOAL = {
+  klondike: 'Build each suit from Ace to King on the foundations.',
+  freecell: 'Use the four free cells to build Aces up to Kings.',
+  spider: 'Build King-to-Ace runs of one suit; each leaves the table.',
+  yukon: 'Lift any face-up card and its stack; build Aces to Kings.',
+};
 const TIP_MS = { goal: 6500, move: 14000, hint: 9000, stock: 9000 };
-const TIP_ORDER = ['move', 'hint', 'stock'];
-let touchIn = false, tip = null, tipTimer = 0;
+const TIP_IDLE_MS = 25000;
+const TIP_ORDER = ['move', 'stock'];
+let touchIn = false, tip = null, tipTimer = 0, tipDelayTimer = 0, tipIdleTimer = 0, tipIdleShown = false, tipGoalShown = null;
 // Two tabs share one saved game. When the other tab saves a different position than this one shows, say so once (no
 // locking, nothing blocked); the line goes when this tab moves, on its button, or when the title opens.
 const tabEl = $('#tabNote');
@@ -4558,31 +4642,95 @@ function tipText(id) {
     if (m === 'drag' && k < 2) return 'Drag a card to where it fits.';
     return t(m === 'double' ? 'Double-click a card to send it where it fits, or drag.' : 'Click a card to send it where it fits, or drag.', m === 'double' ? 'Double-tap a card to send it where it fits.' : 'Tap a card to send it where it fits.', 'Arrows move; Enter picks up and drops cards.');
   }
-  if (id === 'hint') return t('Stuck? Hint shows a move; Undo takes one back.', 'Stuck? Tap Hint to see a move.', 'Stuck? Press H for a hint, U to undo.');
+  if (id === 'hint') return t('Stuck? Hint shows a move; Undo takes one back.', 'Stuck? Tap Hint to see a move, or Undo.', 'Stuck? Press H for a hint, U to undo.');
   return t('Click the stock pile for more cards.', 'Tap the stock pile for more cards.', 'Press D to draw from the stock.');
 }
-function tipHide() { clearTimeout(tipTimer); tip = null; coachEl.hidden = true; $('#bHint').classList.remove('pt'); }
+function tipHide() {
+  clearTimeout(tipTimer); tipTimer = 0;
+  clearTimeout(tipDelayTimer); tipDelayTimer = 0;
+  clearTimeout(tipIdleTimer); tipIdleTimer = 0;
+  tip = null;
+  coachEl.hidden = true;
+  $('#bHint').classList.remove('pt');
+}
+function tipSchedule(ms) {
+  clearTimeout(tipDelayTimer); tipDelayTimer = 0;
+  if (!settings.tips || titleOn || modalKind || cascade || !S || S.won) return;
+  tipDelayTimer = setTimeout(() => { tipDelayTimer = 0; tipShow(); }, ms);
+}
+function tipResetIdle() {
+  clearTimeout(tipIdleTimer); tipIdleTimer = 0;
+  if (!settings.tips || tip || tipIdleShown || titleOn || modalKind || cascade || !S || S.won) return;
+  tipIdleTimer = setTimeout(() => { tipIdleTimer = 0; tipShowIdle(); }, TIP_IDLE_MS);
+}
+function tipShowIdle() {
+  if (tip || tipIdleShown || titleOn || modalKind || cascade || !settings.tips || !S || S.won) return;
+  tip = 'hint';
+  const x = tipText('hint');
+  $('#coachTx').textContent = x;
+  coachEl.hidden = false;
+  // Passive non-pulsing reminder (CD-WF2-06): never pulse #bHint.pt and never exempt Hint from S.assisted
+  announce(x);
+  tipTimer = setTimeout(() => tipFade('hint'), TIP_MS.hint);
+}
+function tipFade(id) {
+  if (tip !== id) return;
+  // Visual fade only: unread tips stay unburned until the player acts or dismisses via Got it / Skip tips
+  tipHide();
+  if (id !== 'hint') tipResetIdle();
+}
 function tipShow() {
   if (tip || titleOn || modalKind || cascade || !settings.tips || !S || S.won) return;
   const id = settings.tipModes.split(',').includes(S.mode) ? TIP_ORDER[settings.tipStep] : 'goal';
-  if (!id || (id === 'stock' && !def().stock)) return;
-  tip = id; const x = tipText(id); $('#coachTx').textContent = x; coachEl.hidden = false;
-  $('#bHint').classList.toggle('pt', id === 'hint'); $('#bHint').classList.toggle('st', reducedMotion());
-  announce(x); tipTimer = setTimeout(() => tipDone(id), TIP_MS[id]);
+  if (!id || (id === 'stock' && !def().stock)) { tipResetIdle(); return; }
+  clearTimeout(tipIdleTimer); tipIdleTimer = 0;
+  tip = id;
+  if (id === 'goal') tipGoalShown = S.mode;
+  const x = tipText(id);
+  $('#coachTx').textContent = x;
+  coachEl.hidden = false;
+  announce(x);
+  tipTimer = setTimeout(() => tipFade(id), TIP_MS[id]);
 }
 function tipDone(id) {
-  if (tip !== id) return; tipHide();
-  if (id === 'goal') settings.tipModes += (settings.tipModes ? ',' : '') + S.mode; else settings.tipStep++;
-  saveSettings(); setTimeout(tipShow, 700);
+  if (tip !== id) return;
+  tipHide();
+  if (id === 'hint') { tipIdleShown = true; return; }
+  if (id === 'goal') {
+    if (!settings.tipModes.split(',').includes(S.mode)) settings.tipModes += (settings.tipModes ? ',' : '') + S.mode;
+  } else {
+    settings.tipStep = Math.min(TIP_ORDER.length, settings.tipStep + 1);
+  }
+  saveSettings();
+  tipSchedule(700);
 }
 function tipEvent(ev) {
+  if (ev === 'hint' || ev === 'undo') {
+    tipIdleShown = true;
+    if (tip === 'hint') tipHide();
+    return;
+  }
   if (!settings.tips || !S) return;
-  if (tip === ev) tipDone(ev);
-  else if (tip === 'goal' && ev === 'move') { settings.tipStep = Math.max(settings.tipStep, 1); tipDone('goal'); }
-  else if (!tip && TIP_ORDER[settings.tipStep] === ev && settings.tipModes.split(',').includes(S.mode)) { settings.tipStep++; saveSettings(); } // done before its tip came up
+  if (tip === 'hint') { tipHide(); tipResetIdle(); }
+  if (tip === ev) { tipDone(ev); return; }
+  if (tip === 'goal' && ev === 'move') { settings.tipStep = Math.max(settings.tipStep, 1); tipDone('goal'); return; }
+  if (!tip) {
+    let changed = false;
+    if (ev === 'move' && tipGoalShown === S.mode && !settings.tipModes.split(',').includes(S.mode)) {
+      settings.tipModes += (settings.tipModes ? ',' : '') + S.mode;
+      changed = true;
+    }
+    if (TIP_ORDER[settings.tipStep] === ev && settings.tipModes.split(',').includes(S.mode)) {
+      settings.tipStep = Math.min(TIP_ORDER.length, settings.tipStep + 1);
+      changed = true;
+    }
+    if (changed) { saveSettings(); tipSchedule(700); }
+    else tipResetIdle();
+  }
 }
-coachEl.onclick = (e) => { if (tip && e.target.id !== 'coachSkip') tipDone(tip); };
-$('#coachSkip').onclick = () => { setSetting('tips', false); toast('Tips off. Settings brings them back.'); };
+$('#coachOk').onclick = () => { if (tip) tipDone(tip); if (!modalKind && !titleOn) cv.focus({ preventScroll: true }); };
+coachEl.onclick = (e) => { if (tip && !e.target.closest('button')) tipDone(tip); };
+$('#coachSkip').onclick = () => { setSetting('tips', false); toast('Tips off. Settings brings them back.'); if (!modalKind && !titleOn) cv.focus({ preventScroll: true }); };
 function updateHUD() {
   if (!S) return;
   $('#modeName').textContent = MODES[S.mode].name + (variantLabel(S.mode, S.opts) ? ' (' + variantLabel(S.mode, S.opts) + ')' : '');
@@ -4614,7 +4762,11 @@ function updateGoal() {
   const initDown = typeof S.initDown === 'number' ? S.initDown : (S.mode === 'spider' ? 44 : S.mode === 'freecell' ? 0 : 21);
   const revFrac = initDown > 0 ? clamp((initDown - downCount()) / initDown, 0, 1) : 0;
   const revEl = g.children[1]; if (revEl) revEl.style.width = (100 * revFrac) + '%';
-  const hc = $('#homeCount'); if (hc) hc.textContent = S.mode === 'spider' ? (S.runs + '/8') : (n + '/' + all);
+  const hc = $('#homeCount');
+  if (hc) {
+    hc.textContent = S.mode === 'spider' ? (S.runs + '/8') : (n + '/' + all);
+    hc.title = S.mode === 'spider' ? ('Runs complete: ' + S.runs + ' of 8') : ('Home: ' + n + ' of ' + all + ' cards');
+  }
 }
 function updateTime() {
   if (!S) return;
@@ -4742,11 +4894,12 @@ const sheet = $('#sheet'), modalEl = $('#modal');
 let modalReturn = null, modalOpener = null;
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
 function closeModal(back) {
+  if (dealPending) { dealPending = null; showDealing(false); }
   if (!modalKind) return;
   const was = modalKind; modalKind = null; modalAnimUntil = 0; modalEl.classList.remove('on'); sheet.innerHTML = '';
   clockMark = now(); syncAudio();
   if (back && modalReturn && modalReturn !== was) { const r = modalReturn; modalReturn = null; openModal(r, r === 'stuck' && stuckFact ? { fact: FACTS[stuckFact.fi] } : undefined); return; }
-  modalReturn = null; syncInert(); setTimeout(tipShow, 500);
+  modalReturn = null; syncInert(); if (!titleOn && S && !S.won) tipSchedule(500);
   const op = modalOpener; modalOpener = null;
   const canFocus = (el) => el && el.isConnected && !el.disabled && !el.closest('[hidden], [inert]') && el.getClientRects().length > 0;
   if (titleOn) {
@@ -4772,7 +4925,7 @@ function trapFocus(e) {
 }
 const head = (title) => '<div class="sheet-head"><h2 id="mT">' + title + '</h2><button type="button" class="ib x" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>';
 function openModal(kind, data) {
-  tickClock();
+  tickClock(); tipHide();
   if (!modalKind) {
     const ae = document.activeElement;
     modalOpener = ae && ae !== document.body && !modalEl.contains(ae) ? ae : null;
@@ -4937,14 +5090,14 @@ const MODALS = {
 };
 const ACTIONS = {
   resetSaved: () => { // a table that will not come right: forget it and go back to the title
-    clearTimeout(saveTimer); saveTimer = 0; clearTimeout(winTimer); winTimer = 0; finishRun = false; clearStuck();
+    clearTimeout(saveTimer); saveTimer = 0; clearTimeout(winTimer); winTimer = 0; finishRun = false; clearStuck(); tipHide(); pullbackHold.clear();
     S = null; undoStack = []; redoStack = []; held = null; drag = null; cascade = null; hintState = null;
     save('current', null); closeModal(); showTitle(true); toast('Saved game cleared.');
   },
   resume: () => closeModal(), new: () => confirmAbandon({ mode: S ? S.mode : meta.lastMode }), restart: () => confirmAbandon(null, true), undo: () => { const fromStuck = modalKind === 'stuck'; closeModal(); if (fromStuck) stuckSuppressed = true; undo(); },
   deal: () => openModal('deal'), daily: () => openModal('daily'), title: () => { closeModal(); showTitle(true); },
   backs: () => openModal('backs'), settings: () => openModal('settings'), stats: () => openModal('stats'), help: () => openModal('help'),
-  tipsAgain: () => { Object.assign(settings, { tips: true, tipStep: 0, tipModes: '' }); saveSettings(); openModal('settings'); },
+  tipsAgain: () => { Object.assign(settings, { tips: true, tipStep: 0, tipModes: '' }); tipIdleShown = false; tipGoalShown = null; saveSettings(); openModal('settings'); },
   records: () => openModal('records'),
   reseed: () => { settings.deckSeed = 1 + Math.floor(Math.random() * 1e6); saveSettings(); if (settings.back !== 'skylight') settings.back = 'skylight'; applyLook(); openModal('backs'); },
 };
@@ -4999,7 +5152,16 @@ const BIND = {
     const bindCal = () => sheet.querySelectorAll('[data-mo]').forEach((b) => (b.onclick = () => { const w = $('#calW'), dir = b.getAttribute('aria-label'); w.innerHTML = calendar(b.dataset.mo); bindCal(); const f = w.querySelector('[aria-label="' + dir + '"]:not(:disabled)') || w.querySelector('[data-mo]:not(:disabled)'); if (f) f.focus({ preventScroll: true }); }));
     bindCal();
   },
-  confirm(d) { sheet.querySelector('[data-a="yes"]').onclick = () => d.onYes(); },
+  confirm(d) {
+    const yb = sheet.querySelector('[data-a="yes"]');
+    if (yb) yb.onclick = () => {
+      if (dealPending) return;
+      yb.disabled = true;
+      const r = d.onYes();
+      if (r && typeof r.then === 'function') r.then((res) => { if ((!res || !res.ok) && yb.isConnected) yb.disabled = false; });
+      else if (yb.isConnected) yb.disabled = false;
+    };
+  },
 };
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -5121,9 +5283,9 @@ window.__game = {
     if (s.grade) { st.winnable = true; st.grade = s.grade; }
     if (s.score != null) st.score = s.score; if (s.moves != null) st.moves = s.moves;
     if (s.recycles != null) st.recycles = s.recycles;
-    S = st; scoreFx = []; undoStack = []; redoStack = []; held = null; drag = null; cascade = null; hintState = null; lastWin = null; clearStuck();
+    S = st; scoreFx = []; undoStack = []; redoStack = []; pullbackHold.clear(); held = null; drag = null; cascade = null; hintState = null; lastWin = null; clearStuck();
     clearTimeout(winTimer); winTimer = 0; finishRun = false;
-    closeModal(); showTitle(false); relayout(true); updateHUD(); markDirty();
+    closeModal(); showTitle(false); tipHide(); tipGoalShown = null; relayout(true); updateHUD(); markDirty();
     return true;
   },
   unlockAll() { meta.unlock.ids = UNLOCKS.map((u) => u[0]); save('meta', meta); return true; },
