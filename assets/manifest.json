@@ -39,7 +39,7 @@
   "file": "back-neon.webp",
   "w": 400,
   "h": 560,
-  "bytes": 88894
+  "bytes": 84694
  },
  "back-deco": {
   "file": "back-deco.webp",
@@ -201,19 +201,7 @@
   "file": "brass-recycle.webp",
   "w": 192,
   "h": 192,
-  "bytes": 7570
- },
- "tex-pool-l": {
-  "file": "tex-pool-l.webp",
-  "w": 1536,
-  "h": 1024,
-  "bytes": 199616
- },
- "tex-pool-p": {
-  "file": "tex-pool-p.webp",
-  "w": 1024,
-  "h": 1536,
-  "bytes": 171668
+  "bytes": 9078
  },
  "tex-midnight-l": {
   "file": "tex-midnight-l.webp",
@@ -226,30 +214,6 @@
   "w": 1024,
   "h": 1536,
   "bytes": 84848
- },
- "tex-linen-l": {
-  "file": "tex-linen-l.webp",
-  "w": 1536,
-  "h": 1024,
-  "bytes": 288388
- },
- "tex-linen-p": {
-  "file": "tex-linen-p.webp",
-  "w": 1024,
-  "h": 1536,
-  "bytes": 231660
- },
- "tex-quapaw-l": {
-  "file": "tex-quapaw-l.webp",
-  "w": 1536,
-  "h": 1024,
-  "bytes": 250876
- },
- "tex-quapaw-p": {
-  "file": "tex-quapaw-p.webp",
-  "w": 1024,
-  "h": 1536,
-  "bytes": 225212
  },
  "glow-skylight": {
   "file": "glow-skylight.webp",
@@ -340,5 +304,23 @@
   "w": 960,
   "h": 480,
   "bytes": 62736
+ },
+ "tex-pool": {
+  "file": "tex-pool.webp",
+  "w": 1024,
+  "h": 1024,
+  "bytes": 99972
+ },
+ "tex-linen": {
+  "file": "tex-linen.webp",
+  "w": 256,
+  "h": 256,
+  "bytes": 11576
+ },
+ "tex-quapaw": {
+  "file": "tex-quapaw.webp",
+  "w": 1024,
+  "h": 1024,
+  "bytes": 116862
  }
 }

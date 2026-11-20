@@ -272,4 +272,155 @@ export const tests = [
       }
     },
   },
+  {
+    name: 'visual-66 W3-B02 declarative table lighting, consolidated textures, Bath Ticket stub, mobile Large scale, & monotonic card kinematics',
+    async run(t) {
+      await t.game('unlockAll');
+      await baseSettings(t, { sound: false, tips: false, motion: 'full' });
+
+      // 1. W6-S4-04 + OQ-WF3-02: Consolidated single textures & declarative TABLE_LOOK parameters
+      for (const kept of ['tex-linen', 'tex-quapaw', 'tex-pool']) {
+        t.expect(!!MANIFEST[kept], kept + ' is packed as a single consolidated texture');
+        t.expect(!MANIFEST[kept + '-l'] && !MANIFEST[kept + '-p'], kept + ' retired legacy -l/-p split pair');
+      }
+      const allBytes = Object.values(MANIFEST).reduce((s, m) => s + m.bytes, 0) + fs.statSync(path.join(GAME, 'assets', 'fonts.css')).size;
+      t.expect(allBytes <= 3.5 * 1024 * 1024, 'consolidated assets/ folder stays under 3.5 MB (' + KB(allBytes) + ')');
+
+      const looks = {};
+      for (const id of ['felt', 'midnight', 'marble', 'quapaw', 'pool', 'linen']) looks[id] = await t.game('tableLook', id);
+      for (const id of ['marble', 'quapaw', 'pool', 'linen']) {
+        t.expect(looks[id].light === 1, id + ' preserves sunlit light:1 identity (CD-WF2-02)');
+        t.expect(looks[id].lampPeak >= 0.35 && looks[id].lampPeak <= 0.44, id + ' caps declarative lampPeak (' + looks[id].lampPeak + ')');
+        t.expect(looks[id].shadowAlpha === 0.4, id + ' uses grounded light-table resting shadowAlpha 0.40');
+        t.expect(looks[id].ceremonyDim === 0.42, id + ' uses light-table ceremonyDim 0.42');
+      }
+      t.equal(looks.marble.glowSoft, 0.3, 'Fordyce Marble caps glow-skylight soft-light to 0.30');
+      t.equal(looks.quapaw.blur, 2.8, 'Quapaw Mosaic suppresses chevron competition with blur 2.8');
+      t.equal(looks.pool.mark, '#CFECE6', 'Thermal Pool uses cool #CFECE6 watermark');
+      t.equal(looks.pool.single, true, 'Thermal Pool uses single consolidated tex-pool');
+      t.equal(!!looks.pool.tile, false, 'Thermal Pool draws frameless orthographic single cover (CD-WF3-04)');
+      t.equal(looks.linen.proceduralSky, true, 'Linen Postcard uses procedural Curt Teich sky + tiled linen');
+      for (const id of ['felt', 'midnight', 'quapaw', 'linen']) t.equal(looks[id].steam, false, id + ' gates dry-table steam strictly off');
+      for (const id of ['marble', 'pool']) t.equal(looks[id].steam, true, id + ' enables thermal spring vapor wisps');
+
+      // Verify runtime ambient().steam matches TABLE_LOOK across thermal vs dry tables
+      await t.game('newGame', { mode: 'klondike', deal: 5 });
+      await t.game('setSettings', { table: 'midnight' });
+      t.equal((await t.game('ambient')).steam, false, 'Midnight Club emits zero dry-table steam');
+      await t.game('setSettings', { table: 'pool' });
+      t.equal((await t.game('ambient')).steam, true, 'Thermal Pool emits spring vapor wisps');
+      await t.game('setSettings', { table: 'felt' });
+
+      // 2. W6-S4-06: Bath Ticket stub geometry & Blender AgX brass pipeline
+      const brassSrc = fs.readFileSync(path.join(GAME, 'art-src', 'blender', 'brass.py'), 'utf8');
+      t.expect(brassSrc.includes("'AgX'"), 'brass.py uses Blender AgX color management');
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: {
+          stock: [], waste: [],
+          f0: ['AC', '2C', '3C', '4C', '5C', '6C', '7C', '8C', '9C', 'TC', 'JC', 'QC', 'KC'],
+          f1: ['AD', '2D', '3D', '4D', '5D', '6D', '7D', '8D', '9D', 'TD', 'JD', 'QD', 'KD'],
+          f2: ['AH', '2H', '3H', '4H', '5H', '6H', '7H', '8H', '9H', 'TH', 'JH', 'QH', 'KH'],
+          f3: ['AS', '2S', '3S', '4S', '5S', '6S', '7S', '8S', '9S', 'TS', 'JS', 'QS'],
+          t0: ['KS'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [],
+        },
+      });
+      await t.game('act', 'move', 't0', 'f3');
+      await t.game('act', 'skip');
+      await t.waitForStable();
+      const stub = await t.page.evaluate(() => {
+        const tk = document.querySelector('.ticket'), sr = document.querySelector('.ticket .serial'), pu = document.querySelector('.ticket .punch'), h2 = document.querySelector('#sheet.win h2');
+        const tr = tk.getBoundingClientRect(), srr = sr.getBoundingClientRect(), pur = pu.getBoundingClientRect();
+        const h2cs = getComputedStyle(h2);
+        return {
+          serialLeftPct: (srr.left - tr.left) / tr.width,
+          serialRightPct: (srr.right - tr.left) / tr.width,
+          punchLeftPct: (pur.left - tr.left) / tr.width,
+          punchRightPct: (pur.right - tr.left) / tr.width,
+          overlap: !(srr.bottom <= pur.top || pur.bottom <= srr.top || srr.right <= pur.left || pur.right <= srr.left),
+          h2Align: h2cs.textAlign,
+        };
+      });
+      t.expect(stub.serialLeftPct >= 0.82 && stub.serialRightPct <= 0.99, 'Bath Ticket .serial sits cleanly inside right stub (' + (stub.serialLeftPct * 100).toFixed(1) + '%-' + (stub.serialRightPct * 100).toFixed(1) + '%)');
+      t.expect(stub.punchLeftPct >= 0.84 && stub.punchRightPct <= 0.99, 'Bath Ticket .punch sits cleanly inside right stub (' + (stub.punchLeftPct * 100).toFixed(1) + '%-' + (stub.punchRightPct * 100).toFixed(1) + '%)');
+      t.equal(stub.overlap, false, 'Bath Ticket .serial and .punch never overlap');
+      t.equal(stub.h2Align, 'center', 'Win sheet header stays centered');
+      await t.game('scene', 'game');
+
+      // 3. W6-S4-07: Mobile Card size: Large genuinely scales width and index across modes
+      if (t.viewport === 'mobile') {
+        for (const [mode, o] of [['klondike', {}], ['freecell', {}], ['spider', { suits: 2 }]]) {
+          await t.game('setSettings', { cardSize: 'standard' });
+          await t.game('newGame', Object.assign({ mode, deal: 5 }, o));
+          const stdL = await t.game('getLayout');
+          await t.game('setSettings', { cardSize: 'large' });
+          const lgL = await t.game('getLayout');
+          t.expect(lgL.cardW >= stdL.cardW + 2, 'mobile Large widens ' + mode + ' (' + stdL.cardW + ' -> ' + lgL.cardW + ')');
+          t.expect(lgL.indexPx >= stdL.indexPx + 3, 'mobile Large enlarges ' + mode + ' index (' + stdL.indexPx + ' -> ' + lgL.indexPx + ')');
+        }
+        await t.game('setSettings', { cardSize: 'standard' });
+      }
+
+      // 4. W6-S5-04: Monotonic drag handoff, retired drag.trail, top-tapered touch clearance, smooth pointercancel, & instant resumeSaved
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['6C'], t1: ['5H'], t2: [], t3: [], t4: [], t5: [], t6: [] } });
+      await t.waitForStable();
+      const lay = await t.game('getLayout');
+      const src = lay.piles.t1.cards[0], dst = lay.piles.t0.cards[0];
+      await t.page.mouse.move(src.x + src.w / 2, src.y + 18);
+      await t.page.mouse.down();
+      await t.page.mouse.move(dst.x + dst.w / 2, dst.y + 28, { steps: 6 });
+      await t.page.waitForTimeout(80);
+      const di = await t.game('dragInfo');
+      t.expect(di && di.hasTrail === false, 'CD-WF4-05: drag.trail after-image buffer is retired');
+      t.expect(di && di.curLift > 0.5, 'drag pickup ramp reaches active lift (' + (di && di.curLift) + ')');
+      await t.page.mouse.up();
+      const rel = await t.game('dispOf', 't0');
+      t.expect(rel && rel.fromLift > 0.5, 'monotonic drag release seeds fromLift from live drag height (' + (rel && rel.fromLift) + ')');
+      t.expect(rel && rel.pos.lift <= rel.fromLift + 1e-4, 'release descent starts monotonically without upward bounce');
+      await t.waitForStable();
+      t.equal((await t.state()).piles.t0, ['6C', '5H'], 'drag drop lands cleanly on target');
+
+      // pointercancel glides home smoothly instead of snapping
+      const lay2 = await t.game('getLayout');
+      const c5 = lay2.piles.t0.cards[1];
+      await t.page.mouse.move(c5.x + c5.w / 2, c5.y + 18);
+      await t.page.mouse.down();
+      await t.page.mouse.move(c5.x + c5.w / 2 + 60, c5.y + 90, { steps: 4 });
+      await t.page.evaluate(() => document.getElementById('cv').dispatchEvent(new PointerEvent('pointercancel', { pointerId: 1, bubbles: true })));
+      t.equal(await t.game('dragInfo'), null, 'pointercancel clears active drag immediately');
+      const home = await t.game('dispOf', 't0');
+      t.expect(home && home.dur >= 120, 'pointercancel glides card smoothly home (dur ' + (home && home.dur) + ' ms)');
+      await t.waitForStable();
+
+      // Mobile touch clearance is capped <= Math.min(cardH * 0.28, 20)
+      if (t.viewport === 'mobile') {
+        const cl = await t.game('getLayout'), mc = cl.piles.t0.cards[1];
+        const info = await t.page.evaluate((mc) => {
+          const cv = document.getElementById('cv');
+          cv.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 9, pointerType: 'touch', clientX: mc.x + mc.w / 2, clientY: mc.y + 14, bubbles: true }));
+          cv.dispatchEvent(new PointerEvent('pointermove', { pointerId: 9, pointerType: 'touch', clientX: mc.x + mc.w / 2 + 24, clientY: mc.y + 60, bubbles: true }));
+          const d = window.__game.dragInfo();
+          cv.dispatchEvent(new PointerEvent('pointercancel', { pointerId: 9, pointerType: 'touch', bubbles: true }));
+          return d;
+        }, mc);
+        const cap = Math.min(cl.cardH * 0.28, 20);
+        t.expect(info && info.touchOff >= 0 && info.touchOff <= cap + 0.5, 'mobile touch lift stays <= min(0.28*ch, 20) (' + (info && info.touchOff) + ' <= ' + cap.toFixed(1) + ')');
+        await t.waitForStable();
+      }
+
+      // dealAnimation() flips face-up cards 40 ms after takeoff; resumeSaved() restores immediately without silent dealAnimation()
+      await t.game('newGame', { mode: 'klondike', deal: 9 });
+      const dealDisp = await t.game('dispOf', 't6');
+      t.expect(dealDisp && Math.round(dealDisp.f0 - dealDisp.t0) === 40, 'dealAnimation() starts top-card flip 40 ms after takeoff (got ' + (dealDisp && Math.round(dealDisp.f0 - dealDisp.t0)) + ')');
+      await t.waitForStable();
+      await t.game('act', 'draw');
+      await t.page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+      await t.reload();
+      await t.page.waitForFunction(() => !document.getElementById('tCont').hidden, null, { timeout: 10000 });
+      await t.page.locator('#tCont').click();
+      await t.page.waitForFunction(() => window.__game && window.__game.getState().scene === 'game', null, { timeout: 10000 });
+      const resDisp = await t.game('dispOf', 't6');
+      t.expect(resDisp && resDisp.dur === 0, 'resumeSaved() restores board instantaneously without silent dealAnimation() (dur ' + (resDisp && resDisp.dur) + ')');
+    },
+  },
 ];

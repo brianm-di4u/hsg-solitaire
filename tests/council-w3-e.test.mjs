@@ -5,7 +5,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { baseSettings, nearWinKlondike } from './_util.mjs';
 
-const SHOTS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '_council', 'hsg-solitaire', 'wave-3', 'shots');
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const SHOTS = process.env.HS_ARTIFACT_DIR ? path.resolve(process.env.HS_ARTIFACT_DIR, 'wave-3', 'shots') : path.resolve(HERE, '..', 'screenshots', 'council-waves', 'wave-3', 'shots');
 const shot = async (t, id, name) => { fs.mkdirSync(SHOTS, { recursive: true }); await t.waitForStable(); await t.page.screenshot({ path: path.join(SHOTS, id + '-' + name + '-' + t.viewport + '.png') }); };
 const EMPTY_K = { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: [], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] };
 
@@ -84,7 +85,8 @@ export const tests = [
       t.expect(m.band.top >= lowest - 1, 'and below the lowest column of the deal (' + Math.round(lowest) + ' <= ' + Math.round(m.band.top) + ')');
       t.expect(await ringContrast(m.emblem) > 8, 'the mark is really painted on the table layer: ' + await ringContrast(m.emblem));
       if (t.viewport === 'mobile') {
-        t.expect(m.skyline && m.skyline.w >= 380 && m.skyline.h >= 40, 'a phone also has the rooflines along the foot of the table: ' + JSON.stringify(m.skyline));
+        const cornerS = Math.min(128, Math.max(44, Math.round(Math.min(390, 844) * 0.13)));
+        t.expect(m.skyline && m.skyline.x >= cornerS + 5 && m.skyline.x + m.skyline.w <= 390 - cornerS - 5 && m.skyline.w >= 390 - 2 * cornerS - 20 && m.skyline.h >= 40, 'a phone has the rooflines inset clear of both bottom brass corner fans: ' + JSON.stringify(m.skyline));
         const roof = await t.page.evaluate((sk) => { // Lamar (the low building at the right end): inside it against just above its roof
           const c = document.getElementById('tbl'), k = c.width / c.clientWidth, g = c.getContext('2d'), base = sk.y + sk.h - 6, top = base - sk.h * .64 * .72, x = sk.x + sk.w * .93;
           const l = (y) => { let s = 0; for (let i = -3; i <= 3; i++) { const d = g.getImageData(Math.round((x + i * 4) * k), Math.round(y * k), 1, 1).data; s += .3 * d[0] + .59 * d[1] + .11 * d[2]; } return s / 7; };
@@ -100,8 +102,11 @@ export const tests = [
           await t.game('newGame', { mode, opts: mode === 'spider' ? { suits: 1 } : {} }); await t.waitForStable();
           await t.page.waitForFunction(() => window.__game.placeMarks());
           const q = await t.game('placeMarks'), H = await t.page.evaluate(() => document.getElementById('stage').clientHeight);
-          if (h <= w * 1.4 && q.emblem) t.expect(q.band.bottom - q.band.top >= H * .09 - 1, w + 'x' + h + ' ' + mode + ': the mark only where the band is at least 9% of the table');
-          if (q.emblem) t.expect(q.emblem.cy + q.emblem.r * .6 <= q.band.bottom + 1 && q.emblem.cy - q.emblem.r >= 0, w + 'x' + h + ' ' + mode + ': the mark is on the table');
+          if (h <= w * 1.4 && q.emblem && !q.emblem.inNook) t.expect(q.band.bottom - q.band.top >= H * .09 - 1, w + 'x' + h + ' ' + mode + ': the mark only where the band is at least 9% of the table');
+          if (q.emblem) {
+            if (q.emblem.inNook && q.nook) t.expect(q.emblem.cy - q.emblem.r >= q.nook.top - 1 && q.emblem.cy + q.emblem.r * .6 <= q.nook.bottom + 1, w + 'x' + h + ' ' + mode + ': Yukon nook mark sits inside the right-rail nook');
+            else t.expect(q.emblem.cy + q.emblem.r * .6 <= q.band.bottom + 1 && q.emblem.cy - q.emblem.r >= 0, w + 'x' + h + ' ' + mode + ': the mark is on the table');
+          }
         }
       }
       await t.page.setViewportSize(t.vp);
@@ -112,7 +117,7 @@ export const tests = [
     },
   },
   {
-    name: 'w3e S4-23 on a small phone the card hands fit their tiles and the tagline has no plate',
+    name: 'w3e S4-23 on a small phone the card hands fit their tiles and the tagline keeps its dark scrim',
     viewports: ['desktop'],
     async run(t) {
       await t.game('setSettings', { sound: false, tips: false });
@@ -129,7 +134,7 @@ export const tests = [
         }));
         t.expect(r.hands.length === 4 && r.hands.every((x) => x.painted), w + 'x' + h + ': four hands are painted');
         t.expect(r.hands.every((x) => x.edge === 0), w + 'x' + h + ': no hand is cut off at its canvas edge: ' + r.hands.map((x) => x.edge));
-        t.expect(r.plate === 'rgba(0, 0, 0, 0)', w + 'x' + h + ': no plate behind the tagline on a phone: ' + r.plate);
+        t.expect(r.plate !== 'rgba(0, 0, 0, 0)', w + 'x' + h + ': tagline keeps a translucent dark scrim over the bright skyline: ' + r.plate);
         if (w === 320) { fs.mkdirSync(SHOTS, { recursive: true }); await t.page.screenshot({ path: path.join(SHOTS, 'S4-23-title-320x568-mobile.png') }); }
       }
       await t.page.setViewportSize({ width: 1280, height: 800 });

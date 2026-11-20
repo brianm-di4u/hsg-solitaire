@@ -32,7 +32,7 @@ export const tests = [
       await t.game('unlockAll'); await baseSettings(t, { table: 'quapaw', motion: 'reduced' });
       await t.game('newGame', { mode: 'klondike' });
       await ready();
-      await t.game('tableBlur', 'quapaw', 1.4);
+      await t.game('tableBlur', 'quapaw', 2.8);
       await idle(t); await t.waitFrames(3);
       const native = await measure();
       await shot(t, 'S6-10', 'quapaw-with-filter');

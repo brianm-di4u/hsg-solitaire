@@ -217,18 +217,11 @@
    "quality": 0.86
   },
   {
-   "name": "tex-pool-l",
-   "src": "t3-pool-l.png",
-   "w": 1536,
-   "h": 1024,
-   "quality": 0.66
-  },
-  {
-   "name": "tex-pool-p",
-   "src": "t3-pool-p.png",
+   "name": "tex-pool",
+   "src": "t3-pool.png",
    "w": 1024,
-   "h": 1536,
-   "quality": 0.66
+   "h": 1024,
+   "quality": 0.68
   },
   {
    "name": "tex-midnight-l",
@@ -245,32 +238,18 @@
    "quality": 0.78
   },
   {
-   "name": "tex-linen-l",
-   "src": "t3-linen-l.png",
-   "w": 1536,
-   "h": 1024,
-   "quality": 0.66
+   "name": "tex-linen",
+   "src": "t3-linen.png",
+   "w": 256,
+   "h": 256,
+   "quality": 0.72
   },
   {
-   "name": "tex-linen-p",
-   "src": "t3-linen-p.png",
+   "name": "tex-quapaw",
+   "src": "t3-quapaw.png",
    "w": 1024,
-   "h": 1536,
-   "quality": 0.66
-  },
-  {
-   "name": "tex-quapaw-l",
-   "src": "t3-quapaw-l.png",
-   "w": 1536,
    "h": 1024,
-   "quality": 0.66
-  },
-  {
-   "name": "tex-quapaw-p",
-   "src": "t3-quapaw-p.png",
-   "w": 1024,
-   "h": 1536,
-   "quality": 0.66
+   "quality": 0.68
   },
   {
    "name": "glow-skylight",

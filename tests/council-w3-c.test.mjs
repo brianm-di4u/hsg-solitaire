@@ -191,11 +191,11 @@ export const tests = [
         return { W, H, best, tags: window.__game.heroTags().tags, h1: { top: h1.top, bottom: h1.bottom } };
       });
       t.expect(info.best > 60, 'a brass line runs inside the edge of the picture (colour spread ' + info.best + ')');
+      t.equal(info.tags.map((x) => x.text), ['CENTRAL AVENUE · BATHHOUSE ROW'], 'the road name is on the picture (the hotel tag was dropped by the owner, C4-05)');
       if (t.viewport === 'desktop') {
-        t.equal(info.tags.map((x) => x.text), ['CENTRAL AVENUE · BATHHOUSE ROW'], 'the road name is on the picture (the hotel tag was dropped by the owner, C4-05)');
         t.expect(info.tags.every((x) => x.x >= 0 && x.x + x.w <= info.W && x.y + x.h < info.h1.top), 'and sit clear of the title: ' + JSON.stringify(info.tags));
       } else {
-        t.equal(info.tags, [], 'a phone crops the picture to the right of the hotel: no tags are drawn on empty ground');
+        t.expect(info.tags.every((x) => x.x >= 15 && x.x + x.w <= info.W - 15 && x.y + x.h < info.h1.top), 'portrait mobile frames Central Avenue · Bathhouse Row clamped inside [16, W-16] and clear of <h1>: ' + JSON.stringify(info.tags));
       }
       await shot(t, 'S4-04', 'title');
       await t.checkLayout();
