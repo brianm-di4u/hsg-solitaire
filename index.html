@@ -2064,7 +2064,7 @@ function autoComplete() {
   return { ok: true };
 }
 
-function bestDestination(from, idx) {
+function bestDestination(from, idx, noLateral = false) {
   if (!canPick(from, idx)) return null;
   const p = S.piles[from]; const run = p.slice(idx); const d = def();
   const fk = kindOf(from);
@@ -2074,6 +2074,14 @@ function bestDestination(from, idx) {
     bonded = true; srcAbove = 1;
     while (idx - 1 - srcAbove >= 0 && S.up[p[idx - 1 - srcAbove]] && suitDesc(p[idx - 1 - srcAbove], p[idx - srcAbove])) srcAbove++;
   }
+  let srcAltBonded = false, srcAltAbove = 0, uncoversFound = false;
+  if (d.lift !== 'suit' && fk === 'tab' && idx > 0 && S.up[p[idx - 1]]) {
+    uncoversFound = !!foundationFor(p[idx - 1]);
+    if (altDesc(p[idx - 1], run[0])) {
+      srcAltBonded = true; srcAltAbove = 1;
+      while (idx - 1 - srcAltAbove >= 0 && S.up[p[idx - 1 - srcAltAbove]] && altDesc(p[idx - 1 - srcAltAbove], p[idx - srcAltAbove])) srcAltAbove++;
+    }
+  }
   let bestBuild = null, bestBuildSc = -1e9, bestEmpty = null;
   for (let i = 0; i < d.cols; i++) {
     const to = 't' + i; if (!canDrop(run, to, from)) continue;
@@ -2081,6 +2089,7 @@ function bestDestination(from, idx) {
     if (empty) {
       if (fk === 'tab' && idx === 0) continue;
       if (bonded) continue; // protect Spider same-suit runs from splitting into empty columns
+      if (noLateral && srcAltBonded && !uncoversFound) continue;
       if (!bestEmpty) bestEmpty = to;
       continue;
     }
@@ -2094,6 +2103,16 @@ function bestDestination(from, idx) {
         if (bonded && tRun <= srcAbove) continue; // only transfer a bonded Spider tail onto a strictly longer same-suit run
         sc += 15 + Math.min(tRun, 12);
       }
+    } else {
+      // Non-Spider (Klondike, FreeCell, Yukon) build synergy (W6-S3-07): prefer extending longer descending sequences and clean/King-anchored columns over burying stacks or lateral equal-rank swaps.
+      let tRun = 1;
+      while (tRun < q.length && S.up[q[q.length - 1 - tRun]] && altDesc(q[q.length - 1 - tRun], q[q.length - tRun])) tRun++;
+      if (noLateral && srcAltBonded && !uncoversFound && tRun <= srcAltAbove) continue;
+      const buried = q.length - tRun;
+      let down = 0; for (let k = 0; k < buried; k++) if (!S.up[q[k]]) down++;
+      sc += Math.min(tRun, 12) * 2;
+      if (buried === 0) sc += 2 + (card(q[0]).r === 13 ? 2 : 0);
+      else sc -= Math.min(buried, 6) * 0.5 + Math.min(down, 6) * 0.5;
     }
     sc -= i * 0.01; // stable: leftmost wins ties
     if (sc > bestBuildSc) { bestBuildSc = sc; bestBuild = to; }
@@ -2101,6 +2120,7 @@ function bestDestination(from, idx) {
   if (bestBuild) return bestBuild;
   const openCell = () => {
     if (run.length !== 1 || fk === 'cell') return null;
+    if (noLateral && srcAltBonded && !uncoversFound) return null;
     for (let i = 0; i < d.cells; i++) if (canDrop(run, 'c' + i, from)) return 'c' + i;
     return null;
   };
@@ -2165,15 +2185,17 @@ function tapAt(from, idx) {
   const p = S.piles[from];
   if (idx == null) idx = p.length - 1;
   if (idx < 0) return { ok: false, reason: 'empty' };
-  let pick = idx, to = bestDestination(from, idx);
+  const altUp = kindOf(from) === 'tab' && def().lift === 'alt' && canPick(from, idx);
+  let pick = idx, to = bestDestination(from, idx, altUp);
   // Upward ordered-run fallback strictly in ordered-lift modes (explicitly excluding Yukon where lift === 'any')
   if (!to && kindOf(from) === 'tab' && def().lift !== 'any' && canPick(from, idx)) {
     for (let i = idx - 1; i >= 0; i--) {
       if (!canPick(from, i)) break;
-      const cand = bestDestination(from, i);
+      const cand = bestDestination(from, i, altUp);
       if (cand) { pick = i; to = cand; break; }
     }
   }
+  if (!to && altUp) to = bestDestination(from, idx, false);
   if (!to) { sfx('nope', undefined, pilePan(from)); shake(from, idx); explain(tapReason(from, idx)); return { ok: false, reason: 'no destination' }; }
   return tryMove(from, pick, to, 'tap');
 }

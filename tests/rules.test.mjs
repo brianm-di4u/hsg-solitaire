@@ -1126,4 +1126,47 @@ export const tests = [
       t.equal((await t.state()).lost, null, 'FreeCell with open free cells skips deadlock probe (lost === null)');
     },
   },
+  {
+    name: 'rules-30 W6-S3-07 non-Spider tap-to-move prefers longer descending runs, clean bases, face-down reveals & column clears over lateral leftmost ties',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { autoFoundation: 'off', motion: 'reduced', tips: false, sound: false });
+      const EK = { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: [], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] };
+      const EF = { c0: [], c1: [], c2: [], c3: [], f0: [], f1: [], f2: [], f3: [], t0: [], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [], t7: [] };
+
+      // 1. Klondike: prefer extending a longer descending alternating run (t2) ahead of leftmost bare equal-rank column (t1)
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EK, { t0: ['#5C', '7S'], t1: ['8H'], t2: ['TD', '9C', '8D'] }) });
+      t.equal((await t.game('act', 'tap', 't0', 1)).ok, true, 'Klondike tap 7S succeeds');
+      t.equal([(await t.state()).piles.t1, (await t.state()).piles.t2], [['8H'], ['TD', '9C', '8D', '7S']], 'Klondike chooses longer descending run t2 over leftmost bare 8H on t1');
+
+      // 2. Klondike: prefer clean column (t2) over piling onto a column with buried face-down cards (t1)
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EK, { waste: ['7S'], t1: ['#4C', '#3D', '8H'], t2: ['8D'] }) });
+      t.equal((await t.game('act', 'tap', 'waste', 0)).ok, true, 'Klondike waste tap 7S succeeds');
+      t.equal([(await t.state()).piles.t1, (await t.state()).piles.t2], [['#4C', '#3D', '8H'], ['8D', '7S']], 'Klondike avoids burying face-down column t1 when clean t2 is available');
+
+      // 3. Klondike: tapping bonded 7S on ['#KH','8H','7S'] prefers exposing #KH by moving [8H,7S] onto 9C (t2) over a lateral swap 7S->8D (t1)
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EK, { t0: ['#KH', '8H', '7S'], t1: ['8D'], t2: ['9C'] }) });
+      t.equal((await t.game('act', 'tap', 't0', 2)).ok, true, 'Klondike tap on bonded 7S succeeds');
+      t.equal([(await t.state()).piles.t0, (await t.state()).piles.t1, (await t.state()).piles.t2], [['KH'], ['8D'], ['9C', '8H', '7S']], 'Klondike exposes #KH via [8H,7S]->9C instead of lateral swap 7S->8D');
+
+      // 4. Klondike: deliberate lateral swap still works when no better upward move exists
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EK, { t0: ['8H', '7S'], t1: ['8D'] }) });
+      t.equal((await t.game('act', 'tap', 't0', 1)).ok, true, 'deliberate lateral swap still permitted when no better run exists');
+      t.equal([(await t.state()).piles.t0, (await t.state()).piles.t1], [['8H'], ['8D', '7S']], '7S moved onto 8D');
+
+      // 5. FreeCell: prefer clean longer run (t2) over burying low Ace on leftmost column (t1), and vacate column via upward run ahead of lateral swap
+      await t.game('setState', { mode: 'freecell', piles: Object.assign({}, EF, { t0: ['7S'], t1: ['AS', '8H'], t2: ['9C', '8D'] }) });
+      t.equal((await t.game('act', 'tap', 't0', 0)).ok, true, 'FreeCell tap 7S succeeds');
+      t.equal([(await t.state()).piles.t1, (await t.state()).piles.t2], [['AS', '8H'], ['9C', '8D', '7S']], 'FreeCell prefers longer clean run t2 over burying AS on leftmost t1');
+
+      await t.game('setState', { mode: 'freecell', piles: Object.assign({}, EF, { t0: ['8H', '7S'], t1: ['8D'], t2: ['9C'], t3: ['2C'], t4: ['2D'], t5: ['2H'], t6: ['2S'], t7: ['3C'] }) });
+      t.equal((await t.game('act', 'tap', 't0', 1)).ok, true, 'FreeCell tap on bonded 7S succeeds');
+      t.equal([(await t.state()).piles.t0, (await t.state()).piles.t1, (await t.state()).piles.t2], [[], ['8D'], ['9C', '8H', '7S']], 'FreeCell vacates t0 via [8H,7S]->9C ahead of lateral 7S->8D swap');
+
+      // 6. Yukon: prefer King-anchored longer run (t2) over leftmost buried face-down column (t1) while still keeping upward fallback excluded
+      await t.game('setState', { mode: 'yukon', piles: Object.assign({}, EK, { t0: ['JH', '3C'], t1: ['#2S', 'QS'], t2: ['KD', 'QC'] }) });
+      t.equal((await t.game('act', 'tap', 't0', 0)).ok, true, 'Yukon tap on [JH,3C] succeeds');
+      t.equal([(await t.state()).piles.t1, (await t.state()).piles.t2], [['#2S', 'QS'], ['KD', 'QC', 'JH', '3C']], 'Yukon prefers King-anchored run t2 over leftmost face-down column t1');
+    },
+  },
 ];
