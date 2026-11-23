@@ -293,9 +293,14 @@
   .menu.daily-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
   .menu.daily-grid .btn.day{flex:0 1 calc(25% - 6px);min-width:120px;min-height:78px;padding:6px 4px}
   .menu.daily-grid .btn.day canvas{height:38px}
-  .daily-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 0 8px}
-  .daily-hd p{margin:0;flex:1 1 220px}
+  .daily-hd{display:flex;align-items:center;justify-content:space-between;gap:6px 8px;flex-wrap:wrap;margin:0 0 8px}
+  .daily-hd p{margin:0;flex:1 1 100%}
   .daily-hd .chip{flex:none;font-size:.8rem}
+  .daily-prog{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;border:1px solid #B8862C;background:var(--chip);color:var(--color-text);font-family:var(--font-deco);font-size:.82rem;font-weight:600;letter-spacing:.03em}
+  .daily-prog b{color:var(--color-primary);font-weight:700}
+  .daily-prog.full{background:#D9B256;color:#1B1408;border-color:#E9C873}
+  .daily-prog.full b{color:#1B1408}
+  .daily-note{margin:8px 0 0;font-size:.78rem}
   @media (max-width:480px){.menu{grid-template-columns:repeat(2,1fr)}.menu.daily-grid .btn.day{flex:0 1 calc(50% - 4px);min-width:0}}
   .set{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--color-border);min-height:52px}
   .set.set-wide{flex-wrap:wrap;row-gap:8px}
@@ -7080,10 +7085,13 @@ function nextDailyFor(day, curKey) {
 }
 function dailyDayHTML(day) {
   const today = todayStr(), live = liveDeal(), isToday = day === today;
+  const won = nextDailyFor(day).won;
+  const prog = '<div class="daily-prog' + (won >= 7 ? ' full' : '') + '" id="dailyProg" role="status"><b>' + won + ' of 7 won</b> · Full Bath ★' + (won >= 7 ? ' earned' : '') + '</div>';
+  const backBtn = isToday ? '' : '<button type="button" class="chip" id="dailyTodayBtn" data-day="' + today + '">Back to today</button>';
   const intro = isToday
     ? '<p>Everyone gets the same seven winnable deals today (' + day + '). A new set arrives at midnight.</p>'
-    : '<p>Archive deals for <b>' + day + '</b> — all seven are winnable. Archive wins earn seals, Full Bath stars, and course progress.</p><button type="button" class="chip" id="dailyTodayBtn" data-day="' + today + '">Back to today</button>';
-  return '<div class="daily-hd">' + intro + '</div><div class="menu daily-grid">' +
+    : '<p>Archive deals for <b>' + day + '</b> — all seven are winnable. Archive wins earn seals, Full Bath stars, and course progress.</p>';
+  return '<div class="daily-hd">' + prog + backBtn + intro + '</div><div class="menu daily-grid">' +
     DAILY_LIST.map(([m, o], i) => {
       const k = modeKey(m, Object.assign({ draw: 1, suits: 1 }, o));
       const st = meta.daily[day + '|' + k];
@@ -7094,7 +7102,7 @@ function dailyDayHTML(day) {
       const statusText = isWon ? 'Won' : isActive ? 'In progress · Resume' : st ? 'Attempted' : 'Not played';
       return '<button type="button" class="btn day' + (isWon ? ' won' : isActive ? ' active-day' : '') + '"' + (i === 0 ? ' data-focus' : '') + ' data-daily="' + i + '"' + (isActive ? ' data-active-daily="1"' : '') + '><canvas aria-hidden="true" data-hand="' + m + '"></canvas><b>' + name + '</b><small>' + subText + '</small>' +
         '<em>' + statusText + '</em>' + (isWon ? '<i class="seal" aria-hidden="true"></i>' : '') + '</button>';
-    }).join('') + '</div>';
+    }).join('') + '</div><p class="cap daily-note">Attempted deals still earn their Daily seal and punch your 21-bath ticket on first victory.</p>';
 }
 // One fold of the help sheet: the game's own hand of cards (or 32 px brass medallion) beside its name; the game being played starts open.
 const hp = (title, hand, body, ico) => '<details class="hp"' + (hand && S && S.mode === hand ? ' open' : '') + '><summary>' + (hand ? '<canvas aria-hidden="true" data-hand="' + hand + '"></canvas>' : ico ? '<span class="hp-ico" aria-hidden="true"><i>' + svgI(ico) + '</i></span>' : '') + title + '</summary>' + body + '</details>';

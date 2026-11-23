@@ -464,4 +464,50 @@ export const tests = [
       s = (await t.state()).settings; t.equal([s.tips, s.tipStep, s.tipModes], [false, 0, ''], 'damaged values fall back (the save is an old one, so tips are off)');
     },
   },
+  {
+    name: 'w2c W1-S3-05 Daily Deals shows unified X of 7 won Full Bath progress header and Attempted eligibility note without asymmetric badges',
+    async run(t) {
+      const d0 = await daysAgo(t, 0), d1 = await daysAgo(t, 1);
+      const daily = { [d0 + '|klondike1']: 'won', [d0 + '|freecell']: 'won', [d0 + '|yukon']: 'played' };
+      for (const k of KEYS) daily[d1 + '|' + k] = 'won-archive';
+      await put(t, { meta: Object.assign({}, OLD.meta, { daily }), settings: OLD.settings, stats: OLD.stats }); await reloadGame(t);
+      await t.game('scene', 'daily');
+
+      const prog = t.page.locator('#dailyProg');
+      t.equal(await prog.count(), 1, 'Daily Deals renders #dailyProg progress header');
+      const noteLoc = t.page.locator('#dailyDayWrap .daily-note');
+      t.equal(await noteLoc.count(), 1, 'Daily Deals renders .daily-note Attempted eligibility note');
+      if (await prog.count()) {
+        t.equal((await prog.textContent()).trim(), '2 of 7 won · Full Bath ★', 'today shows 2 of 7 won · Full Bath ★ header');
+        t.equal(await prog.evaluate((el) => el.classList.contains('full')), false, 'partial day does not mark Full Bath header full');
+      }
+      if (await noteLoc.count()) {
+        const note = (await noteLoc.textContent()).trim();
+        t.expect(/Attempted/.test(note) && /seal/i.test(note) && /21-bath ticket/i.test(note), 'Attempted retry eligibility note explains seal and 21-bath ticket punch: ' + note);
+      }
+
+      const tileTexts = await t.page.locator('#dailyDayWrap .btn.day').allTextContents();
+      t.equal(tileTexts.length, 7, 'all seven Daily tiles render');
+      t.equal(tileTexts.every((tx) => !/\b(Easy|Medium|Hard)\b/i.test(tx)), true, 'tiles omit asymmetric difficulty badges (CD-WF1-05): ' + JSON.stringify(tileTexts));
+
+      await t.shot('w2c-W1-S3-05-daily-today', { fullPage: false });
+      await t.checkLayout({ allowScrollY: true });
+
+      let pastBtn = t.page.locator('#calW button[data-day="' + d1 + '"]');
+      if (!(await pastBtn.count())) {
+        await t.page.locator('[data-mo]').first().click();
+        pastBtn = t.page.locator('#calW button[data-day="' + d1 + '"]');
+      }
+      await pastBtn.click();
+      t.equal(await prog.count(), 1, '7/7 archive day keeps #dailyProg progress header');
+      if (await prog.count()) {
+        t.equal((await prog.textContent()).trim(), '7 of 7 won · Full Bath ★ earned', '7/7 archive day updates progress header to Full Bath ★ earned');
+        t.equal(await prog.evaluate((el) => el.classList.contains('full')), true, '7/7 day highlights Full Bath progress pill in gold');
+        t.equal(await prog.evaluate((el) => getComputedStyle(el).backgroundColor), 'rgb(217, 178, 86)', 'Full Bath header uses brushed gold (#D9B256)');
+      }
+      if (t.viewport === 'desktop') await t.shot('w2c-W1-S3-05-daily-full', { fullPage: false });
+      await t.page.click('#dailyTodayBtn');
+      if (await prog.count()) t.equal((await prog.textContent()).trim(), '2 of 7 won · Full Bath ★', 'Back to today restores today progress count');
+    },
+  },
 ];
