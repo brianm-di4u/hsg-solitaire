@@ -1550,14 +1550,14 @@ function simSettle() {
   }
 }
 // autoplay() without score, sound or animation; the search must see the auto-moves the player will get
-function simAutoplay() {
+function simAutoplay(hold) {
   const mode = settings.autoFoundation; if (mode === 'off' || def().runs) return;
   let moved = true, guard = 0;
   while (moved && guard++ < 80) {
     moved = false;
     for (const id of sourcePiles()) {
       if (kindOf(id) === 'found') continue;
-      const u = top(id); if (u < 0 || !S.up[u]) continue;
+      const u = top(id); if (u < 0 || !S.up[u] || (hold && hold.has(u))) continue;
       const f = foundationFor(u);
       if (f && (mode === 'all' || safeToAutoplay(u))) { S.piles[f].push(S.piles[id].pop()); moved = true; simSettle(); break; }
     }
@@ -1614,17 +1614,22 @@ function stockPlays() {
 // The position after move m (or STOCK_MOVE) from pos, or null if the stock can't be used.
 function simChild(pos, m) {
   const piles = {}; for (const k in pos.piles) piles[k] = pos.piles[k].slice();
+  const hold = pos.hold ? new Set(pos.hold) : new Set(pullbackHold);
   return inPosition({ piles, up: pos.up.slice() }, () => {
+    let noAuto = false;
     if (m.stock) { if (!simStock()) return null; }
     else {
-      for (let i = 0; i < (m.draws || 0); i++) { simStock(); simAutoplay(); }
+      for (let i = 0; i < (m.draws || 0); i++) { simStock(); simAutoplay(hold); }
       if (!m.auto) {
+        const fk = kindOf(m.from), tk = kindOf(m.to);
         const run = S.piles[m.from].splice(m.draws ? S.piles[m.from].length - 1 : m.index);
+        if (fk === 'found') { hold.add(run[0]); noAuto = true; }
+        else if (tk === 'found') hold.delete(run[0]);
         S.piles[m.to].push(...run); for (const u of run) S.up[u] = true; simSettle();
       }
     }
-    simAutoplay();
-    return { piles: S.piles, up: S.up, key: posKey(), pot: potential() };
+    if (!noAuto) simAutoplay(hold);
+    return { piles: S.piles, up: S.up, hold, key: posKey(), pot: potential() };
   });
 }
 const nextMoves = () => S.mode === 'klondike' ? legalMoves(true).concat(stockPlays())
@@ -1642,7 +1647,7 @@ const analyze = (budget, stopAtFirst, avoidHistory) => drain(analyzeG(budget, st
 function* analyzeG(budget, stopAtFirst, avoidHistory) {
   const none = { productive: [], dead: false, exhausted: false };
   if (!S || S.won) return none;
-  const root = { piles: S.piles, up: S.up, depth: 0, first: -1 };
+  const root = { piles: S.piles, up: S.up, hold: pullbackHold, depth: 0, first: -1 };
   const baseline = inPosition(root, potential);
   const seen = avoidHistory ? historyKeys() : new Set(), queue = [root], firsts = [], found = [];
   seen.add(inPosition(root, posKey));
@@ -1671,7 +1676,7 @@ function* analyzeG(budget, stopAtFirst, avoidHistory) {
 
 // When the search runs out of budget: the ranked one-ply list, minus moves (and draws) that go back to a
 function fallbackHints() {
-  const here = { piles: S.piles, up: S.up }, hist = historyKeys();
+  const here = { piles: S.piles, up: S.up, hold: pullbackHold }, hist = historyKeys();
   const fresh = (m) => { const c = simChild(here, m); return c && !hist.has(c.key); };
   const list = legalMoves().filter(fresh);
   if (def().stock && fresh(STOCK_MOVE)) list.push(STOCK_MOVE);
@@ -1706,7 +1711,7 @@ function* solverHintG() {
   const run = p.slice(index), dest = to < 0 ? foundationFor(run[0]) : 't' + to;
   if (!dest || !canPick(from, index) || !canDrop(run, dest, from)) return null;
   const m = { from, to: dest, index, count: run.length, score: 100, depth: 1, solver: true };
-  const c = simChild({ piles: S.piles, up: S.up }, m);
+  const c = simChild({ piles: S.piles, up: S.up, hold: pullbackHold }, m);
   if (!c) return null;
   if (historyKeys().has(c.key)) m.backtrack = true;
   return m;

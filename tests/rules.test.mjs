@@ -990,4 +990,62 @@ export const tests = [
       t.equal([randFc.deal, randFc.replay, randFc.draws], [randFc.fresh, false, 6], 'randomFreecellDeal() skips #11982, current, seenDeals, wonDeals, and todayDaily to land on fresh deal');
     },
   },
+  {
+    name: 'rules-28 W1-P-N01 simChild respects pullbackHold and noAutoplay on foundation pullbacks under autoFoundation: all',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { autoFoundation: 'all', motion: 'reduced', tips: false, sound: false });
+
+      // 1. Klondike Draw 1: only winning line pulls 3H down from f0 onto 4S so 2S can uncover #AS
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: { stock: [], waste: [], f0: ['AH', '2H', '3H'], f1: [], f2: [], f3: [], t0: ['4S'], t1: ['#AS', '2S'], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      const kStuck = await t.game('act', 'checkStuck');
+      t.equal(kStuck.verdict, 'live', 'Klondike: checkStuck() returns live when foundation pullback unblocks board under autoFoundation: all');
+      t.equal((await t.state()).modal, null, 'Klondike: no false dead-end modal');
+      const kHint = await t.game('act', 'hint');
+      t.equal([kHint.ok, !!kHint.stuck, kHint.move && kHint.move.from, kHint.move && kHint.move.to], [true, false, 'f0', 't0'], 'Klondike: hint() suggests pulling 3H from f0 to t0');
+      // Performing the hinted pullback succeeds and keeps 3H on t0 (pullbackHold)
+      t.equal((await t.game('act', 'move', 'f0', 't0')).ok, true, 'Klondike: manual pullback f0 -> t0 succeeds');
+      t.equal((await t.state()).piles.t0, ['4S', '3H'], 'Klondike: 3H remains held on t0 under autoFoundation: all');
+
+      // 2. Klondike Draw 3: tests held-card exclusion across an intermediate stock draw inside simChild -> simAutoplay(hold)
+      // Stock [QC, JC, AS, 2S, TD, 9C]: without pulling 3H down and playing 2S onto 3H, Draw-3 cycles 2S/QC forever and never exposes AS.
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 3 },
+        piles: { stock: ['QC', 'JC', 'AS', '2S', 'TD', '9C'], waste: [], f0: ['AH', '2H', '3H'], f1: [], f2: [], f3: [], t0: ['4S'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      const d3Stuck = await t.game('act', 'checkStuck');
+      t.equal(d3Stuck.verdict, 'live', 'Klondike Draw 3: checkStuck() keeps pulled-back 3H held across stock draw inside simAutoplay(hold)');
+      const d3Hint = await t.game('act', 'hint');
+      t.equal([d3Hint.ok, !!d3Hint.stuck, d3Hint.move && d3Hint.move.from, d3Hint.move && d3Hint.move.to], [true, false, 'f0', 't0'], 'Klondike Draw 3: hint() suggests foundation pullback f0 -> t0');
+
+      // 3. FreeCell: all 4 free cells and all 8 columns occupied with no tableau-to-tableau move; only pullback 3H -> 4S frees 2S to expose AS
+      await t.game('setState', {
+        mode: 'freecell',
+        piles: {
+          c0: ['9C'], c1: ['9D'], c2: ['9H'], c3: ['9S'],
+          f0: ['AH', '2H', '3H'], f1: [], f2: [], f3: [],
+          t0: ['4S'], t1: ['AS', '2S'], t2: ['7C'], t3: ['7D'], t4: ['7H'], t5: ['7S'], t6: ['JC'], t7: ['JD'],
+        },
+      });
+      const fcStuck = await t.game('act', 'checkStuck');
+      t.equal(fcStuck.verdict, 'live', 'FreeCell: checkStuck() returns live when foundation pullback unblocks AS under autoFoundation: all');
+      t.equal((await t.state()).modal, null, 'FreeCell: no false dead-end modal');
+      const fcHint = await t.game('act', 'hint');
+      t.equal([fcHint.ok, !!fcHint.stuck, fcHint.move && fcHint.move.from, fcHint.move && fcHint.move.to], [true, false, 'f0', 't0'], 'FreeCell: hint() suggests foundation pullback f0 -> t0');
+
+      // 4. Yukon: only foundation pullback 3H -> 4S frees 2S to uncover #AS
+      await t.game('setState', {
+        mode: 'yukon',
+        piles: { f0: ['AH', '2H', '3H'], f1: [], f2: [], f3: [], t0: ['4S'], t1: ['#AS', '2S'], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      const ykStuck = await t.game('act', 'checkStuck');
+      t.equal(ykStuck.verdict, 'live', 'Yukon: checkStuck() returns live when foundation pullback unblocks #AS under autoFoundation: all');
+      t.equal((await t.state()).modal, null, 'Yukon: no false dead-end modal');
+      const ykHint = await t.game('act', 'hint');
+      t.equal([ykHint.ok, !!ykHint.stuck, ykHint.move && ykHint.move.from, ykHint.move && ykHint.move.to], [true, false, 'f0', 't0'], 'Yukon: hint() suggests foundation pullback f0 -> t0');
+    },
+  },
 ];
