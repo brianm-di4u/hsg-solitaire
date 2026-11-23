@@ -69,7 +69,8 @@ export const tests = [
     async run(t) {
       await t.game('unlockAll');
       await baseSettings(t, { sound: false, tips: false, motion: 'reduced', table: 'felt' });
-      const marks = async () => { await t.page.waitForFunction(() => { const m = window.__game.placeMarks(); return m && m.emblem; }); return t.game('placeMarks'); }; // waits for the table layer to be redrawn with a mark
+      // waits for the table layer to be redrawn with a mark, on the given table: after a switch the old table's mark is not the new one's
+      const marks = async (tbl) => { await t.page.waitForFunction((want) => { const m = window.__game.placeMarks(); return m && m.emblem && (!want || m.table === want); }, tbl); return t.game('placeMarks'); };
       // the mark is painted: gold along the arc, plain felt between the arcs and outside them
       const ringContrast = (e, dark) => t.page.evaluate(([e, dark]) => {
         const c = document.getElementById('tbl'), k = c.width / c.clientWidth, g = c.getContext('2d');
@@ -78,7 +79,7 @@ export const tests = [
         return at(1) - (at(.91) + at(1.12)) / 2;
       }, [e, dark]);
       await t.game('newGame', { mode: 'klondike' }); await t.waitForStable();
-      let m = await marks(), lay = await t.game('getLayout');
+      let m = await marks('felt'), lay = await t.game('getLayout');
       t.expect(m.emblem, 'a Klondike table has the Spa City mark on the empty felt');
       const lowest = Math.max(...Object.keys(lay.piles).filter((k) => /^t\d$/.test(k)).map((k) => lay.piles[k].y + (lay.piles[k].zoneH || 0)));
       t.expect(m.emblem.cy - m.emblem.r >= m.band.top - 1 && m.emblem.cy + m.emblem.r * .6 <= m.band.bottom, 'it sits inside the free band under the dealt columns: ' + JSON.stringify(m.emblem) + ' in ' + JSON.stringify(m.band));
@@ -112,7 +113,7 @@ export const tests = [
       await t.page.setViewportSize(t.vp);
       // a light table keeps the mark: dark ink on marble
       await t.game('setSettings', { table: 'marble' }); await t.game('newGame', { mode: 'klondike' }); await t.waitForStable();
-      t.expect(await ringContrast((await marks()).emblem, true) < -3, 'on marble the mark is darker than the stone');
+      t.expect(await ringContrast((await marks('marble')).emblem, true) < -3, 'on marble the mark is darker than the stone');
       await shot(t, 'S4-07', 'marble-mark');
     },
   },
