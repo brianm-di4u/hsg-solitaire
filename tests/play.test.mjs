@@ -691,4 +691,76 @@ export const tests = [
       t.equal([s.score, s.rawScore], [15, 15], 'legacy save without rawScore defaults rawScore to saved score');
     },
   },
+  {
+    name: 'play-36 Select & place and hybrid tap-to-drop accept full-lane empty tableau hit zones down to L.bottom (W6-P-N02)',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced', tapMove: 'select', autoFoundation: 'off' });
+
+      // 1. Klondike in Select & place: pick up King, tap well below top card box inside empty column t2 lane -> drops King
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['#5C', 'KS'], t1: ['9H'], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      await t.waitForStable();
+      let lay = await t.game('getLayout');
+      const kCard = lay.piles.t0.cards[1], t2 = lay.piles.t2;
+      const laneY = Math.min(lay.bottom - 14, t2.y + lay.cardH + Math.max(40, (lay.bottom - (t2.y + lay.cardH)) * 0.5));
+      t.expect(laneY > t2.y + lay.cardH + 10, 'lower empty-lane click y sits well below single-card box: ' + Math.round(laneY) + ' > ' + Math.round(t2.y + lay.cardH));
+      await t.page.mouse.click(kCard.x + kCard.w / 2, kCard.y + kCard.h / 2);
+      t.equal((await t.state()).held, { from: 't0', index: 1 }, 'Select & place picks up KS');
+      await t.page.mouse.click(t2.x + lay.cardW / 2, laneY);
+      let s = await t.state();
+      t.equal([s.held, s.piles.t2, s.piles.t0], [null, ['KS'], ['5C']], 'tapping lower empty tableau lane places KS and flips #5C');
+
+      // 2. FreeCell in Select & place: pick up non-King card, tap lower empty column t3 lane -> drops card
+      await t.game('setState', {
+        mode: 'freecell',
+        piles: { c0: [], c1: [], c2: [], c3: [], f0: [], f1: [], f2: [], f3: [], t0: ['9C', '5H'], t1: ['KD'], t2: ['QC'], t3: [], t4: ['2S'], t5: ['3S'], t6: ['4S'], t7: ['5S'] },
+      });
+      await t.waitForStable();
+      lay = await t.game('getLayout');
+      const c5 = lay.piles.t0.cards[1], t3 = lay.piles.t3;
+      const fcLaneY = Math.min(lay.bottom - 14, t3.y + lay.cardH + Math.max(40, (lay.bottom - (t3.y + lay.cardH)) * 0.5));
+      await t.page.mouse.click(c5.x + c5.w / 2, c5.y + c5.h / 2);
+      t.equal((await t.state()).held, { from: 't0', index: 1 }, 'Select & place picks up 5H in FreeCell');
+      await t.page.mouse.click(t3.x + lay.cardW / 2, fcLaneY);
+      s = await t.state();
+      t.equal([s.held, s.piles.t3, s.piles.t0], [null, ['5H'], ['9C']], 'FreeCell lower empty tableau lane accepts held 5H');
+
+      // 3. Hybrid keyboard pickup (tapMove:'tap') + pointer tap on lower empty column lane -> drops King
+      await t.game('setSettings', { tapMove: 'tap' });
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['#2D', 'KH'], t1: ['8C'], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      await t.waitForStable();
+      lay = await t.game('getLayout');
+      await t.page.focus('#cv');
+      await t.page.keyboard.press('1');
+      await t.page.keyboard.press('Enter');
+      t.equal((await t.state()).held, { from: 't0', index: 1 }, 'keyboard Enter picks up KH');
+      const t4 = lay.piles.t4;
+      const hybLaneY = Math.min(lay.bottom - 14, t4.y + lay.cardH + Math.max(40, (lay.bottom - (t4.y + lay.cardH)) * 0.5));
+      await t.page.mouse.click(t4.x + lay.cardW / 2, hybLaneY);
+      s = await t.state();
+      t.equal([s.held, s.piles.t4, s.piles.t0], [null, ['KH'], ['2D']], 'hybrid keyboard pickup + lower empty-lane tap places KH');
+
+      // 4. Tapping empty felt outside any column x (or below L.bottom) while holding still puts the card back cleanly
+      await t.game('setSettings', { tapMove: 'select' });
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['#2D', 'KH'], t1: ['8C'], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      await t.waitForStable();
+      lay = await t.game('getLayout');
+      const kh = lay.piles.t0.cards[1];
+      await t.page.mouse.click(kh.x + kh.w / 2, kh.y + kh.h / 2);
+      t.equal((await t.state()).held, { from: 't0', index: 1 }, 'KH held before miss-click');
+      // Click the narrow horizontal gap between columns t2 and t3 (or far left margin) where no pile spans x
+      const missX = lay.piles.t0.x > 6 ? 2 : (lay.piles.t2.x + lay.cardW + lay.piles.t3.x) / 2;
+      await t.page.mouse.click(missX, lay.bottom - 10);
+      t.equal((await t.state()).held, null, 'tapping outside column lanes still puts held card back');
+      t.equal((await t.state()).piles.t0, ['#2D', 'KH'], 'KH remains on t0 after put-back');
+    },
+  },
 ];

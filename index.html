@@ -5175,7 +5175,8 @@ function hitTest(x, y) {
   for (const id of order) {
     const b = L.piles[id]; if (!b) continue; const cs = b.cards;
     for (let i = cs.length - 1; i >= 0; i--) { const c = cs[i]; if (x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.h) return { pile: id, index: i }; }
-    if (x >= b.x && x <= b.x + L.cw && y >= b.y && y <= b.y + L.ch) return { pile: id, index: -1 };
+    const maxY = held && kindOf(id) === 'tab' && !cs.length ? Math.max(b.y + L.ch, L.bottom) : b.y + L.ch;
+    if (x >= b.x && x <= b.x + L.cw && y >= b.y && y <= maxY) return { pile: id, index: -1 };
   }
   return null;
 }
