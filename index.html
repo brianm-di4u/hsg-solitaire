@@ -4766,8 +4766,8 @@ function frame(t) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
   const { cw, ch } = L;
   const cerK = cascade ? (cascade.calm ? 1 : clamp((t - cascade.t0) / 350, 0, 1)) : 0;
-  // Crossfade static portrait #tbl watermark out smoothly during portrait rosette ceremonies so Spa City never double-ghosts (W6-S4-06).
-  if (cerK > 0 && H > W * 1.4 && cascade) {
+  // Crossfade static #tbl watermark/skyline out smoothly during rosette ceremonies so Spa City never double-ghosts on desktop or mobile (W6-S4-03).
+  if (cerK > 0 && cascade && placeDrawn && (placeDrawn.emblem || placeDrawn.skyline)) {
     if (!cascade.cleanTbl || cascade.cleanTbl.width !== tcv.width || cascade.cleanTbl.height !== tcv.height) {
       const ct = document.createElement('canvas'); ct.width = tcv.width; ct.height = tcv.height;
       const cg = ct.getContext('2d'); cg.setTransform(DPR, 0, 0, DPR, 0, 0);

@@ -526,4 +526,53 @@ export const tests = [
       await t.game('setSettings', { table: 'felt' });
     },
   },
+  {
+    name: 'visual-69 W6-S4-03 desktop and mobile win ceremonies crossfade static #tbl Spa City watermark cleanly with zero double-ghosting',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'full', table: 'felt' });
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 5 });
+      await t.waitForStable();
+      await t.page.waitForFunction(() => { const m = window.__game.placeMarks(); return m && m.emblem; }, null, { timeout: 10000 });
+      const pm = await t.game('placeMarks');
+      t.expect(pm && pm.emblem, 'Klondike paints static #tbl Spa City emblem before win');
+
+      // Set up a 1-move win in Klondike (keep dealt table watermark intact) and advance ceremony to cerK === 1
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: {
+          stock: [], waste: [],
+          f0: ['AC', '2C', '3C', '4C', '5C', '6C', '7C', '8C', '9C', 'TC', 'JC', 'QC', 'KC'],
+          f1: ['AD', '2D', '3D', '4D', '5D', '6D', '7D', '8D', '9D', 'TD', 'JD', 'QD', 'KD'],
+          f2: ['AH', '2H', '3H', '4H', '5H', '6H', '7H', '8H', '9H', 'TH', 'JH', 'QH', 'KH'],
+          f3: ['AS', '2S', '3S', '4S', '5S', '6S', '7S', '8S', '9S', 'TS', 'JS', 'QS'],
+          t0: ['KS'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [],
+        },
+      });
+      await t.waitForStable();
+      await t.game('act', 'move', 't0', 'f3');
+      const snap = await t.game('act', 'ceremonyAt', 450);
+      t.equal(snap.ok, true, 'ceremony reached 450 ms (cerK = 1)');
+
+      // At cerK = 1, #cv must paint opaque cleanTbl (alpha === 255) over the static #tbl watermark region
+      // instead of leaving #cv translucent so the static #tbl Spa City watermark double-ghosts underneath.
+      const cover = await t.page.evaluate((emb) => {
+        const cv = document.getElementById('cv'), k = cv.width / cv.clientWidth, g = cv.getContext('2d');
+        let minA = 255, maxA = 0;
+        for (const [dx, dy] of [[0, 0], [-emb.r * 0.6, -emb.r * 0.4], [emb.r * 0.6, -emb.r * 0.4], [0, emb.r * 0.25]]) {
+          const px = Math.round((emb.cx + dx) * k), py = Math.round((emb.cy + dy) * k);
+          if (px < 0 || py < 0 || px >= cv.width || py >= cv.height) continue;
+          const a = g.getImageData(px, py, 1, 1).data[3];
+          minA = Math.min(minA, a); maxA = Math.max(maxA, a);
+        }
+        return { minA, maxA };
+      }, pm.emblem);
+      t.expect(cover.minA >= 250, 'ceremony #cv covers static #tbl watermark opaquely via cleanTbl (minAlpha ' + cover.minA + ', maxAlpha ' + cover.maxA + ')');
+
+      const snap1400 = await t.game('act', 'ceremonyAt', 1400);
+      t.equal(snap1400.ok, true, 'ceremony reached 1400 ms stamp+spray frame');
+      await t.shot('visual-69-w6-s4-03-ceremony-1400ms');
+      await t.game('act', 'unfreeze');
+      await t.game('act', 'skip');
+    },
+  },
 ];
