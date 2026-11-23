@@ -134,7 +134,7 @@ The cards are a standard 52-card deck, and Spider uses two decks (104 cards). Ra
 | Tables | Six parlor tables: Card-Room Felt (Win-0 default), Fordyce Bath Hall, Quapaw Mosaic, Thermal Pool, Midnight Club, Linen Postcard | §2 |
 | Court cards | Bath attendant / jockey jacks, parasol-promenade queens, card-room kings (archetypes) | §4 |
 | Aces | ♠ stepped tower, ♥ magnolia | §5 |
-| Win | Tufa-cascade animation, bath-ticket score with "course" progress (21 wins), fact card | §6–§8 |
+| Win | Skylight-rosette ceremony, engraved bath ticket with 21-bath course progress, and one of 50 sourced Hot Springs facts (plus 24 achievements tracked in the Bathhouse Ledger) | §6–§8 |
 | Help → About | Notes on sources and invented designs | §10 |
 
 ## 6. Screens and UX flow
@@ -158,29 +158,26 @@ Title ──► Game ──► Win dialog ──► (New deal | Replay | Title)
     The deal number appears under the status strip.
 - **Win dialog:** the bath ticket (mode, deal, score, time, moves, best-ever markers, course progress), the
   fact card, and buttons for New Deal, Replay This Deal and Title.
-- **Settings:**
-  - Sound on/off and volume
-  - Motion (Auto / Full / Reduced)
-  - Left-handed layout
-  - Card size (Compact / Standard / Large)
-  - Four-color suits
-  - Auto-move to foundations (Off / Safe / All)
-  - Show timer
-  - Reset statistics (with confirm)
+- **Settings** (three tabs: Gameplay, Comfort, Audio):
+  - *Gameplay:* Deal fairness (`Winnable (Any)` / `Easy` / `Medium` / `Hard` / `Classic Random`), Scoring (`Standard` / `Timed` / `None`), Auto-move to foundations (`Off` / `Safe` / `All`), Tap-to-move (`Tap` / `Double-tap` / `Select & place` / `Drag only`).
+  - *Comfort:* Motion (`Auto` / `Full` / `Reduced`), Left-handed layout, Card size (`Compact` / `Standard` / `Large`), Table layout (`Fit` / `Classic`), Four-color suits, Court cards (`Art Deco` / `Painted`), Show timer, First-run tips.
+  - *Audio:* Master sound on/off and volume (squared curve for new profiles starting at 0.75; legacy saves keep linear), separate Sound effects / Music / Ambience toggles and volume sliders, and touch Vibration toggle.
 - **Backs & Tables:** a two-tab gallery of 12 card backs and 6 parlor tables with names, stories, and a selected
   ring. Four starter backs and two starter tables (Card-Room Felt and Fordyce Bath Hall) are open at Win 0; the
   remaining 8 backs and 4 tables unlock across the 21-bath course or dual mastery fast-tracks (pre-unlock saves
   keep all 12 backs and 6 tables open). "Reshuffle the skylight glass" re-seeds the Fordyce Skylight back.
-- **Stats:** a tab per mode key showing played, won, win %, current and best streak, best time, fewest
-  moves, best score, and a Reset button.
-- **Help:** rules per mode, controls (mouse/touch/keyboard table), scoring, and About the art & facts.
+- **Bathhouse Ledger** (four tabs: Overview, By Game, Hot Springs Facts, Achievements):
+  - *Overview:* 21-bath course progress across the 8 historic Bathhouse Row stops, total baths won, next cosmetic unlock, and per-variant summary.
+  - *By Game:* per-mode statistics for all 7 variants (played, won, win %, current and best streak, best time, fewest moves, separate Standard and Timed best scores) with per-mode Reset (with confirm).
+  - *Hot Springs Facts:* browsable catalog of all 50 sourced Hot Springs facts.
+  - *Achievements:* all 24 achievements with completion state and criteria.
+- **Help:** rules per mode, controls (mouse/touch/keyboard/gamepad table), scoring, and About the art & facts.
 
 ## 7. Art direction
 
 - **Palettes** (from `shared/design/tokens.css`):
   - UI chrome uses the default theme: light is gilded-spa, dark is deco-neon.
-  - Each back uses its motif palette (town-content §1). Tables use P5 felt, P6 linen, P2 thermal, the
-    marble swatch, and P5 midnight.
+  - Each back uses its motif palette (town-content §1). The 6 parlor tables use Card-Room Felt (P5 felt, Win-0 default), Fordyce Bath Hall (veined marble), Quapaw Mosaic (warm chevron tile), Thermal Pool (P2 thermal), Midnight Club (P5 dark walnut & brass), and Linen Postcard (P6 linen).
 - **v3 visual campaign (2026-10):** see `VISUAL-PLAN.md` and `VISUAL-REPORT.md`. In short:
   - six lit tables (Card-Room Felt, Fordyce Bath Hall, Quapaw Mosaic, Thermal Pool, Midnight Club, Linen Postcard);
   - Blender brass hardware;
@@ -211,20 +208,17 @@ Title ──► Game ──► Win dialog ──► (New deal | Replay | Title)
 
 ## 8. Audio direction
 
-All sound is WebAudio synthesis, so there are no files:
-- **pick** and **place:** short filtered-noise ticks and soft thocks
-- **flip:** a bright click
-- **foundation:** a pentatonic bell tone that rises with rank
-- **deal / shuffle:** a burst of ticks
-- **invalid:** a low muted blip
-- **undo:** a reverse whoosh
-- **win:** a three-note brass-like chord and a steam hiss
+All sound is WebAudio synthesis in a unified Bb/Eb harmonic universe (`{C, Eb, F, G, Bb}`), with zero external audio files:
+- **pick** and **place:** short filtered-noise ticks and soft card-on-felt thocks
+- **flip:** band-limited crisp linen snap
+- **foundation:** Bb/Eb pentatonic bell ladder rising from C4 (King = F6 at 1,396.9 Hz, plus warm fifth tail)
+- **deal / shuffle:** a burst of paper riffles; Klondike recycle plays a reverse riffle (plus brass clink on Pass 2+)
+- **invalid / refusal:** acoustic muted wood-and-felt double-thud Foley (zero square waves)
+- **undo:** a reverse whoosh; **redo** replays the restored move's cue
+- **win & milestones:** brass fanfare, skylight gather/spray sweeps, 650 ms bath-ticket punch, and distinct cues for personal best, streak, achievement, and 21-bath course completion
+- **music & ambience:** adaptive Title and Table parlor scores with intensity-coupled jazz brushes, three venue-coupled ambient beds (`bathhouse`, `parlor`, `valley`), and subtle 2-tap early-reflection room glue (`<= 10%` wet)
 
-Master volume and mute are in settings. The AudioContext is created on the first user gesture. A profile made
-from the wave-4 build on has the master slider on a squared curve (half way is a quarter of the gain, slider
-starting at 0.75); a profile that already existed keeps the straight line it had. There is no control for it.
-Redo plays the cue of the move it puts back (a card home sings its rank, a finished Spider run is the run cue).
-The foundation cue's ladder starts at C4, so the King sits at 1.32 kHz.
+Master volume, mute, and separate Sound effects / Music / Ambience controls are in Settings. The AudioContext is created on the first user gesture and suspends cleanly when hidden. A profile made from the wave-4 build on has the master slider on a squared curve (half way is a quarter of the gain, slider starting at 0.75); a profile that already existed keeps the straight line it had. There is no control for it.
 
 ## 9. Accessibility
 
@@ -248,7 +242,7 @@ The foundation cue's ladder starts at C4, so the King sits at 1.32 kHz.
 
 - A steady 60 fps while dragging and during the cascade on a mid-range laptop, measured with `t.fps`. The
   aim is ≥ 50 in headless Chromium during the cascade.
-- `index.html` stays ≤ 2 MB, and `assets/` stays ≤ 3.5 MB. No requests leave the page's own origin.
+- `index.html` stays ≤ 2 MB, `assets/` stays ≤ 5 MB, and first-load transfer stays ≤ 1.6 MB. No requests leave the page's own origin.
 - Interactive in ≤ 2 s (`t.loadMs` < 2000), and the JS heap stays under 40 MB.
 
 ## 12. Save and load
@@ -290,7 +284,7 @@ resumes the exact position with its undo history. The game works when storage th
 25. The game runs with no errors when localStorage throws.
 
 **Art and content**
-26. Twelve distinct procedurally drawn card backs are selectable and the choice persists.
+26. Twelve distinct Art Deco card backs (painted with procedural vector fallback via `?art=0`, 4 open at Win 0 and 8 earnable across the 21-bath course or mastery fast-tracks; pre-unlock saves keep all 12) are selectable and the choice persists.
 27. Six table backgrounds are selectable and persist (two open at Win 0, four earned across the 21-bath course or mastery fast-tracks; pre-unlock saves keep all six).
 28. Card faces are legible at the mobile Spider size: the index is at least 11 CSS px tall at 35 px card width.
 29. Court cards show original archetype figures; aces of spades and hearts show the tower and magnolia.
