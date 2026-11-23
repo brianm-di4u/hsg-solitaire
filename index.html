@@ -2624,9 +2624,10 @@ function onWin(delay) {
   let bonus = 0, effBonus = 0;
   if (isTimed) { bonus = timeBonus(S.elapsedMs); addScore(bonus); }
   else if (S.mode !== 'spider' && scoring === 'standard' && S.moves > 0) { effBonus = efficiencyBonus(k, S.moves); if (effBonus > 0) addScore(effBonus); }
-  // Orthogonal victory flags (W1-S4-02, CD-WF6-04, CD-WF1-06): first-ever retried wins (!alreadyWon) still advance
-  // meta.totalWins, Bath Ticket punches, meta.gradeWins, UNLOCKS, completion/Daily ACH, and course/daily milestoneCue,
-  // while streaks, PBs, pb/streak cues, and speed/unaided execution ACH remain strictly guarded against peeked restarts.
+  // Orthogonal victory flags (W1-S4-02, W6-S2-02, CD-WF6-04, CD-WF1-06): first-ever wins (!alreadyWon, including
+  // assisted or retried comebacks) advance meta.totalWins, Bath Ticket punches, meta.gradeWins, UNLOCKS,
+  // completion/Daily ACH, and course/daily milestoneCue, while streaks, PBs, pb/streak cues, and speed/unaided
+  // execution ACH count only unaided first-try wins (clean).
   // Standard and Timed best scores are tracked independently (OQ-WF1-01); Spider has no time bonus and tracks Standard.
   const hadBestTime = st.bestTimeMs > 0, hadBestMoves = st.fewestMoves > 0;
   const prevModeBestScore = isTimed ? st.bestTimedScore : scoredMode ? st.bestStandardScore : 0;
@@ -6774,6 +6775,7 @@ coachEl.onclick = (e) => { if (tip && !e.target.closest('button')) tipDone(tip);
 $('#coachSkip').onclick = () => { setSetting('tips', false); toast('Tips off. Settings brings them back.'); if (!modalKind && !titleOn) cv.focus({ preventScroll: true }); };
 const FINISH_BTN_HTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/><path d="M5 18l2 2M12 19l1 1"/></svg>Finish';
 const TICKET_BTN_HTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4z"/><path d="M15 5v14"/></svg>Ticket';
+const ASSISTED_NOTE = 'Undo or Hint was used. Wins still punch your bath ticket; streaks and personal bests count unaided wins.';
 const RETRIED_NOTE = 'Retry hand: first win still punches your bath ticket; streaks and bests pause.';
 const REPLAY_NOTE = 'Already won: practice replay.';
 let prevCanAuto = false;
@@ -6781,7 +6783,9 @@ function updateHUD() {
   if (!S) return;
   $('#modeName').textContent = MODES[S.mode].name + (variantLabel(S.mode, S.opts) ? ' (' + variantLabel(S.mode, S.opts) + ')' : '');
   $('#modeSub').textContent = (S.daily ? (S.winnable ? 'Daily ' : 'Daily deal ') + S.daily : 'Deal #' + S.deal) + (S.winnable ? ' · ' + (Object.hasOwn(GRADE_RANK, S.grade) ? S.grade : 'winnable') : '');
-  $('#assistTag').hidden = !S.assisted; $('#assistTag').textContent = S.usedUndo && S.usedHint ? 'undo + hint' : S.usedUndo ? 'undo used' : S.usedHint ? 'hint used' : 'assisted'; // quiet words for what happened; the win ticket still says assisted
+  const at = $('#assistTag');
+  at.hidden = !S.assisted; at.textContent = S.usedUndo && S.usedHint ? 'undo + hint' : S.usedUndo ? 'undo used' : S.usedHint ? 'hint used' : 'assisted'; // quiet words for what happened; the win ticket still says assisted
+  if (!at.hidden) at.title = ASSISTED_NOTE;
   const dealAlreadyWon = S.won ? !!(lastWin && lastWin.alreadyWon) : isDealAlreadyWon();
   const dealRetried = S.won ? !!(lastWin && lastWin.retried) : (!dealAlreadyWon && !!S.replay);
   const rt = $('#replayTag');
@@ -6895,7 +6899,7 @@ $('#bUndo').onclick = (e) => { initAudio(); undo(); backToTable(e); };
 $('#bRedo').onclick = (e) => { initAudio(); redo(); backToTable(e); };
 $('#bHint').onclick = (e) => { initAudio(); hint(true); backToTable(e); };
 $('#bAuto').onclick = (e) => { initAudio(); if (S && S.won && lastWin) { openModal('win'); return; } autoComplete(); backToTable(e); };
-$('#assistTag').onclick = (e) => { toast('Undo or Hint was used. Wins still count, flagged as assisted.'); backToTable(e); };
+$('#assistTag').onclick = (e) => { toast(ASSISTED_NOTE); backToTable(e); };
 $('#replayTag').onclick = (e) => { const aw = S && (S.won ? !!(lastWin && lastWin.alreadyWon) : isDealAlreadyWon()); toast(aw ? REPLAY_NOTE : RETRIED_NOTE); backToTable(e); };
 $('#bMenu').onclick = () => { initAudio(); openModal('menu'); };
 $('#bHelp').onclick = () => { initAudio(); openModal('help'); };

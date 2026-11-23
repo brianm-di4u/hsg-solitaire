@@ -27,11 +27,40 @@ export const tests = [
       await shot(t, 'S2-05', 'tag');
       await t.page.click('#assistTag');
       await t.page.waitForFunction(() => /Undo or Hint was used/.test(document.getElementById('toast').textContent));
-      t.equal(await toastText(t), 'Undo or Hint was used. Wins still count, flagged as assisted.', 'a tap explains it');
+      t.equal(await toastText(t), 'Undo or Hint was used. Wins still punch your bath ticket; streaks and personal bests count unaided wins.', 'a tap explains bath ticket punch and unaided streak/record rules');
+      t.equal(await t.page.getAttribute('#assistTag', 'title'), 'Undo or Hint was used. Wins still punch your bath ticket; streaks and personal bests count unaided wins.', 'tooltip matches click toast');
       await shot(t, 'S2-05', 'toast');
       await t.checkLayout();
       await t.game('newGame', { mode: 'klondike', draw: 1 });
       t.expect(await t.page.locator('#assistTag').isHidden(), 'a new deal starts clean');
+    },
+  },
+  {
+    name: 'w3c W6-S2-02 Help Scoring, Ledger, #assistTag toast, and live assisted onWin() agree on 21-bath punch vs unaided streaks/PBs',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false, scoring: 'standard' });
+      // 1. Live assisted first-ever win punches the 21-bath course while freezing streaks and personal bests
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 941, moves: 20 }));
+      await t.game('act', 'hint');
+      await t.page.waitForFunction(() => !document.getElementById('assistTag').hidden);
+      await clearToast(t);
+      await t.page.click('#assistTag');
+      await t.page.waitForFunction(() => /Undo or Hint was used/.test(document.getElementById('toast').textContent));
+      const aToast = await toastText(t);
+      t.expect(aToast.includes('punch your bath ticket') && aToast.includes('streaks and personal bests count unaided wins'), '#assistTag toast states bath ticket punch and unaided streak/PB rule: ' + aToast);
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 15000 });
+      const winMeta = await t.game('meta'), st = (await t.game('stats')).klondike1;
+      t.equal(winMeta.totalWins, 1, 'assisted first-ever win punches the 21-bath course (totalWins=1)');
+      t.equal([st.streak, st.bestStreak, st.bestTimeMs, st.fewestMoves, st.bestStandardScore], [0, 0, 0, 0, 0], 'assisted win does not record streak or personal bests');
+      t.equal(await t.page.locator('#sheet .ticket .punch').count(), 1, 'assisted first-ever Bath Ticket is punched');
+      // 2. Help -> Scoring and Ledger -> By Game both match this live contract
+      await t.game('scene', 'help');
+      const helpTxt = await t.page.locator('#sheet').textContent();
+      t.expect(/First-ever wins.*assisted.*punch your 21-bath course/i.test(helpTxt) && /Streaks, personal bests.*count only first-try wins without Undo or Hint/i.test(helpTxt), 'Help Scoring matches live onWin() contract');
+      await t.game('scene', 'ledger', { tab: 'games' });
+      const ledgerTxt = await t.page.locator('#sheet').textContent();
+      t.expect(/Assisted or retried first-ever wins still punch your 21-bath course/i.test(ledgerTxt) && /Streaks, personal bests.*count only first-try wins without Undo or Hint/i.test(ledgerTxt), 'Ledger By Game caption matches Help Scoring and live onWin()');
     },
   },
   {
