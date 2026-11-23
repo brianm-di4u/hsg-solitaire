@@ -3242,7 +3242,7 @@ function drawCourt(ctx, c, x, y, w, h, col) {
 
 // --- Card backs (12) -------------------------------------------------------------------------
 const BACKS = [
-  { id: 'skylight', name: 'Fordyce Skylight', cap: 'Blue-green leaded glass inspired by the vaulted skylight of the Fordyce men\'s bath hall (1915). Seeded uniquely for your deck.' },
+  { id: 'skylight', name: 'Fordyce Skylight', cap: 'Blue-green leaded glass inspired by the vaulted skylight of the Fordyce men\'s bath hall (1915). Reshuffle shifts its glass tint and mirror.' },
   { id: 'lozenge', name: 'Fordyce Lozenge', cap: 'Diamond-lozenge brickwork echoing the upper stories of the Fordyce Bathhouse along Central Avenue.' },
   { id: 'quapaw', name: 'Quapaw Dome', cap: 'Chevron-mosaic bands inspired by the tiled dome of the 1922 Quapaw Bathhouse.' },
   { id: 'ironwork', name: 'Row Ironwork', cap: 'Wrought-iron scrollwork patterned after the entrance grilles of Bathhouse Row.' },
@@ -6893,7 +6893,7 @@ $('#bHelp').onclick = () => { initAudio(); openModal('help'); };
 const TILES = [
   { mode: 'klondike', sub: 'The Fordyce deal', badge: 'Relaxed', desc: 'The classic. Build down in alternating colors; draw from the stock.', chips: [['Draw 1', { draw: 1 }], ['Draw 3', { draw: 3 }]] },
   { mode: 'freecell', sub: 'Open on the Row', badge: 'Pure Skill', desc: 'Every card face up and four free cells. Nearly every deal can be won.', chips: [['Play', {}], ['Deal #', { pick: true }]] },
-  { mode: 'spider', sub: 'Central Avenue calm', badge: 'Two-Deck', desc: 'Two decks. Build same-suit runs from King down to Ace.', chips: [['1 suit', { suits: 1 }], ['2 suits', { suits: 2 }], ['4 suits', { suits: 4 }]] },
+  { mode: 'spider', sub: 'Central Avenue run', badge: 'Two-Deck', desc: 'Two decks. Build same-suit runs from King down to Ace.', chips: [['1 suit', { suits: 1 }], ['2 suits', { suits: 2 }], ['4 suits', { suits: 4 }]] },
   { mode: 'yukon', sub: 'Quiet as the Quapaw', badge: 'Tactical', desc: 'No stock: move any face-up card along with everything on top of it.', chips: [['Play', {}]] },
 ];
 const HANDS = { klondike: [[13, 3], [12, 2], [11, 0], 'back'], freecell: [[1, 3], [1, 2], [1, 1], [1, 0]], spider: [[13, 3], [12, 3], [11, 3], [10, 3]], yukon: ['back', 'back', [13, 2], [12, 0]] };

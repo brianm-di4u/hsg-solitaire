@@ -192,4 +192,46 @@ export const tests = [
       t.expect(mech.includes('EFF_PAR') && mech.includes('undoCost') && mech.includes('Three-state victory flags'), 'MECHANICS.md documents WF-1 scoring and three-state victory invariants');
     },
   },
+  {
+    name: 'w4d W6-S1-03 Fordyce Skylight caption matches tinted/mirrored glass shift, Spider subtitle fits all suit tiers, and Felt default + in-place Reshuffle stay intact',
+    async run(t) {
+      // 1. Fresh Win-0 default table remains dark emerald Card-Room Felt (CD-WF6-01)
+      const fresh = await t.state();
+      t.equal(fresh.settings.table, 'felt', 'Win-0 default parlor table remains Card-Room Felt (CD-WF6-01)');
+
+      await baseSettings(t, { tips: false, motion: 'reduced' });
+
+      // 2. Title plaque refines Spider subtitle away from "Central Avenue calm" while keeping Central Avenue on 1 line
+      await t.game('scene', 'title');
+      await t.waitForStable();
+      const spiderSub = await t.page.evaluate(() => {
+        const tiles = [...document.querySelectorAll('.tile')];
+        const sp = tiles.find((e) => e.querySelector('h2').textContent === 'Spider');
+        const sub = sp.querySelector('.tsub');
+        const r = document.createRange(); r.selectNodeContents(sub);
+        return {
+          text: sub.textContent,
+          lines: new Set([...r.getClientRects()].map((q) => Math.round(q.top))).size,
+        };
+      });
+      t.equal(spiderSub, { text: 'Central Avenue run', lines: 1 }, 'Spider subtitle reads "Central Avenue run" on one line across all suit tiers');
+      await t.shot('w4d-W6-S1-03-title', { fullPage: false });
+
+      // 3. Backs picker clarifies Fordyce Skylight caption to match tinted/mirrored stained-glass shift (no procedural-seed claim)
+      await t.game('scene', 'backs');
+      const cap = await t.page.locator('#bkCap').textContent();
+      t.expect(!/Seeded uniquely/i.test(cap), 'Fordyce Skylight caption drops inaccurate unique-seeding claim: ' + cap);
+      t.expect(/tint/i.test(cap) && /mirror/i.test(cap), 'Fordyce Skylight caption truthfully describes glass tint and mirror shift: ' + cap);
+      await t.shot('w4d-W6-S1-03-skylight-cap', { fullPage: false });
+
+      // 4. In-place Skylight Reshuffle preserves non-skylight equipped back and updates deckSeed
+      await t.game('setSettings', { back: 'lozenge' });
+      const seedBefore = (await t.state()).settings.deckSeed;
+      await t.page.click('[data-a="reseed"]');
+      const after = (await t.state()).settings;
+      t.equal(after.back, 'lozenge', 'Skylight Reshuffle preserves equipped non-skylight back');
+      t.expect(after.deckSeed !== seedBefore, 'Skylight Reshuffle updates deckSeed in place');
+      await t.checkLayout({ allowScrollY: true });
+    },
+  },
 ];
