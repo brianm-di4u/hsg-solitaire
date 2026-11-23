@@ -102,4 +102,84 @@ export const tests = [
       await sizeTo(t, t.vp.width, t.vp.height);
     },
   },
+  {
+    name: 'layout-04 W6-S4-01 title landmark two-pocket clearance across laptop, landscape phone, and portrait tablets',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { sound: false, motion: 'reduced', tips: false });
+      await t.game('scene', 'title');
+      await t.page.waitForFunction(() => window.__game.heroTags().drawn, null, { timeout: 15000 });
+
+      const measure = async (w, h) => {
+        await sizeTo(t, w, h);
+        await t.game('scene', 'title');
+        await t.page.waitForFunction(() => {
+          const c = document.getElementById('sky');
+          return c && c.clientWidth === window.innerWidth && window.__game.heroTags().drawn;
+        }, null, { timeout: 10000 });
+        return t.page.evaluate(() => {
+          const h1 = document.getElementById('tH');
+          const rng = document.createRange();
+          rng.selectNodeContents(h1);
+          const hb = h1.getBoundingClientRect(), ht = rng.getBoundingClientRect();
+          const tr = document.getElementById('tiles').getBoundingClientRect();
+          const cont = document.getElementById('tCont');
+          const cr = cont && !cont.hidden ? cont.getBoundingClientRect() : null;
+          return {
+            W: innerWidth, H: innerHeight,
+            tags: window.__game.heroTags().tags,
+            h1: { left: ht.left, right: ht.right, top: Math.min(hb.top, ht.top), bottom: Math.max(hb.bottom, ht.bottom) },
+            tilesTop: tr.top,
+            cont: cr && cr.height > 0 ? { left: cr.left, right: cr.right, top: cr.top, bottom: cr.bottom } : null,
+          };
+        });
+      };
+
+      const checkSweep = async (phase) => {
+        for (const [w, h, expectPocket, shotName] of [
+          [1280, 800, 'above', null],
+          [1024, 600, 'above', phase === 'fresh' ? 'layout-04-w6-s4-01-1024x600' : null],
+          [844, 390, 'left', phase === 'fresh' ? 'layout-04-w6-s4-01-844x390' : 'layout-04-w6-s4-01-844x390-saved'],
+          [800, 1100, 'above', phase === 'fresh' ? 'layout-04-w6-s4-01-800x1100' : null],
+          [820, 1180, 'above', phase === 'fresh' ? 'layout-04-w6-s4-01-820x1180' : null],
+          [390, 844, 'above', null],
+        ]) {
+          const m = await measure(w, h);
+          const label = `${phase} ${w}x${h}`;
+          t.equal(m.tags.map((x) => x.text), ['CENTRAL AVENUE · BATHHOUSE ROW'], `${label}: keeps verbatim Central Avenue · Bathhouse Row tag (CD-WF0-07)`);
+          t.expect(!m.tags.some((x) => /ARLINGTON/i.test(x.text)), `${label}: never adds Arlington tag (CD-WF0-07)`);
+          const tag = m.tags[0];
+          if (tag) {
+            t.expect(tag.x >= 15.5 && tag.x + tag.w <= m.W - 15.5 && tag.y >= 11.5, `${label}: tag stays inside frame margins (${JSON.stringify(tag)})`);
+            if (expectPocket === 'above') {
+              t.expect(tag.y + tag.h <= m.h1.top - 7.5 && tag.y + tag.h <= m.tilesTop - 7.5, `${label}: above-pocket tag clears <h1> (top=${m.h1.top.toFixed(1)}) and #tiles (top=${m.tilesTop.toFixed(1)}): ${JSON.stringify(tag)}`);
+            } else {
+              const cy = tag.y + tag.h / 2;
+              t.expect(tag.x + tag.w <= m.h1.left - 13.5, `${label}: left-pocket tag clears <h1> text left (${m.h1.left.toFixed(1)}): ${JSON.stringify(tag)}`);
+              t.expect(cy + 12 <= m.tilesTop - 5.5, `${label}: left-pocket tag clears #tiles top (${m.tilesTop.toFixed(1)}): ${JSON.stringify(tag)}`);
+              if (m.cont) {
+                const clearsCont = cy + 12 <= m.cont.top - 5.5 || tag.x + tag.w <= m.cont.left - 13.5;
+                t.expect(clearsCont, `${label}: left-pocket tag clears #tCont (${JSON.stringify(m.cont)}): ${JSON.stringify(tag)}`);
+              }
+            }
+          }
+          if (shotName) await t.shot(shotName);
+        }
+        // Ultra-compact landscape where neither sky pocket clears both DOM rects: omit cleanly rather than colliding.
+        for (const [w, h] of [[640, 360], [568, 320]]) {
+          const m = await measure(w, h);
+          t.equal(m.tags, [], `${phase} ${w}x${h}: omits tag cleanly when neither sky pocket fits`);
+        }
+      };
+
+      await checkSweep('fresh');
+      // Verify with Continue CTA (#tCont) visible as well
+      await sizeTo(t, 1280, 800);
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 5 });
+      await t.game('act', 'draw');
+      await t.page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+      await checkSweep('saved');
+      await sizeTo(t, t.vp.width, t.vp.height);
+    },
+  },
 ];
