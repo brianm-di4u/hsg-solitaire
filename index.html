@@ -60,9 +60,9 @@
   #modeSub{font-family:var(--font-deco);font-size:.74rem;letter-spacing:.04em;color:var(--lac-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #subRow{display:flex;align-items:center;gap:8px;min-width:0} #subRow #modeSub{min-width:0}
   #homeCount{flex:none;font-family:var(--font-deco);font-size:.68rem;font-weight:700;letter-spacing:.04em;color:#8FE0C2;font-variant-numeric:tabular-nums;white-space:nowrap}
-  #assistTag{flex:none;position:relative;border:1px solid rgba(233,200,115,.55);border-radius:999px;background:transparent;color:var(--brass-hi);font-family:var(--font-deco);font-size:.62rem;font-weight:600;letter-spacing:.06em;padding:0 8px;line-height:1.5;cursor:pointer}
-  #assistTag::after{content:"";position:absolute;top:-12px;bottom:-2px;left:-6px;right:-6px}
-  #assistTag[hidden]{display:none}
+  #assistTag,#replayTag{flex:none;position:relative;border:1px solid rgba(233,200,115,.55);border-radius:999px;background:transparent;color:var(--brass-hi);font-family:var(--font-deco);font-size:.62rem;font-weight:600;letter-spacing:.06em;padding:0 8px;line-height:1.5;cursor:pointer}
+  #assistTag::after,#replayTag::after{content:"";position:absolute;top:-12px;bottom:-2px;left:-6px;right:-6px}
+  #assistTag[hidden],#replayTag[hidden]{display:none}
   #status{display:flex;gap:20px;font-family:var(--font-deco);font-size:.66rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
     color:var(--lac-muted);white-space:nowrap}
   #status span{text-align:right}
@@ -95,10 +95,10 @@
     background:#18221C radial-gradient(circle at 50% 35%,#2C3B32,#121A15 70%);box-shadow:inset 0 1px 0 rgba(255,236,190,.18),0 2px 4px rgba(0,0,0,.5);
     display:grid;place-items:center;cursor:pointer}
   .ib svg{width:22px;height:22px}
-  :is(.tb,.ib,.btn,.chip,.seg button,.bk:not(.lk),.hp summary,#assistTag,#coach button,#tabNote button,.cal .cday){
+  :is(.tb,.ib,.btn,.chip,.seg button,.bk:not(.lk),.hp summary,#assistTag,#replayTag,#coach button,#tabNote button,.cal .cday){
     transition:transform var(--dur-press) var(--ease-out),border-color 120ms var(--ease-out),background-color 120ms var(--ease-out),box-shadow var(--dur-press) var(--ease-out),opacity var(--dur-fast) var(--ease-out)}
   @media (hover:hover){
-    :is(.tb,.btn:not(.solid):not(.danger),.chip:not(.solid):not(.equip-chip[aria-pressed=true]),#assistTag,#coach button,#tabNote button,.cal .cday):hover:not(:disabled){
+    :is(.tb,.btn:not(.solid):not(.danger),.chip:not(.solid):not(.equip-chip[aria-pressed=true]),#assistTag,#replayTag,#coach button,#tabNote button,.cal .cday):hover:not(:disabled){
       border-color:var(--brass-hi);box-shadow:inset 0 1px 0 rgba(255,236,190,.2),0 0 0 1px rgba(233,200,115,.24)}
     .ib:hover:not(:disabled){border-color:var(--brass-hi);box-shadow:inset 0 1px 0 rgba(255,236,190,.28),0 0 8px rgba(233,200,115,.28)}
     :is(.btn.solid,.chip.solid,.tb.glow,.seg button[aria-pressed=true]):hover:not(:disabled){filter:brightness(1.07)}
@@ -107,7 +107,7 @@
     .bk:not(.lk):hover:not(:disabled){border-color:rgba(233,200,115,.65);background:rgba(33,48,42,.55)}
     .hp summary:hover{color:#F6DE95}
   }
-  :is(.tb,.ib,.btn,.chip,.seg button,.bk:not(.lk),.hp summary,#assistTag,#coach button,#tabNote button,.cal .cday):active:not(:disabled){
+  :is(.tb,.ib,.btn,.chip,.seg button,.bk:not(.lk),.hp summary,#assistTag,#replayTag,#coach button,#tabNote button,.cal .cday):active:not(:disabled){
     transform:translateY(1px);box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
   .tb:disabled,.ib:disabled,.btn:disabled,.chip:disabled,.seg button:disabled{opacity:.42;cursor:default;transform:none;box-shadow:none}
   .btn:disabled:not(.solid):not(.danger){border-color:var(--color-border)}
@@ -454,7 +454,7 @@
   .dl{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
   @media (max-width:520px){
     :root{--bar-h:56px}
-    #bar{gap:6px} #subRow{gap:5px} #homeCount{font-size:.62rem} #assistTag{font-size:.58rem;padding:0 6px}
+    #bar{gap:6px} #subRow{gap:5px} #homeCount{font-size:.62rem} #assistTag,#replayTag{font-size:.58rem;padding:0 6px}
     #status{gap:7px;font-size:.6rem;letter-spacing:.04em;align-items:flex-start}
     #sBonus{margin-left:3px;font-size:.84em;letter-spacing:0}
     #status b{font-size:.98rem}
@@ -467,6 +467,10 @@
     .bk-bar{top:-10px}
   }
   @media (max-width:360px){
+    #bar{padding:0 6px;gap:4px} #subRow{gap:3px} #homeCount{font-size:.58rem}
+    #assistTag,#replayTag{font-size:.54rem;padding:0 4px;letter-spacing:.02em;white-space:nowrap}
+    #subRow:has(#assistTag:not([hidden])):has(#replayTag:not([hidden])) #homeCount{display:none}
+    #status{gap:5px;font-size:.54rem;letter-spacing:.02em} #status b{font-size:.88rem}
     .sheet-frame{padding:3px} .sheet-frame::after{border-width:12px}
     .sheet-head{padding:10px 10px 8px} .sheet-body{padding:8px 10px 14px}
   }
@@ -573,7 +577,7 @@
 <div id="app">
   <header id="bar">
     <button class="ib" id="bMenu" aria-label="Menu" title="Menu (Esc)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-    <div id="ttl"><span id="modeName">Spa City Solitaire</span><div id="subRow"><span id="modeSub"></span><span id="homeCount" aria-hidden="true"></span><button id="assistTag" type="button" hidden>assisted</button></div></div>
+    <div id="ttl"><span id="modeName">Spa City Solitaire</span><div id="subRow"><span id="modeSub"></span><span id="homeCount" aria-hidden="true"></span><button id="assistTag" type="button" hidden>assisted</button><button id="replayTag" type="button" hidden>retried</button></div></div>
     <div id="status" role="group" aria-label="Game status">
       <span id="sScoreW">Score<small id="sBonus" hidden></small><b id="sScore">0</b></span><span>Moves<b id="sMoves">0</b></span><span id="sTimeW">Time<b id="sTime">0:00</b></span>
     </div>
@@ -2338,7 +2342,7 @@ function restartDeal() { // the same deal again: the player has now seen its car
   if (!S) return;
   const deal = S.deal;
   newGame({ mode: S.mode, draw: S.opts.draw, suits: S.opts.suits, deal, daily: S.daily, winnable: S.winnable, grade: S.grade });
-  if (S && S.deal === deal) S.replay = true;
+  if (S && S.deal === deal) { S.replay = true; updateHUD(); }
 }
 
 function earn(c) {
@@ -2381,7 +2385,7 @@ function onWin(delay) {
   tickClock(); syncShared();
   const k = modeKey(S.mode, S.opts); const st = statFor(k);
   const scoring = settings.scoring, isTimed = S.mode !== 'spider' && scoring === 'timed', scoredMode = scoring !== 'none';
-  let bonus = 0;
+  let bonus = 0, effBonus = 0;
   if (isTimed) { bonus = timeBonus(S.elapsedMs); addScore(bonus); }
   // Orthogonal victory flags (W1-S4-02, CD-WF6-04, CD-WF1-06): first-ever retried wins (!alreadyWon) still advance
   // meta.totalWins, Bath Ticket punches, meta.gradeWins, UNLOCKS, completion/Daily ACH, and course/daily milestoneCue,
@@ -2425,7 +2429,7 @@ function onWin(delay) {
   const ach = alreadyWon ? [] : earn({ wins: meta.totalWins, w: (!alreadyWon && !retried) ? { ms: S.elapsedMs, usedUndo: S.usedUndo, usedHint: S.usedHint } : null });
   const factIdx = pickFact(S.mode + ':' + S.deal);
   save('meta', meta); save('current', null);
-  lastWin = { ach, opened: opened.map(unlockName), openedIds: opened, pb, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, scoring, bonus, moves: S.moves, ms: S.elapsedMs,
+  lastWin = { ach, opened: opened.map(unlockName), openedIds: opened, pb, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, scoring, bonus, effBonus, moves: S.moves, ms: S.elapsedMs,
     best, totalWins: meta.totalWins, streak: clean ? st.streak : 0, assisted: S.assisted, replay, alreadyWon, retried, fact: FACTS[factIdx] };
   syncMusicIntensity();
   announce(scoring === 'none' ? 'You won!' : 'You won! Score ' + S.score);
@@ -6409,12 +6413,22 @@ coachEl.onclick = (e) => { if (tip && !e.target.closest('button')) tipDone(tip);
 $('#coachSkip').onclick = () => { setSetting('tips', false); toast('Tips off. Settings brings them back.'); if (!modalKind && !titleOn) cv.focus({ preventScroll: true }); };
 const FINISH_BTN_HTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/><path d="M5 18l2 2M12 19l1 1"/></svg>Finish';
 const TICKET_BTN_HTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4z"/><path d="M15 5v14"/></svg>Ticket';
+const RETRIED_NOTE = 'Retry hand: first win still punches your bath ticket; streaks and bests pause.';
+const REPLAY_NOTE = 'Already won: practice replay.';
 let prevCanAuto = false;
 function updateHUD() {
   if (!S) return;
   $('#modeName').textContent = MODES[S.mode].name + (variantLabel(S.mode, S.opts) ? ' (' + variantLabel(S.mode, S.opts) + ')' : '');
   $('#modeSub').textContent = (S.daily ? (S.winnable ? 'Daily ' : 'Daily deal ') + S.daily : 'Deal #' + S.deal) + (S.winnable ? ' · ' + (Object.hasOwn(GRADE_RANK, S.grade) ? S.grade : 'winnable') : '');
   $('#assistTag').hidden = !S.assisted; $('#assistTag').textContent = S.usedUndo && S.usedHint ? 'undo + hint' : S.usedUndo ? 'undo used' : S.usedHint ? 'hint used' : 'assisted'; // quiet words for what happened; the win ticket still says assisted
+  const dealAlreadyWon = S.won ? !!(lastWin && lastWin.alreadyWon) : isDealAlreadyWon();
+  const dealRetried = S.won ? !!(lastWin && lastWin.retried) : (!dealAlreadyWon && !!S.replay);
+  const rt = $('#replayTag');
+  rt.hidden = !dealAlreadyWon && !dealRetried;
+  if (!rt.hidden) {
+    rt.textContent = dealAlreadyWon ? 'replay' : 'retried';
+    rt.title = dealAlreadyWon ? REPLAY_NOTE : RETRIED_NOTE;
+  }
   updateGoal();
   $('#sScore').textContent = S.score; $('#sMoves').textContent = S.moves; updateTime();
   $('#sScoreW').style.display = settings.scoring === 'none' ? 'none' : '';
@@ -6505,6 +6519,7 @@ $('#bRedo').onclick = (e) => { initAudio(); redo(); backToTable(e); };
 $('#bHint').onclick = (e) => { initAudio(); hint(true); backToTable(e); };
 $('#bAuto').onclick = (e) => { initAudio(); if (S && S.won && lastWin) { openModal('win'); return; } autoComplete(); backToTable(e); };
 $('#assistTag').onclick = (e) => { toast('Undo or Hint was used. Wins still count, flagged as assisted.'); backToTable(e); };
+$('#replayTag').onclick = (e) => { const aw = S && (S.won ? !!(lastWin && lastWin.alreadyWon) : isDealAlreadyWon()); toast(aw ? REPLAY_NOTE : RETRIED_NOTE); backToTable(e); };
 $('#bMenu').onclick = () => { initAudio(); openModal('menu'); };
 $('#bHelp').onclick = () => { initAudio(); openModal('help'); };
 
@@ -7097,7 +7112,7 @@ const MODALS = {
       '<div class="serial" aria-hidden="true">No. ' + String(w.deal).padStart(6, '0') + '</div>' + (punched ? '<div class="punch" aria-hidden="true"></div>' : '') +
       (noScore ? '' : '<div class="big">' + w.score + '</div>') +
       '<div class="grid"' + (noScore ? ' style="grid-template-columns:1fr 1fr"' : '') + '><div>Time<b>' + fmtTime(w.ms) + '</b>' + (w.best.time ? '<span class="best">best</span>' : '') + '</div><div>Moves<b>' + w.moves + '</b>' + (w.best.moves ? '<span class="best">best</span>' : '') + '</div>' + (noScore ? '' : '<div>Score<b>' + w.score + '</b>' + (w.best.score ? '<span class="best">best</span>' : '') + '</div>') + '</div>' +
-      '<div class="meta">' + esc(modeKeyLabel(k)) + ' · ' + (w.daily ? 'Daily ' + w.daily : 'Deal #' + w.deal) + (w.bonus ? ' · time bonus +' + w.bonus : '') + (w.replay ? ' · replay' : '') + (w.assisted ? ' · assisted' : '') + '</div>' +
+      '<div class="meta">' + esc(modeKeyLabel(k)) + ' · ' + (w.daily ? 'Daily ' + w.daily : 'Deal #' + w.deal) + (w.bonus ? ' · time bonus +' + w.bonus : '') + (w.effBonus > 0 ? ' · efficiency +' + w.effBonus : '') + (w.alreadyWon ? ' · replay' : w.retried ? ' · retried' : w.replay ? ' · replay' : '') + (w.assisted ? ' · assisted' : '') + '</div>' +
       '<div class="course" role="img" aria-label="Course progress ' + filled + ' of 21">' + Array.from({ length: 21 }, (_, i) => '<i class="' + (i < filled ? 'f' : '') + (punched && i === filled - 1 ? ' new' : '') + ((i + 1) % 7 === 0 ? ' m' : '') + '"' + ((i + 1) % 7 === 0 ? ' title="' + (i + 1) + ' baths"' : '') + '></i>').join('') + '</div>' +
       '<div class="meta">Course of 21 baths: ' + filled + ' of 21' + (courses > 0 ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : '') + '</div></div><div class="win-side">' +
       (w.pb || w.streak >= 3 || (w.ach || []).length || (w.opened || []).length ? '<div class="earn" role="status">' + (w.pb ? '<div class="pb">New personal best</div>' : '') + (w.streak >= 3 ? '<div>' + w.streak + ' wins in a row</div>' : '') + ((w.ach || []).length ? '<div>' + (w.ach.length > 1 ? 'Achievements' : 'Achievement') + ': ' + w.ach.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + unlockedHtml + '</div>' : '') +
@@ -7668,9 +7683,10 @@ window.__game = {
   scene(name, data) {
     if (name === 'title') { closeModal(false); showTitle(true); }
     else if (name === 'game') { closeModal(false); if (!S) newGame({ mode: 'klondike' }); showTitle(false); }
-    else { if (name === 'win' && !lastWin && S) lastWin = { mode: S.mode, opts: S.opts, deal: S.deal, daily: S.daily, score: S.score, bonus: 0, moves: S.moves, ms: S.elapsedMs, best: {}, totalWins: Math.max(1, meta.totalWins || 0), fact: FACTS[fnv1a(S.mode + ':' + S.deal) % FACTS.length] }; openModal(name, data, { clearStack: true }); }
+    else { if (name === 'win' && (!lastWin || isObj(data)) && S) lastWin = Object.assign({ mode: S.mode, opts: S.opts, deal: S.deal, daily: S.daily, score: S.score, bonus: 0, effBonus: 0, moves: S.moves, ms: S.elapsedMs, best: {}, totalWins: Math.max(1, meta.totalWins || 0), alreadyWon: false, retried: false, fact: FACTS[fnv1a(S.mode + ':' + S.deal) % FACTS.length] }, isObj(data) ? data : null); openModal(name, data, { clearStack: true }); }
     return sceneName();
   },
+  lastWin: () => (lastWin ? JSON.parse(JSON.stringify(lastWin)) : null),
   hoverState: () => (hoverHit ? { pile: hoverHit.pile, index: hoverHit.index, count: hoverHit.index >= 0 && S && S.piles[hoverHit.pile] ? S.piles[hoverHit.pile].length - hoverHit.index : 0, cursor: cv.style.cursor } : null),
   toastInfo: () => ({ text: toastEl.textContent, ms: lastToastMs, on: toastEl.classList.contains('on') }),
   modalStackDepth: () => modalStack.length,

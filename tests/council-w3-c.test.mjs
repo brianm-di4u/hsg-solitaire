@@ -206,4 +206,137 @@ export const tests = [
       await t.checkLayout();
     },
   },
+  {
+    name: 'w3c W1-S5-05 live HUD retried/replay pill and Bath Ticket retried/replay/efficiency labels',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false, scoring: 'standard' });
+      const RETRIED_NOTE = 'Retry hand: first win still punches your bath ticket; streaks and bests pause.';
+      const REPLAY_NOTE = 'Already won: practice replay.';
+      const rtag = () => t.page.evaluate(() => {
+        const el = document.getElementById('replayTag');
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { hidden: el.hidden, text: el.textContent, title: el.title, w: r.width, h: r.height, left: r.left, right: r.right };
+      });
+      // 1. Fresh deal shows no replay/retried pill
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 901 });
+      let rt = await rtag();
+      t.expect(rt && rt.hidden === true, 'fresh deal hides #replayTag');
+      // 2. Restarting an untouched deal flags retried immediately on the HUD
+      await t.game('scene', 'menu');
+      await t.page.click('#sheet [data-a="restart"]');
+      await t.page.waitForFunction(() => { const el = document.getElementById('replayTag'); return el && !el.hidden; });
+      rt = await rtag();
+      t.equal([rt.hidden, rt.text, rt.title], [false, 'retried', RETRIED_NOTE], 'restarted unwon deal renders quiet retried HUD pill with parlor tooltip');
+      await clearToast(t);
+      await t.page.click('#replayTag');
+      await t.page.waitForFunction((want) => document.getElementById('toast').textContent === want, RETRIED_NOTE);
+      t.equal(await toastText(t), RETRIED_NOTE, 'clicking retried pill explains ticket punch and paused streaks/bests');
+      // Both #assistTag and #replayTag side by side stay inside #bar without stage bleed or overlap
+      await t.game('act', 'hint');
+      await t.page.waitForFunction(() => !document.getElementById('assistTag').hidden);
+      await t.checkLayout();
+      await shot(t, 'W1-S5-05', 'hud-retried');
+      const hudGeo = await t.page.evaluate(() => {
+        const bar = document.getElementById('bar').getBoundingClientRect();
+        const status = document.getElementById('status').getBoundingClientRect();
+        const el = document.getElementById('replayTag'), r = el.getBoundingClientRect();
+        const after = getComputedStyle(el, '::after');
+        const bOff = parseFloat(after.bottom) || 0, tOff = parseFloat(after.top) || 0;
+        const below = document.elementFromPoint(r.left + r.width / 2, bar.bottom + 2);
+        return {
+          inBar: r.right <= status.left + 1 && r.left >= bar.left,
+          afterInBar: (r.bottom - bOff) <= bar.bottom + 0.5 && (r.top + tOff) >= bar.top - 0.5,
+          belowId: below ? below.id : null,
+        };
+      });
+      t.equal([hudGeo.inBar, hudGeo.afterInBar, hudGeo.belowId], [true, true, 'cv'], 'retried + assisted HUD tags stay inside #bar with zero stage bleed');
+
+      // 3. Winning a retried first-ever deal stamps punched ' · retried' (never ' · replay') and keeps HUD pill as retried
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 902, replay: true }));
+      rt = await rtag();
+      t.equal([rt.hidden, rt.text], [false, 'retried'], 'retried near-win deal displays retried HUD pill');
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      const lwRetried = await t.game('lastWin');
+      t.equal([lwRetried.alreadyWon, lwRetried.retried, lwRetried.effBonus], [false, true, 0], 'lastWin carries alreadyWon=false, retried=true, effBonus=0');
+      const retTicket = await t.page.evaluate(() => ({
+        meta: document.querySelector('#sheet .ticket .meta').textContent,
+        punches: document.querySelectorAll('#sheet .ticket .punch').length,
+      }));
+      t.expect(retTicket.meta.includes(' · retried') && !retTicket.meta.includes(' · replay') && !retTicket.meta.includes('efficiency'), 'retried first-ever Bath Ticket renders · retried without · replay: ' + retTicket.meta);
+      t.equal(retTicket.punches, 1, 'retried first-ever Bath Ticket is punched');
+      await shot(t, 'W1-S5-05', 'ticket-retried');
+      await t.game('scene', 'game');
+      rt = await rtag();
+      t.equal([rt.hidden, rt.text], [false, 'retried'], 'post-win HUD on retried win stays retried instead of flipping to replay');
+
+      // 4. Replaying an already-won deal shows 'replay' on HUD and unpunched ' · replay' on Bath Ticket
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 902 }));
+      rt = await rtag();
+      t.equal([rt.hidden, rt.text, rt.title], [false, 'replay', REPLAY_NOTE], 'already-won deal renders replay HUD pill with practice tooltip');
+      await clearToast(t);
+      await t.page.click('#replayTag');
+      await t.page.waitForFunction((want) => document.getElementById('toast').textContent === want, REPLAY_NOTE);
+      t.equal(await toastText(t), REPLAY_NOTE, 'clicking replay pill explains practice replay');
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      const lwReplay = await t.game('lastWin');
+      t.equal([lwReplay.alreadyWon, lwReplay.retried, lwReplay.effBonus], [true, false, 0], 'lastWin carries alreadyWon=true, retried=false, effBonus=0');
+      const repTicket = await t.page.evaluate(() => ({
+        meta: document.querySelector('#sheet .ticket .meta').textContent,
+        punches: document.querySelectorAll('#sheet .ticket .punch').length,
+      }));
+      t.expect(repTicket.meta.includes(' · replay') && !repTicket.meta.includes(' · retried'), 'already-won Bath Ticket renders · replay without · retried: ' + repTicket.meta);
+      t.equal(repTicket.punches, 0, 'already-won Bath Ticket is unpunched');
+      await shot(t, 'W1-S5-05', 'ticket-replay');
+
+      // 5. Fresh clean win keeps #replayTag hidden both before and after winning
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 903 }));
+      t.equal((await rtag()).hidden, true, 'fresh deal 903 hides #replayTag');
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      const cleanMeta = await t.page.locator('#sheet .ticket .meta').first().textContent();
+      t.expect(!cleanMeta.includes(' · retried') && !cleanMeta.includes(' · replay') && !cleanMeta.includes('efficiency'), 'clean win Bath Ticket omits retried/replay/zero-efficiency tags: ' + cleanMeta);
+      await t.game('scene', 'game');
+      t.equal((await rtag()).hidden, true, 'post-win HUD on clean first win stays hidden (does not falsely show replay)');
+
+      // 6. Bath Ticket discloses non-zero Standard efficiency bonus (' · efficiency +N') alongside retried/clean state
+      await t.game('scene', 'win', { effBonus: 225, alreadyWon: false, retried: true, replay: true, totalWins: 3 });
+      const effTicket = await t.page.evaluate(() => ({
+        meta: document.querySelector('#sheet .ticket .meta').textContent,
+        punches: document.querySelectorAll('#sheet .ticket .punch').length,
+      }));
+      t.expect(effTicket.meta.includes(' · efficiency +225') && effTicket.meta.includes(' · retried') && !effTicket.meta.includes(' · replay'), 'Bath Ticket renders · efficiency +225 alongside · retried: ' + effTicket.meta);
+      t.equal(effTicket.punches, 1, 'punched retried ticket with efficiency bonus renders punch');
+      await shot(t, 'W1-S5-05', 'ticket-efficiency');
+      await t.checkLayout();
+
+      // 7. Compact mobile viewports (320x568 and 844x390) contain #replayTag + #assistTag inside #bar
+      if (t.viewport === 'mobile') {
+        for (const [w, h, label] of [[320, 568, '320x568'], [844, 390, '844x390']]) {
+          await t.page.setViewportSize({ width: w, height: h });
+          await t.game('scene', 'game');
+          await t.game('setState', Object.assign(nearWinKlondike(), { deal: 904, replay: true }));
+          await t.game('act', 'hint');
+          await t.page.waitForFunction(() => !document.getElementById('replayTag').hidden && !document.getElementById('assistTag').hidden);
+          const geo = await t.page.evaluate(() => {
+            const bar = document.getElementById('bar').getBoundingClientRect();
+            const status = document.getElementById('status').getBoundingClientRect();
+            const el = document.getElementById('replayTag'), r = el.getBoundingClientRect();
+            const after = getComputedStyle(el, '::after');
+            const bOff = parseFloat(after.bottom) || 0, tOff = parseFloat(after.top) || 0;
+            const below = document.elementFromPoint(r.left + r.width / 2, bar.bottom + 2);
+            return {
+              inBar: r.right <= status.left + 1 && r.left >= bar.left,
+              afterInBar: (r.bottom - bOff) <= bar.bottom + 0.5 && (r.top + tOff) >= bar.top - 0.5,
+              belowId: below ? below.id : null,
+            };
+          });
+          t.equal([geo.inBar, geo.afterInBar, geo.belowId], [true, true, 'cv'], label + ': #replayTag + #assistTag stay inside #bar with zero stage bleed');
+        }
+        await t.page.setViewportSize(t.vp);
+      }
+    },
+  },
 ];
