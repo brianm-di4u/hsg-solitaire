@@ -7033,6 +7033,7 @@ function showTitle(on, instant) {
   hudClockSync();
   ambientSync();
   if (on) {
+    syncTitleCTA();
     { const day = todayStr(); const n = Object.keys(meta.daily).filter((k) => k.startsWith(day + '|') && (meta.daily[k] === 'won' || meta.daily[k] === 'won-archive')).length; $('#tDaily').textContent = 'Daily deals' + (n ? ' (' + n + '/7 ✓)' : ''); }
     $('#tTag').textContent = TITLE_LINES[titleLineAt++ % TITLE_LINES.length];
     DPR = Math.min(3, window.devicePixelRatio || 1);
