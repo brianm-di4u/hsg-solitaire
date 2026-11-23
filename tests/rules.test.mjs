@@ -731,4 +731,96 @@ export const tests = [
       t.equal([afterCancel.st.deal, afterCancel.st.moves, afterCancel.stats.streak, afterCancel.dealingOn], [1234, 1, 4, false], 'cancelling modal aborted dealPending without wiping live board or win streak');
     },
   },
+  {
+    name: 'rules-26 W1-S3-03 FreeCell 2-bit solver grade table grades 100% of classic deals 1..32000, matches 180 anchors, and credits gradeWins/unlocks',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { dealFairness: 'winnable', motion: 'reduced', tips: false, sound: false });
+      const audit = await t.page.evaluate(() => {
+        const g = window.__game;
+        if (typeof g.gradeFreecellDeal !== 'function') return { missing: true };
+        const pools = g.seedPools().freecell;
+        const counts = { '': 0, easy: 0, medium: 0, hard: 0 };
+        let ungraded = 0;
+        for (let d = 1; d <= 32000; d++) {
+          const gr = g.gradeFreecellDeal(d);
+          if (d === 11982) { if (gr !== '') return { bad11982: gr }; }
+          else if (!['easy', 'medium', 'hard'].includes(gr)) ungraded++;
+          counts[gr] = (counts[gr] || 0) + 1;
+        }
+        let anchorHits = 0, anchorTotal = 0;
+        for (const gr of ['easy', 'medium', 'hard']) {
+          for (const d of pools[gr]) {
+            anchorTotal++;
+            if (g.gradeFreecellDeal(d) === gr) anchorHits++;
+          }
+        }
+        // Pick first non-anchor deal > 500 of each grade
+        const sample = {};
+        for (const gr of ['easy', 'medium', 'hard']) {
+          for (let d = 501; d <= 32000; d++) {
+            if (d !== 11982 && g.gradeFreecellDeal(d) === gr) { sample[gr] = d; break; }
+          }
+        }
+        return {
+          missing: false,
+          counts,
+          ungraded,
+          anchorHits,
+          anchorTotal,
+          d11982: g.gradeFreecellDeal(11982),
+          oobLow: g.gradeFreecellDeal(0),
+          oobHigh: g.gradeFreecellDeal(32001),
+          sample,
+        };
+      });
+      t.equal(audit.missing, false, 'window.__game.gradeFreecellDeal() is exposed');
+      t.equal([audit.ungraded, audit.d11982, audit.oobLow, audit.oobHigh], [0, '', '', ''], '0 ungraded solvable deals in 1..32000, #11982 and OOB return empty');
+      t.equal([audit.anchorHits, audit.anchorTotal], [180, 180], '100% concordance across all 180 FC_GRADE_MAP anchors');
+      for (const gr of ['easy', 'medium', 'hard']) {
+        const pct = audit.counts[gr] / 31999;
+        t.expect(pct >= 0.31 && pct <= 0.36, 'FreeCell ' + gr + ' tertile balanced (' + audit.counts[gr] + ' = ' + (pct * 100).toFixed(2) + '%)');
+      }
+
+      // Non-anchor Winnable (Any) FreeCell deals carry verified grade in S.grade & #modeSub (never generic 'winnable')
+      for (const gr of ['easy', 'medium', 'hard']) {
+        const d = audit.sample[gr];
+        await t.seed(d);
+        await t.game('newGame', { mode: 'freecell' });
+        const st = await t.state();
+        const sub = await t.page.locator('#modeSub').textContent();
+        t.equal([st.deal, st.winnable, st.grade], [d, true, gr], 'Winnable (Any) non-anchor FreeCell #' + d + ' graded ' + gr);
+        t.expect(sub.includes(' · ' + gr) && !sub.includes('· winnable'), '#modeSub shows verified grade (' + sub + ')');
+      }
+
+      // FreeCell Daily deals across 10 consecutive dates all carry verified grades
+      const dailyGrades = await t.page.evaluate(() => {
+        const out = [];
+        for (let i = 1; i <= 10; i++) {
+          const dt = '2026-06-' + String(i).padStart(2, '0');
+          window.__game.newGame({ mode: 'freecell', daily: dt });
+          const st = window.__game.getState();
+          out.push({ dt, deal: st.deal, grade: st.grade, sub: document.getElementById('modeSub').textContent });
+        }
+        return out;
+      });
+      t.expect(dailyGrades.every((x) => ['easy', 'medium', 'hard'].includes(x.grade) && x.sub.includes(' · ' + x.grade)), 'all 10 FreeCell Daily deals carry verified grades');
+
+      // Winning a non-anchor Hard FreeCell deal credits meta.gradeWins.hard and unlocks b:lake + b:silks fast-tracks
+      const hardDeal = audit.sample.hard;
+      await t.seed(hardDeal);
+      await t.game('newGame', { mode: 'freecell' });
+      const preWin = await t.state();
+      const run = (s, n = 13) => ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'].slice(0, n).map((r) => r + s);
+      await t.game('setState', {
+        mode: 'freecell', deal: hardDeal, grade: preWin.grade,
+        piles: { c0: [], c1: [], c2: [], c3: [], f0: run('C'), f1: run('D'), f2: run('H'), f3: run('S', 12), t0: ['KS'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [], t7: [] },
+      });
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      const m = await t.game('meta');
+      t.equal(m.gradeWins.hard, 1, 'winning non-anchor Hard FreeCell deal increments meta.gradeWins.hard');
+      t.expect(m.unlock.ids.includes('b:lake') && m.unlock.ids.includes('b:silks'), 'Hard FreeCell win unlocks b:lake and b:silks mastery fast-tracks');
+    },
+  },
 ];
