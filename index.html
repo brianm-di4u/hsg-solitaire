@@ -3560,7 +3560,7 @@ function drawLitTable(ctx, id, W, H, band) {
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore();
   g = ctx.createRadialGradient(lx, ly + H * .1, Math.min(W, H) * .32, lx, ly + H * .1, R * 1.05);
   g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, look.edge); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  if (W > 200 && band) placeMarks(ctx, W, H, look, band);
+  if (W > 200 && band) placeMarks(ctx, W, H, look, band, id);
   if (W > 200) brassInlay(ctx, W, H); // not on the little picker swatches
   return true;
 }
@@ -3575,10 +3575,10 @@ function placeBand() {
   const [dn, up] = DEAL_DEPTH[S.mode] || [0, 0];
   return { top: L.piles.t0.y + L.ch + dn * L.fanDown + up * L.fanUp, bottom: L.bottom };
 }
-function placeMarks(ctx, W, H, look, band) {
+function placeMarks(ctx, W, H, look, band, id) {
   const free = band.bottom - band.top, ink = look.mark || (look.light ? '#3A2A18' : '#F3DA92');
   const fm = frameMetrics(W, H);
-  placeDrawn = { band, emblem: null, skyline: null, nook: null };
+  placeDrawn = { table: id || settings.table, band, emblem: null, skyline: null, nook: null };
   if (H > W * 1.4) { // a tall phone: the sunburst low on the table, the rooflines inset clear of both bottom brass corner fans (W6-S4-06)
     const r = W * .3; placeDrawn.emblem = { cx: W / 2, cy: H * .72, r }; feltEmblem(ctx, W / 2, H * .72, r, ink, look.light);
     const inset = fm.cornerS + 6, sx = inset, sw = Math.max(120, W - 2 * inset);
@@ -4258,6 +4258,7 @@ function loop() {
   if (!rafId && !titleOn && (tweensActive(t) || dragAnimating(t) || (held && !reducedMotion() && t < (held.t0 || 0) + 95) || (cascade && !cascade.calm) || steam.length || Object.keys(shakes).length || (!reducedMotion() && hintState && hintState.until > t))) rafId = requestAnimationFrame(loop);
 }
 function drawTableLayer() {
+  placeDrawn = null;
   tctx.setTransform(DPR, 0, 0, DPR, 0, 0); drawTable(tctx, settings.table, W, H, placeBand()); tableDirty = false;
 }
 function drawOpenTray(g, x, y, cw, ch, stroke) {
@@ -6675,6 +6676,7 @@ function showTitle(on, instant) {
     if (skyRaf) { cancelAnimationFrame(skyRaf); skyRaf = 0; }
     freeSkyCache();
     loadArt(tablePlayArt());
+    if (S && L && tableDirty) markDirty();
   }
   syncAudio();
   if (on) {
@@ -7658,7 +7660,7 @@ window.__game = {
     const t = now();
     for (const k in shakes) if (t - shakes[k] >= 260) delete shakes[k];
     if (steam.length) steam = steam.filter((p) => t < p.t0 + p.life);
-    return !artPending && !artTick && !fontsPending && !tweensActive(t) && !drag && !cascade && !winTimer && !steam.length && !Object.keys(shakes).length && t > modalAnimUntil;
+    return !artPending && !artTick && !fontsPending && !(tableDirty && !titleOn && S && L && W) && !tweensActive(t) && !drag && !cascade && !winTimer && !steam.length && !Object.keys(shakes).length && t > modalAnimUntil;
   },
   facts: () => FACTS.map((f) => f.slice()),
   tipsCatalog: () => {
