@@ -3012,9 +3012,9 @@ function cardStock(ctx, w, h, back = false) {
 
 function drawAce(ctx, c, w, h, small) {
   const col = suitColor(c.s);
-  const size = w * .5; const cx = w / 2, cy = h * (small ? .68 : .6);
+  const size = w * .5; const cx = w / 2, cy = h * (small ? .71 : .6);
   const med = artImg('ace-medallion');
-  if (med) { const ms = size * (small ? 1.5 : 1.75); ctx.save(); ctx.globalAlpha = .92; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(med, cx - ms / 2, cy - ms / 2 - size * .02, ms, ms); ctx.restore(); }
+  if (med) { const ms = size * (small ? 1.32 : 1.75); ctx.save(); ctx.globalAlpha = .92; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(med, cx - ms / 2, cy - ms / 2 - (small ? 0 : size * .02), ms, ms); ctx.restore(); }
   // Ivory buffer halo separates black A-club / A-spade cleanly from ace-medallion's dark jade ring down to 35 px phone width (W6-S4-06).
   ctx.save(); ctx.translate(cx, cy);
   suitPath(ctx, c.s, -size * .45, -size / 2, size * .9, size);
@@ -3062,9 +3062,9 @@ const courtArt = (c, set = settings.courts) => (set === 'painted' ? 'court-' : '
 function drawCourtPanel(ctx, c, w, h, small, large) {
   const col = suitColor(c.s);
   const img = artImg(courtArt(c)), tall = img && !small;
-  // Sliver-free panel inset: desktop y=0.31*h (ph=0.64*h), mobile y>=0.46*h clear of portrait fanUp (CD-WF1-07, W6-S4-03).
+  // Sliver-free panel inset: desktop y=0.31*h (ph=0.64*h), mobile y>=0.485*h clear of portrait fanUp (CD-WF1-07, W6-S4-04).
   const x = w * (small ? .09 : tall ? .075 : .14);
-  const mobTop = small ? Math.max(h * .46, indexBottom(w, h, large).full + h * .025) : 0;
+  const mobTop = small ? Math.max(h * .485, indexBottom(w, h, large).full + h * .025) : 0;
   const y = small ? mobTop : h * .31;
   const pw = w - 2 * x;
   const ph = small ? Math.max(h * .44, h - y - h * .04) : h * (tall ? .64 : .54);
@@ -3100,8 +3100,8 @@ function drawDecoCourt(ctx, c, w, h, small, rs, ss, col, large) {
   const ns = { x: sx0, y: py, w: w - px - sx0, h: h * .03 + ss + rs * .1 + h * .01 - py };
   const fx = img.focusX != null ? img.focusX : .55;
   if (small) {
-    // Raise mobile small Deco top clear of portrait fanUp & clamp dx/dy strictly to prevent cream voids (CD-WF2-01, W6-S4-03).
-    const top = Math.max(nr.h + py + h * .03, ns.h + py + h * .03, h * .46), ph = Math.max(h * .44, h - top - py);
+    // Raise mobile small Deco top clear of portrait fanUp & clamp dx/dy strictly to prevent cream voids (CD-WF2-01, W6-S4-04).
+    const top = Math.max(nr.h + py + h * .03, ns.h + py + h * .03, h * .485), ph = Math.max(h * .44, h - top - py);
     ctx.save(); rrect(ctx, px, top, pw, ph, r); ctx.clip(); ctx.fillStyle = '#F4EDE0'; ctx.fillRect(px, top, pw, ph);
     const mob = COURT_MOB[img.artName] || { zoom: 1.38, ay: .06 };
     const k = Math.max(pw / img.naturalWidth, ph / img.naturalHeight) * mob.zoom;

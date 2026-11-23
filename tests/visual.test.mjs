@@ -575,4 +575,60 @@ export const tests = [
       await t.game('act', 'skip');
     },
   },
+  {
+    name: 'visual-70 W6-S4-04 mobile portrait FreeCell buried Ace medallions and Deco/Painted court gild frames leave zero peeking slivers',
+    viewports: ['mobile'],
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced', table: 'felt', courts: 'deco' });
+      const checkSlivers = async (label) => {
+        await t.game('newGame', { mode: 'freecell', deal: 1 });
+        await t.waitForStable();
+        await t.page.waitForFunction(() => window.__game.art().loaded.includes('ace-medallion'), null, { timeout: 15000 });
+        await t.waitForStable();
+        return t.page.evaluate(() => {
+          const cv = document.getElementById('cv'), g = cv.getContext('2d');
+          const rect = cv.getBoundingClientRect(), k = cv.width / rect.width;
+          const lay = window.__game.getLayout(), st = window.__game.getState();
+          // Sample the seam band 2.5px..1.0px above the next card's top border across the middle 56% of each buried Ace / Court card
+          const inspect = (pid, idx) => {
+            const c = lay.piles[pid].cards[idx], nxt = lay.piles[pid].cards[idx + 1];
+            const sx = Math.round((c.x - rect.left + lay.cardW * 0.22) * k);
+            const sw = Math.max(4, Math.round(lay.cardW * 0.56 * k));
+            const sy = Math.round((nxt.y - rect.top - 2.5) * k);
+            const sh = Math.max(4, Math.round(2.5 * k));
+            const d = g.getImageData(sx, sy, sw, sh).data;
+            let minLum = 255, maxChroma = 0;
+            for (let i = 0; i < d.length; i += 4) {
+              const r = d[i], gr = d[i + 1], b = d[i + 2];
+              const lum = 0.299 * r + 0.587 * gr + 0.114 * b;
+              const ch = Math.max(r, gr, b) - Math.min(r, gr, b);
+              if (lum < minLum) minLum = lum;
+              if (ch > maxChroma) maxChroma = ch;
+            }
+            return { card: st.piles[pid][idx], minLum: +minLum.toFixed(1), maxChroma };
+          };
+          return {
+            aceD: inspect('t4', 1), // AD in col 5
+            aceC: inspect('t5', 3), // AC in col 6
+            courtQD: inspect('t3', 2), // QD in col 4
+            courtQH: inspect('t3', 3), // QH in col 4
+          };
+        });
+      };
+
+      const deco = await checkSlivers('deco');
+      for (const [k, v] of Object.entries(deco)) {
+        t.expect(v.minLum >= 185 && v.maxChroma <= 34, 'deco ' + k + ' (' + v.card + ') lower buried strip is clean ivory with zero peeking medallion/frame sliver: ' + JSON.stringify(v));
+      }
+      await t.shot('visual-70-w6-s4-04-freecell-mobile-deco');
+
+      await t.game('setSettings', { courts: 'painted' });
+      const painted = await checkSlivers('painted');
+      for (const [k, v] of Object.entries(painted)) {
+        t.expect(v.minLum >= 185 && v.maxChroma <= 34, 'painted ' + k + ' (' + v.card + ') lower buried strip is clean ivory with zero peeking frame sliver: ' + JSON.stringify(v));
+      }
+      await t.shot('visual-70-w6-s4-04-freecell-mobile-painted');
+      await t.game('setSettings', { courts: 'deco' });
+    },
+  },
 ];
