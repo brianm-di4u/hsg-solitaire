@@ -269,7 +269,7 @@ export const tests = [
       });
       // Wait: with waste=['KS','QS'] (QS is top of waste), QS plays directly -> f3 (+10, move 1), then KS is exposed on waste -> f3 (+10, move 2) -> no recycle needed.
       // To force a recycle inside autoComplete, put KS on top of waste and QS buried under KS in waste (waste=['QS','KS']), stock=[]:
-      // Recycle waste->stock (stock=['KS','QS'], QS on top! recycles 1->2 => -50 pts, move +1), draw QS (move +1), play QS (+10, move +1), draw KS (move +1), play KS (+10, move +1) => +5 moves, net -30 pts (score 70)!
+      // Recycle waste->stock (stock=['KS','QS'], QS on top! recycles 1->2 => -50 pts, move +1), draw QS (move +1), play QS waste->f3 (+15, move +1), draw KS (move +1), play KS waste->f3 (+15, move +1) => +5 moves (15), card pts 80 + Klondike Draw 1 efficiencyBonus(15)=450 => 530!
       await t.game('setState', {
         mode: 'klondike', opts: { draw: 1 }, score: 100, moves: 10, recycles: 1,
         piles: {
@@ -282,7 +282,7 @@ export const tests = [
       t.equal((await t.game('act', 'autoComplete')).ok, true, 'autoComplete succeeds');
       await t.page.waitForFunction(() => window.__game.getState().won, null, { timeout: 10000 });
       s = await t.state();
-      t.equal([s.moves, s.score, s.undoDepth], [15, 70, 1], 'autoComplete applies exact per-action moves (+5), Pass 2 recycle fee (-50 + 20 = 70), and single Undo snapshot');
+      t.equal([s.moves, s.score, s.undoDepth], [15, 530, 1], 'autoComplete applies exact per-action moves (+5), Pass 2 recycle fee (-50 + 30 direct waste->found = 80), Standard efficiency bonus (+450 = 530), and single Undo snapshot');
 
       // 3. Superseded async hint(true) never stamps S.assisted
       await t.game('setState', {
@@ -581,6 +581,240 @@ export const tests = [
       await t.page.waitForTimeout(160);
       const pOff2 = (await t.game('pad')).polls;
       t.equal(pOff2, pOff1, 'disconnecting gamepad halts rAF polling (0 idle polls)');
+    },
+  },
+  {
+    name: 'play-35 signed rawScore conservation blocks zero-clamped foundation pullback farming (W1-P-N03)',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced', scoring: 'standard', autoFoundation: 'off', tips: false });
+      // 1. Klondike Draw 1 Pass-2 recycle drives rawScore negative while keeping displayed S.score floored at 0;
+      //    pulling a foundation card down (-15) and re-pushing it (+10) must never regenerate positive points.
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 }, score: 20, recycles: 1,
+        piles: {
+          stock: [], waste: ['9C'],
+          f0: ['AS', '2S'], f1: [], f2: [], f3: [],
+          t0: ['3H'], t1: ['KD'], t2: [], t3: [], t4: [], t5: [], t6: [],
+        },
+      });
+      await t.game('act', 'draw'); // Pass 2 recycle: -50 => rawScore -30, displayed score 0
+      let s = await t.state();
+      t.equal([s.score, s.rawScore], [0, -30], 'Pass-2 recycle clamps display score at 0 while conserving rawScore = -30');
+      t.equal(await t.page.textContent('#sScore'), '0', 'HUD #sScore displays non-negative 0');
+
+      await t.game('act', 'move', 'f0', 't0'); // pullback 2S -> 3H: -15 => rawScore -45, score 0
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [0, -45], 'foundation pullback at 0 decrements rawScore to -45');
+
+      await t.game('act', 'move', 't0', 'f0'); // re-push 2S -> f0: +10 => rawScore -35, score 0 (NOT +10!)
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [0, -35], 're-pushing pulled card cannot regenerate points (score stays 0, rawScore = -35)');
+      t.equal(await t.page.textContent('#sScore'), '0', 'HUD #sScore stays 0 after pullback/re-push cycle');
+
+      // 2. Undo and Redo restore signed rawScore accurately across negative states
+      await t.game('act', 'undo');
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [0, -45], 'Undo restores rawScore = -45');
+      await t.game('act', 'undo');
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [0, -30], 'second Undo restores rawScore = -30');
+      await t.game('act', 'undo');
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [20, 20], 'third Undo restores pre-recycle score = 20 and rawScore = 20');
+      await t.game('act', 'redo');
+      await t.game('act', 'redo');
+      await t.game('act', 'redo');
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [0, -35], 'Redo re-applies signed rawScore = -35');
+
+      // 3. Direct zero-floor pullback (starting at score 0, rawScore 0) also conserves signed net score
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 }, score: 0,
+        piles: {
+          stock: [], waste: [],
+          f0: ['AS', '2S'], f1: [], f2: [], f3: [],
+          t0: ['3H'], t1: ['AH'], t2: [], t3: [], t4: [], t5: [], t6: [],
+        },
+      });
+      await t.game('act', 'move', 'f0', 't0'); // -15 => rawScore -15, score 0
+      await t.game('act', 'move', 't0', 'f0'); // +10 => rawScore -5, score 0
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [0, -5], 'zero-floor pullback + re-push nets -5 instead of +10');
+      await t.game('act', 'move', 't1', 'f1'); // +10 => rawScore +5, score 5
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [5, 5], 'subsequent legitimate +10 lifts rawScore from -5 to +5 and display score to 5');
+
+      // 4. Negative rawScore persists across reload (save + resumeSaved), and legacy saves without rawScore default cleanly
+      // Use a full 52-card deck so validSave() accepts the persisted save across reload.
+      const rest48 = run('C').concat(run('D'), run('H'), run('S')).filter((c) => !['AS', '2S', '3H', '9C'].includes(c));
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 }, deal: 903, score: 20, recycles: 1,
+        piles: {
+          stock: [], waste: ['9C'],
+          f0: ['AS', '2S'], f1: [], f2: [], f3: [],
+          t0: ['3H'], t1: rest48, t2: [], t3: [], t4: [], t5: [], t6: [],
+        },
+      });
+      await t.game('act', 'draw');             // rawScore -30, score 0
+      await t.game('act', 'move', 'f0', 't0'); // rawScore -45, score 0
+      await t.page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+      await t.page.waitForFunction(() => {
+        const raw = localStorage.getItem('spa-solitaire:v1:current');
+        return raw && JSON.parse(raw).state && JSON.parse(raw).state.deal === 903 && JSON.parse(raw).state.rawScore === -45;
+      });
+      await t.page.reload({ waitUntil: 'domcontentloaded' });
+      await t.page.waitForFunction(() => !!window.__game);
+      await t.page.click('#tCont');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'game');
+      s = await t.state();
+      t.equal([s.score, s.rawScore, s.undoDepth], [0, -45, 2], 'reloaded save preserves negative rawScore and undo snapshots');
+      await t.game('act', 'move', 't0', 'f0'); // +10 => rawScore -35, score 0
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [0, -35], 're-pushing after reload still cannot regenerate points');
+
+      // Legacy save without rawScore field restores cleanly with rawScore === score
+      await t.game('scene', 'title');
+      await t.page.evaluate(() => {
+        const k = 'spa-solitaire:v1:current';
+        const cur = JSON.parse(localStorage.getItem(k));
+        delete cur.state.rawScore;
+        cur.state.score = 15;
+        if (Array.isArray(cur.undo)) cur.undo.forEach((sn) => delete sn.rawScore);
+        localStorage.setItem(k, JSON.stringify(cur));
+      });
+      await t.page.reload({ waitUntil: 'domcontentloaded' });
+      await t.page.waitForFunction(() => !!window.__game);
+      await t.page.click('#tCont');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'game');
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [15, 15], 'legacy save without rawScore defaults rawScore to saved score');
+    },
+  },
+  {
+    name: 'play-36 Select & place and hybrid tap-to-drop accept full-lane empty tableau hit zones down to L.bottom (W6-P-N02)',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced', tapMove: 'select', autoFoundation: 'off' });
+
+      // 1. Klondike in Select & place: pick up King, tap well below top card box inside empty column t2 lane -> drops King
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['#5C', 'KS'], t1: ['9H'], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      await t.waitForStable();
+      let lay = await t.game('getLayout');
+      const kCard = lay.piles.t0.cards[1], t2 = lay.piles.t2;
+      const laneY = Math.min(lay.bottom - 14, t2.y + lay.cardH + Math.max(40, (lay.bottom - (t2.y + lay.cardH)) * 0.5));
+      t.expect(laneY > t2.y + lay.cardH + 10, 'lower empty-lane click y sits well below single-card box: ' + Math.round(laneY) + ' > ' + Math.round(t2.y + lay.cardH));
+      await t.page.mouse.click(kCard.x + kCard.w / 2, kCard.y + kCard.h / 2);
+      t.equal((await t.state()).held, { from: 't0', index: 1 }, 'Select & place picks up KS');
+      await t.page.mouse.click(t2.x + lay.cardW / 2, laneY);
+      let s = await t.state();
+      t.equal([s.held, s.piles.t2, s.piles.t0], [null, ['KS'], ['5C']], 'tapping lower empty tableau lane places KS and flips #5C');
+
+      // 2. FreeCell in Select & place: pick up non-King card, tap lower empty column t3 lane -> drops card
+      await t.game('setState', {
+        mode: 'freecell',
+        piles: { c0: [], c1: [], c2: [], c3: [], f0: [], f1: [], f2: [], f3: [], t0: ['9C', '5H'], t1: ['KD'], t2: ['QC'], t3: [], t4: ['2S'], t5: ['3S'], t6: ['4S'], t7: ['5S'] },
+      });
+      await t.waitForStable();
+      lay = await t.game('getLayout');
+      const c5 = lay.piles.t0.cards[1], t3 = lay.piles.t3;
+      const fcLaneY = Math.min(lay.bottom - 14, t3.y + lay.cardH + Math.max(40, (lay.bottom - (t3.y + lay.cardH)) * 0.5));
+      await t.page.mouse.click(c5.x + c5.w / 2, c5.y + c5.h / 2);
+      t.equal((await t.state()).held, { from: 't0', index: 1 }, 'Select & place picks up 5H in FreeCell');
+      await t.page.mouse.click(t3.x + lay.cardW / 2, fcLaneY);
+      s = await t.state();
+      t.equal([s.held, s.piles.t3, s.piles.t0], [null, ['5H'], ['9C']], 'FreeCell lower empty tableau lane accepts held 5H');
+
+      // 3. Hybrid keyboard pickup (tapMove:'tap') + pointer tap on lower empty column lane -> drops King
+      await t.game('setSettings', { tapMove: 'tap' });
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['#2D', 'KH'], t1: ['8C'], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      await t.waitForStable();
+      lay = await t.game('getLayout');
+      await t.page.focus('#cv');
+      await t.page.keyboard.press('1');
+      await t.page.keyboard.press('Enter');
+      t.equal((await t.state()).held, { from: 't0', index: 1 }, 'keyboard Enter picks up KH');
+      const t4 = lay.piles.t4;
+      const hybLaneY = Math.min(lay.bottom - 14, t4.y + lay.cardH + Math.max(40, (lay.bottom - (t4.y + lay.cardH)) * 0.5));
+      await t.page.mouse.click(t4.x + lay.cardW / 2, hybLaneY);
+      s = await t.state();
+      t.equal([s.held, s.piles.t4, s.piles.t0], [null, ['KH'], ['2D']], 'hybrid keyboard pickup + lower empty-lane tap places KH');
+
+      // 4. Tapping empty felt outside any column x (or below L.bottom) while holding still puts the card back cleanly
+      await t.game('setSettings', { tapMove: 'select' });
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['#2D', 'KH'], t1: ['8C'], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      await t.waitForStable();
+      lay = await t.game('getLayout');
+      const kh = lay.piles.t0.cards[1];
+      await t.page.mouse.click(kh.x + kh.w / 2, kh.y + kh.h / 2);
+      t.equal((await t.state()).held, { from: 't0', index: 1 }, 'KH held before miss-click');
+      // Click the narrow horizontal gap between columns t2 and t3 (or far left margin) where no pile spans x
+      const missX = lay.piles.t0.x > 6 ? 2 : (lay.piles.t2.x + lay.cardW + lay.piles.t3.x) / 2;
+      await t.page.mouse.click(missX, lay.bottom - 10);
+      t.equal((await t.state()).held, null, 'tapping outside column lanes still puts held card back');
+      t.equal((await t.state()).piles.t0, ['#2D', 'KH'], 'KH remains on t0 after put-back');
+    },
+  },
+  {
+    name: 'play-37 Select & place sets t0 and runs 90 ms lift ease on wobbly-tap and same-column re-select (W6-S5-06)',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'full', tapMove: 'select', autoFoundation: 'off' });
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['KH', 'QS'], t1: ['9C'], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      await t.waitForStable();
+      const lay = await t.game('getLayout');
+      const c0 = lay.piles.t0.cards[0], c1 = lay.piles.t0.cards[1];
+
+      // 1. Wobbly-tap pickup (exceeds 6px mouse drag threshold to enter finishDrag(), stays < DRAG_TAP_REACH * 6 = 15px)
+      const cx1 = c1.x + c1.w / 2, cy1 = c1.y + c1.h / 2;
+      await t.page.mouse.move(cx1, cy1);
+      await t.page.mouse.down();
+      await t.page.mouse.move(cx1 + 9, cy1, { steps: 3 });
+      const wasDrag = await t.game('dragInfo');
+      t.expect(!!wasDrag, 'wobbly press crosses drag threshold into finishDrag() path');
+      const tBeforeWobble = await t.page.evaluate(() => performance.now());
+      await t.page.mouse.up();
+      const afterWobble = await t.page.evaluate(() => ({
+        now: performance.now(),
+        held: window.__game.heldInfo(),
+        raf: window.__game.runtimeEconomy().rafActive,
+      }));
+      t.equal([afterWobble.held && afterWobble.held.from, afterWobble.held && afterWobble.held.index], ['t0', 1], 'wobbly-tap picks up QS in Select & place');
+      t.expect(afterWobble.held && afterWobble.held.t0 >= tBeforeWobble - 2 && afterWobble.held.t0 <= afterWobble.now + 2, 'wobbly-tap pickup stamps fresh t0 for 90 ms lift ease: ' + JSON.stringify({ tBeforeWobble, afterWobble }));
+      t.equal(afterWobble.raf, true, 'wobbly-tap pickup schedules rAF loop via startLoop()');
+
+      // Wait until the 90 ms lift ease completes and the loop returns to idle
+      await t.page.waitForFunction(() => !window.__game.runtimeEconomy().rafActive, null, { timeout: 5000 });
+      const wobbleT0 = afterWobble.held.t0;
+
+      // 2. Same-column depth re-select (tap exposed strip of KH while holding QS)
+      await t.game('frameStats', true);
+      const tBeforeReselect = await t.page.evaluate(() => performance.now());
+      await t.page.mouse.click(c0.x + c0.w / 2, c0.y + Math.max(4, Math.min(12, (c1.y - c0.y) * 0.5)));
+      const afterReselect = await t.page.evaluate(() => ({
+        now: performance.now(),
+        held: window.__game.heldInfo(),
+        raf: window.__game.runtimeEconomy().rafActive,
+      }));
+      t.equal([afterReselect.held && afterReselect.held.from, afterReselect.held && afterReselect.held.index], ['t0', 0], 'same-column re-select shifts held depth to KH (index 0)');
+      t.expect(afterReselect.held && afterReselect.held.t0 >= tBeforeReselect - 2 && afterReselect.held.t0 > wobbleT0, 'same-column re-select stamps fresh t0 for 90 ms lift ease: ' + JSON.stringify({ wobbleT0, tBeforeReselect, afterReselect }));
+      t.equal(afterReselect.raf, true, 'same-column re-select schedules rAF loop via startLoop()');
+
+      // Confirm multiple lift animation frames render over the 90 ms ease and stop cleanly once complete
+      await t.page.waitForFunction(() => !window.__game.runtimeEconomy().rafActive, null, { timeout: 5000 });
+      const stats = await t.game('frameStats');
+      t.expect(stats.frames >= 2, 'same-column re-select renders multi-frame 90 ms lift ease (' + stats.frames + ' frames)');
+      await t.shot('play-37-w6-s5-06-reselect-held');
     },
   },
 ];

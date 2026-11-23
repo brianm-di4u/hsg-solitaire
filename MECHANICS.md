@@ -28,8 +28,10 @@ state = {
   cards: [{ s: 0..3, r: 1..13 }],              // uid → identity; ♣0 ♦1 ♥2 ♠3
   up:    [true|false],                         // uid → face up?
   piles: { stock:[uid], waste:[uid], f0:[uid].., t0:[uid].., c0:[uid].. },
-  score: 0, moves: 0, elapsedMs: 0, recycles: 0, runs: 0,
-  started: false, won: false, usedUndo: false,
+  score: 0, rawScore: 0, moves: 0, elapsedMs: 0, recycles: 0, runs: 0,
+  scoring: 'standard' | 'timed' | 'none',      // locked at deal start (None toggles HUD visibility live)
+  winnable: true|false, grade: ''|'easy'|'medium'|'hard',
+  started: false, won: false, usedUndo: false, usedHint: false, assisted: false, replay: false,
 }
 ```
 
@@ -236,10 +238,14 @@ deterministic.
 
 | Key | Value |
 |---|---|
-| `spa-solitaire:v1:settings` | `{sound, volume, volumeCurve:'linear'/'square' (a new profile is 'square' with volume 0.75; a stored profile without the key reads 'linear'), motion:'auto'/'full'/'reduced', leftHanded, cardSize:'compact'/'standard'/'large', fourColor, autoFoundation:'off'/'safe'/'all', back, table, showTimer, deckSeed}` |
-| `spa-solitaire:v1:stats` | `{ [modeKey]: {played, won, streak, bestStreak, bestTimeMs, fewestMoves, bestScore, totalMs} }`, where modeKey is one of `klondike1 klondike3 freecell spider1 spider2 spider4 yukon` |
-| `spa-solitaire:v1:current` | `{state, undo:[≤400 snapshots]}`, written 300 ms after each move, cleared on a win |
-| `spa-solitaire:v1:meta` | `{lastMode, lastOpts, totalWins, daily:{'YYYY-MM-DD|modeKey': 'won'/'played'}, factIndex}` |
+| `spa-solitaire:v1:settings` | `{sound, volume, volumeCurve:'linear'/'square' (a new profile is 'square' with volume 0.75; a stored profile without the key reads 'linear'), sfx, sfxVol, music, musicVol, ambience, ambVol, haptics, motion:'auto'/'full'/'reduced', leftHanded, cardSize:'compact'/'standard'/'large', layout:'fit'/'classic', fourColor, autoFoundation:'off'/'safe'/'all', tapMove:'tap'/'double'/'select'/'drag', scoring:'standard'/'timed'/'none', dealFairness:'winnable'/'easy'/'medium'/'hard'/'random', dealGrade:'any'/'easy'/'medium'/'hard', winnable, courts:'deco'/'painted', back, table, showTimer, deckSeed, autoNoted, tips, tipStep, tipModes}` (`undoCost` is permanently retired and deleted on load) |
+| `spa-solitaire:v1:stats` | `{ [modeKey]: {played, won, assistedWon, streak, bestStreak, bestTimeMs, fewestMoves, bestScore, bestStandardScore, bestTimedScore, totalMs, recent} }`, where modeKey is one of `klondike1 klondike3 freecell spider1 spider2 spider4 yukon` (`bestStandardScore` and `bestTimedScore` are tracked independently; pre-v2 saves migrate legacy `bestScore` on load) |
+| `spa-solitaire:v1:current` | `{state, undo:[≤400 snapshots]}`, written 300 ms after each move (flushed on hide/title), cleared on a win; `state` and snapshots preserve signed `rawScore` (`score = Math.max(0, rawScore)`) and `state.scoring` locks the deal's scoring lane at deal start |
+| `spa-solitaire:v1:meta` | `{lastMode, lastOpts, totalWins, daily:{'YYYY-MM-DD|modeKey': 'won'/'won-archive'/'played'} (400 days kept), dailyBest, seenDeals:[≤200], wonDeals:[≤200], gradeWins:{easy, medium, hard}, seenFacts:[indices], unlock:{ids:[...]}, ach:{[id]:'YYYY-MM-DD'}}` |
+
+**Scoring & progression invariants (WF-1 contract):**
+- **Standard efficiency bonus (`EFF_PAR`):** applied in `onWin()` strictly for non-Spider Standard wins (`moves > 0`): `max(0, min(maxBonus, round((parCeil − moves) × ptsPerMove)))` — FreeCell `160/5/540`, Yukon `140/5/475`, Klondike Draw 1 `220/3/450`, Klondike Draw 3 `240/3/450`. Direct Klondike `waste → found` awards `+15`. Timed mode remains orthogonal (`cardPoints + timeBonus(ms)`).
+- **Three-state victory flags:** `alreadyWon` (Daily slot already won, or non-daily deal in `wonDeals`), `retried = !alreadyWon && !!S.replay`, and `clean = !alreadyWon && !retried && !S.assisted`. All `!alreadyWon` wins advance `totalWins`, the 21-bath ticket punch, `gradeWins`, `UNLOCKS`, and completion/Daily `ACH`; streaks, personal bests, and speed/unaided achievements (`quick`, `rush`, `alone`) require clean unaided first-try wins (`earn()` receives `w: null` on retried wins; `quick` and `rush` require `!usedUndo && !usedHint`).
 
 If storage is missing or throws, the game runs from memory and the stats screen notes "Stats can't be saved in
 this browser".

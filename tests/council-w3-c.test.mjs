@@ -27,11 +27,40 @@ export const tests = [
       await shot(t, 'S2-05', 'tag');
       await t.page.click('#assistTag');
       await t.page.waitForFunction(() => /Undo or Hint was used/.test(document.getElementById('toast').textContent));
-      t.equal(await toastText(t), 'Undo or Hint was used. Wins still count, flagged as assisted.', 'a tap explains it');
+      t.equal(await toastText(t), 'Undo or Hint was used. Wins still punch your bath ticket; streaks and personal bests count unaided wins.', 'a tap explains bath ticket punch and unaided streak/record rules');
+      t.equal(await t.page.getAttribute('#assistTag', 'title'), 'Undo or Hint was used. Wins still punch your bath ticket; streaks and personal bests count unaided wins.', 'tooltip matches click toast');
       await shot(t, 'S2-05', 'toast');
       await t.checkLayout();
       await t.game('newGame', { mode: 'klondike', draw: 1 });
       t.expect(await t.page.locator('#assistTag').isHidden(), 'a new deal starts clean');
+    },
+  },
+  {
+    name: 'w3c W6-S2-02 Help Scoring, Ledger, #assistTag toast, and live assisted onWin() agree on 21-bath punch vs unaided streaks/PBs',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false, scoring: 'standard' });
+      // 1. Live assisted first-ever win punches the 21-bath course while freezing streaks and personal bests
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 941, moves: 20 }));
+      await t.game('act', 'hint');
+      await t.page.waitForFunction(() => !document.getElementById('assistTag').hidden);
+      await clearToast(t);
+      await t.page.click('#assistTag');
+      await t.page.waitForFunction(() => /Undo or Hint was used/.test(document.getElementById('toast').textContent));
+      const aToast = await toastText(t);
+      t.expect(aToast.includes('punch your bath ticket') && aToast.includes('streaks and personal bests count unaided wins'), '#assistTag toast states bath ticket punch and unaided streak/PB rule: ' + aToast);
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 15000 });
+      const winMeta = await t.game('meta'), st = (await t.game('stats')).klondike1;
+      t.equal(winMeta.totalWins, 1, 'assisted first-ever win punches the 21-bath course (totalWins=1)');
+      t.equal([st.streak, st.bestStreak, st.bestTimeMs, st.fewestMoves, st.bestStandardScore], [0, 0, 0, 0, 0], 'assisted win does not record streak or personal bests');
+      t.equal(await t.page.locator('#sheet .ticket .punch').count(), 1, 'assisted first-ever Bath Ticket is punched');
+      // 2. Help -> Scoring and Ledger -> By Game both match this live contract
+      await t.game('scene', 'help');
+      const helpTxt = await t.page.locator('#sheet').textContent();
+      t.expect(/First-ever wins.*assisted.*punch your 21-bath course/i.test(helpTxt) && /Streaks, personal bests.*count only first-try wins without Undo or Hint/i.test(helpTxt), 'Help Scoring matches live onWin() contract');
+      await t.game('scene', 'ledger', { tab: 'games' });
+      const ledgerTxt = await t.page.locator('#sheet').textContent();
+      t.expect(/Assisted or retried first-ever wins still punch your 21-bath course/i.test(ledgerTxt) && /Streaks, personal bests.*count only first-try wins without Undo or Hint/i.test(ledgerTxt), 'Ledger By Game caption matches Help Scoring and live onWin()');
     },
   },
   {
@@ -204,6 +233,238 @@ export const tests = [
       }
       await shot(t, 'S4-04', 'title');
       await t.checkLayout();
+    },
+  },
+  {
+    name: 'w3c W1-S5-05 live HUD retried/replay pill and Bath Ticket retried/replay/efficiency labels',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false, scoring: 'standard' });
+      const RETRIED_NOTE = 'Retry hand: first win still punches your bath ticket; streaks and bests pause.';
+      const REPLAY_NOTE = 'Already won: practice replay.';
+      const rtag = () => t.page.evaluate(() => {
+        const el = document.getElementById('replayTag');
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { hidden: el.hidden, text: el.textContent, title: el.title, w: r.width, h: r.height, left: r.left, right: r.right };
+      });
+      // 1. Fresh deal shows no replay/retried pill
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 901 });
+      let rt = await rtag();
+      t.expect(rt && rt.hidden === true, 'fresh deal hides #replayTag');
+      // 2. Restarting a started unwon deal flags retried immediately on the HUD (untouched 0-move restart stays fresh per W6-P-N05)
+      await t.game('act', 'draw');
+      await t.game('scene', 'menu');
+      await t.page.click('#sheet [data-a="restart"]');
+      await t.page.click('#sheet [data-a="yes"]');
+      await t.page.waitForFunction(() => { const el = document.getElementById('replayTag'); return el && !el.hidden; });
+      rt = await rtag();
+      t.equal([rt.hidden, rt.text, rt.title], [false, 'retried', RETRIED_NOTE], 'restarted unwon deal renders quiet retried HUD pill with parlor tooltip');
+      await clearToast(t);
+      await t.page.click('#replayTag');
+      await t.page.waitForFunction((want) => document.getElementById('toast').textContent === want, RETRIED_NOTE);
+      t.equal(await toastText(t), RETRIED_NOTE, 'clicking retried pill explains ticket punch and paused streaks/bests');
+      // Both #assistTag and #replayTag side by side stay inside #bar without stage bleed or overlap
+      await t.game('act', 'hint');
+      await t.page.waitForFunction(() => !document.getElementById('assistTag').hidden);
+      await t.checkLayout();
+      await shot(t, 'W1-S5-05', 'hud-retried');
+      const hudGeo = await t.page.evaluate(() => {
+        const bar = document.getElementById('bar').getBoundingClientRect();
+        const status = document.getElementById('status').getBoundingClientRect();
+        const el = document.getElementById('replayTag'), r = el.getBoundingClientRect();
+        const after = getComputedStyle(el, '::after');
+        const bOff = parseFloat(after.bottom) || 0, tOff = parseFloat(after.top) || 0;
+        const below = document.elementFromPoint(r.left + r.width / 2, bar.bottom + 2);
+        return {
+          inBar: r.right <= status.left + 1 && r.left >= bar.left,
+          afterInBar: (r.bottom - bOff) <= bar.bottom + 0.5 && (r.top + tOff) >= bar.top - 0.5,
+          belowId: below ? below.id : null,
+        };
+      });
+      t.equal([hudGeo.inBar, hudGeo.afterInBar, hudGeo.belowId], [true, true, 'cv'], 'retried + assisted HUD tags stay inside #bar with zero stage bleed');
+
+      // 3. Winning a retried first-ever deal stamps punched ' · retried' (never ' · replay') and keeps HUD pill as retried
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 902, replay: true }));
+      rt = await rtag();
+      t.equal([rt.hidden, rt.text], [false, 'retried'], 'retried near-win deal displays retried HUD pill');
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      const lwRetried = await t.game('lastWin');
+      t.equal([lwRetried.alreadyWon, lwRetried.retried, lwRetried.effBonus], [false, true, 450], 'lastWin carries alreadyWon=false, retried=true, effBonus=450');
+      const retTicket = await t.page.evaluate(() => ({
+        meta: document.querySelector('#sheet .ticket .meta').textContent,
+        punches: document.querySelectorAll('#sheet .ticket .punch').length,
+      }));
+      t.expect(retTicket.meta.includes(' · efficiency +450') && retTicket.meta.includes(' · retried') && !retTicket.meta.includes(' · replay'), 'retried first-ever Bath Ticket renders · efficiency +450 and · retried without · replay: ' + retTicket.meta);
+      t.equal(retTicket.punches, 1, 'retried first-ever Bath Ticket is punched');
+      await shot(t, 'W1-S5-05', 'ticket-retried');
+      await t.game('scene', 'game');
+      rt = await rtag();
+      t.equal([rt.hidden, rt.text], [false, 'retried'], 'post-win HUD on retried win stays retried instead of flipping to replay');
+
+      // 4. Replaying an already-won deal shows 'replay' on HUD and unpunched ' · replay' on Bath Ticket
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 902 }));
+      rt = await rtag();
+      t.equal([rt.hidden, rt.text, rt.title], [false, 'replay', REPLAY_NOTE], 'already-won deal renders replay HUD pill with practice tooltip');
+      await clearToast(t);
+      await t.page.click('#replayTag');
+      await t.page.waitForFunction((want) => document.getElementById('toast').textContent === want, REPLAY_NOTE);
+      t.equal(await toastText(t), REPLAY_NOTE, 'clicking replay pill explains practice replay');
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      const lwReplay = await t.game('lastWin');
+      t.equal([lwReplay.alreadyWon, lwReplay.retried, lwReplay.effBonus], [true, false, 450], 'lastWin carries alreadyWon=true, retried=false, effBonus=450');
+      const repTicket = await t.page.evaluate(() => ({
+        meta: document.querySelector('#sheet .ticket .meta').textContent,
+        punches: document.querySelectorAll('#sheet .ticket .punch').length,
+      }));
+      t.expect(repTicket.meta.includes(' · replay') && !repTicket.meta.includes(' · retried'), 'already-won Bath Ticket renders · replay without · retried: ' + repTicket.meta);
+      t.equal(repTicket.punches, 0, 'already-won Bath Ticket is unpunched');
+      await shot(t, 'W1-S5-05', 'ticket-replay');
+
+      // 5. Fresh clean win keeps #replayTag hidden both before and after winning (at moves=220, zero efficiency tag omitted)
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 903, moves: 219 }));
+      t.equal((await rtag()).hidden, true, 'fresh deal 903 hides #replayTag');
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      const cleanMeta = await t.page.locator('#sheet .ticket .meta').first().textContent();
+      t.expect(!cleanMeta.includes(' · retried') && !cleanMeta.includes(' · replay') && !cleanMeta.includes('efficiency'), 'clean win Bath Ticket omits retried/replay/zero-efficiency tags: ' + cleanMeta);
+      await t.game('scene', 'game');
+      t.equal((await rtag()).hidden, true, 'post-win HUD on clean first win stays hidden (does not falsely show replay)');
+
+      // 6. Bath Ticket discloses non-zero Standard efficiency bonus (' · efficiency +N') alongside retried/clean state
+      await t.game('scene', 'win', { effBonus: 225, alreadyWon: false, retried: true, replay: true, totalWins: 3 });
+      const effTicket = await t.page.evaluate(() => ({
+        meta: document.querySelector('#sheet .ticket .meta').textContent,
+        punches: document.querySelectorAll('#sheet .ticket .punch').length,
+      }));
+      t.expect(effTicket.meta.includes(' · efficiency +225') && effTicket.meta.includes(' · retried') && !effTicket.meta.includes(' · replay'), 'Bath Ticket renders · efficiency +225 alongside · retried: ' + effTicket.meta);
+      t.equal(effTicket.punches, 1, 'punched retried ticket with efficiency bonus renders punch');
+      await shot(t, 'W1-S5-05', 'ticket-efficiency');
+      await t.checkLayout();
+
+      // 7. Compact mobile viewports (320x568 and 844x390) contain #replayTag + #assistTag inside #bar
+      if (t.viewport === 'mobile') {
+        for (const [w, h, label] of [[320, 568, '320x568'], [844, 390, '844x390']]) {
+          await t.page.setViewportSize({ width: w, height: h });
+          await t.game('scene', 'game');
+          await t.game('setState', Object.assign(nearWinKlondike(), { deal: 904, replay: true }));
+          await t.game('act', 'hint');
+          await t.page.waitForFunction(() => !document.getElementById('replayTag').hidden && !document.getElementById('assistTag').hidden);
+          const geo = await t.page.evaluate(() => {
+            const bar = document.getElementById('bar').getBoundingClientRect();
+            const status = document.getElementById('status').getBoundingClientRect();
+            const el = document.getElementById('replayTag'), r = el.getBoundingClientRect();
+            const after = getComputedStyle(el, '::after');
+            const bOff = parseFloat(after.bottom) || 0, tOff = parseFloat(after.top) || 0;
+            const below = document.elementFromPoint(r.left + r.width / 2, bar.bottom + 2);
+            return {
+              inBar: r.right <= status.left + 1 && r.left >= bar.left,
+              afterInBar: (r.bottom - bOff) <= bar.bottom + 0.5 && (r.top + tOff) >= bar.top - 0.5,
+              belowId: below ? below.id : null,
+            };
+          });
+          t.equal([geo.inBar, geo.afterInBar, geo.belowId], [true, true, 'cv'], label + ': #replayTag + #assistTag stay inside #bar with zero stage bleed');
+        }
+        await t.page.setViewportSize(t.vp);
+      }
+    },
+  },
+  {
+    name: 'w3c W1-S4-06 Bath Ticket tier-up ladder covers spider2->spider4 and klondike3->yukon/freecell while suppressing Daily/retried/assisted wins',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false });
+      const seedStats = async (map) => {
+        await t.page.evaluate((statsObj) => {
+          const k = 'spa-solitaire:v1:stats';
+          const cur = JSON.parse(localStorage.getItem(k) || '{}');
+          for (const [mk, patch] of Object.entries(statsObj)) {
+            cur[mk] = Object.assign({ played: 0, won: 0, assistedWon: 0, streak: 0, bestStreak: 0, bestTimeMs: 0, fewestMoves: 0, bestScore: 0, bestStandardScore: 0, bestTimedScore: 0, totalMs: 0, recent: '' }, cur[mk] || {}, patch);
+          }
+          localStorage.setItem(k, JSON.stringify(cur));
+        }, map);
+        await t.reload();
+        await baseSettings(t, { sound: false, motion: 'reduced', tips: false });
+        await t.game('newGame', { mode: 'klondike', draw: 1, deal: 1 });
+      };
+      const tierBtn = () => t.page.locator('#sheet .tier-up [data-tier-mode]');
+
+      // 1. spider2 (3 clean wins, 0 spider4 wins) -> invites Spider 4 suits and launches Spider 4 on click
+      await seedStats({ spider2: { played: 3, won: 3, assistedWon: 0 }, spider4: { played: 0, won: 0, assistedWon: 0 } });
+      await t.game('scene', 'win', { mode: 'spider', opts: { draw: 1, suits: 2 }, deal: 501, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 3 });
+      t.equal(await tierBtn().count(), 1, 'spider2 with 3 clean wins shows tier-up invitation');
+      if (await tierBtn().count()) {
+        t.equal((await tierBtn().textContent()).trim(), 'Try 4 suits', 'spider2 invites Spider 4 suits');
+        await t.shot('w3c-W1-S4-06-tier-spider4', { fullPage: false });
+        await t.checkLayout({ allowScrollY: true });
+      }
+
+      // Suppression checks: Daily, retried, alreadyWon, and assisted must suppress tier-up
+      for (const [label, flags] of [
+        ['Daily', { daily: '2026-11-22' }],
+        ['retried', { retried: true, replay: true }],
+        ['alreadyWon', { alreadyWon: true, replay: true }],
+        ['assisted', { assisted: true }],
+      ]) {
+        await t.game('scene', 'win', Object.assign({ mode: 'spider', opts: { draw: 1, suits: 2 }, deal: 501, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 3 }, flags));
+        t.equal(await tierBtn().count(), 0, label + ' win suppresses spider2->spider4 tier-up');
+      }
+
+      // Clicking Try 4 suits launches Spider 4 suits directly
+      await t.game('scene', 'win', { mode: 'spider', opts: { draw: 1, suits: 2 }, deal: 501, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 3 });
+      if (await tierBtn().count()) {
+        await tierBtn().click();
+        await t.page.waitForFunction(() => { const st = window.__game.getState(); return st.scene === 'game' && st.mode === 'spider' && st.opts.suits === 4; });
+        const s = await t.state();
+        t.equal([s.mode, s.opts.suits], ['spider', 4], 'clicking Try 4 suits starts a 4-suit Spider deal');
+      }
+
+      // Below threshold (only 2 clean wins: 3 won, 1 assisted) suppresses invitation
+      await seedStats({ spider2: { played: 3, won: 3, assistedWon: 1 }, spider4: { played: 0, won: 0, assistedWon: 0 } });
+      await t.game('scene', 'win', { mode: 'spider', opts: { draw: 1, suits: 2 }, deal: 502, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 3 });
+      t.equal(await tierBtn().count(), 0, 'spider2 with only 2 clean wins omits tier-up');
+
+      // Already won spider4 suppresses invitation
+      await seedStats({ spider2: { played: 4, won: 4, assistedWon: 0 }, spider4: { played: 1, won: 1, assistedWon: 0 } });
+      await t.game('scene', 'win', { mode: 'spider', opts: { draw: 1, suits: 2 }, deal: 503, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 5 });
+      t.equal(await tierBtn().count(), 0, 'spider2 omits tier-up once spider4 has a win');
+
+      // 2. klondike3 (3 clean wins, 0 yukon wins) -> invites Yukon and launches Yukon on click
+      await seedStats({ klondike3: { played: 3, won: 3, assistedWon: 0 }, yukon: { played: 0, won: 0, assistedWon: 0 }, freecell: { played: 0, won: 0, assistedWon: 0 } });
+      await t.game('scene', 'win', { mode: 'klondike', opts: { draw: 3, suits: 1 }, deal: 504, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 6 });
+      t.equal(await tierBtn().count(), 1, 'klondike3 with 3 clean wins and 0 yukon wins shows Yukon bridge');
+      if (await tierBtn().count()) {
+        t.equal((await tierBtn().textContent()).trim(), 'Try Yukon', 'klondike3 invites Yukon first');
+        if (t.viewport === 'desktop') await t.shot('w3c-W1-S4-06-tier-yukon', { fullPage: false });
+        await tierBtn().click();
+        await t.page.waitForFunction(() => { const st = window.__game.getState(); return st.scene === 'game' && st.mode === 'yukon'; });
+        t.equal((await t.state()).mode, 'yukon', 'clicking Try Yukon starts a Yukon deal');
+      }
+
+      // 3. klondike3 (3 clean wins, 1 yukon win, 0 freecell wins) -> invites FreeCell and launches FreeCell on click
+      await seedStats({ klondike3: { played: 3, won: 3, assistedWon: 0 }, yukon: { played: 1, won: 1, assistedWon: 0 }, freecell: { played: 0, won: 0, assistedWon: 0 } });
+      await t.game('scene', 'win', { mode: 'klondike', opts: { draw: 3, suits: 1 }, deal: 505, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 7 });
+      t.equal(await tierBtn().count(), 1, 'klondike3 with yukon won and 0 freecell wins shows FreeCell bridge');
+      if (await tierBtn().count()) {
+        t.equal((await tierBtn().textContent()).trim(), 'Try FreeCell', 'klondike3 invites FreeCell once Yukon is won');
+        await tierBtn().click();
+        await t.page.waitForFunction(() => { const st = window.__game.getState(); return st.scene === 'game' && st.mode === 'freecell'; });
+        t.equal((await t.state()).mode, 'freecell', 'clicking Try FreeCell starts a FreeCell deal');
+      }
+
+      // Once both Yukon and FreeCell are won, klondike3 omits tier-up
+      await seedStats({ klondike3: { played: 3, won: 3, assistedWon: 0 }, yukon: { played: 1, won: 1, assistedWon: 0 }, freecell: { played: 1, won: 1, assistedWon: 0 } });
+      await t.game('scene', 'win', { mode: 'klondike', opts: { draw: 3, suits: 1 }, deal: 506, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 8 });
+      t.equal(await tierBtn().count(), 0, 'klondike3 omits tier-up once both Yukon and FreeCell are won');
+
+      // 4. Existing klondike1->klondike3 and spider1->spider2 branches remain intact
+      await seedStats({ klondike1: { played: 3, won: 3, assistedWon: 0 }, klondike3: { played: 0, won: 0, assistedWon: 0 }, spider1: { played: 3, won: 3, assistedWon: 0 }, spider2: { played: 0, won: 0, assistedWon: 0 } });
+      await t.game('scene', 'win', { mode: 'klondike', opts: { draw: 1, suits: 1 }, deal: 507, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 3 });
+      t.equal(await tierBtn().count(), 1, 'klondike1->klondike3 ladder shows');
+      if (await tierBtn().count()) t.equal((await tierBtn().textContent()).trim(), 'Try Draw 3', 'klondike1->klondike3 ladder remains intact');
+      await t.game('scene', 'win', { mode: 'spider', opts: { draw: 1, suits: 1 }, deal: 508, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 3 });
+      t.equal(await tierBtn().count(), 1, 'spider1->spider2 ladder shows');
+      if (await tierBtn().count()) t.equal((await tierBtn().textContent()).trim(), 'Try 2 suits', 'spider1->spider2 ladder remains intact');
     },
   },
 ];

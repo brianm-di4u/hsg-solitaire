@@ -80,7 +80,9 @@ export const tests = [
       await eqBtn.click();
       t.equal((await t.state()).settings.back, 'paterae', 'inline Equip now equips unlocked back live');
       t.equal(await eqBtn.textContent(), 'Equipped ✓', 'Equip now flips to Equipped ✓ in place');
-      for (const n of ['First Soak', 'Parlor Game', 'Quick Dip', 'Steam Rush', 'Steady Hand', 'Own Two Hands']) t.expect(txt.includes(n), 'earned ' + n);
+      // W6-S1-02: win card condenses >3 simultaneous achievements to top 3 non-redundant headlines + '+N more' while meta.ach stores all 6
+      for (const n of ['First Soak', 'Parlor Game', 'Steam Rush']) t.expect(txt.includes(n), 'headline achievement ' + n + ' shown on ticket');
+      t.expect(txt.includes('+3 more') && !txt.includes('Quick Dip') && !txt.includes('Steady Hand'), 'ticket condenses 6 simultaneous achievements without crowding nested tiers: ' + txt);
       t.expect(!txt.includes('New personal best'), 'a first win is not a "new" best');
       await shot(t, 'S3-03', 'win-earned');
       t.equal(Object.keys(m.ach).sort(), ['alone', 'first', 'klon', 'quick', 'rush', 'steady'], 'six achievements recorded with a date');
@@ -462,6 +464,490 @@ export const tests = [
       let s = (await t.state()).settings; t.equal([s.tips, s.tipStep, s.tipModes], [true, 2, 'klondike,spider'], 'progress round trips');
       await put(t, { settings: { sound: false, tips: 'yes', tipStep: 'x', tipModes: 5 } }); await reloadGame(t);
       s = (await t.state()).settings; t.equal([s.tips, s.tipStep, s.tipModes], [false, 0, ''], 'damaged values fall back (the save is an old one, so tips are off)');
+    },
+  },
+  {
+    name: 'w2c W1-S3-05 Daily Deals shows unified X of 7 won Full Bath progress header and Attempted eligibility note without asymmetric badges',
+    async run(t) {
+      const d0 = await daysAgo(t, 0), d1 = await daysAgo(t, 1);
+      const daily = { [d0 + '|klondike1']: 'won', [d0 + '|freecell']: 'won', [d0 + '|yukon']: 'played' };
+      for (const k of KEYS) daily[d1 + '|' + k] = 'won-archive';
+      await put(t, { meta: Object.assign({}, OLD.meta, { daily }), settings: OLD.settings, stats: OLD.stats }); await reloadGame(t);
+      await t.game('scene', 'daily');
+
+      const prog = t.page.locator('#dailyProg');
+      t.equal(await prog.count(), 1, 'Daily Deals renders #dailyProg progress header');
+      const noteLoc = t.page.locator('#dailyDayWrap .daily-note');
+      t.equal(await noteLoc.count(), 1, 'Daily Deals renders .daily-note Attempted eligibility note');
+      if (await prog.count()) {
+        t.equal((await prog.textContent()).trim(), '2 of 7 won · Full Bath ★', 'today shows 2 of 7 won · Full Bath ★ header');
+        t.equal(await prog.evaluate((el) => el.classList.contains('full')), false, 'partial day does not mark Full Bath header full');
+      }
+      if (await noteLoc.count()) {
+        const note = (await noteLoc.textContent()).trim();
+        t.expect(/Attempted/.test(note) && /seal/i.test(note) && /21-bath ticket/i.test(note), 'Attempted retry eligibility note explains seal and 21-bath ticket punch: ' + note);
+      }
+
+      const tileTexts = await t.page.locator('#dailyDayWrap .btn.day').allTextContents();
+      t.equal(tileTexts.length, 7, 'all seven Daily tiles render');
+      t.equal(tileTexts.every((tx) => !/\b(Easy|Medium|Hard)\b/i.test(tx)), true, 'tiles omit asymmetric difficulty badges (CD-WF1-05): ' + JSON.stringify(tileTexts));
+
+      await t.shot('w2c-W1-S3-05-daily-today', { fullPage: false });
+      await t.checkLayout({ allowScrollY: true });
+
+      let pastBtn = t.page.locator('#calW button[data-day="' + d1 + '"]');
+      if (!(await pastBtn.count())) {
+        await t.page.locator('[data-mo]').first().click();
+        pastBtn = t.page.locator('#calW button[data-day="' + d1 + '"]');
+      }
+      await pastBtn.click();
+      t.equal(await prog.count(), 1, '7/7 archive day keeps #dailyProg progress header');
+      if (await prog.count()) {
+        t.equal((await prog.textContent()).trim(), '7 of 7 won · Full Bath ★ earned', '7/7 archive day updates progress header to Full Bath ★ earned');
+        t.equal(await prog.evaluate((el) => el.classList.contains('full')), true, '7/7 day highlights Full Bath progress pill in gold');
+        t.equal(await prog.evaluate((el) => getComputedStyle(el).backgroundColor), 'rgb(217, 178, 86)', 'Full Bath header uses brushed gold (#D9B256)');
+      }
+      if (t.viewport === 'desktop') await t.shot('w2c-W1-S3-05-daily-full', { fullPage: false });
+      await t.page.click('#dailyTodayBtn');
+      if (await prog.count()) t.equal((await prog.textContent()).trim(), '2 of 7 won · Full Bath ★', 'Back to today restores today progress count');
+    },
+  },
+  {
+    name: 'w2c W1-P-N04 Quick Dip and Steam Rush require unaided first-try wins and state unaided in Ledger descriptions',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false, scoring: 'standard' });
+      const winFast = async (patch, prep) => {
+        await t.game('setState', Object.assign(nearWinKlondike(), patch));
+        if (prep) await prep();
+        await t.game('act', 'move', 't0', 'f3');
+        await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 15000 });
+        return meta(t);
+      };
+
+      // 1. Fast Hint-assisted win must NOT earn Quick Dip, Steam Rush, or Own Two Hands (blocks solver-hint speedruns)
+      let m = await winFast({ deal: 811 }, async () => {
+        await t.game('act', 'hint');
+      });
+      t.expect(!!m.ach.first && !!m.ach.klon && !!m.ach.steady, 'Hint-assisted win still awards completion and Steady Hand');
+      t.expect(!m.ach.quick && !m.ach.rush && !m.ach.alone, 'Hint-assisted <1s win blocks quick, rush, and alone: ' + JSON.stringify(Object.keys(m.ach)));
+
+      // 2. Fast Undo-assisted win must NOT earn Quick Dip or Steam Rush
+      m = await winFast({ deal: 812 }, async () => {
+        await t.game('act', 'move', 't0', 't1');
+        await t.game('act', 'undo');
+      });
+      t.expect(!m.ach.quick && !m.ach.rush && !m.ach.alone, 'Undo-assisted <1s win blocks quick, rush, and alone: ' + JSON.stringify(Object.keys(m.ach)));
+
+      // 3. Retried fast win (no Undo/Hint) must NOT earn Quick Dip or Steam Rush (P-F03 / CD-WF1-06)
+      m = await winFast({ deal: 813, replay: true });
+      t.expect(!m.ach.quick && !m.ach.rush && !m.ach.alone, 'Retried <1s win blocks quick, rush, and alone: ' + JSON.stringify(Object.keys(m.ach)));
+
+      // 4. Clean unaided first-try fast win earns Quick Dip, Steam Rush, and Own Two Hands
+      m = await winFast({ deal: 814 });
+      t.expect(!!m.ach.quick && !!m.ach.rush && !!m.ach.alone, 'Clean unaided <1s win earns quick, rush, and alone: ' + JSON.stringify(Object.keys(m.ach)));
+
+      // 5. Ledger Achievements tab renders updated unaided descriptions cleanly
+      await t.game('scene', 'records');
+      await t.page.click('#ltab-ach');
+      const achText = await t.page.locator('#lpanel-ach').textContent();
+      t.expect(achText.includes('Quick Dip') && achText.includes('Win an unaided game in under five minutes.'), 'Quick Dip description states unaided win: ' + achText);
+      t.expect(achText.includes('Steam Rush') && achText.includes('Win an unaided game in under three minutes.'), 'Steam Rush description states unaided win: ' + achText);
+      if (t.viewport === 'desktop') await t.shot('w2c-W1-P-N04-ach-ledger', { fullPage: false });
+      await t.checkLayout({ allowScrollY: true });
+
+      // 6. Existing saves with previously earned quick/rush preserve them across reload
+      await put(t, { meta: Object.assign({}, OLD.meta, { ach: { quick: '2026-10-01', rush: '2026-10-01' } }) });
+      await reloadGame(t);
+      const preserved = await meta(t);
+      t.equal([preserved.ach.quick, preserved.ach.rush], ['2026-10-01', '2026-10-01'], 'Existing saves preserve previously earned quick and rush achievements');
+    },
+  },
+  {
+    name: 'w2c W6-S5-03 #toast and #coach mutually defer without double-banner stacking, and dockNotices uses live #notices height',
+    async run(t) {
+      // 1. Fresh opening deal: auto-foundation toast fires while opening goal tip is visible.
+      // Place Ace of Hearts on top of stock on an opening-like board (with face-down cards so dead-end solver stays idle)
+      // so drawing triggers the exact first-time auto-foundation toast while #coach is open.
+      await t.game('setSettings', { sound: false, motion: 'reduced', tips: true, tipStep: 0, tipModes: '', autoFoundation: 'safe', autoNoted: false });
+      await t.game('newGame', { mode: 'klondike', deal: 5 });
+      await waitCoach(t, true);
+      t.equal(await coachText(t), 'Build each suit from Ace to King on the foundations.', 'opening goal tip is visible before auto-foundation');
+
+      await t.game('setState', {
+        mode: 'klondike',
+        opts: { draw: 1 },
+        piles: {
+          stock: ['#2C', '#AH'],
+          waste: [],
+          f0: [], f1: [], f2: [], f3: [],
+          t0: ['KD'], t1: ['QS'], t2: ['#3C', '#4C', '#5C', 'JC'], t3: ['#3D', '#4D', '#5D', 'TH'],
+          t4: ['#3S', '#4S', '#5S', '9S'], t5: ['#3H', '#4H', '#5H', '8D'], t6: ['#6H', '#7H', '7C'],
+        },
+      });
+      await t.game('scene', 'settings');
+      await t.page.click('#sheet [data-close]');
+      await waitCoach(t, true);
+      t.equal(await coachText(t), 'Build each suit from Ace to King on the foundations.', 'goal tip appears cleanly after modal close');
+
+      // Drawing Ace of Hearts triggers first-time auto-foundation toast while #coach is open.
+      await t.game('act', 'draw');
+      await t.page.waitForFunction(() => document.getElementById('toast').classList.contains('on'), null, { timeout: 4000 });
+      const duringToast = await t.page.evaluate(() => ({
+        toastOn: document.getElementById('toast').classList.contains('on'),
+        toastText: document.getElementById('toast').textContent,
+        coachHidden: document.getElementById('coach').hidden,
+        noticesH: Math.round(document.getElementById('notices').getBoundingClientRect().height),
+      }));
+      t.expect(duringToast.toastOn && /ace of hearts/i.test(duringToast.toastText), 'first-time auto-foundation toast shows: ' + duringToast.toastText);
+      t.equal(duringToast.coachHidden, true, '#coach is paused while #toast.on is active (no double-banner stacking): ' + JSON.stringify(duringToast));
+      await t.shot('W6-S5-03-toast-defers-coach', { fullPage: false });
+
+      // Dismissing #toast cleanly resumes the unburned opening goal tip after toast clears.
+      await t.page.click('#toast');
+      await waitCoach(t, true);
+      const afterToast = await t.page.evaluate(() => ({
+        toastOn: document.getElementById('toast').classList.contains('on'),
+        coachHidden: document.getElementById('coach').hidden,
+        coachText: document.getElementById('coachTx').textContent,
+      }));
+      t.equal(afterToast.toastOn, false, '#toast is dismissed');
+      t.equal(afterToast.coachHidden, false, 'deferred opening goal tip resumes cleanly once #toast clears');
+      t.equal(afterToast.coachText, 'Build each suit from Ace to King on the foundations.', 'paused goal tip was not burned');
+
+      // 2. Reverse order: while #toast.on is already visible, a scheduled tipShow() (Move 1 -> stock tip at 700 ms) must stay deferred until #toast clears.
+      await t.game('setSettings', { autoNoted: false });
+      await t.game('setState', {
+        mode: 'klondike',
+        opts: { draw: 1 },
+        piles: {
+          stock: ['#2H'],
+          waste: [],
+          f0: [], f1: [], f2: [], f3: [],
+          t0: ['AH', '6C'], t1: ['7D'], t2: ['#3C', '#4C', '#5C', 'JC'], t3: ['#3D', '#4D', '#5D', 'TH'],
+          t4: ['#3S', '#4S', '#5S', '9S'], t5: ['#3H', '#4H', '#5H', '8D'], t6: ['#6H', '#7H', 'KD'],
+        },
+      });
+      await t.game('scene', 'settings');
+      await t.page.click('#sheet [data-close]');
+      await waitCoach(t, true);
+      // Real move of 6C -> 7D marks goal+move done (scheduling stock tip at 700 ms) AND exposes AH which auto-plays with a ~4.8 s toast.
+      await t.game('act', 'move', 't0', 't1');
+      await t.page.waitForFunction(() => document.getElementById('toast').classList.contains('on'), null, { timeout: 4000 });
+      await t.page.waitForTimeout(850); // bounded did-not-fire check past the 700 ms tipSchedule delay
+      const duringScheduled = await t.page.evaluate(() => ({
+        toastOn: document.getElementById('toast').classList.contains('on'),
+        coachHidden: document.getElementById('coach').hidden,
+      }));
+      t.equal(duringScheduled, { toastOn: true, coachHidden: true }, 'scheduled stock tip stays deferred while #toast.on is visible');
+      await t.page.click('#toast');
+      await waitText(t, /stock/i);
+      t.equal(await t.page.evaluate(() => document.getElementById('toast').classList.contains('on')), false, 'stock tip appears only after #toast clears');
+
+      // 3. Dynamic dockNotices() height check: a tall central column extending into the live #notices height band (above hardcoded H - 74) shifts #notices horizontally away from it.
+      if (t.viewport === 'desktop') {
+        const deck = ['KS', 'QD', 'JC', 'TH', '9S', '8D', '7C', '6H', '5S', '4D', '3C', '2H', 'AS'];
+        let docked = null;
+        for (let k = 6; k <= deck.length; k++) {
+          await t.game('setSettings', { tips: true, tipStep: 0, tipModes: '' });
+          await t.game('setState', {
+            mode: 'klondike',
+            opts: { draw: 1 },
+            piles: { stock: ['#AC'], waste: [], f0: [], f1: [], f2: [], f3: [], t0: [], t1: [], t2: [], t3: deck.slice(0, k), t4: [], t5: [], t6: [] },
+          });
+          await t.game('scene', 'settings');
+          await t.page.click('#sheet [data-close]');
+          await waitCoach(t, true);
+          const probe = await t.page.evaluate(() => {
+            const n = document.getElementById('notices');
+            const stage = document.getElementById('stage');
+            const H = stage.clientHeight, W = stage.clientWidth;
+            const t3 = window.__game.getLayout().piles.t3;
+            const last = t3.cards[t3.cards.length - 1];
+            const colBot = Math.round(last.y + last.h - stage.getBoundingClientRect().top);
+            const bandOld = Math.round(H - 74);
+            const bandDyn = Math.round(H - (n.offsetHeight + 24));
+            return { W, H, colBot, noticesH: n.offsetHeight, leftStyle: n.style.left, bandOld, bandDyn };
+          });
+          if (probe.colBot < probe.bandOld && probe.colBot > probe.bandDyn) { docked = probe; break; }
+        }
+        t.expect(!!docked, 'found a center column height strictly between dynamic bandY and old hardcoded H-74');
+        if (docked) {
+          t.expect(!!docked.leftStyle && Math.abs(parseFloat(docked.leftStyle) - docked.W / 2) > 40, 'dockNotices() shifts #notices clear of center column using live noticesEl.offsetHeight: ' + JSON.stringify(docked));
+        }
+      }
+    },
+  },
+  {
+    name: 'w2c W6-S1-02 Win #1 suppresses BEST badges, removes duplicate Score from .ticket .grid, and condenses >3 achievements while Win #2 stamps genuine PBs',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false, scoring: 'standard' });
+      // 1. Fresh Win #1 (moves: 60 -> final moves 61, card 10 + effBonus(61)=450 -> 460)
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 921, moves: 60 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 15000 });
+
+      const lw1 = await t.game('lastWin');
+      t.equal([lw1.pb, lw1.best.time, lw1.best.moves, lw1.best.score], [false, false, false, false], 'Win #1 with no prior record gates pb and all best flags to false');
+      const st1 = (await t.game('stats')).klondike1;
+      t.expect(st1.bestTimeMs > 0 && st1.fewestMoves === 61 && st1.bestStandardScore === 460, 'Win #1 still saves baseline records in stats: ' + JSON.stringify({ bestTimeMs: st1.bestTimeMs, fewestMoves: st1.fewestMoves, bestStandardScore: st1.bestStandardScore }));
+
+      const tk1 = await t.page.evaluate(() => ({
+        bestCount: document.querySelectorAll('#sheet .ticket .best').length,
+        bigText: document.querySelector('#sheet .ticket .big').textContent.trim(),
+        gridCols: [...document.querySelectorAll('#sheet .ticket .grid > div')].map((d) => d.firstChild.textContent.trim()),
+        achBold: [...document.querySelectorAll('#sheet .earn-ach b')].map((b) => b.textContent),
+        achMore: document.querySelector('#sheet .earn-ach .ach-more')?.textContent || '',
+        achTitle: document.querySelector('#sheet .earn-ach')?.getAttribute('title') || '',
+      }));
+      t.equal(tk1.bestCount, 0, 'Win #1 Bath Ticket stamps zero BEST badges');
+      t.equal(tk1.bigText, '460', 'Win #1 focal .big shows score');
+      t.equal(tk1.gridCols, ['Time', 'Moves'], '.ticket .grid keeps only Time and Moves without duplicating Score');
+      t.equal(tk1.achBold, ['First Soak', 'Parlor Game', 'Steam Rush'], 'Win #1 condenses 6 achievements to 3 non-redundant headlines');
+      t.equal(tk1.achMore, '+3 more', 'Win #1 shows +3 more counter');
+      t.expect(tk1.achTitle.includes('Quick Dip') && tk1.achTitle.includes('Own Two Hands'), 'full list preserved in title tooltip: ' + tk1.achTitle);
+      await t.shot('w2c-W6-S1-02-win1', { fullPage: false });
+      await t.checkLayout({ allowScrollY: true });
+
+      // 2. Win #2 beating prior moves (10 < 61) and score (score 500 + 10 + 450 = 960 > 460)
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 922, moves: 10, score: 500 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 15000 });
+
+      const lw2 = await t.game('lastWin');
+      t.equal([lw2.pb, lw2.best.moves, lw2.best.score], [true, true, true], 'Win #2 beating prior records sets pb, best.moves, and best.score');
+      const tk2 = await t.page.evaluate(() => ({
+        bigBest: document.querySelectorAll('#sheet .ticket .big .best').length,
+        gridBest: document.querySelectorAll('#sheet .ticket .grid .best').length,
+        gridCols: [...document.querySelectorAll('#sheet .ticket .grid > div')].map((d) => d.firstChild.textContent.trim()),
+        pbText: document.querySelector('#sheet .earn .pb')?.textContent || '',
+      }));
+      t.equal(tk2.bigBest, 1, 'Win #2 stamps BEST beside focal .big score');
+      t.expect(tk2.gridBest >= 1, 'Win #2 stamps BEST in .ticket .grid for beaten moves/time');
+      t.equal(tk2.gridCols, ['Time', 'Moves'], 'Win #2 .ticket .grid keeps 2 columns');
+      t.equal(tk2.pbText, 'New personal best', 'Win #2 announces New personal best');
+      await t.shot('w2c-W6-S1-02-win2-pb', { fullPage: false });
+      await t.checkLayout({ allowScrollY: true });
+
+      // 3. <=3 simultaneous achievements render in full without +N more
+      await t.game('scene', 'win', { ach: ['Cooling Room', 'Two Springs'], best: {}, totalWins: 3 });
+      const tk3 = await t.page.evaluate(() => ({
+        achBold: [...document.querySelectorAll('#sheet .earn-ach b')].map((b) => b.textContent),
+        achMore: document.querySelectorAll('#sheet .earn-ach .ach-more').length,
+      }));
+      t.equal([tk3.achBold, tk3.achMore], [['Cooling Room', 'Two Springs'], 0], '<=3 achievements render in full without +N more');
+    },
+  },
+  {
+    name: 'w2c W6-S2-01 Bath Ticket weaves active Bathhouse Row stop inline and shows next-unlock breadcrumb only on non-unlock wins',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false, scoring: 'standard' });
+      // Seed 2 wins already earned (b:paterae + b:quapaw open) so Win #3 is a non-unlock win (next unlock: t:quapaw at Win 4 or Spider)
+      await put(t, {
+        meta: { lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 2, daily: {}, unlock: { ids: ['b:paterae', 'b:quapaw'] }, ach: { first: '2026-11-20', klon: '2026-11-20' } },
+        stats: { klondike1: { played: 2, won: 2, assistedWon: 0, streak: 2, bestStreak: 2, bestTimeMs: 30000, fewestMoves: 40, bestScore: 900, bestStandardScore: 900, bestTimedScore: 0, totalMs: 60000, recent: 'WW' } },
+      });
+      await reloadGame(t);
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false, scoring: 'standard' });
+
+      // 1. Real non-unlock Win #3 -> Bath 3 (Superior) inline + concise next-unlock note
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 931, moves: 90 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 15000 });
+      const win3 = await t.page.evaluate(() => {
+        const metas = [...document.querySelectorAll('#sheet .ticket .meta')].map((x) => x.textContent.trim());
+        const nextEl = document.querySelector('#sheet .earn-next');
+        const unlEl = document.querySelector('#sheet .earn-u');
+        const tk = document.querySelector('#sheet .ticket');
+        const lastMeta = document.querySelectorAll('#sheet .ticket .meta')[1];
+        return {
+          courseCap: metas[1] || '',
+          nextText: nextEl ? nextEl.textContent.trim() : '',
+          hasUnlockBanner: !!unlEl,
+          fitsInTicket: !!(tk && lastMeta && lastMeta.getBoundingClientRect().bottom <= tk.getBoundingClientRect().bottom + 1),
+          milestoneTitles: [...document.querySelectorAll('#sheet .course i.m')].map((i) => i.title),
+        };
+      });
+      t.equal(win3.courseCap, 'Course of 21 baths: 3 of 21 · Superior', 'Win #3 weaves active stop name inline in course caption');
+      t.equal(win3.hasUnlockBanner, false, 'Win #3 is a non-unlock win');
+      t.expect(win3.nextText.includes('Next unlock: Quapaw Mosaic table') && win3.nextText.includes('in 1 win') && win3.nextText.includes('win Spider'), 'non-unlock win shows concise next-unlock breadcrumb: ' + win3.nextText);
+      t.equal(win3.fitsInTicket, true, 'inline stop name keeps course caption inside .ticket with zero height overflow');
+      t.equal(win3.milestoneTitles, ['Bath 7 · Maurice', 'Bath 14 · Ozark', 'Bath 21 · Lamar'], '7/14/21 milestone rings carry stop names');
+      await t.shot('w2c-W6-S2-01-win-non-unlock', { fullPage: false });
+      await t.checkLayout({ allowScrollY: true });
+
+      // 2. Active stop names across milestone boundaries + 0-win replay without stop suffix
+      for (const [tw, want] of [[1, 'Course of 21 baths: 1 of 21 · Superior'], [7, 'Course of 21 baths: 7 of 21 · Maurice'], [14, 'Course of 21 baths: 14 of 21 · Ozark'], [21, 'Course of 21 baths: 21 of 21 · Lamar'], [0, 'Course of 21 baths: 0 of 21']]) {
+        await t.game('scene', 'win', { totalWins: tw, opened: [], openedIds: [], alreadyWon: tw === 0 });
+        const cap = await t.page.locator('#sheet .ticket .meta').nth(1).textContent();
+        t.equal(cap.trim(), want, 'totalWins=' + tw + ' course caption');
+      }
+
+      // 3. Unlock win omits .earn-next so it never crowds Unlocked + Equip now banners
+      await t.game('scene', 'win', { totalWins: 4, opened: ['Quapaw Mosaic table'], openedIds: ['t:quapaw'] });
+      const winUnlock = await t.page.evaluate(() => ({
+        hasUnlock: !!document.querySelector('#sheet .earn-u'),
+        hasNext: !!document.querySelector('#sheet .earn-next'),
+      }));
+      t.equal(winUnlock, { hasUnlock: true, hasNext: false }, 'unlock win hides next-unlock note so Unlocked + Equip now stays uncrowded');
+
+      // 4. Fully unlocked profile omits .earn-next
+      await t.game('unlockAll');
+      await t.game('scene', 'win', { totalWins: 21, opened: [], openedIds: [] });
+      t.equal(await t.page.locator('#sheet .earn-next').count(), 0, 'fully unlocked profile omits next-unlock note');
+
+      // 5. #tRow Title button labels stay untouched (CD-WF6-05)
+      await t.game('scene', 'title');
+      const rowLabels = await t.page.locator('#tRow button').allTextContents();
+      t.expect(rowLabels.every((x) => !/\(0\/21\)|\(4\/12\)|\(0\/7\)/.test(x)), '#tRow Title buttons omit Win-0 counters (CD-WF6-05): ' + JSON.stringify(rowLabels));
+    },
+  },
+  {
+    name: 'w2c W6-S2-04 Daily Deals uses wide 2-column desktop layout above the fold, places archive cue above #calW, and scrolls selected date on portrait mobile',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false });
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 1 });
+      await t.game('scene', 'daily');
+      await t.waitForStable();
+      const info = await t.page.evaluate(() => {
+        const frame = document.getElementById('sheetFrame');
+        const body = document.getElementById('sheetBody');
+        const bodyR = body.getBoundingClientRect();
+        const cols = document.querySelector('#sheet .daily-cols');
+        const dayWrap = document.getElementById('dailyDayWrap').getBoundingClientRect();
+        const hist = document.querySelector('#sheet .daily-hist').getBoundingClientRect();
+        const cue = document.getElementById('calCue');
+        const calW = document.getElementById('calW');
+        const todayCell = document.querySelector('#calW .cday.t');
+        const calDays = [...document.querySelectorAll('#calW .cday')];
+        const lastCell = calDays[calDays.length - 1];
+        const archBtn = document.getElementById('dailyArchBtn');
+        return {
+          isWide: frame.classList.contains('wide'),
+          gridDisplay: getComputedStyle(cols).display,
+          sideBySide: hist.left >= dayWrap.right - 2,
+          cueText: cue ? cue.textContent.trim() : '',
+          cueAboveCal: !!(cue && calW && cue.getBoundingClientRect().bottom <= calW.getBoundingClientRect().top + 1),
+          todayInFold: !!(todayCell && todayCell.getBoundingClientRect().bottom <= bodyR.bottom + 1 && todayCell.getBoundingClientRect().top >= bodyR.top - 1),
+          fullMonthInFold: !!(lastCell && lastCell.getBoundingClientRect().bottom <= bodyR.bottom + 1),
+          allDealsInFold: dayWrap.bottom <= bodyR.bottom + 1,
+          archBtnVisible: !!(archBtn && getComputedStyle(archBtn).display !== 'none'),
+          archBtnH: archBtn ? Math.round(archBtn.getBoundingClientRect().height) : 0,
+        };
+      });
+      t.equal(info.isWide, true, 'Daily modal uses .sheet-frame.wide');
+      t.expect(info.cueText.includes('Select any past date to play the 400-day archive'), 'interactive archive cue sits above calendar: ' + info.cueText);
+      t.equal(info.cueAboveCal, true, 'archive cue renders directly above #calW');
+
+      if (t.viewport === 'desktop') {
+        t.equal([info.gridDisplay, info.sideBySide], ['grid', true], 'desktop Daily Deals renders 2-column side-by-side .daily-cols');
+        t.equal([info.allDealsInFold, info.todayInFold, info.fullMonthInFold], [true, true, true], 'desktop Daily Deals fits all 7 deals, today cell, and full month calendar above the fold: ' + JSON.stringify(info));
+        t.equal(info.archBtnVisible, false, 'desktop hides narrow-mobile jump button');
+        await t.shot('w2c-W6-S2-04-daily-desktop', { fullPage: false });
+        await t.checkLayout();
+      } else {
+        t.equal(info.archBtnVisible, true, 'portrait mobile exposes above-the-fold 400-day archive jump button');
+        t.expect(info.archBtnH >= 44, 'portrait mobile 400-day archive jump button meets 44px touch target: ' + info.archBtnH);
+        t.equal(await t.page.evaluate(() => document.getElementById('sheetBody').scrollTop), 0, 'initial Daily open on portrait mobile keeps today deals at top');
+        await t.shot('w2c-W6-S2-04-daily-mobile-top', { fullPage: false });
+        // Clicking the archive jump button scrolls the selected date row into view on portrait mobile
+        await t.page.click('#dailyArchBtn');
+        const afterJump = await t.page.evaluate(() => {
+          const bodyR = document.getElementById('sheetBody').getBoundingClientRect();
+          const sel = document.querySelector('#calW .cday.sel');
+          const r = sel ? sel.getBoundingClientRect() : null;
+          return {
+            scrollTop: document.getElementById('sheetBody').scrollTop,
+            selInView: !!(r && r.top >= bodyR.top - 1 && r.bottom <= bodyR.bottom + 1),
+          };
+        });
+        t.expect(afterJump.scrollTop > 0 && afterJump.selInView, 'portrait mobile scrolls selected date row into view: ' + JSON.stringify(afterJump));
+        await t.shot('w2c-W6-S2-04-daily-mobile-cal', { fullPage: false });
+        // Opening an explicit archive date on portrait mobile scrolls the selected date row into view automatically
+        const d1 = await daysAgo(t, 1);
+        await t.game('scene', 'daily', { day: d1 });
+        await t.page.waitForFunction(() => {
+          const bodyR = document.getElementById('sheetBody').getBoundingClientRect();
+          const sel = document.querySelector('#calW .cday.sel');
+          if (!sel) return false;
+          const r = sel.getBoundingClientRect();
+          return r.top >= bodyR.top - 1 && r.bottom <= bodyR.bottom + 1;
+        }, null, { timeout: 5000 });
+        await t.checkLayout({ allowScrollY: true });
+      }
+    },
+  },
+  {
+    name: 'w2c W6-S2-05 Backs & Tables groups unlocked items first with dividers, scopes Skylight Reshuffle to Skylight, and adds mode fast-track quick-launch',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false });
+      await t.game('scene', 'backs');
+      await t.waitForStable();
+
+      // 1. Unlocked starter backs grouped first ahead of Earnable divider
+      const backOrder = await t.page.evaluate(() => ({
+        ids: [...document.querySelectorAll('#bkGrid [data-back]')].map((el) => ({ id: el.dataset.back, locked: el.classList.contains('lk') })),
+        secs: [...document.querySelectorAll('#bkGrid .bk-sec')].map((el) => el.textContent.trim()),
+        reseedHidden: document.querySelector('#bpanel-backs [data-a="reseed"]').hidden,
+        launchHidden: document.getElementById('bkLaunch').hidden,
+      }));
+      t.equal(backOrder.ids.slice(0, 4).map((x) => x.id), ['skylight', 'lozenge', 'ironwork', 'pines'], 'all 4 Win-0 starter backs appear first together');
+      t.equal(backOrder.ids.slice(0, 4).every((x) => !x.locked) && backOrder.ids.slice(4).every((x) => x.locked), true, 'all unlocked backs precede all locked backs');
+      t.equal(backOrder.secs, ['Unlocked (4)', 'Earnable (8)'], 'Card Backs renders Unlocked / Earnable dividers');
+      t.equal([backOrder.reseedHidden, backOrder.launchHidden], [false, true], 'Skylight selected shows Reshuffle and hides quick-launch');
+      await t.shot('w2c-W6-S2-05-backs-grouped', { fullPage: false });
+
+      // 2. Switching to another unlocked back hides/disables Reshuffle; focusing Skylight reveals it without switching back
+      await t.page.click('[data-back="lozenge"]');
+      const onLozenge = await t.page.evaluate(() => {
+        const b = document.querySelector('#bpanel-backs [data-a="reseed"]');
+        return { back: window.__game.getState().settings.back, hidden: b.hidden, disabled: b.disabled };
+      });
+      t.equal(onLozenge, { back: 'lozenge', hidden: true, disabled: true }, 'selecting Lozenge hides and disables Skylight Reshuffle');
+
+      await t.page.focus('[data-back="skylight"]');
+      const onSkylightFocus = await t.page.evaluate(() => {
+        const b = document.querySelector('#bpanel-backs [data-a="reseed"]');
+        return { back: window.__game.getState().settings.back, hidden: b.hidden, disabled: b.disabled };
+      });
+      t.equal(onSkylightFocus, { back: 'lozenge', hidden: false, disabled: false }, 'focusing Skylight reveals Reshuffle while keeping Lozenge equipped');
+
+      // 3. Inspecting locked back with mode fast-track renders contextual quick-launch in .bk-bar; non-fast-track hides it
+      await t.page.locator('[data-back="paterae"]').click({ force: true });
+      t.equal(await t.page.locator('#bkLaunch').isHidden(), true, 'locked Win-1 back without mode fast-track hides quick-launch');
+      await t.page.locator('[data-back="quapaw"]').click({ force: true });
+      const quapawBar = await t.page.evaluate(() => ({
+        launchHidden: document.getElementById('bkLaunch').hidden,
+        launchText: document.getElementById('bkLaunch').textContent.trim(),
+        reseedHidden: document.querySelector('#bpanel-backs [data-a="reseed"]').hidden,
+      }));
+      t.equal(quapawBar, { launchHidden: false, launchText: 'Play FreeCell', reseedHidden: true }, 'inspecting locked Quapaw Dome offers Play FreeCell quick-launch');
+      await t.shot('w2c-W6-S2-05-backs-locked-launch', { fullPage: false });
+
+      // 4. Parlor Tables also groups unlocked items first and offers contextual quick-launch on locked tables
+      await t.page.click('#btab-tables');
+      const tblOrder = await t.page.evaluate(() => ({
+        ids: [...document.querySelectorAll('#tblGrid [data-table]')].map((el) => ({ id: el.dataset.table, locked: el.classList.contains('lk') })),
+        secs: [...document.querySelectorAll('#tblGrid .bk-sec')].map((el) => el.textContent.trim()),
+      }));
+      t.equal(tblOrder.ids.slice(0, 2).map((x) => x.id), ['felt', 'marble'], 'Win-0 unlocked tables appear first');
+      t.equal(tblOrder.secs, ['Unlocked (2)', 'Earnable (4)'], 'Parlor Tables renders Unlocked / Earnable dividers');
+      await t.page.locator('[data-table="quapaw"]').click({ force: true });
+      t.equal(await t.page.locator('#tblLaunch').textContent(), 'Play Spider', 'locked Quapaw Mosaic table offers Play Spider quick-launch');
+      await t.page.locator('[data-table="pool"]').click({ force: true });
+      t.equal(await t.page.locator('#tblLaunch').textContent(), 'Open Daily deals', 'locked Thermal Pool table offers Open Daily deals quick-launch');
+      await t.checkLayout({ allowScrollY: true });
+
+      // 5. Clicking Play FreeCell on Quapaw Dome actually launches FreeCell
+      await t.page.click('#btab-backs');
+      await t.page.locator('[data-back="quapaw"]').click({ force: true });
+      await t.page.click('#bkLaunch');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'game' && window.__game.getState().mode === 'freecell', null, { timeout: 10000 });
+      t.equal((await t.state()).mode, 'freecell', 'Play FreeCell quick-launch starts a FreeCell game');
+
+      // 6. Fully unlocked profile omits Unlocked/Earnable dividers
+      await t.game('unlockAll');
+      await t.game('scene', 'backs');
+      t.equal(await t.page.locator('#bkGrid .bk-sec').count(), 0, 'fully unlocked profile omits Unlocked/Earnable dividers');
     },
   },
 ];

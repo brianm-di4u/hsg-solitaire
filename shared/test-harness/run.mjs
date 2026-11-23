@@ -3,8 +3,8 @@
 //
 // Usage:
 //   node shared/test-harness/run.mjs games/<slug> [--milestone m1] [--viewport desktop|mobile|both]
-//                                               [--only <substring>] [--file <substring>] [--headed] [--no-gallery]
-//                                               [--gpu] [--file-url] [--slow] [--clean]
+//                                               [--only <substring>] [--file <substring>] [--workers <1..8>]
+//                                               [--headed] [--no-gallery] [--gpu] [--file-url] [--slow] [--clean]
 //   node shared/test-harness/run.mjs smoke
 //
 // Discovers games/<slug>/tests/*.test.mjs. Each test file exports:
@@ -19,6 +19,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { writeGallery } from './gallery.mjs';
+import { clampWorkers, planWorkers } from './workers.mjs';
+export { clampWorkers, planWorkers };
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
@@ -36,13 +38,14 @@ const MIME = {
 
 function parseArgs(argv) {
   const a = { target: null, milestone: 'latest', viewport: 'both', only: null, file: null, headed: false, gallery: true,
-    gpu: process.env.HS_GPU === '1', fileUrl: false, slow: false, clean: false };
+    gpu: process.env.HS_GPU === '1', fileUrl: false, slow: false, clean: false, workers: clampWorkers(process.env.HS_WORKERS || 1) };
   for (let i = 0; i < argv.length; i++) {
     const v = argv[i];
     if (v === '--milestone') a.milestone = argv[++i];
     else if (v === '--viewport') a.viewport = argv[++i];
     else if (v === '--only') a.only = argv[++i];
     else if (v === '--file') a.file = argv[++i];
+    else if (v === '--workers') a.workers = clampWorkers(argv[++i]);
     else if (v === '--headed') a.headed = true;
     else if (v === '--no-gallery') a.gallery = false;
     else if (v === '--gpu') a.gpu = true;
@@ -52,7 +55,7 @@ function parseArgs(argv) {
     else if (!a.target) a.target = v;
   }
   if (!a.target) {
-    console.error('usage: node shared/test-harness/run.mjs games/<slug> [--milestone m1] [--viewport desktop|mobile|both] [--only name] [--file name]');
+    console.error('usage: node shared/test-harness/run.mjs games/<slug> [--milestone m1] [--viewport desktop|mobile|both] [--only name] [--file name] [--workers 1..8]');
     process.exit(2);
   }
   return a;
@@ -328,7 +331,7 @@ async function runNodeTest(test, milestone) {
 }
 
 export async function runSuite({ gameDir, testDir, milestone = 'latest', viewport = 'both', only = null, file = null, headed = false, gallery = true,
-  gpu = false, fileUrl = false, slow = false, clean = false }) {
+  gpu = false, fileUrl = false, slow = false, clean = false, workers = 1 }) {
   let tests = await loadTests(testDir, only, file);
   if (!tests.length) { console.error(`no tests found in ${testDir}`); return { ok: false }; }
   // Slow tests (long balance sims) run only when asked for, or at the final milestone.
@@ -367,20 +370,22 @@ export async function runSuite({ gameDir, testDir, milestone = 'latest', viewpor
       if (fs.existsSync(dir)) for (const f of fs.readdirSync(dir)) { try { fs.unlinkSync(path.join(dir, f)); } catch { /* locked or a folder */ } }
     }
   }
-  const report = { game: relGame, milestone, started: new Date().toISOString(), gpu, fileUrl, tests: [] };
-  let failed = 0;
+  const plan = planWorkers(tests, workers);
+  const report = { game: relGame, milestone, started: new Date().toISOString(), gpu, fileUrl, workers: plan.maxWorkers, tests: [] };
+  const slots = new Array(tests.length);
 
-  for (const test of tests) {
+  async function executeTest(test) {
+    const entries = [];
     if (test.node) {
       const started = Date.now();
       const results = await runNodeTest(test, milestone);
       const pass = results.failures.length === 0;
-      if (!pass) failed++;
-      report.tests.push({ name: test.name, file: test.file, viewport: 'node', pass, ms: Date.now() - started, failures: results.failures, logs: results.logs, shots: [] });
-      console.log(`${pass ? 'PASS' : 'FAIL'}  [node] ${test.name}  (${Date.now() - started} ms)`);
+      const ms = Date.now() - started;
+      entries.push({ name: test.name, file: test.file, viewport: 'node', pass, ms, failures: results.failures, logs: results.logs, shots: [] });
+      console.log(`${pass ? 'PASS' : 'FAIL'}  [node] ${test.name}  (${ms} ms)`);
       for (const f of results.failures) console.log('      ✗ ' + f);
       for (const l of results.logs) console.log('      · ' + l);
-      continue;
+      return entries;
     }
     for (const vpName of (test.viewports || ['desktop', 'mobile']).filter((v) => vps.includes(v))) {
       const results = { failures: [], logs: [], consoleErrors: [], external: [] };
@@ -425,11 +430,34 @@ export async function runSuite({ gameDir, testDir, milestone = 'latest', viewpor
       await context.close();
 
       const pass = results.failures.length === 0;
-      if (!pass) failed++;
-      report.tests.push({ name: test.name, file: test.file, viewport: vpName, pass, ms: Date.now() - started, failures: results.failures, logs: results.logs, shots: t.shots });
-      console.log(`${pass ? 'PASS' : 'FAIL'}  [${vpName}] ${test.name}  (${Date.now() - started} ms, ${t.shots.length} shots)`);
+      const ms = Date.now() - started;
+      entries.push({ name: test.name, file: test.file, viewport: vpName, pass, ms, failures: results.failures, logs: results.logs, shots: t.shots });
+      console.log(`${pass ? 'PASS' : 'FAIL'}  [${vpName}] ${test.name}  (${ms} ms, ${t.shots.length} shots)`);
       for (const f of results.failures) console.log('      ✗ ' + f);
       for (const l of results.logs) console.log('      · ' + l);
+    }
+    return entries;
+  }
+
+  if (plan.parallelGroups.length) {
+    const nWorkers = Math.min(plan.maxWorkers, plan.parallelGroups.length);
+    console.log(`workers: ${nWorkers} (${plan.parallelGroups.length} file(s) parallel, ${plan.serialItems.length} serial)`);
+    let nextGroup = 0;
+    const workerLoop = async () => {
+      while (nextGroup < plan.parallelGroups.length) {
+        const group = plan.parallelGroups[nextGroup++];
+        for (const item of group) slots[item.index] = await executeTest(item.test);
+      }
+    };
+    await Promise.all(Array.from({ length: nWorkers }, () => workerLoop()));
+  }
+  for (const item of plan.serialItems) slots[item.index] = await executeTest(item.test);
+
+  let failed = 0;
+  for (const entries of slots) {
+    for (const entry of entries || []) {
+      if (!entry.pass) failed++;
+      report.tests.push(entry);
     }
   }
 
@@ -465,6 +493,6 @@ if (isMain) {
   const a = parseArgs(process.argv.slice(2));
   const gameDir = a.target === 'smoke' ? path.join(HERE, 'smoke') : path.resolve(ROOT, a.target);
   const { ok } = await runSuite({ gameDir, testDir: path.join(gameDir, 'tests'), milestone: a.milestone, viewport: a.viewport, only: a.only, file: a.file, headed: a.headed, gallery: a.gallery,
-    gpu: a.gpu, fileUrl: a.fileUrl, slow: a.slow, clean: a.clean });
+    gpu: a.gpu, fileUrl: a.fileUrl, slow: a.slow, clean: a.clean, workers: a.workers });
   process.exit(ok ? 0 : 1);
 }

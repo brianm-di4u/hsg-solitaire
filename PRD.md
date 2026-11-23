@@ -1,19 +1,16 @@
 # Spa City Solitaire: product requirements
 
-## 1. Vision and pillars
+## 1. Vision and pillars (Unrushed Parlor Mastery contract)
 
-A calm, beautifully made patience collection you can play one-handed on a phone or with only a keyboard
-on a laptop, dressed in the architecture and nature of Hot Springs, Arkansas. Every deal ends with a small
-true story about the town.
+A calm 1920s Bathhouse Row card table where every hand is a fair, unrushed puzzle of clean skill—crisp ivory cards gliding over emerald felt and brushed brass, playable one-handed on a phone or with only a keyboard on a laptop, ending in a punched 21-bath ticket, a truthful measure of economy of hand, and one true story about Hot Springs, Arkansas.
 
-1. **Feels right.** Cards move with snappy, physical feedback; drags never "lose" a card; undo is
-   unlimited and instant.
-2. **Readable first.** Faces stay standard and crisp at 36 px wide. The decoration lives on backs, tables and
-   transitions, never on rank and suit legibility.
-3. **A town in the details.** Twelve Hot Springs card backs and six tables come from Bathhouse Row, the Ouachitas
-   and the lakes. The win card shares a sourced fact.
-4. **Fair and reproducible.** Every deal has a number, the daily deal is the same for everyone, and FreeCell
-   deal numbers match the classic numbering.
+- **Target experience:** *Mastery of a Challenge or Skill* (primary: unrushed, fair, reproducible patience where economical cardcraft is rewarded without clock pressure) paired with *Alternate Fantasy* (secondary: stepping into a quiet 1920s Hot Springs bathhouse parlor).
+- **Anti-goals:** zero countdown pressure or Undo point penalties in default Standard play; zero live `-1/move` drain in Klondike, FreeCell, or Yukon; zero Vegas/gambling wagering or violence flavor; zero silent replay confiscation on fresh New Deals or first-ever retried comebacks.
+
+1. **P1 — Calm craft over clock pressure.** Default Standard play rewards surgical, economical cardcraft at the player's own pace via an untimed par-moves efficiency win bonus, permanently free unlimited Undo, and opt-in Timed speed kept strictly separate.
+2. **P2 — Fair, reproducible, transparent progression.** Every winnable New Deal and Daily across all seven variants delivers an unseen-first, honestly graded hand (including all classic FreeCell deals 1–32,000 except #11982); first-ever wins—including assisted or retried comebacks—advance the 21-bath course, graded wins, and unlocks, while streaks, personal bests, and speed/unaided achievements remain strictly guarded for first-try unaided wins.
+3. **P3 — Clarity first, Bathhouse Row in the details.** Standard ivory faces stay crisp down to 36 px mobile Spider width over calm dark Card-Room Felt at Win 0, while 12 Hot Springs backs, 6 parlor tables, brass hardware, venue-coupled acoustics, and 50 sourced stories frame the table.
+4. **P4 — One integrated parlor.** Card legality, look-ahead simulation, Standard efficiency scoring, Bath Ticket stamps, HUD tags, Bathhouse Ledger records, Help text, and design docs obey one single-source contract.
 
 ## 2. Target players
 
@@ -49,9 +46,14 @@ The cards are a standard 52-card deck, and Spider uses two decks (104 cards). Ra
 - **Foundations:** 4 piles, built up by suit from A to K. A foundation's top card may be moved back to the
   tableau.
 - **Win:** all 52 cards are on the foundations.
-- **Score:** waste→tableau +5; any card to a foundation +10; turning a tableau card face up +5;
-  foundation→tableau −15; each recycle after the first −50 (Draw 1) or −20 (Draw 3). The score never goes
-  below 0. A win adds a **time bonus** of max(0, 1000 − 2 × seconds).
+- **Score:** waste→tableau +5; tableau→foundation +10; direct waste→foundation +15; turning a tableau card
+  face up +5; foundation→tableau −15; turning the waste back over the first time is free, then each recycle
+  −50 (Draw 1) or −20 (Draw 3). Signed net score is conserved internally (`rawScore`) and floored at 0 for
+  display and win totals. Default **Standard** scoring is untimed and adds a move-efficiency win bonus
+  (`max(0, min(maxBonus, round((parCeil − moves) × ptsPerMove)))`: Draw 1 `220 / 3 / 450`, Draw 3 `240 / 3 / 450`).
+  Opt-in **Timed** scoring replaces the efficiency bonus with a speed bonus of `max(0, 1000 − 2 × seconds)`.
+  **None** hides the score. Standard and Timed best scores are tracked separately, and the active scoring lane
+  locks at deal start.
 
 ### 4.2 Yukon
 - **Deal:** 7 columns. Column 1 has 1 face-up card. Columns 2–7 have 1–6 face-down cards topped by 5
@@ -59,7 +61,9 @@ The cards are a standard 52-card deck, and Spider uses two decks (104 cards). Ra
 - **Tableau:** build down in alternating colors. **Any face-up card may be moved together with every card on
   top of it**, even if those cards are not in sequence, as long as the moved card fits on the target. Only a
   King-headed group may fill an empty column.
-- **Foundations, win and score:** as in Klondike, without the stock items.
+- **Foundations, win and score:** as in Klondike, without the stock items. Standard scoring adds an untimed
+  move-efficiency win bonus (par ceiling 140, 5 pts/move, cap 475); opt-in Timed scoring uses the speed bonus
+  instead.
 
 ### 4.3 FreeCell
 - **Deal:** all 52 cards face up in 8 columns (4 columns of 7 and 4 of 6), using the classic numbered shuffle.
@@ -69,7 +73,10 @@ The cards are a standard 52-card deck, and Spider uses two decks (104 cards). Ra
   that column does not count.
 - **Foundations:** up by suit from A to K. Cards may be moved back from a foundation.
 - **Win:** all 52 cards are on the foundations.
-- **Score:** +10 per card to a foundation, −10 per card taken back from one, plus the time bonus on a win.
+- **Score:** +10 per card to a foundation, −10 per card taken back from one. Standard scoring (default) adds
+  an untimed move-efficiency win bonus (par ceiling 160, 5 pts/move, cap 540); opt-in Timed scoring adds the
+  speed bonus instead. All classic deals 1–32,000 (except #11982) carry solver-verified Easy, Medium, or Hard
+  grades via an embedded 2-bit lookup table.
 - **Unwinnable deals:** deal 11982 is the famously unsolved one among the first 32,000. A random or daily
   FreeCell deal steps past it (a daily that would have been 11982 is 11983). Typing it into the Deal # box
   still deals it, and the box says what it is.
@@ -92,11 +99,26 @@ The cards are a standard 52-card deck, and Spider uses two decks (104 cards). Ra
   time bonus.
 
 ### 4.5 Common
-- **Unlimited undo and redo.** Undo restores the score too. Any undo or hint marks the game "assisted", shown
-  beside the deal number as a small tag ("undo used", "hint used", "undo + hint") and in stats, but not penalized.
-  Settings has an option, off by default, "Undo costs points": each Undo then takes 15 points off the score.
-  A score change of 5 points or more floats up from the pile where it happened (not with reduced motion or with
+- **Unlimited free undo and redo.** Undo and Hint are always free (`undoCost` is permanently retired). Undo
+  restores the exact position and signed net score. Any Undo or Hint marks the hand "assisted", shown beside
+  the deal number as a small tag ("undo used", "hint used", "undo + hint") and in the Bathhouse Ledger. A
+  score change of 5 points or more floats up from the pile where it happened (not with reduced motion or with
   scoring set to None).
+- **Three-state victory & progression contract:**
+  - *First-try clean win* (`!alreadyWon && !retried && !assisted`): increments `won`, advances streaks and
+    personal bests (Standard or Timed lane), punches the 21-bath course (`totalWins`), credits `gradeWins`,
+    evaluates unlocks and all achievements (including `Quick Dip`, `Steam Rush`, `Steady Hand`, `Own Two Hands`).
+  - *First-try assisted win* (`!alreadyWon && !retried && assisted`): increments `won` and `assistedWon`,
+    punches the 21-bath course (`totalWins`), credits `gradeWins`, unlocks cosmetics, and awards completion /
+    Daily achievements (`Quick Dip`, `Steam Rush`, `Own Two Hands` require unaided play; `Steady Hand` requires
+    no Undo), while freezing streaks and personal bests.
+  - *Retried first-ever comeback* (`!alreadyWon && retried`, marked by a quiet `retried` HUD pill and
+    `· retried` Bath Ticket tag): increments `won`, punches the 21-bath course (`totalWins`), credits
+    `gradeWins`, unlocks cosmetics, and awards completion / Daily achievements, while freezing streaks,
+    personal bests, and execution achievements (`quick`, `rush`, `steady`, `alone`).
+  - *Already-won practice replay* (`alreadyWon`, marked by a quiet `replay` HUD pill and unpunched `· replay`
+    Bath Ticket tag): increments `won` only; freezes the 21-bath course, `gradeWins`, streaks, personal bests,
+    unlocks, and achievements.
 - **Hint:** H or the Hint button shows the best move with a glow. Pressing it again cycles to the next move.
 - **Auto-complete:** shown when the game can no longer be lost (§3 in MECHANICS). It plays out the rest of
   the cards with animation.
@@ -109,10 +131,10 @@ The cards are a standard 52-card deck, and Spider uses two decks (104 cards). Ra
 |---|---|---|
 | Title screen | A Bathhouse Row skyline (8 bathhouses, N→S) with steam curls; tagline "Patience, the Spa City way" | §3 |
 | Card backs | 12 backs (Fordyce Skylight, Fordyce Lozenge, Quapaw Dome, Row Ironwork, Superior Medallions, Scallop & Sculpin, Neon Night, Medical Arts Deco, Ouachita Pines, Thermal Steam, Lake Ouachita Dusk, Racing Silks), each with an "inspired by" caption | §1 |
-| Tables | Card-Table Felt, Linen Postcard, Thermal Pool, Bathhall Marble, Midnight Club | §2 |
+| Tables | Six parlor tables: Card-Room Felt (Win-0 default), Fordyce Bath Hall, Quapaw Mosaic, Thermal Pool, Midnight Club, Linen Postcard | §2 |
 | Court cards | Bath attendant / jockey jacks, parasol-promenade queens, card-room kings (archetypes) | §4 |
 | Aces | ♠ stepped tower, ♥ magnolia | §5 |
-| Win | Tufa-cascade animation, bath-ticket score with "course" progress (21 wins), fact card | §6–§8 |
+| Win | Skylight-rosette ceremony, engraved bath ticket with 21-bath course progress, and one of 50 sourced Hot Springs facts (plus 24 achievements tracked in the Bathhouse Ledger) | §6–§8 |
 | Help → About | Notes on sources and invented designs | §10 |
 
 ## 6. Screens and UX flow
@@ -136,27 +158,26 @@ Title ──► Game ──► Win dialog ──► (New deal | Replay | Title)
     The deal number appears under the status strip.
 - **Win dialog:** the bath ticket (mode, deal, score, time, moves, best-ever markers, course progress), the
   fact card, and buttons for New Deal, Replay This Deal and Title.
-- **Settings:**
-  - Sound on/off and volume
-  - Motion (Auto / Full / Reduced)
-  - Left-handed layout
-  - Card size (Compact / Standard / Large)
-  - Four-color suits
-  - Auto-move to foundations (Off / Safe / All)
-  - Show timer
-  - Reset statistics (with confirm)
-- **Backs & Tables:** a grid of 12 back previews with names and captions and a selected ring, then 5 table
-  swatches. "Reshuffle glass" re-seeds the Fordyce Skylight back.
-- **Stats:** a tab per mode key showing played, won, win %, current and best streak, best time, fewest
-  moves, best score, and a Reset button.
-- **Help:** rules per mode, controls (mouse/touch/keyboard table), scoring, and About the art & facts.
+- **Settings** (three tabs: Gameplay, Comfort, Audio):
+  - *Gameplay:* Deal fairness (`Winnable (Any)` / `Easy` / `Medium` / `Hard` / `Classic Random`), Scoring (`Standard` / `Timed` / `None`), Auto-move to foundations (`Off` / `Safe` / `All`), Tap-to-move (`Tap` / `Double-tap` / `Select & place` / `Drag only`).
+  - *Comfort:* Motion (`Auto` / `Full` / `Reduced`), Left-handed layout, Card size (`Compact` / `Standard` / `Large`), Table layout (`Fit` / `Classic`), Four-color suits, Court cards (`Art Deco` / `Painted`), Show timer, First-run tips.
+  - *Audio:* Master sound on/off and volume (squared curve for new profiles starting at 0.75; legacy saves keep linear), separate Sound effects / Music / Ambience toggles and volume sliders, and touch Vibration toggle.
+- **Backs & Tables:** a two-tab gallery of 12 card backs and 6 parlor tables with names, stories, and a selected
+  ring. Four starter backs and two starter tables (Card-Room Felt and Fordyce Bath Hall) are open at Win 0; the
+  remaining 8 backs and 4 tables unlock across the 21-bath course or dual mastery fast-tracks (pre-unlock saves
+  keep all 12 backs and 6 tables open). "Reshuffle the skylight glass" re-seeds the Fordyce Skylight back.
+- **Bathhouse Ledger** (four tabs: Overview, By Game, Hot Springs Facts, Achievements):
+  - *Overview:* 21-bath course progress across the 8 historic Bathhouse Row stops, total baths won, next cosmetic unlock, and per-variant summary.
+  - *By Game:* per-mode statistics for all 7 variants (played, won, win %, current and best streak, best time, fewest moves, separate Standard and Timed best scores) with per-mode Reset (with confirm).
+  - *Hot Springs Facts:* browsable catalog of all 50 sourced Hot Springs facts.
+  - *Achievements:* all 24 achievements with completion state and criteria.
+- **Help:** rules per mode, controls (mouse/touch/keyboard/gamepad table), scoring, and About the art & facts.
 
 ## 7. Art direction
 
 - **Palettes** (from `shared/design/tokens.css`):
   - UI chrome uses the default theme: light is gilded-spa, dark is deco-neon.
-  - Each back uses its motif palette (town-content §1). Tables use P5 felt, P6 linen, P2 thermal, the
-    marble swatch, and P5 midnight.
+  - Each back uses its motif palette (town-content §1). The 6 parlor tables use Card-Room Felt (P5 felt, Win-0 default), Fordyce Bath Hall (veined marble), Quapaw Mosaic (warm chevron tile), Thermal Pool (P2 thermal), Midnight Club (P5 dark walnut & brass), and Linen Postcard (P6 linen).
 - **v3 visual campaign (2026-10):** see `VISUAL-PLAN.md` and `VISUAL-REPORT.md`. In short:
   - six lit tables (Card-Room Felt, Fordyce Bath Hall, Quapaw Mosaic, Thermal Pool, Midnight Club, Linen Postcard);
   - Blender brass hardware;
@@ -187,20 +208,17 @@ Title ──► Game ──► Win dialog ──► (New deal | Replay | Title)
 
 ## 8. Audio direction
 
-All sound is WebAudio synthesis, so there are no files:
-- **pick** and **place:** short filtered-noise ticks and soft thocks
-- **flip:** a bright click
-- **foundation:** a pentatonic bell tone that rises with rank
-- **deal / shuffle:** a burst of ticks
-- **invalid:** a low muted blip
-- **undo:** a reverse whoosh
-- **win:** a three-note brass-like chord and a steam hiss
+All sound is WebAudio synthesis in a unified Bb/Eb harmonic universe (`{C, Eb, F, G, Bb}`), with zero external audio files:
+- **pick** and **place:** short filtered-noise ticks and soft card-on-felt thocks
+- **flip:** band-limited crisp linen snap
+- **foundation:** Bb/Eb pentatonic bell ladder rising from C4 (King = F6 at 1,396.9 Hz, plus warm fifth tail)
+- **deal / shuffle:** a burst of paper riffles; Klondike recycle plays a reverse riffle (plus brass clink on Pass 2+)
+- **invalid / refusal:** acoustic muted wood-and-felt double-thud Foley (zero square waves)
+- **undo:** a reverse whoosh; **redo** replays the restored move's cue
+- **win & milestones:** brass fanfare, skylight gather/spray sweeps, 650 ms bath-ticket punch, and distinct cues for personal best, streak, achievement, and 21-bath course completion
+- **music & ambience:** adaptive Title and Table parlor scores with intensity-coupled jazz brushes, three venue-coupled ambient beds (`bathhouse`, `parlor`, `valley`), and subtle 2-tap early-reflection room glue (`<= 10%` wet)
 
-Master volume and mute are in settings. The AudioContext is created on the first user gesture. A profile made
-from the wave-4 build on has the master slider on a squared curve (half way is a quarter of the gain, slider
-starting at 0.75); a profile that already existed keeps the straight line it had. There is no control for it.
-Redo plays the cue of the move it puts back (a card home sings its rank, a finished Spider run is the run cue).
-The foundation cue's ladder starts at C4, so the King sits at 1.32 kHz.
+Master volume, mute, and separate Sound effects / Music / Ambience controls are in Settings. The AudioContext is created on the first user gesture and suspends cleanly when hidden. A profile made from the wave-4 build on has the master slider on a squared curve (half way is a quarter of the gain, slider starting at 0.75); a profile that already existed keeps the straight line it had. There is no control for it.
 
 ## 9. Accessibility
 
@@ -224,7 +242,7 @@ The foundation cue's ladder starts at C4, so the King sits at 1.32 kHz.
 
 - A steady 60 fps while dragging and during the cascade on a mid-range laptop, measured with `t.fps`. The
   aim is ≥ 50 in headless Chromium during the cascade.
-- `index.html` stays ≤ 2 MB, and `assets/` stays ≤ 3.5 MB. No requests leave the page's own origin.
+- `index.html` stays ≤ 2 MB, `assets/` stays ≤ 5 MB, and first-load transfer stays ≤ 1.6 MB. No requests leave the page's own origin.
 - Interactive in ≤ 2 s (`t.loadMs` < 2000), and the JS heap stays under 40 MB.
 
 ## 12. Save and load
@@ -266,8 +284,8 @@ resumes the exact position with its undo history. The game works when storage th
 25. The game runs with no errors when localStorage throws.
 
 **Art and content**
-26. Twelve distinct procedurally drawn card backs are selectable and the choice persists.
-27. Five table backgrounds are selectable and persist.
+26. Twelve distinct Art Deco card backs (painted with procedural vector fallback via `?art=0`, 4 open at Win 0 and 8 earnable across the 21-bath course or mastery fast-tracks; pre-unlock saves keep all 12) are selectable and the choice persists.
+27. Six table backgrounds are selectable and persist (two open at Win 0, four earned across the 21-bath course or mastery fast-tracks; pre-unlock saves keep all six).
 28. Card faces are legible at the mobile Spider size: the index is at least 11 CSS px tall at 35 px card width.
 29. Court cards show original archetype figures; aces of spades and hearts show the tower and magnolia.
 30. The win screen shows the cascade animation, a bath ticket and a Hot Springs fact with its source.
@@ -289,11 +307,14 @@ resumes the exact position with its undo history. The game works when storage th
 
 ## 14. Out of scope
 
-- A full solver, or "winnable deals only" filtering for Klondike and Spider.
+- An unbounded exact solver for arbitrary Classic Random deals (bounded solvers, pre-verified Spider 2/4 pools,
+  and the 2-bit FreeCell 1–32,000 grade table power Winnable / Easy / Medium / Hard deals, hints, and dead-end
+  checks).
 - Online leaderboards, accounts, sync and multiplayer.
 - More games beyond the four (Pyramid, Golf, TriPeaks and so on), jokers, and the fifth "sculpin" suit and
   alternative suit sets from `game-hooks.md` (noted as future ideas).
-- Unlockable backs in bathhouse build order (all 12 are available from the start; a future idea).
+- Post-Win-21 retention milestones (monthly Daily Bathhouse Seals, per-variant difficulty stamps), deferred to
+  a future feature wave.
 - Era selector restyling of the whole deck, and the novaculite "sharpen" power-up effect.
 - Localization: the game is English only.
 - Vegas or cumulative-money scoring.

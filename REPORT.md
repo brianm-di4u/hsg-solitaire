@@ -1,18 +1,29 @@
 # Spa City Solitaire: report
 
+## Current shipped state (2026-11)
+
+- **Architecture:** Hand-written single-file `index.html` (~580 KB, no `src/` build step) loading local `assets/fonts.css` (5 bundled OFL font files) and 54 packed `assets/*.webp` files (3.19 MB total `assets/` ≤ 5 MB cap; ~1.3 MB first load ≤ 1.6 MB budget). Zero external network calls; works from disk over `file://` (`npm run check:offline`) and keeps `?art=0` procedural vector fallback.
+- **Games (4 modes, 7 variants):** Klondike (Draw 1 / Draw 3), FreeCell (classic numbered deals 1–32,000 + extended up to 1,000,000, with an embedded solver-verified 2-bit grade table covering all 1–32,000 except unsolved `#11982`), Spider (1 / 2 / 4 suits with pre-verified pools and live fallback), and Yukon.
+- **Cosmetics & progression (21-win course):**
+  - **12 card backs** (4 starter backs open at Win 0: Fordyce Skylight, Fordyce Lozenge, Row Ironwork, Ouachita Pines; 8 earnable across the 21-win bath course or dual mastery fast-tracks; pre-unlock saves keep all 12 open).
+  - **6 parlor tables** (2 open at Win 0: Card-Room Felt as default and Fordyce Bath Hall; 4 earnable: Quapaw Mosaic, Thermal Pool, Midnight Club, Linen Postcard; pre-unlock saves keep all 6 open).
+  - **50 sourced Hot Springs facts** (venue-biased on the Bath Ticket and browsable in the Bathhouse Ledger).
+  - **24 achievements** (completion, variant mastery, clean speed/unaided badges, streaks, 21-bath course, and Daily 7/7 Full Bath).
+- **Scoring & Undo:** Permanently **free unlimited Undo** and Redo (400 steps persisted); default **Standard** scoring is untimed with par-moves move-efficiency win bonuses in Klondike, FreeCell, and Yukon (and signed `rawScore` conservation); opt-in **Timed** scoring uses the speed bonus on a separate Best Score lane; **None** hides score.
+- **Audio & controls:** WebAudio synthesis in a Bb/Eb harmonic universe with adaptive Title/Table music, 3 venue-coupled ambiences (`bathhouse`, `parlor`, `valley`), 2-tap early-reflection room glue, squared master volume curve for new profiles (0.75 default; legacy saves keep linear), plus pointer drag/tap/select-and-place, full keyboard, screen-reader live regions, and gamepad support.
+- **Verification tooling:** 24 Playwright test files (`tests/*.test.mjs`, supporting optional `--workers` sharding with `perf.test.mjs` kept serial), `npm run check:pipeline` (`tools/check-pipeline.mjs`), and `npm run check:offline` (`tools/check-file-url.mjs`).
+
 > **v3 visual campaign (2026-10).** See **`VISUAL-REPORT.md`**: lit tables, Blender brass hardware, the Art Deco
 > court set, card motion, the skylight-rosette ceremony, a lacquer and brass shell, and bundled fonts. It also
 > covers the review scores, performance and the new research.
->
-> - **Tests:** the suite is now 88 runs (`visual.test.mjs` is new) and passes 88/88 at both viewports with
->   milestone `visual-final`.
-> - **file://:** `tools/check-file-url.mjs` checks that the game works opened straight from disk.
-> - **Single file?** The game is no longer one file. `index.html` (223 KB) loads `assets/fonts.css` and
->   `assets/*.webp` (about 4.3 MB in all, 1.4 MB at first load). Everything is still local, and the vector art
->   remains as a fallback (`?art=0`).
-> - **Below:** the text after this note describes v1, and the v2 painted-art pass is in git history.
 
-## What was built
+---
+
+## Historical v1 baseline (preserved for provenance)
+
+> The sections below document the original v1 single-file build (162 KB, 5 tables, procedural backs, 73 tests) before the v2 painted art, v3 visual campaign, council waves 1–4b, and 2026-11 triage refinement waves. Current counts and rules are summarized above and in `PRD.md` / `MECHANICS.md`.
+
+### What was built (v1)
 
 `games/solitaire/index.html` is one hand-written, self-contained file. It is 2,358 lines and 162 KB, with no
 build step, no network requests and no image or font files. It holds a four-game patience collection set in

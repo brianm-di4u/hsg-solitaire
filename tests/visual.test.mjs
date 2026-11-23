@@ -424,4 +424,259 @@ export const tests = [
       t.expect(resDisp && resDisp.dur === 0, 'resumeSaved() restores board instantaneously without silent dealAnimation() (dur ' + (resDisp && resDisp.dur) + ')');
     },
   },
+  {
+    name: 'visual-67 W6-S1-07 desktop FreeCell omits headless r<46 felt watermark and floats Max move badge >= 6px above free cells',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced', table: 'felt' });
+      await t.game('newGame', { mode: 'freecell', deal: 1 });
+      await t.waitForStable();
+      await t.page.waitForFunction(() => window.__game.placeMarks() && window.__game.maxMoveBadge());
+      const pm = await t.game('placeMarks');
+      const badge = await t.game('maxMoveBadge');
+      const im = await t.game('inlayMetrics');
+      const lay = await t.game('getLayout');
+      const stageRect = await t.page.evaluate(() => { const r = document.getElementById('cv').getBoundingClientRect(); return { left: r.left, top: r.top }; });
+      const hit = (a, b) => !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
+
+      if (t.viewport === 'desktop') {
+        t.equal(pm.emblem, null, '1280x800 FreeCell omits truncated textless r<46 felt watermark: ' + JSON.stringify(pm.emblem));
+        t.equal(badge.arr, 'top', '1280x800 FreeCell uses top-row layout');
+        const gapAboveCells = badge.c0y - (badge.y + badge.h);
+        t.expect(gapAboveCells >= 6, 'desktop FreeCell Max move badge clears free-cell bank by >= 6px (got ' + gapAboveCells + 'px): ' + JSON.stringify(badge));
+        t.expect(badge.y >= im.inlayInset + 2, 'desktop FreeCell Max move badge clears inner brass frame (' + badge.y + ' >= ' + (im.inlayInset + 2) + ')');
+        for (const [pid, pb] of Object.entries(lay.piles)) {
+          const pr = { x: pb.x - stageRect.left, y: pb.y - stageRect.top, w: pb.w, h: pb.zoneH || lay.cardH };
+          t.equal(hit(badge, pr), false, 'Max move badge does not overlap pile ' + pid + ': ' + JSON.stringify({ badge, pr }));
+        }
+        for (const chv of im.topChevrons) {
+          t.equal(hit(badge, chv), false, 'Max move badge clears top brass chevron: ' + JSON.stringify({ badge, chv }));
+        }
+        await t.shot('visual-67-w6-s1-07-freecell-desktop');
+        // Left-handed desktop FreeCell keeps the same clean >= 6px clearance above free cells
+        await t.game('setSettings', { leftHanded: true });
+        await t.waitForStable();
+        const lhBadge = await t.game('maxMoveBadge');
+        t.expect(lhBadge && lhBadge.c0y - (lhBadge.y + lhBadge.h) >= 6, 'left-handed desktop FreeCell Max move badge clears free cells >= 6px: ' + JSON.stringify(lhBadge));
+        await t.game('setSettings', { leftHanded: false });
+      } else {
+        t.expect(pm.emblem && pm.emblem.r >= 46, 'mobile portrait FreeCell keeps full-size Spa City emblem (r=' + (pm.emblem && Math.round(pm.emblem.r)) + ')');
+        t.expect(badge.c0y - (badge.y + badge.h) >= 6, 'mobile portrait FreeCell Max move badge clears free cells >= 6px: ' + JSON.stringify(badge));
+        await t.shot('visual-67-w6-s1-07-freecell-mobile');
+      }
+    },
+  },
+  {
+    name: 'visual-68 W6-S4-02 buried face-down Skylight tableau strips recess softly while Stock, Title fans, and picker swatches stay vibrant',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced', back: 'skylight', table: 'felt', deckSeed: 2026 });
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 5 });
+      await t.waitForStable();
+      await t.page.waitForFunction(() => window.__game.art().loaded.includes('back-skylight'), null, { timeout: 15000 });
+      await t.waitForStable();
+
+      // 1. Compare top exposed strip of Stock (unglazed) vs top buried face-down card in t6 (glazed) on #cv
+      const strip = await t.page.evaluate(() => {
+        const cv = document.getElementById('cv'), g = cv.getContext('2d');
+        const rect = cv.getBoundingClientRect(), k = cv.width / rect.width;
+        const lay = window.__game.getLayout();
+        const st = lay.piles.stock, t6 = lay.piles.t6.cards[0], cw = lay.cardW, ch = lay.cardH;
+        const sample = (bx, by) => {
+          const sx = Math.round((bx - rect.left + cw * 0.14) * k);
+          const sy = Math.round((by - rect.top + ch * 0.06) * k);
+          const sw = Math.max(4, Math.round(cw * 0.72 * k));
+          const sh = Math.max(2, Math.round(Math.min(ch * 0.07, 10) * k));
+          const d = g.getImageData(sx, sy, sw, sh).data;
+          let lum = 0, sat = 0, n = 0;
+          for (let i = 0; i < d.length; i += 4) {
+            const r = d[i], gr = d[i + 1], b = d[i + 2];
+            lum += 0.299 * r + 0.587 * gr + 0.114 * b;
+            sat += Math.max(r, gr, b) - Math.min(r, gr, b);
+            n++;
+          }
+          return { lum: +(lum / n).toFixed(2), sat: +(sat / n).toFixed(2) };
+        };
+        return { stock: sample(st.x, st.y), buried: sample(t6.x, t6.y) };
+      });
+      const lumRatio = strip.buried.lum / strip.stock.lum;
+      t.expect(strip.buried.lum < strip.stock.lum - 5 && lumRatio >= 0.80 && lumRatio <= 0.91,
+        'buried face-down tableau strip is subtly glazed vs vibrant Stock (stock ' + strip.stock.lum + ', buried ' + strip.buried.lum + ', ratio ' + lumRatio.toFixed(3) + ')');
+      t.expect(strip.stock.lum >= 55, 'Stock pile keeps full vibrant Fordyce Skylight brightness (' + strip.stock.lum + ')');
+      await t.shot('visual-68-w6-s4-02-klondike-felt');
+
+      // 2. Verify drawBack() skylight saturation stays calibrated in 0.88-0.98 (strictly below 1.00x plain at deg=0)
+      const satCheck = await t.page.evaluate(() => {
+        const plain = window.__game.backMean(0);
+        const satOf = (rgb) => Math.max(...rgb) - Math.min(...rgb);
+        const plainSpread = satOf(plain);
+        const spreads = [];
+        // Seeds 25 + 50*k all satisfy ((s * 37) % 50) - 25 === 0 (zero hue rotation), isolating pure saturation
+        for (let k = 0; k < 11; k++) {
+          const m = window.__game.backMean(25 + 50 * k);
+          spreads.push(satOf(m));
+        }
+        return { plainSpread: +plainSpread.toFixed(2), maxSpread: +Math.max(...spreads).toFixed(2), minSpread: +Math.min(...spreads).toFixed(2) };
+      });
+      t.expect(satCheck.maxSpread < satCheck.plainSpread && satCheck.minSpread >= satCheck.plainSpread * 0.84,
+        'drawBack() skylight saturation stays calibrated in 0.88-0.98x at deg=0 (plain ' + satCheck.plainSpread + ', range ' + satCheck.minSpread + '..' + satCheck.maxSpread + ')');
+
+      // 3. Also check Klondike on sunlit Fordyce Marble so glaze reads cleanly on light tables too
+      await t.game('setSettings', { table: 'marble' });
+      await t.waitForStable();
+      await t.shot('visual-68-w6-s4-02-klondike-marble');
+      await t.game('setSettings', { table: 'felt' });
+    },
+  },
+  {
+    name: 'visual-69 W6-S4-03 desktop and mobile win ceremonies crossfade static #tbl Spa City watermark cleanly with zero double-ghosting',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'full', table: 'felt' });
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 5 });
+      await t.waitForStable();
+      await t.page.waitForFunction(() => { const m = window.__game.placeMarks(); return m && m.emblem; }, null, { timeout: 10000 });
+      const pm = await t.game('placeMarks');
+      t.expect(pm && pm.emblem, 'Klondike paints static #tbl Spa City emblem before win');
+
+      // Set up a 1-move win in Klondike (keep dealt table watermark intact) and advance ceremony to cerK === 1
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: {
+          stock: [], waste: [],
+          f0: ['AC', '2C', '3C', '4C', '5C', '6C', '7C', '8C', '9C', 'TC', 'JC', 'QC', 'KC'],
+          f1: ['AD', '2D', '3D', '4D', '5D', '6D', '7D', '8D', '9D', 'TD', 'JD', 'QD', 'KD'],
+          f2: ['AH', '2H', '3H', '4H', '5H', '6H', '7H', '8H', '9H', 'TH', 'JH', 'QH', 'KH'],
+          f3: ['AS', '2S', '3S', '4S', '5S', '6S', '7S', '8S', '9S', 'TS', 'JS', 'QS'],
+          t0: ['KS'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [],
+        },
+      });
+      await t.waitForStable();
+      await t.game('act', 'move', 't0', 'f3');
+      const snap = await t.game('act', 'ceremonyAt', 450);
+      t.equal(snap.ok, true, 'ceremony reached 450 ms (cerK = 1)');
+
+      // At cerK = 1, #cv must paint opaque cleanTbl (alpha === 255) over the static #tbl watermark region
+      // instead of leaving #cv translucent so the static #tbl Spa City watermark double-ghosts underneath.
+      const cover = await t.page.evaluate((emb) => {
+        const cv = document.getElementById('cv'), k = cv.width / cv.clientWidth, g = cv.getContext('2d');
+        let minA = 255, maxA = 0;
+        for (const [dx, dy] of [[0, 0], [-emb.r * 0.6, -emb.r * 0.4], [emb.r * 0.6, -emb.r * 0.4], [0, emb.r * 0.25]]) {
+          const px = Math.round((emb.cx + dx) * k), py = Math.round((emb.cy + dy) * k);
+          if (px < 0 || py < 0 || px >= cv.width || py >= cv.height) continue;
+          const a = g.getImageData(px, py, 1, 1).data[3];
+          minA = Math.min(minA, a); maxA = Math.max(maxA, a);
+        }
+        return { minA, maxA };
+      }, pm.emblem);
+      t.expect(cover.minA >= 250, 'ceremony #cv covers static #tbl watermark opaquely via cleanTbl (minAlpha ' + cover.minA + ', maxAlpha ' + cover.maxA + ')');
+
+      const snap1400 = await t.game('act', 'ceremonyAt', 1400);
+      t.equal(snap1400.ok, true, 'ceremony reached 1400 ms stamp+spray frame');
+      await t.shot('visual-69-w6-s4-03-ceremony-1400ms');
+      await t.game('act', 'unfreeze');
+      await t.game('act', 'skip');
+    },
+  },
+  {
+    name: 'visual-70 W6-S4-04 mobile portrait FreeCell buried Ace medallions and Deco/Painted court gild frames leave zero peeking slivers',
+    viewports: ['mobile'],
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced', table: 'felt', courts: 'deco' });
+      const checkSlivers = async (label) => {
+        await t.game('newGame', { mode: 'freecell', deal: 1 });
+        await t.waitForStable();
+        await t.page.waitForFunction(() => window.__game.art().loaded.includes('ace-medallion'), null, { timeout: 15000 });
+        await t.waitForStable();
+        return t.page.evaluate(() => {
+          const cv = document.getElementById('cv'), g = cv.getContext('2d');
+          const rect = cv.getBoundingClientRect(), k = cv.width / rect.width;
+          const lay = window.__game.getLayout(), st = window.__game.getState();
+          // Sample the seam band 2.5px..1.0px above the next card's top border across the middle 56% of each buried Ace / Court card
+          const inspect = (pid, idx) => {
+            const c = lay.piles[pid].cards[idx], nxt = lay.piles[pid].cards[idx + 1];
+            const sx = Math.round((c.x - rect.left + lay.cardW * 0.22) * k);
+            const sw = Math.max(4, Math.round(lay.cardW * 0.56 * k));
+            const sy = Math.round((nxt.y - rect.top - 2.5) * k);
+            const sh = Math.max(4, Math.round(2.5 * k));
+            const d = g.getImageData(sx, sy, sw, sh).data;
+            let minLum = 255, maxChroma = 0;
+            for (let i = 0; i < d.length; i += 4) {
+              const r = d[i], gr = d[i + 1], b = d[i + 2];
+              const lum = 0.299 * r + 0.587 * gr + 0.114 * b;
+              const ch = Math.max(r, gr, b) - Math.min(r, gr, b);
+              if (lum < minLum) minLum = lum;
+              if (ch > maxChroma) maxChroma = ch;
+            }
+            return { card: st.piles[pid][idx], minLum: +minLum.toFixed(1), maxChroma };
+          };
+          return {
+            aceD: inspect('t4', 1), // AD in col 5
+            aceC: inspect('t5', 3), // AC in col 6
+            courtQD: inspect('t3', 2), // QD in col 4
+            courtQH: inspect('t3', 3), // QH in col 4
+          };
+        });
+      };
+
+      const deco = await checkSlivers('deco');
+      for (const [k, v] of Object.entries(deco)) {
+        t.expect(v.minLum >= 185 && v.maxChroma <= 34, 'deco ' + k + ' (' + v.card + ') lower buried strip is clean ivory with zero peeking medallion/frame sliver: ' + JSON.stringify(v));
+      }
+      await t.shot('visual-70-w6-s4-04-freecell-mobile-deco');
+
+      await t.game('setSettings', { courts: 'painted' });
+      const painted = await checkSlivers('painted');
+      for (const [k, v] of Object.entries(painted)) {
+        t.expect(v.minLum >= 185 && v.maxChroma <= 34, 'painted ' + k + ' (' + v.card + ') lower buried strip is clean ivory with zero peeking frame sliver: ' + JSON.stringify(v));
+      }
+      await t.shot('visual-70-w6-s4-04-freecell-mobile-painted');
+      await t.game('setSettings', { courts: 'deco' });
+    },
+  },
+  {
+    name: 'visual-71 W6-S4-07 desktop Art Deco court indices sit inside a widened radial cream buffer halo clear of dark hat/sleeve contrast',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced', table: 'felt', courts: 'deco' });
+      await t.game('newGame', { mode: 'freecell', deal: 1 });
+      await t.waitForStable();
+      await t.page.waitForFunction(() => {
+        const a = window.__game.art().loaded;
+        return a.includes('deco-jd') && a.includes('deco-kh') && a.includes('deco-ks');
+      }, null, { timeout: 15000 });
+      await t.waitForStable();
+
+      // Measure calm ivory pocket immediately bordering the top-left rank box of JD (t0[0]), KC (t1[1]), KS (t1[2]), and KH (t6[1])
+      // (outer halo ring 0.26..0.32*cw right of the rank glyph where dark hat brims and crimson sleeves sit closest).
+      const halos = await t.page.evaluate(() => {
+        const cv = document.getElementById('cv'), g = cv.getContext('2d');
+        const rect = cv.getBoundingClientRect(), k = cv.width / rect.width;
+        const lay = window.__game.getLayout(), st = window.__game.getState();
+        const sampleRightOfRank = (pid, idx) => {
+          const c = lay.piles[pid].cards[idx];
+          const sx = Math.round((c.x - rect.left + lay.cardW * 0.25) * k);
+          const sw = Math.max(4, Math.round(lay.cardW * 0.07 * k));
+          const sy = Math.round((c.y - rect.top + lay.cardH * 0.04) * k);
+          const sh = Math.max(6, Math.round(lay.cardH * 0.17 * k));
+          const d = g.getImageData(sx, sy, sw, sh).data;
+          let sum = 0, minLum = 255, n = 0;
+          for (let i = 0; i < d.length; i += 4) {
+            const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+            sum += lum; if (lum < minLum) minLum = lum; n++;
+          }
+          return { card: st.piles[pid][idx], meanLum: +(sum / n).toFixed(1), minLum: +minLum.toFixed(1) };
+        };
+        return {
+          jd: sampleRightOfRank('t0', 0),
+          kc: sampleRightOfRank('t1', 1),
+          ks: sampleRightOfRank('t1', 2),
+          kh: sampleRightOfRank('t6', 1),
+        };
+      });
+      t.log('court halos: ' + JSON.stringify(halos));
+      t.expect(halos.jd.meanLum >= 240, 'JD top-left rank pocket maintains widened ivory halo beside sleeve: ' + JSON.stringify(halos.jd));
+      t.expect(halos.kc.meanLum >= 216, 'KC top-left rank pocket maintains widened ivory halo beside brim: ' + JSON.stringify(halos.kc));
+      t.expect(halos.ks.meanLum >= 218, 'KS top-left rank pocket maintains widened ivory halo beside brim: ' + JSON.stringify(halos.ks));
+      t.expect(halos.kh.meanLum >= 221, 'KH top-left rank pocket maintains widened ivory halo beside portrait edge: ' + JSON.stringify(halos.kh));
+      await t.shot('visual-71-w6-s4-07-freecell-courts-desktop');
+    },
+  },
 ];

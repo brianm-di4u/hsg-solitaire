@@ -153,8 +153,16 @@ export const tests = [
             for (let a = 0; a < at; a++) t.expect((await t.game('solve', mode, opts, cands[a], budget)).result !== 'won', key + ' seed ' + seed + ': earlier attempt ' + (a + 1) + ' would not have won');
             t.equal((await t.game('solve', mode, opts, s.deal, budget)).result, 'won', key + ' seed ' + seed + ': the dealt deal solves again inside the limit');
           }
-          await t.seed(seed); await t.page.evaluate(([m, op]) => window.__game.newGame(Object.assign({ mode: m }, op)), [mode, opts]);
-          t.equal((await t.state()).deal, s.deal, key + ' seed ' + seed + ' lands on the same deal twice');
+          if (key === 'spider2') {
+            await t.seed(seed); await t.page.evaluate(([m, op]) => window.__game.newGame(Object.assign({ mode: m }, op)), [mode, opts]);
+            t.expect((await t.state()).deal !== s.deal, key + ' seed ' + seed + ' avoids current S.deal on immediate re-deal (W1-S3-01)');
+            await t.game('newGame', { mode: 'klondike', draw: 1, deal: 1 });
+            await t.seed(seed); await t.page.evaluate(([m, op]) => window.__game.newGame(Object.assign({ mode: m }, op)), [mode, opts]);
+            t.equal((await t.state()).deal, s.deal, key + ' seed ' + seed + ' lands on the same deal once not current or seen');
+          } else {
+            await t.seed(seed); await t.page.evaluate(([m, op]) => window.__game.newGame(Object.assign({ mode: m }, op)), [mode, opts]);
+            t.equal((await t.state()).deal, s.deal, key + ' seed ' + seed + ' lands on the same deal twice');
+          }
         }
         t.expect(marked === 3, key + ' found winnable deals for all seeds: ' + marked + '/3');
       }

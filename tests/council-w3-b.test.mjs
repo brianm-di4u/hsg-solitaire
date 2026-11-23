@@ -25,9 +25,9 @@ export const tests = [
 
       await winNear(t, 301);
       let txt = await t.page.locator('#sheet').textContent();
-      t.expect(!txt.includes('time bonus'), 'Standard: no speed bonus on the ticket');
+      t.expect(!txt.includes('time bonus') && txt.includes('efficiency +450'), 'Standard: no speed bonus on the ticket; discloses untimed efficiency bonus');
       const stdScore = (await t.state()).score;
-      t.expect(stdScore > 0 && stdScore < 100, 'Standard: the score is card points only (' + stdScore + ')');
+      t.equal(stdScore, 460, 'Standard: score is card points (10) + untimed efficiency bonus (450) (' + stdScore + ')');
       let st = (await t.game('stats')).klondike1;
       t.equal([st.bestStandardScore, st.bestTimedScore], [stdScore, 0], 'Standard: saves bestStandardScore without touching bestTimedScore');
 
@@ -61,17 +61,17 @@ export const tests = [
       await t.game('act', 'move', 't0', 'f3');
       await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
       let st = (await t.game('stats')).klondike1;
-      t.equal([st.won, st.bestStandardScore, st.bestTimedScore], [1, 5010, 0], 'Standard: records bestStandardScore (5010) and leaves bestTimedScore at 0');
+      t.equal([st.won, st.bestStandardScore, st.bestTimedScore], [1, 5460, 0], 'Standard: records bestStandardScore (5460 = 5010 card + 450 efficiency) and leaves bestTimedScore at 0');
       await t.game('setSettings', { scoring: 'timed' });
       await t.game('setState', Object.assign(nearWinKlondike(), { deal: 312, moves: 30, score: 100 }));
       await t.game('act', 'move', 't0', 'f3');
       await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
       st = (await t.game('stats')).klondike1;
-      t.equal(st.bestStandardScore, 5010, 'Timed win leaves bestStandardScore untouched');
+      t.equal(st.bestStandardScore, 5460, 'Timed win leaves bestStandardScore untouched');
       t.expect(st.bestTimedScore > 1000 && st.bestTimedScore < 5000, 'Timed: its own win sets bestTimedScore (' + st.bestTimedScore + ')');
       await t.game('scene', 'records');
       const rec = await t.page.locator('#sheet').textContent();
-      t.expect(rec.includes('5010 (Standard)') && rec.includes(st.bestTimedScore + ' (Timed)'), 'Records displays both independent Standard and Timed best scores');
+      t.expect(rec.includes('5460 (Standard)') && rec.includes(st.bestTimedScore + ' (Timed)'), 'Records displays both independent Standard and Timed best scores');
     },
   },
   {
@@ -355,6 +355,287 @@ export const tests = [
       await t.game('scene', 'game');
       await t.game('newGame', { mode: 'klondike', draw: 1, deal: picks.hard[0] });
       await t.game('act', 'hint'); await shot(t, 'S3-10', 'hint');
+    },
+  },
+  {
+    name: 'w3b W1-S2-01 Standard efficiency bonus (FreeCell/Yukon/Klondike), Klondike waste->found +15 parity, and Spider/Timed orthogonality',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false, scoring: 'standard', autoFoundation: 'off' });
+      const runS = (s, n = 13) => ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'].slice(0, n).map((r) => r + s);
+      const fcNear = (deal, moves) => ({
+        mode: 'freecell', deal, score: 510, moves,
+        piles: { c0: [], c1: [], c2: [], c3: [], f0: runS('C'), f1: runS('D'), f2: runS('H'), f3: runS('S', 12), t0: ['KS'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [], t7: [] },
+      });
+      const ykNear = (deal, moves) => ({
+        mode: 'yukon', deal, score: 615, moves,
+        piles: { f0: runS('C'), f1: runS('D'), f2: runS('H'), f3: runS('S', 12), t0: ['KS'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      const klNear = (draw, deal, moves, fromWaste) => ({
+        mode: 'klondike', opts: { draw }, deal, score: 500, moves,
+        piles: { stock: [], waste: fromWaste ? ['KS'] : [], f0: runS('C'), f1: runS('D'), f2: runS('H'), f3: runS('S', 12), t0: fromWaste ? [] : ['KS'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      const winAndRead = async (setup, from, to) => {
+        await t.game('setState', setup);
+        await t.game('act', 'move', from, to);
+        await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+        return {
+          st: await t.state(),
+          lw: await t.game('lastWin'),
+          meta: await t.page.locator('#sheet .ticket .meta').first().textContent(),
+        };
+      };
+
+      // 1. Klondike direct waste->found awards +15 mid-game (matching waste->tab +5 + tab->found +10)
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 }, deal: 700,
+        piles: { stock: [], waste: ['AS'], f0: [], f1: [], f2: [], f3: [], t0: ['KD'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      await t.game('act', 'move', 'waste', 'f0');
+      t.equal((await t.state()).score, 15, 'Klondike direct waste->found awards +15');
+
+      // 2. Klondike direct vs waste->tab->found detour parity at moves=90 (inside par) and moves=240 (above parCeil)
+      const dir90 = await winAndRead(klNear(1, 701, 89, true), 'waste', 'f3');
+      t.equal([dir90.st.moves, dir90.lw.effBonus, dir90.st.score], [90, 390, 905], 'Klondike Draw 1 direct waste->found at 90 moves: +15 card + 390 eff = 905');
+      await t.game('setState', klNear(1, 702, 89, true));
+      await t.game('act', 'move', 'waste', 't0');
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      const det91 = { st: await t.state(), lw: await t.game('lastWin') };
+      t.equal([det91.st.moves, det91.lw.effBonus, det91.st.score], [91, 387, 902], 'Klondike Draw 1 detour waste->tab->found at 91 moves: +15 card + 387 eff = 902');
+      t.expect(dir90.st.score > det91.st.score, 'direct waste->found strictly beats detour inside par window');
+
+      const dir240 = await winAndRead(klNear(1, 703, 239, true), 'waste', 'f3');
+      t.equal([dir240.st.moves, dir240.lw.effBonus, dir240.st.score], [240, 0, 515], 'Klondike Draw 1 direct waste->found at 240 moves: +15 card + 0 eff = 515');
+      await t.game('setState', klNear(1, 704, 239, true));
+      await t.game('act', 'move', 'waste', 't0');
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      const det241 = { st: await t.state(), lw: await t.game('lastWin') };
+      t.equal([det241.st.moves, det241.lw.effBonus, det241.st.score], [241, 0, 515], 'Klondike Draw 1 detour at 241 moves equals direct score (515, strictly detour-neutral)');
+
+      // 3. Klondike Draw 1 & Draw 3 par curves (cap, mid, zero)
+      const k1Cap = await winAndRead(klNear(1, 705, 69, false), 't0', 'f3');
+      t.equal([k1Cap.lw.effBonus, k1Cap.st.score], [450, 960], 'Klondike Draw 1 at 70 moves hits 450 cap');
+      const k3Mid = await winAndRead(klNear(3, 706, 139, false), 't0', 'f3');
+      t.equal([k3Mid.lw.effBonus, k3Mid.st.score], [300, 810], 'Klondike Draw 3 at 140 moves earns (240-140)*3 = 300 effBonus');
+      const k3Zero = await winAndRead(klNear(3, 707, 239, false), 't0', 'f3');
+      t.equal([k3Zero.lw.effBonus, k3Zero.st.score], [0, 510], 'Klondike Draw 3 at 240 moves earns 0 effBonus');
+      t.expect(!k3Zero.meta.includes('efficiency'), 'zero effBonus omits efficiency tag on Bath Ticket: ' + k3Zero.meta);
+
+      // 4. FreeCell Standard efficiency bonus unlocks PB progression (110 -> 80 -> 52 moves) & 160+ floor
+      const fc110 = await winAndRead(fcNear(710, 109), 't0', 'f3');
+      t.equal([fc110.lw.effBonus, fc110.st.score], [250, 770], 'FreeCell 110 moves: 520 + 250 = 770');
+      t.expect(fc110.meta.includes(' · efficiency +250') && !fc110.meta.includes('time bonus'), 'FreeCell Bath Ticket discloses · efficiency +250 without time bonus: ' + fc110.meta);
+      await shot(t, 'W1-S2-01', 'freecell-ticket-eff');
+      await t.checkLayout();
+      t.equal((await t.game('stats')).freecell.bestStandardScore, 770, 'FreeCell first win records bestStandardScore=770');
+
+      const fc80 = await winAndRead(fcNear(711, 79), 't0', 'f3');
+      t.equal([fc80.lw.effBonus, fc80.st.score], [400, 920], 'FreeCell 80 moves: 520 + 400 = 920');
+      t.equal((await t.game('stats')).freecell.bestStandardScore, 920, 'FreeCell cleaner win advances bestStandardScore from 770 to 920');
+
+      const fc52 = await winAndRead(fcNear(712, 51), 't0', 'f3');
+      t.equal([fc52.lw.effBonus, fc52.st.score], [540, 1060], 'FreeCell 52 moves hits 540 cap (1060)');
+
+      const fc160 = await winAndRead(fcNear(713, 159), 't0', 'f3');
+      t.equal([fc160.lw.effBonus, fc160.st.score], [0, 520], 'FreeCell 160 moves floors effBonus at 0 (520)');
+      t.expect(!fc160.meta.includes('efficiency'), 'FreeCell 160-move Bath Ticket omits zero efficiency tag: ' + fc160.meta);
+
+      // 5. Yukon Standard efficiency bonus (45 cap, 90 mid, 140 floor)
+      const yk90 = await winAndRead(ykNear(720, 89), 't0', 'f3');
+      t.equal([yk90.lw.effBonus, yk90.st.score], [250, 875], 'Yukon 90 moves: 625 + 250 = 875');
+      const yk45 = await winAndRead(ykNear(721, 44), 't0', 'f3');
+      t.equal([yk45.lw.effBonus, yk45.st.score], [475, 1100], 'Yukon 45 moves hits 475 cap (1100)');
+      const yk140 = await winAndRead(ykNear(722, 139), 't0', 'f3');
+      t.equal([yk140.lw.effBonus, yk140.st.score], [0, 625], 'Yukon 140 moves floors effBonus at 0 (625)');
+
+      // 6. Spider stays strictly orthogonal (effBonus === 0; 500 - moves + 100*runs)
+      const spRun = ['KS', 'QS', 'JS', 'TS', '9S', '8S', '7S', '6S', '5S', '4S', '3S', '2S'];
+      const spRes = await winAndRead({
+        mode: 'spider', opts: { suits: 1 }, deal: 730, score: 1150, moves: 49, runs: 7,
+        piles: { stock: [], f0: runS('S'), f1: runS('S'), f2: runS('S'), f3: runS('S'), f4: runS('S'), f5: runS('S'), f6: runS('S'), f7: [], t0: spRun, t1: ['AS'], t2: [], t3: [], t4: [], t5: [], t6: [], t7: [], t8: [], t9: [] },
+      }, 't1', 't0');
+      t.equal([spRes.lw.effBonus, spRes.st.score], [0, 1249], 'Spider remains untouched: effBonus=0, score=1150-1+100=1249');
+      t.expect(!spRes.meta.includes('efficiency'), 'Spider Bath Ticket never shows efficiency tag: ' + spRes.meta);
+
+      // 7. Timed mode remains strictly orthogonal (CD-WF1-02: timeBonus only, effBonus === 0)
+      await t.game('setSettings', { scoring: 'timed' });
+      const fcTimed = await winAndRead(fcNear(740, 79), 't0', 'f3');
+      t.equal(fcTimed.lw.effBonus, 0, 'Timed mode never stacks Standard efficiencyBonus (CD-WF1-02)');
+      t.expect(fcTimed.lw.bonus > 0 && fcTimed.st.score === 520 + fcTimed.lw.bonus, 'Timed FreeCell score is strictly cardPoints + timeBonus');
+      t.expect(fcTimed.meta.includes(' · time bonus +') && !fcTimed.meta.includes('efficiency'), 'Timed Bath Ticket shows time bonus only, never efficiency: ' + fcTimed.meta);
+    },
+  },
+  {
+    name: 'w3b W1-P-N02 Per-deal scoring lock prevents mid-hand Standard/Timed/None PB cross-contamination while keeping None HUD toggle immediate',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false, scoring: 'standard', showTimer: true, autoFoundation: 'off' });
+      const runS = (s, n = 13) => ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'].slice(0, n).map((r) => r + s);
+      // 2-move near-win Klondike board: t0 -> t1 starts the deal (S.started = true), then t1 -> f3 wins it.
+      const twoMoveKlondike = (deal, moves = 28) => ({
+        mode: 'klondike', opts: { draw: 1 }, deal, score: 500, moves,
+        piles: { stock: [], waste: [], f0: runS('C'), f1: runS('D'), f2: runS('H'), f3: runS('S', 12), t0: ['KS'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+
+      // 1. Started in Standard -> switch to Timed mid-hand -> toast, #sBonus stays hidden, win pays Standard effBonus & bestStandardScore (never bestTimedScore)
+      await t.game('setState', twoMoveKlondike(801));
+      await t.game('act', 'move', 't0', 't1'); // S.started = true
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      await t.game('setSettings', { scoring: 'timed' });
+      t.equal(await t.page.locator('#toast').textContent(), 'Applies to the next deal.', 'Standard->Timed mid-hand emits calm next-deal toast');
+      t.equal((await t.state()).scoring, 'standard', 'active deal stays locked to standard');
+      t.expect(await t.page.locator('#sBonus').isHidden(), 'switching to Timed mid-hand does not show fake #sBonus on a Standard deal');
+      await t.game('act', 'move', 't1', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      let lw = await t.game('lastWin'), st = (await t.game('stats')).klondike1;
+      t.equal([lw.scoring, lw.bonus, lw.effBonus, st.bestStandardScore, st.bestTimedScore], ['standard', 0, 450, 960, 0], 'Standard->Timed mid-hand win awards Standard effBonus and bestStandardScore only');
+
+      // 2. Next deal picks up Timed preference cleanly; switching Timed->Standard mid-hand stays Timed
+      await t.game('setState', twoMoveKlondike(802));
+      t.equal((await t.state()).scoring, 'timed', 'next deal starts in newly chosen Timed mode');
+      await t.game('act', 'move', 't0', 't1'); // S.started = true
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      await t.game('setSettings', { scoring: 'standard' });
+      t.equal(await t.page.locator('#toast').textContent(), 'Applies to the next deal.', 'Timed->Standard mid-hand emits calm next-deal toast');
+      t.equal((await t.state()).scoring, 'timed', 'active deal stays locked to timed');
+      t.expect(await t.page.locator('#sBonus').isVisible(), 'Timed deal keeps #sBonus visible after mid-hand switch to Standard');
+      await t.game('act', 'move', 't1', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      lw = await t.game('lastWin'); st = (await t.game('stats')).klondike1;
+      t.expect(lw.scoring === 'timed' && lw.bonus > 0 && lw.effBonus === 0, 'Timed->Standard mid-hand win pays Timed bonus, never Standard effBonus');
+      t.equal([st.bestStandardScore, st.bestTimedScore], [960, lw.score], 'Timed->Standard mid-hand updates bestTimedScore without overwriting bestStandardScore');
+
+      // 3. Started in None -> switch to Timed mid-hand -> #sScoreW appears immediately, #sBonus stays hidden, win records neither PB
+      await t.game('setSettings', { scoring: 'none' });
+      await t.game('setState', twoMoveKlondike(803, 10));
+      t.expect(await t.page.locator('#sScoreW').isHidden(), 'None hides #sScoreW at deal start');
+      await t.game('act', 'move', 't0', 't1');
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      await t.game('setSettings', { scoring: 'timed' });
+      t.equal(await t.page.locator('#toast').textContent(), 'Applies to the next deal.', 'None->Timed mid-hand emits next-deal toast');
+      t.expect(await t.page.locator('#sScoreW').isVisible(), 'switching off None reveals #sScoreW immediately');
+      t.expect(await t.page.locator('#sBonus').isHidden(), 'None->Timed mid-hand keeps #sBonus hidden');
+      await t.game('act', 'move', 't1', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      lw = await t.game('lastWin'); st = (await t.game('stats')).klondike1;
+      t.equal([lw.scoring, lw.bonus, lw.effBonus, st.bestStandardScore], ['none', 0, 0, 960], 'None->Timed mid-hand win cannot claim Timed or Standard PB');
+
+      // 4. Two-step bypass check: Standard -> None -> Timed mid-hand stays locked to Standard; Standard -> None hides #sScoreW immediately
+      await t.game('setSettings', { scoring: 'standard' });
+      await t.game('setState', twoMoveKlondike(804, 10));
+      await t.game('act', 'move', 't0', 't1');
+      await t.game('setSettings', { scoring: 'none' });
+      t.expect(await t.page.locator('#sScoreW').isHidden(), 'Standard->None mid-hand hides #sScoreW immediately');
+      await t.game('setSettings', { scoring: 'timed' });
+      t.expect(await t.page.locator('#sScoreW').isVisible(), 'returning from None restores #sScoreW immediately');
+      t.equal((await t.state()).scoring, 'standard', 'Standard->None->Timed mid-hand stays locked to original Standard');
+
+      // 5. Unstarted deal (0 moves) updates S.scoring immediately without next-deal toast
+      await t.game('setSettings', { scoring: 'standard' });
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 805 });
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      await t.game('setSettings', { scoring: 'timed' });
+      t.equal([(await t.state()).scoring, await t.page.locator('#toast').textContent()], ['timed', ''], 'unstarted deal adopts new scoring mode immediately');
+      t.expect(await t.page.locator('#sBonus').isVisible(), 'unstarted deal shows #sBonus immediately when switched to Timed');
+
+      // 6. Locked S.scoring survives save/reload resume AND legacy saves without S.scoring restore cleanly
+      await t.game('setSettings', { scoring: 'standard' });
+      await t.game('setState', twoMoveKlondike(806, 20));
+      await t.game('act', 'move', 't0', 't1');
+      await t.game('setSettings', { scoring: 'timed' });
+      await t.waitForStable();
+      await t.page.waitForFunction(() => {
+        const raw = localStorage.getItem('spa-solitaire:v1:current');
+        return raw && JSON.parse(raw).state && JSON.parse(raw).state.deal === 806;
+      });
+      await t.reload();
+      await t.page.click('#tCont');
+      await t.waitForStable();
+      t.equal([(await t.state()).deal, (await t.state()).scoring, (await t.state()).settings.scoring], [806, 'standard', 'timed'], 'locked deal scoring survives reload resume');
+
+      // Legacy save lacking state.scoring restores cleanly and falls back to settings.scoring
+      await t.game('scene', 'title');
+      await t.page.evaluate(() => {
+        const k = 'spa-solitaire:v1:current';
+        const cur = JSON.parse(localStorage.getItem(k));
+        delete cur.state.scoring;
+        localStorage.setItem(k, JSON.stringify(cur));
+      });
+      await t.reload();
+      await t.page.click('#tCont');
+      await t.waitForStable();
+      t.equal([(await t.state()).deal, (await t.state()).scoring], [806, 'timed'], 'legacy save without state.scoring restores cleanly using settings.scoring');
+    },
+  },
+  {
+    name: 'w3b W6-P-N03 Settings displays inline mid-deal scoring lock note and validSave validates state.scoring',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false, scoring: 'standard', showTimer: true, autoFoundation: 'off' });
+      const runS = (s, n = 13) => ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'].slice(0, n).map((r) => r + s);
+      const twoMoveKlondike = (deal) => ({
+        mode: 'klondike', opts: { draw: 1 }, deal, score: 500, moves: 20,
+        piles: { stock: [], waste: [], f0: runS('C'), f1: runS('D'), f2: runS('H'), f3: runS('S', 12), t0: ['KS'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      const readNote = () => t.page.evaluate(() => {
+        const el = document.getElementById('scoringNote');
+        return el ? { hidden: el.hidden, text: el.textContent } : null;
+      });
+
+      // 1. Started Standard deal -> switching to Timed inside Settings shows visible inline note
+      await t.game('setState', twoMoveKlondike(811));
+      await t.game('act', 'move', 't0', 't1');
+      await t.game('scene', 'settings');
+      t.equal((await readNote()).hidden, true, 'scoringNote starts hidden when preference matches active deal');
+      await t.page.click('#sheet [data-set="scoring"][data-val="timed"]');
+      let note = await readNote();
+      t.equal([note.hidden, note.text], [false, 'This hand stays Standard; Timed applies to the next deal.'], 'Standard->Timed inside Settings shows inline next-deal note');
+      // Reopening Settings while still mid-deal preserves the inline note
+      await t.game('scene', 'game');
+      await t.game('scene', 'settings');
+      note = await readNote();
+      t.equal([note.hidden, note.text], [false, 'This hand stays Standard; Timed applies to the next deal.'], 'reopening Settings mid-deal still renders inline scoringNote');
+      // Switching to None hides inline note (HUD toggles immediately), switching back to Standard hides inline note
+      await t.page.click('#sheet [data-set="scoring"][data-val="none"]');
+      t.equal((await readNote()).hidden, true, 'None toggles score display immediately and hides mid-deal note');
+      await t.page.click('#sheet [data-set="scoring"][data-val="standard"]');
+      t.equal((await readNote()).hidden, true, 'matching active deal hides scoringNote');
+
+      // 2. Started Timed deal -> switching to Standard inside Settings shows inline Timed->Standard note
+      await t.game('setSettings', { scoring: 'timed' });
+      await t.game('setState', twoMoveKlondike(812));
+      await t.game('act', 'move', 't0', 't1');
+      await t.game('scene', 'settings');
+      await t.page.click('#sheet [data-set="scoring"][data-val="standard"]');
+      note = await readNote();
+      t.equal([note.hidden, note.text], [false, 'This hand stays Timed; Standard applies to the next deal.'], 'Timed->Standard inside Settings shows inline next-deal note');
+
+      // 3. Unstarted 0-move deal adopts new scoring immediately and keeps scoringNote hidden
+      await t.game('setSettings', { scoring: 'standard' });
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 813 });
+      await t.game('scene', 'settings');
+      await t.page.click('#sheet [data-set="scoring"][data-val="timed"]');
+      t.equal([(await readNote()).hidden, (await t.state()).scoring], [true, 'timed'], 'unstarted deal updates immediately and keeps scoringNote hidden');
+
+      // 4. validSave() rejects a corrupted state.scoring enum while accepting valid saves
+      await t.game('setSettings', { scoring: 'standard' });
+      await t.game('setState', twoMoveKlondike(814));
+      await t.game('act', 'move', 't0', 't1');
+      await t.page.waitForFunction(() => {
+        const raw = localStorage.getItem('spa-solitaire:v1:current');
+        return raw && JSON.parse(raw).state && JSON.parse(raw).state.deal === 814;
+      });
+      await t.game('scene', 'title');
+      await t.page.evaluate(() => {
+        const k = 'spa-solitaire:v1:current';
+        const cur = JSON.parse(localStorage.getItem(k));
+        cur.state.scoring = 'bogus';
+        localStorage.setItem(k, JSON.stringify(cur));
+      });
+      await t.reload();
+      t.expect(await t.page.locator('#tCont').isHidden(), 'corrupted state.scoring is rejected by validSave() on boot');
+      t.equal(await t.page.evaluate(() => localStorage.getItem('spa-solitaire:v1:current')), null, 'corrupted state.scoring save is cleared cleanly');
     },
   },
 ];

@@ -31,13 +31,15 @@ const cuesNow = (t, clear) => t.page.evaluate((c) => window.__game.cuesPlayed(c)
 const KL = { played: 9, won: 8, streak: 0, bestStreak: 9, bestTimeMs: 1, fewestMoves: 1, bestScore: 99999, totalMs: 1, assistedWon: 0, recent: '' };
 // (a slow win cannot beat KL's records, so it is a record only where a test lowers one; an assisted win never grows the streak)
 const winWith = async (t, stats, meta, assisted, slow) => {
-  await put(t, { stats: { klondike1: Object.assign({}, KL, stats) }, meta: Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 5, daily: {}, unlock: { ids: [] } }, meta), settings: { sound: false, tips: false } });
-  await reloadGame(t); await baseSettings(t, { sound: false });
+  await put(t, { stats: { klondike1: Object.assign({}, KL, stats) }, meta: Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 5, daily: {}, unlock: { ids: [] } }, meta), settings: { sound: false, motion: 'reduced', tips: false } });
+  await reloadGame(t); await baseSettings(t, { sound: false, motion: 'reduced' });
   await t.game('setState', nearWinKlondike()); if (assisted) await t.game('act', 'hint');
   await cuesNow(t, true);
   // slow: a first move and a moment on the clock, so the win is slower than KL's 1 ms record and cannot be a record by being instant
   if (slow) { await t.game('act', 'move', 't0', 't1'); await t.page.waitForFunction(() => window.__game.getState().elapsedMs > 50, null, { timeout: 10000 }); await t.game('act', 'move', 't1', 'f3'); } else await t.game('act', 'move', 't0', 'f3');
-  await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+  await t.page.waitForFunction(() => window.__game.getState().won, null, { timeout: 10000 });
+  await t.game('act', 'skip');
+  await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 10000 });
   await t.page.waitForFunction(() => window.__game.cuesPlayed().some((c) => ['best', 'streak', 'course'].includes(c.name)) || document.querySelector('#sheet .ticket'), null, { timeout: 5000 }).catch(() => {});
 };
 const heard = async (t) => (await cuesNow(t)).map((c) => c.name).filter((n) => ['best', 'streak', 'course'].includes(n));
@@ -476,6 +478,28 @@ export const tests = [
       await t.page.mouse.click(c0.x, c0.y);
       t.equal((await t.state()).piles.t0, ['6C', '5H'], 'Select & place tap #2 drops 5H onto 6C');
       t.equal((await t.state()).held, null, 'held clears after placement');
+    },
+  },
+  {
+    name: 'w3d W6-S6-01 test harness --workers sharding bounds concurrency and keeps perf.test.mjs serial',
+    node: true,
+    async run(t) {
+      const { planWorkers } = await import('../shared/test-harness/workers.mjs');
+      const sample = [
+        { name: 'a1', file: 'art.test.mjs' },
+        { name: 'a2', file: 'art.test.mjs' },
+        { name: 'p1', file: 'perf.test.mjs' },
+        { name: 'r1', file: 'rules.test.mjs' },
+        { name: 's1', file: 'custom.test.mjs', serial: true },
+      ];
+      const one = planWorkers(sample, 1);
+      t.equal([one.maxWorkers, one.parallelGroups.length, one.serialItems.length], [1, 0, 5], 'workers=1 keeps all tests serial');
+      const four = planWorkers(sample, 4);
+      t.equal(four.maxWorkers, 4, 'workers=4 respected');
+      t.equal(four.parallelGroups.map((g) => g.map((x) => x.test.name)), [['a1', 'a2'], ['r1']], 'parallel groups preserve per-file grouping and order');
+      t.equal(four.serialItems.map((x) => x.test.name), ['p1', 's1'], 'perf.test.mjs and serial:true tests stay strictly serial');
+      const capped = planWorkers(sample, 99);
+      t.equal(capped.maxWorkers, 8, 'workers bounded at max 8');
     },
   },
 ];

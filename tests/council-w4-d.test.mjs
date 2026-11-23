@@ -150,4 +150,88 @@ export const tests = [
       await t.checkLayout(); await shot(t, 'S4-11', 'plaques');
     },
   },
+  {
+    name: 'w4d W1-S1-01 Help Scoring, Bathhouse Ledger, Settings, PRD.md, and MECHANICS.md match the locked WF-1 progression and scoring contract',
+    async run(t) {
+      await baseSettings(t, { tips: false, motion: 'reduced' });
+
+      // 1. Live Help -> Scoring states the three-state contract and removes the old 21-bath contradiction
+      await t.game('scene', 'help');
+      const scoringSummary = t.page.locator('#sheet details.hp summary', { hasText: 'Scoring' });
+      await scoringSummary.click();
+      const help = await t.page.evaluate(() => [...document.querySelectorAll('#sheet details.hp')].find((d) => d.textContent.includes('Scoring')).textContent);
+      t.expect(!help.includes('Streaks, bests and the 21-bath course count only first wins without them'), 'Help Scoring no longer contradicts onWin() on 21-bath course punches');
+      t.expect(help.includes('First-ever wins—including assisted or retried comebacks—punch your 21-bath course'), 'Help Scoring states assisted/retried first wins punch the 21-bath course: ' + help);
+      t.expect(help.includes('Streaks, personal bests, and speed or unaided achievements count only first-try wins without Undo or Hint.'), 'Help Scoring states clean-first-try rule for streaks, bests, and speed/unaided achievements');
+      t.expect(help.includes('Replaying a deal you have already won still counts as a win, without punching the course'), 'Help Scoring states already-won replays do not punch the course');
+      if (t.viewport === 'desktop') await t.shot('w4d-W1-S1-01-help-scoring', { fullPage: false });
+      await t.checkLayout({ allowScrollY: true });
+
+      // 2. Live Bathhouse Ledger -> By Game caption matches Help -> Scoring and onWin()
+      await t.game('scene', 'stats');
+      const ledgerCap = await t.page.locator('#ledgerGamePanel .cap').first().textContent();
+      t.expect(ledgerCap.includes('Streaks, personal bests, and speed or unaided achievements count only first-try wins without Undo or Hint.'), 'Ledger By Game caption matches Help Scoring rule: ' + ledgerCap);
+      t.expect(ledgerCap.includes('Assisted or retried first-ever wins still punch your 21-bath course') && ledgerCap.includes('replaying an already-won deal counts as a win only'), 'Ledger By Game caption covers retried/assisted course punches and already-won replays: ' + ledgerCap);
+      if (t.viewport === 'desktop') await t.shot('w4d-W1-S1-01-ledger-games', { fullPage: false });
+      await t.checkLayout({ allowScrollY: true });
+
+      // 3. Live Settings -> Gameplay -> Scoring copy matches Standard efficiency / Timed / None
+      await t.game('scene', 'settings');
+      const setDesc = await t.page.locator('#desc-scoring').textContent();
+      t.expect(setDesc.includes('move-efficiency win bonus') && setDesc.includes('no countdown') && setDesc.includes('Timed adds a win speed bonus'), 'Settings Scoring description matches WF-1 contract: ' + setDesc);
+
+      // 4. Reconciled PRD.md and MECHANICS.md match the locked WF-1 contract with stale v1/v2 claims removed
+      const root = path.resolve(HERE, '..');
+      const prd = fs.readFileSync(path.join(root, 'PRD.md'), 'utf8');
+      t.expect(prd.includes('Unrushed Parlor Mastery') && prd.includes('P1 — Calm craft over clock pressure') && prd.includes('Three-state victory & progression contract'), 'PRD.md ratifies WF-1 Unrushed Parlor Mastery contract');
+      t.expect(prd.includes('Six parlor tables: Card-Room Felt') && prd.includes('6 parlor tables'), 'PRD.md lists all six parlor tables');
+      t.expect(!prd.includes('Undo costs points') && !prd.includes('5 table swatches') && !prd.includes('all 12 are available from the start') && !prd.includes('"winnable deals only" filtering for Klondike and Spider'), 'PRD.md removes stale v1/v2 undoCost, 5-table, and out-of-scope claims');
+
+      const mech = fs.readFileSync(path.join(root, 'MECHANICS.md'), 'utf8');
+      t.expect(mech.includes('bestStandardScore') && mech.includes('bestTimedScore') && mech.includes('seenDeals') && mech.includes('wonDeals') && mech.includes('gradeWins') && mech.includes('rawScore') && mech.includes('dealFairness'), 'MECHANICS.md save format matches shipped schema');
+      t.expect(mech.includes('EFF_PAR') && mech.includes('undoCost') && mech.includes('Three-state victory flags'), 'MECHANICS.md documents WF-1 scoring and three-state victory invariants');
+    },
+  },
+  {
+    name: 'w4d W6-S1-03 Fordyce Skylight caption matches tinted/mirrored glass shift, Spider subtitle fits all suit tiers, and Felt default + in-place Reshuffle stay intact',
+    async run(t) {
+      // 1. Fresh Win-0 default table remains dark emerald Card-Room Felt (CD-WF6-01)
+      const fresh = await t.state();
+      t.equal(fresh.settings.table, 'felt', 'Win-0 default parlor table remains Card-Room Felt (CD-WF6-01)');
+
+      await baseSettings(t, { tips: false, motion: 'reduced' });
+
+      // 2. Title plaque refines Spider subtitle away from "Central Avenue calm" while keeping Central Avenue on 1 line
+      await t.game('scene', 'title');
+      await t.waitForStable();
+      const spiderSub = await t.page.evaluate(() => {
+        const tiles = [...document.querySelectorAll('.tile')];
+        const sp = tiles.find((e) => e.querySelector('h2').textContent === 'Spider');
+        const sub = sp.querySelector('.tsub');
+        const r = document.createRange(); r.selectNodeContents(sub);
+        return {
+          text: sub.textContent,
+          lines: new Set([...r.getClientRects()].map((q) => Math.round(q.top))).size,
+        };
+      });
+      t.equal(spiderSub, { text: 'Central Avenue run', lines: 1 }, 'Spider subtitle reads "Central Avenue run" on one line across all suit tiers');
+      await t.shot('w4d-W6-S1-03-title', { fullPage: false });
+
+      // 3. Backs picker clarifies Fordyce Skylight caption to match tinted/mirrored stained-glass shift (no procedural-seed claim)
+      await t.game('scene', 'backs');
+      const cap = await t.page.locator('#bkCap').textContent();
+      t.expect(!/Seeded uniquely/i.test(cap), 'Fordyce Skylight caption drops inaccurate unique-seeding claim: ' + cap);
+      t.expect(/tint/i.test(cap) && /mirror/i.test(cap), 'Fordyce Skylight caption truthfully describes glass tint and mirror shift: ' + cap);
+      await t.shot('w4d-W6-S1-03-skylight-cap', { fullPage: false });
+
+      // 4. In-place Skylight Reshuffle preserves non-skylight equipped back and updates deckSeed
+      await t.game('setSettings', { back: 'lozenge' });
+      const seedBefore = (await t.state()).settings.deckSeed;
+      await t.page.click('[data-a="reseed"]');
+      const after = (await t.state()).settings;
+      t.equal(after.back, 'lozenge', 'Skylight Reshuffle preserves equipped non-skylight back');
+      t.expect(after.deckSeed !== seedBefore, 'Skylight Reshuffle updates deckSeed in place');
+      await t.checkLayout({ allowScrollY: true });
+    },
+  },
 ];

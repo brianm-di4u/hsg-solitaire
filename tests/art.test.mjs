@@ -24,7 +24,10 @@ export const tests = [
       t.equal(unknown, [], 'the game asks only for packed assets');
       await t.game('scene', 'backs');
       await t.waitForStable();
-      await t.shot('art-50-backs');
+      await t.waitForAnimations();
+      const modalOpacity = await t.page.evaluate(() => parseFloat(getComputedStyle(document.getElementById('modal')).opacity));
+      t.equal(modalOpacity, 1, 'Backs modal fade finished before art-50-backs capture');
+      await t.shot('art-50-backs', { animations: true });
       await t.game('newGame', { mode: 'freecell', deal: 1 });
       await t.shot('art-50-courts');
     },
@@ -75,6 +78,32 @@ export const tests = [
       const a = await t.game('art');
       t.expect(!a.wanted.includes('title-hero') && !a.loaded.includes('title-hero'), 'direct gameplay boot skips 306 KB title-hero.webp');
       t.expect(a.loaded.includes('tex-felt-l') && a.loaded.includes('brass-slot'), 'direct gameplay boot loads active table & brass hardware');
+    },
+  },
+  {
+    name: 'art-54 W6-S6-03 repo hygiene: unused inline.mjs removed, art-src/*.png gitignored, and PRD/REPORT/REFINEMENT/README reconciled',
+    node: true,
+    async run(t) {
+      const root = path.resolve(DIR, '..');
+      const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
+      t.expect(!fs.existsSync(path.join(root, 'shared', 'tools', 'inline.mjs')), 'unused shared/tools/inline.mjs is removed');
+      t.expect(!fs.existsSync(path.join(root, 'art-src', 'sheet.png')), 'art-src/sheet.png is not present in clean checkout');
+      t.expect(read('.gitignore').includes('art-src/**/*.png'), '.gitignore ignores regenerable art-src/**/*.png contact sheets');
+
+      const readme = read('README.md');
+      t.expect(!readme.includes('shared/tools/inline.mjs'), 'README.md no longer lists removed shared/tools/inline.mjs');
+
+      const prd = read('PRD.md');
+      t.expect(prd.includes('50 sourced Hot Springs facts') && prd.includes('24 achievements') && prd.includes('6 parlor tables'), 'PRD.md states 6 tables, 50 facts, and 24 achievements');
+      t.expect(!prd.includes('assets/` stays ≤ 3.5 MB') && !prd.includes('Tables use P5 felt, P6 linen, P2 thermal, the\n    marble swatch, and P5 midnight.'), 'PRD.md removes stale 5-table and 3.5 MB asset statements');
+
+      const rep = read('REPORT.md');
+      t.expect(rep.includes('6 parlor tables') && rep.includes('50 sourced Hot Springs facts') && rep.includes('24 achievements') && rep.includes('21-win') && rep.includes('free unlimited Undo'), 'REPORT.md reconciles shipped counts (6 tables, 50 facts, 24 achievements, 21-win unlocks, free Undo)');
+
+      const ref = read('REFINEMENT-2026-11.md');
+      t.expect(!ref.includes('Formal release HOLD'), 'REFINEMENT-2026-11.md removes obsolete release HOLD banner');
+      t.expect(!ref.includes('D:/hsg-campaign/') && !ref.includes('C:/Video Game Projects/'), 'REFINEMENT-2026-11.md removes broken machine-local absolute paths');
+      t.expect(ref.includes('6 parlor tables') && ref.includes('50 sourced Hot Springs facts') && ref.includes('24 achievements'), 'REFINEMENT-2026-11.md reconciles current shipped counts');
     },
   },
 ];

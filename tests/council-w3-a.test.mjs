@@ -483,10 +483,10 @@ export const tests = [
       await t.game('act', 'move', 't1', 'f3');
       await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
       let st = (await t.game('stats')).klondike1;
-      t.equal([st.played, st.won, st.bestStandardScore], [1, 1, 30], 'finishing active deal records Won 1 of 1 and bestStandardScore=30');
+      t.equal([st.played, st.won, st.bestStandardScore], [1, 1, 480], 'finishing active deal records Won 1 of 1 and bestStandardScore=480 (30 card + 450 efficiency)');
       await t.game('scene', 'records');
       let rec = await t.page.locator('#sheet').textContent();
-      t.expect(rec.includes('Won 1 of 1') && rec.includes('score 30 (Standard)') && !rec.includes('score 0'), 'Records shows Won 1 of 1 and score 30 (Standard), never score 0: ' + rec.slice(0, 260));
+      t.expect(rec.includes('Won 1 of 1') && rec.includes('score 480 (Standard)') && !rec.includes('score 0'), 'Records shows Won 1 of 1 and score 480 (Standard), never score 0: ' + rec.slice(0, 260));
       // Win a second deal and check Win rate stays 100% (never 200%)
       await t.game('setState', Object.assign(nearWinKlondike(), { deal: 502, score: 40 }));
       await t.game('act', 'move', 't0', 'f3');
@@ -505,6 +505,68 @@ export const tests = [
       await t.game('scene', 'records');
       const fcRec = await t.page.evaluate(() => [...document.querySelectorAll('#sheet .rec')].find((e) => e.textContent.startsWith('FreeCell')).textContent);
       t.expect(fcRec.includes('1 moves') && !fcRec.includes('score 0'), 'None scoring win omits score segment cleanly: ' + fcRec);
+    },
+  },
+  {
+    name: 'w3a W6-S6-06 HUD clock stops while hidden or on Title, gamepad rAF pauses/resumes on visibilitychange, and manifest uses static data URI',
+    viewports: ['desktop'],
+    async run(t) {
+      // 1. Static data-URI manifest (no unrevoked blob URL) preserving fetch() compatibility
+      const manInfo = await t.page.evaluate(async () => {
+        const lk = document.querySelector('link[rel="manifest"]');
+        const href = lk ? lk.getAttribute('href') : '';
+        const man = lk ? await (await fetch(lk.href)).json() : null;
+        return { href, man };
+      });
+      t.expect(manInfo.href.startsWith('data:application/manifest+json;charset=utf-8,'), 'manifest uses static data:application/manifest+json URI, not blob: ' + manInfo.href.slice(0, 60));
+      t.expect(!!manInfo.man && manInfo.man.name === 'Spa City Solitaire' && manInfo.man.display === 'standalone', 'data-URI manifest fetches and parses cleanly');
+
+      // 2. 500 ms HUD clock stops on Title and when hidden, runs only during visible gameplay
+      t.equal((await t.game('runtimeEconomy')).hudTimer, false, 'HUD 500 ms timer is stopped on initial Title screen');
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false });
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 17 });
+      t.equal((await t.game('runtimeEconomy')).hudTimer, true, 'HUD 500 ms timer runs during visible gameplay');
+
+      // Hide tab -> HUD timer stops
+      await t.page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')); });
+      t.equal((await t.game('runtimeEconomy')).hudTimer, false, 'HUD 500 ms timer stops when tab is hidden');
+      await t.page.evaluate(() => { document.getElementById('sTime').textContent = 'HIDDEN_OK'; });
+      await t.page.waitForTimeout(600); // bounded negative check (>1 interval of 500 ms): confirms hidden tab performs 0 HUD DOM touches
+      t.equal(await t.page.evaluate(() => document.getElementById('sTime').textContent), 'HIDDEN_OK', 'hidden tab does not touch #sTime DOM');
+
+      // Unhide tab -> HUD timer resumes
+      await t.page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); document.dispatchEvent(new Event('visibilitychange')); });
+      t.equal((await t.game('runtimeEconomy')).hudTimer, true, 'HUD 500 ms timer resumes when tab becomes visible');
+
+      // Return to Title while S exists -> HUD timer stops and does not touch #sTime
+      await t.game('scene', 'title');
+      t.equal((await t.game('runtimeEconomy')).hudTimer, false, 'HUD 500 ms timer stops when returning to Title even while S exists');
+      await t.page.evaluate(() => { document.getElementById('sTime').textContent = 'TITLE_OK'; });
+      await t.page.waitForTimeout(600); // bounded negative check (>1 interval of 500 ms): confirms Title performs 0 HUD DOM touches
+      t.equal(await t.page.evaluate(() => document.getElementById('sTime').textContent), 'TITLE_OK', 'Title screen does not touch #sTime DOM');
+
+      // 3. Connected gamepad rAF pauses on hidden visibilitychange and resumes when visible
+      await t.game('scene', 'game');
+      await t.page.evaluate(() => {
+        const pad = { id: 'Test Pad', connected: true, buttons: Array.from({ length: 16 }, () => ({ pressed: false, value: 0 })), axes: [0, 0, 0, 0] };
+        window.__w6Pad = pad;
+        navigator.getGamepads = () => (pad.connected ? [pad, null, null, null] : [null, null, null, null]);
+        window.dispatchEvent(new Event('gamepadconnected'));
+      });
+      await t.page.waitForFunction(() => window.__game.pad().polls >= 2, null, { timeout: 5000 });
+      t.equal((await t.game('pad')).raf, true, 'connected gamepad schedules PAD.raf while visible');
+
+      await t.page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')); });
+      const hiddenPad = await t.game('pad');
+      t.equal(hiddenPad.raf, false, 'hidden tab cancels PAD.raf immediately');
+      await t.page.waitForTimeout(160); // bounded negative check: confirms 0 gamepad rAF polls while tab is hidden
+      t.equal((await t.game('pad')).polls, hiddenPad.polls, 'zero gamepad polls while tab is hidden');
+
+      await t.page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); document.dispatchEvent(new Event('visibilitychange')); });
+      t.equal((await t.game('pad')).raf, true, 'returning to visible resumes PAD.raf');
+      await t.page.waitForFunction((n) => window.__game.pad().polls > n, hiddenPad.polls, { timeout: 5000 });
+      await t.page.evaluate(() => { window.__w6Pad.connected = false; window.dispatchEvent(new Event('gamepaddisconnected')); });
+      t.equal((await t.game('pad')).raf, false, 'disconnecting gamepad clears PAD.raf');
     },
   },
 ];

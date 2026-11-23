@@ -274,4 +274,54 @@ export const tests = [
       t.expect(feltWet > 0 && feltWet <= 0.1 && marbleWet <= 0.1 && marbleWet > feltWet, '2-tap room glue <=10% wet and roomier on tiled marble (' + marbleWet + ') than damped felt (' + feltWet + ')');
     },
   },
+  {
+    name: 'w2a W6-S5-02 band-limited flip cue peaks reliably inside 0.26-0.36 across seeds, stays deterministic when seeded, and clears full-volume ceiling',
+    viewports: ['desktop'],
+    async run(t) {
+      // 1. Determinism: repeated default and explicit-seed audioRender('flip') calls produce identical peaks and per-second RMS arrays
+      const r1 = await t.page.evaluate(() => window.__game.audioRender('flip', 9, false));
+      const r2 = await t.page.evaluate(() => window.__game.audioRender('flip', 9, false));
+      t.equal([r1.peak, r1.secs], [r2.peak, r2.secs], 'default audioRender(flip) is 100% deterministic across repeated calls');
+      const sA = await t.page.evaluate(() => window.__game.audioRender('flip', 9, false, { seed: 4242 }));
+      const sB = await t.page.evaluate(() => window.__game.audioRender('flip', 9, false, { seed: 4242 }));
+      t.equal([sA.peak, sA.secs], [sB.peak, sB.secs], 'explicitly seeded audioRender(flip) is 100% deterministic');
+      t.equal(new Set(sA.secs.slice(0, -1).map(String)).size, sA.secs.length - 1, 'seeded flip still varies every repeat within a render');
+
+      // 2. Band-limited peak envelope: across 12 distinct seeds, flip stays tightly inside [0.24, 0.38] (well below 0.45 ceiling, well above 0.20 floor)
+      const peaks = [], freshPeaks = [];
+      for (let i = 1; i <= 12; i++) {
+        const seed = 1000 + i * 7919;
+        const pLin = (await t.page.evaluate((sd) => window.__game.audioRender('flip', 9, false, { seed: sd, volume: 0.6, volumeCurve: 'linear' }), seed)).peak;
+        const pSq = (await t.page.evaluate((sd) => window.__game.audioRender('flip', 9, false, { seed: sd }), seed)).peak;
+        peaks.push(pLin); freshPeaks.push(pSq);
+      }
+      const loLin = Math.min(...peaks), hiLin = Math.max(...peaks);
+      const loSq = Math.min(...freshPeaks), hiSq = Math.max(...freshPeaks);
+      t.log('flip 12-seed peaks: linear-0.6=' + loLin.toFixed(4) + '..' + hiLin.toFixed(4) + ' (' + peaks.join(',') + '), square-0.75=' + loSq.toFixed(4) + '..' + hiSq.toFixed(4));
+      t.expect(loLin >= 0.25 && hiLin <= 0.37, 'flip linear-0.6 peaks stay reliably in 0.25..0.37 across 12 seeds: ' + loLin + '..' + hiLin);
+      t.expect(loSq >= 0.23 && hiSq <= 0.36, 'flip fresh square-0.75 peaks stay reliably in 0.23..0.36 across 12 seeds: ' + loSq + '..' + hiSq);
+
+      // 3. Full-volume safety: flip and busiest mix at volume=1 stay well under 0.95
+      const flipMax = await t.page.evaluate(() => window.__game.audioRender('flip', 9, false, { volume: 1, sfxVol: 1 }));
+      const mixMax = await t.page.evaluate(() => window.__game.audioRender('mix', 12, false, { volume: 1, sfxVol: 1, musicVol: 1, ambVol: 1 }));
+      t.log('full-volume peaks: flip=' + flipMax.peak + ', mix=' + mixMax.peak);
+      t.expect(flipMax.peak < 0.65 && mixMax.peak < 0.95, 'full-volume flip (' + flipMax.peak + ') and mix (' + mixMax.peak + ') stay well clear of clipping');
+    },
+  },
+  {
+    name: 'w2a W6-P-N04 audioRender defaults to shipped fresh 0.75 squared volume curve while honoring explicit legacy overrides',
+    viewports: ['desktop'],
+    async run(t) {
+      const def = await t.page.evaluate(() => window.__game.audioRender('title', 8, false));
+      const fresh = await t.page.evaluate(() => window.__game.audioRender('title', 8, false, { volume: 0.75, volumeCurve: 'square' }));
+      const legacy = await t.page.evaluate(() => window.__game.audioRender('title', 8, false, { volume: 0.6, volumeCurve: 'linear' }));
+      t.log('title 8s RMS: default=' + def.rms + ', fresh(0.75^2)=' + fresh.rms + ', legacy(0.6 linear)=' + legacy.rms + ', ratio=' + (legacy.rms / def.rms).toFixed(4));
+      t.equal([def.peak, def.rms], [fresh.peak, fresh.rms], 'default audioRender matches shipped fresh 0.75 squared volume curve exactly');
+      const ratio = legacy.rms / def.rms;
+      t.expect(ratio >= 1.04 && ratio <= 1.10, 'explicit legacy 0.6 linear override renders ~+0.56 dB louder than default fresh 0.75^2 (' + ratio.toFixed(4) + ')');
+      const flipDef = await t.page.evaluate(() => window.__game.audioRender('flip', 6, false, { seed: 9001 }));
+      const flipFresh = await t.page.evaluate(() => window.__game.audioRender('flip', 6, false, { seed: 9001, volume: 0.75, volumeCurve: 'square' }));
+      t.equal([flipDef.peak, flipDef.rms], [flipFresh.peak, flipFresh.rms], 'default cue render matches explicit fresh 0.75 squared curve');
+    },
+  },
 ];

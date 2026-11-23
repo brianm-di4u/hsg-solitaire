@@ -231,7 +231,7 @@ export const tests = [
     },
   },
   {
-    name: 'w4a C4-08 FreeCell carries a smaller bottom-band Spa City mark, Yukon side-rail uses its right-rail nook, and a band under 9% still gets none',
+    name: 'w4a C4-08 Klondike/Spider/Yukon carry full-size Spa City marks, tight desktop FreeCell omits textless r<46 arcs (W6-S1-07), and bands under 9% still get none',
     async run(t) {
       await t.game('unlockAll');
       await baseSettings(t, { sound: false, tips: false, motion: 'reduced', table: 'felt' });
@@ -243,8 +243,17 @@ export const tests = [
         for (const mode of ['klondike', 'freecell', 'yukon', 'spider']) {
           await t.game('newGame', { mode, opts: mode === 'spider' ? { suits: 1 } : {} }); await t.waitForStable();
           const q = await marks(), H = await stageH(), band = q.band.bottom - q.band.top;
+          if (t.viewport === 'desktop' && mode === 'freecell') {
+            // W6-S1-07: require r >= 46 before drawing desktop feltEmblem so FreeCell never paints an orphaned textless half-arc
+            const rawR = Math.min(w * .3, band * .8 / 1.55);
+            if (rawR < 46) t.expect(!q.emblem, mode + ': tight desktop band (r=' + rawR.toFixed(1) + ' < 46) omits truncated textless arc');
+            else t.expect(q.emblem && q.emblem.r >= 46, mode + ': desktop emblem draws only at r >= 46');
+            await shot(t, 'C4-08', mode + '-mark');
+            continue;
+          }
           t.expect(q.emblem, w + 'x' + h + ' ' + mode + ': the empty felt has the mark (band ' + Math.round(band / H * 100) + '% of the table)');
           if (q.emblem && t.viewport === 'desktop') {
+            t.expect(q.emblem.r >= 46, mode + ': desktop emblem radius >= 46 so Spa City label renders (' + Math.round(q.emblem.r) + ' px)');
             if (mode === 'yukon') {
               t.expect(q.emblem.inNook && q.nook, 'desktop Yukon side-rail places the Spa City mark cleanly in its right-rail nook: ' + JSON.stringify(q));
               t.expect(q.emblem.cy - q.emblem.r >= q.nook.top - 1 && q.emblem.cy + q.emblem.r * .6 <= q.nook.bottom + 1, 'yukon: and it sits inside the nook');
@@ -252,11 +261,6 @@ export const tests = [
             } else {
               t.expect(q.emblem.cy - q.emblem.r >= q.band.top - 1 && q.emblem.cy + q.emblem.r * .6 <= q.band.bottom + 1, mode + ': and it sits inside the band');
             }
-          }
-          if (t.viewport === 'desktop' && mode === 'freecell') {
-            t.expect(band >= H * .09 && band < H * .22, mode + ': this is the band that had no mark before, 9% to 22% (' + Math.round(band / H * 100) + '%)');
-            t.expect(q.emblem.r < 50, mode + ': and the mark is a smaller one (radius ' + Math.round(q.emblem.r) + ' px)');
-            await shot(t, 'C4-08', mode + '-mark');
           }
         }
       }
@@ -526,6 +530,9 @@ export const tests = [
       await t.page.click('[data-a="backs"]');
       await t.page.waitForFunction(() => window.__game.getState().modal === 'backs');
       t.equal(await t.game('modalStackDepth'), 1, 'modalStack pushes Settings underneath Backs');
+      // W6-S2-05: Reshuffle hides when a non-skylight back is equipped until Skylight is focused
+      t.equal(await t.page.locator('[data-a="reseed"]').isHidden(), true, 'Skylight Reshuffle hides while lozenge is selected and unfocused');
+      await t.page.focus('[data-back="skylight"]');
       await t.page.locator('[data-a="reseed"]').scrollIntoViewIfNeeded();
       await t.page.evaluate(() => { const s = document.getElementById('sheet'); if (s.scrollTop === 0) s.scrollTop = 80; });
       const backsScroll = await t.page.evaluate(() => document.getElementById('sheet').scrollTop);
@@ -806,6 +813,86 @@ export const tests = [
         await t.page.click('#sheet [data-close]');
       }
       t.expect(matched >= 3, 'Thermal Pool + Thermal Steam venue biases unseen fact picks toward thermal facts (' + matched + '/8 matched)');
+    },
+  },
+  {
+    name: 'w4a W6-S5-01 global M mute hotkey works on Title and non-text modals (ignoring #dealIn), and Title exposes 44x44 brass #tMute button',
+    async run(t) {
+      await baseSettings(t, { sound: true, tips: false, motion: 'reduced' });
+      await t.game('scene', 'title');
+      await t.waitForStable();
+
+      // 1. Title #tMute 44x44 brass button visible, inside viewport, clear of #tH and hero tag, toggles sound cleanly
+      const tmBox = await t.page.evaluate(() => {
+        const b = document.getElementById('tMute');
+        const r = b ? b.getBoundingClientRect() : null;
+        const h1 = document.getElementById('tH').getBoundingClientRect();
+        const tags = window.__game.heroTags().tags;
+        const overlapsTag = tags.some((tg) => r && r.left < tg.x + tg.w && r.right > tg.x && r.top < tg.y + tg.h && r.bottom > tg.y);
+        return {
+          exists: !!b,
+          w: r ? Math.round(r.width) : 0,
+          h: r ? Math.round(r.height) : 0,
+          inView: !!(r && r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight),
+          pressed: b ? b.getAttribute('aria-pressed') : null,
+          label: b ? b.getAttribute('aria-label') : null,
+          hasSvg: !!(b && b.querySelector('svg')),
+          overlapsH1: !!(r && r.left < h1.right && r.right > h1.left && r.top < h1.bottom && r.bottom > h1.top),
+          overlapsTag,
+        };
+      });
+      t.equal([tmBox.exists, tmBox.inView, tmBox.pressed, tmBox.label, tmBox.hasSvg], [true, true, 'false', 'Mute sound', true], '#tMute renders on Title with speaker icon and Mute sound label');
+      t.expect(tmBox.w >= 44 && tmBox.h >= 44, '#tMute meets >=44x44 touch target: ' + tmBox.w + 'x' + tmBox.h);
+      t.equal([tmBox.overlapsH1, tmBox.overlapsTag], [false, false], '#tMute clears #tH and Bathhouse Row hero tag');
+      await t.shot('W6-S5-01-title-mute');
+
+      // One-tap click on #tMute silences audio immediately
+      await t.page.click('#tMute');
+      t.equal((await t.state()).settings.sound, false, 'one-tap #tMute mutes sound from Title');
+      t.equal(await t.page.getAttribute('#tMute', 'aria-pressed'), 'true', '#tMute updates aria-pressed=true');
+
+      // 2. Pressing M on Title unmutes and syncs #tMute
+      await t.page.keyboard.press('m');
+      t.equal((await t.state()).settings.sound, true, 'M hotkey on Title unmutes sound');
+      t.equal(await t.page.getAttribute('#tMute', 'aria-pressed'), 'false', '#tMute syncs after Title M hotkey');
+
+      // 3. Pressing M inside Menu toggles sound and syncs both #mMute and #tMute
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 15 });
+      await t.game('scene', 'menu');
+      await t.page.keyboard.press('M');
+      const afterMenuM = await t.page.evaluate(() => ({
+        sound: window.__game.getState().settings.sound,
+        mPressed: document.getElementById('mMute').getAttribute('aria-pressed'),
+        tPressed: document.getElementById('tMute').getAttribute('aria-pressed'),
+      }));
+      t.equal(afterMenuM, { sound: false, mPressed: 'true', tPressed: 'true' }, 'M hotkey inside Menu toggles sound and syncs #mMute + #tMute');
+
+      // 4. Pressing M inside Settings Audio syncs [data-tog="sound"] and .is-muted rows live
+      await t.game('scene', 'settings', { tab: 'audio' });
+      await t.page.keyboard.press('m');
+      const afterSetM = await t.page.evaluate(() => ({
+        sound: window.__game.getState().settings.sound,
+        checked: document.querySelector('#sheet [data-tog="sound"]').getAttribute('aria-checked'),
+        dimmed: document.getElementById('row-sfxVol').classList.contains('is-muted'),
+      }));
+      t.equal(afterSetM, { sound: true, checked: 'true', dimmed: false }, 'M hotkey inside Settings Audio unmutes and syncs switch + row dimming');
+      await t.page.keyboard.press('m');
+      const afterSetM2 = await t.page.evaluate(() => ({
+        sound: window.__game.getState().settings.sound,
+        checked: document.querySelector('#sheet [data-tog="sound"]').getAttribute('aria-checked'),
+        dimmed: document.getElementById('row-sfxVol').classList.contains('is-muted'),
+      }));
+      t.equal(afterSetM2, { sound: false, checked: 'false', dimmed: true }, 'second M inside Settings Audio mutes and dims rows');
+
+      // 5. Pressing M while typing inside #dealIn text input is ignored (never hijacks text input)
+      await t.game('scene', 'deal');
+      await t.page.focus('#dealIn');
+      await t.page.keyboard.press('m');
+      t.equal((await t.state()).settings.sound, false, 'M while focused in #dealIn text input does not toggle mute');
+      // Moving focus to Close button in Deal modal allows M to toggle again
+      await t.page.focus('#sheet [data-close]');
+      await t.page.keyboard.press('m');
+      t.equal((await t.state()).settings.sound, true, 'M on non-text control in Deal modal toggles mute cleanly');
     },
   },
 ];

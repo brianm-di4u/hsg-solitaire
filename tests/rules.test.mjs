@@ -731,4 +731,576 @@ export const tests = [
       t.equal([afterCancel.st.deal, afterCancel.st.moves, afterCancel.stats.streak, afterCancel.dealingOn], [1234, 1, 4, false], 'cancelling modal aborted dealPending without wiping live board or win streak');
     },
   },
+  {
+    name: 'rules-26 W1-S3-03 FreeCell 2-bit solver grade table grades 100% of classic deals 1..32000, matches 180 anchors, and credits gradeWins/unlocks',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { dealFairness: 'winnable', motion: 'reduced', tips: false, sound: false });
+      const audit = await t.page.evaluate(() => {
+        const g = window.__game;
+        if (typeof g.gradeFreecellDeal !== 'function') return { missing: true };
+        const pools = g.seedPools().freecell;
+        const counts = { '': 0, easy: 0, medium: 0, hard: 0 };
+        let ungraded = 0;
+        for (let d = 1; d <= 32000; d++) {
+          const gr = g.gradeFreecellDeal(d);
+          if (d === 11982) { if (gr !== '') return { bad11982: gr }; }
+          else if (!['easy', 'medium', 'hard'].includes(gr)) ungraded++;
+          counts[gr] = (counts[gr] || 0) + 1;
+        }
+        let anchorHits = 0, anchorTotal = 0;
+        for (const gr of ['easy', 'medium', 'hard']) {
+          for (const d of pools[gr]) {
+            anchorTotal++;
+            if (g.gradeFreecellDeal(d) === gr) anchorHits++;
+          }
+        }
+        // Pick first non-anchor deal > 500 of each grade
+        const sample = {};
+        for (const gr of ['easy', 'medium', 'hard']) {
+          for (let d = 501; d <= 32000; d++) {
+            if (d !== 11982 && g.gradeFreecellDeal(d) === gr) { sample[gr] = d; break; }
+          }
+        }
+        return {
+          missing: false,
+          counts,
+          ungraded,
+          anchorHits,
+          anchorTotal,
+          d11982: g.gradeFreecellDeal(11982),
+          oobLow: g.gradeFreecellDeal(0),
+          oobHigh: g.gradeFreecellDeal(32001),
+          sample,
+        };
+      });
+      t.equal(audit.missing, false, 'window.__game.gradeFreecellDeal() is exposed');
+      t.equal([audit.ungraded, audit.d11982, audit.oobLow, audit.oobHigh], [0, '', '', ''], '0 ungraded solvable deals in 1..32000, #11982 and OOB return empty');
+      t.equal([audit.anchorHits, audit.anchorTotal], [180, 180], '100% concordance across all 180 FC_GRADE_MAP anchors');
+      for (const gr of ['easy', 'medium', 'hard']) {
+        const pct = audit.counts[gr] / 31999;
+        t.expect(pct >= 0.31 && pct <= 0.36, 'FreeCell ' + gr + ' tertile balanced (' + audit.counts[gr] + ' = ' + (pct * 100).toFixed(2) + '%)');
+      }
+
+      // Non-anchor Winnable (Any) FreeCell deals carry verified grade in S.grade & #modeSub (never generic 'winnable')
+      for (const gr of ['easy', 'medium', 'hard']) {
+        const d = audit.sample[gr];
+        await t.seed(d);
+        await t.game('newGame', { mode: 'freecell' });
+        const st = await t.state();
+        const sub = await t.page.locator('#modeSub').textContent();
+        t.equal([st.deal, st.winnable, st.grade], [d, true, gr], 'Winnable (Any) non-anchor FreeCell #' + d + ' graded ' + gr);
+        t.expect(sub.includes(' · ' + gr) && !sub.includes('· winnable'), '#modeSub shows verified grade (' + sub + ')');
+      }
+
+      // FreeCell Daily deals across 10 consecutive dates all carry verified grades
+      const dailyGrades = await t.page.evaluate(() => {
+        const out = [];
+        for (let i = 1; i <= 10; i++) {
+          const dt = '2026-06-' + String(i).padStart(2, '0');
+          window.__game.newGame({ mode: 'freecell', daily: dt });
+          const st = window.__game.getState();
+          out.push({ dt, deal: st.deal, grade: st.grade, sub: document.getElementById('modeSub').textContent });
+        }
+        return out;
+      });
+      t.expect(dailyGrades.every((x) => ['easy', 'medium', 'hard'].includes(x.grade) && x.sub.includes(' · ' + x.grade)), 'all 10 FreeCell Daily deals carry verified grades');
+
+      // Winning a non-anchor Hard FreeCell deal credits meta.gradeWins.hard and unlocks b:lake + b:silks fast-tracks
+      const hardDeal = audit.sample.hard;
+      await t.seed(hardDeal);
+      await t.game('newGame', { mode: 'freecell' });
+      const preWin = await t.state();
+      const run = (s, n = 13) => ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'].slice(0, n).map((r) => r + s);
+      await t.game('setState', {
+        mode: 'freecell', deal: hardDeal, grade: preWin.grade,
+        piles: { c0: [], c1: [], c2: [], c3: [], f0: run('C'), f1: run('D'), f2: run('H'), f3: run('S', 12), t0: ['KS'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [], t7: [] },
+      });
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      const m = await t.game('meta');
+      t.equal(m.gradeWins.hard, 1, 'winning non-anchor Hard FreeCell deal increments meta.gradeWins.hard');
+      t.expect(m.unlock.ids.includes('b:lake') && m.unlock.ids.includes('b:silks'), 'Hard FreeCell win unlocks b:lake and b:silks mastery fast-tracks');
+    },
+  },
+  {
+    name: 'rules-27 W1-S3-01 unseen-first pickPoolDeal() probing (step 17), graduated exhaustion, Spider 4 wrap toast, and randomFreecellDeal() avoidance',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { dealFairness: 'easy', motion: 'reduced', tips: false, sound: false });
+
+      // 1. FreeCell Easy: 65 consecutive New Deals (recording each in seenDeals via 1 move or meta) -> 0 S.replay collisions;
+      // first 60 exhaust SEED_POOLS.freecell.easy, deals 61..65 spill over into unseen classic deals graded 'easy'
+      const fcRes = await t.page.evaluate(() => {
+        const g = window.__game;
+        const poolSet = new Set(g.seedPools().freecell.easy);
+        const now = new Date();
+        const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const todayFc = g.dailyDealFor('freecell', {}, today);
+        const deals = [], replays = [], badGrades = [];
+        let spilled = 0, hitToday = 0;
+        for (let i = 0; i < 65; i++) {
+          g.seed(12345); // identical seed every time to prove step-17 probing + spillover never collide
+          g.newGame({ mode: 'freecell' });
+          const st = g.getState();
+          deals.push(st.deal);
+          if (st.replay) replays.push(st.deal);
+          if (!st.winnable || st.grade !== 'easy' || g.gradeFreecellDeal(st.deal) !== 'easy' || st.deal === 11982) badGrades.push(st);
+          if (st.deal === todayFc) hitToday++;
+          if (!poolSet.has(st.deal)) spilled++;
+          // Make a legal move so startClock() records freecell:<deal> in meta.seenDeals
+          const mv = g.legalMoves()[0];
+          if (mv) g.act('move', mv.from, mv.to, mv.count);
+        }
+        return { total: deals.length, unique: new Set(deals).size, replays, badGrades, spilled, hitToday };
+      });
+      t.equal([fcRes.total, fcRes.unique, fcRes.replays.length, fcRes.badGrades.length, fcRes.hitToday], [65, 65, 0, 0, 0], '65 consecutive FreeCell Easy New Deals produce 65 unique fresh easy deals with 0 replays');
+      t.expect(fcRes.spilled >= 5, 'FreeCell Easy spills past 60-deal bucket into unseen graded classic deals (spilled=' + fcRes.spilled + ')');
+
+      // 2. Current S.deal avoidance (without making any move, same seed skips current deal)
+      await t.page.evaluate(() => { localStorage.removeItem('spa-solitaire:v1:meta'); });
+      await t.reload();
+      await t.game('setSettings', { dealFairness: 'easy', motion: 'reduced', tips: false, sound: false });
+      await t.seed(77); await t.game('newGame', { mode: 'spider', suits: 4 });
+      const s4a = await t.state();
+      await t.seed(77); await t.game('newGame', { mode: 'spider', suits: 4 });
+      const s4b = await t.state();
+      t.expect(s4a.deal !== s4b.deal && !s4b.replay, 're-dealing Spider 4-suit without moving avoids current S.deal (' + s4a.deal + ' -> ' + s4b.deal + ')');
+
+      // 3. Spider 2-suit Easy: 121/122 seen picks the exact last unseen deal; 122/122 seen spills into live WIN_SEARCH.spider2 on unseen seed
+      const s2Res = await t.page.evaluate(async () => {
+        const g = window.__game;
+        const arr = g.seedPools().spider2.easy;
+        const now = new Date();
+        const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const todayS2 = g.dailyDealFor('spider', { suits: 2 }, today);
+        const lastFresh = arr.find((d) => d !== todayS2);
+        const seen121 = arr.filter((d) => d !== lastFresh).map((d) => 'spider2:' + d);
+        localStorage.setItem('spa-solitaire:v1:meta', JSON.stringify({ lastMode: 'spider', lastOpts: { draw: 1, suits: 2 }, totalWins: 0, daily: {}, seenDeals: seen121, wonDeals: [] }));
+        return { lastFresh, poolSize: arr.length, todayS2 };
+      });
+      await t.reload();
+      await t.game('setSettings', { dealFairness: 'easy', motion: 'reduced', tips: false, sound: false });
+      await t.seed(42);
+      await t.game('newGame', { mode: 'spider', suits: 2 });
+      let st = await t.state();
+      t.equal([st.deal, st.replay, st.grade], [s2Res.lastFresh, false, 'easy'], 'Spider 2-suit Easy with 121/122 seen finds the 1 remaining fresh pool deal');
+
+      // Now mark ALL 122 Spider 2-suit Easy deals seen -> spills to live WIN_SEARCH.spider2 on unseen seed
+      await t.page.evaluate(() => {
+        const arr = window.__game.seedPools().spider2.easy;
+        localStorage.setItem('spa-solitaire:v1:meta', JSON.stringify({ lastMode: 'spider', lastOpts: { draw: 1, suits: 2 }, totalWins: 0, daily: {}, seenDeals: arr.map((d) => 'spider2:' + d), wonDeals: [] }));
+      });
+      await t.reload();
+      await t.game('setSettings', { dealFairness: 'easy', motion: 'reduced', tips: false, sound: false });
+      await t.seed(5001);
+      await t.page.evaluate(() => window.__game.newGame({ mode: 'spider', suits: 2 }));
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'game', null, { timeout: 25000 });
+      st = await t.state();
+      const inS2Easy = await t.page.evaluate((d) => window.__game.seedPools().spider2.easy.includes(d), st.deal);
+      t.equal([inS2Easy, st.replay, st.winnable], [false, false, true], 'Spider 2-suit Easy exhaustion spills to unseen solver-verified deal #' + st.deal + ' (grade=' + st.grade + ')');
+      const sv2 = await t.game('solve', 'spider', { suits: 2 }, st.deal, 3000);
+      t.equal(sv2.result, 'won', 'spilled Spider 2-suit deal #' + st.deal + ' solves won via makeSolver');
+
+      // 4. Spider 4-suit Easy exhaustion: (a) least-recently-seen unwon first (no wrap toast), (b) 100% won wraps to oldest won with calm toast & S.replay=true (CD-WF1-04)
+      const s4Info = await t.page.evaluate(() => {
+        const arr = window.__game.seedPools().spider4.easy;
+        const now = new Date();
+        const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const todayS4 = window.__game.dailyDealFor('spider', { suits: 4 }, today);
+        const nonToday = arr.filter((d) => d !== todayS4);
+        const oldestUnwon = nonToday[0], newerUnwon = nonToday[1];
+        const wonRest = arr.filter((d) => d !== oldestUnwon && d !== newerUnwon);
+        // Put oldestUnwon first in seenDeals, newerUnwon later, all others won
+        const seenAll = [oldestUnwon, ...wonRest, newerUnwon].map((d) => 'spider4:' + d);
+        const won122 = wonRest.map((d) => 'spider4:' + d);
+        localStorage.setItem('spa-solitaire:v1:meta', JSON.stringify({ lastMode: 'spider', lastOpts: { draw: 1, suits: 4 }, totalWins: 0, daily: {}, seenDeals: seenAll, wonDeals: won122 }));
+        return { oldestUnwon, newerUnwon, count: arr.length, oldestWonAll: nonToday[3] };
+      });
+      await t.reload();
+      await t.game('setSettings', { dealFairness: 'easy', motion: 'reduced', tips: false, sound: false });
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      await t.seed(99); await t.game('newGame', { mode: 'spider', suits: 4 });
+      st = await t.state();
+      const unwonToast = await t.page.locator('#toast').textContent();
+      t.equal([st.deal, st.replay], [s4Info.oldestUnwon, true], 'Spider 4-suit exhaustion picks least-recently-seen unwon deal first (retried && !alreadyWon)');
+      t.expect(!/All \d+ deals in this tier won/.test(unwonToast), 'unwon fallback does not emit all-won wrap toast: ' + unwonToast);
+
+      // Now mark ALL 124 Spider 4-suit Easy deals WON with oldestWonAll at index 0
+      await t.page.evaluate((oldest) => {
+        const arr = window.__game.seedPools().spider4.easy;
+        const ordered = [oldest, ...arr.filter((d) => d !== oldest)].map((d) => 'spider4:' + d);
+        localStorage.setItem('spa-solitaire:v1:meta', JSON.stringify({ lastMode: 'spider', lastOpts: { draw: 1, suits: 4 }, totalWins: 124, daily: {}, seenDeals: ordered, wonDeals: ordered }));
+      }, s4Info.oldestWonAll);
+      await t.reload();
+      await t.game('setSettings', { dealFairness: 'easy', motion: 'reduced', tips: false, sound: false });
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      await t.seed(99); await t.game('newGame', { mode: 'spider', suits: 4 });
+      st = await t.state();
+      const wrapToast = await t.page.locator('#toast').textContent();
+      t.equal([st.deal, st.replay], [s4Info.oldestWonAll, true], '100%-won Spider 4-suit tier wraps to oldest won deal while preserving S.replay=true (CD-WF1-04)');
+      t.equal(wrapToast, 'All ' + s4Info.count + ' deals in this tier won — replaying oldest.', 'emits calm tier-wrap toast');
+
+      // 5. Today's Daily is skipped in non-daily Spider 4-suit Winnable (Any), while Daily itself remains date-deterministic
+      const dailyAvoid = await t.page.evaluate(() => {
+        const g = window.__game;
+        const now = new Date();
+        const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const todayS4 = g.dailyDealFor('spider', { suits: 4 }, today);
+        const flat = [...g.seedPools().spider4.easy, ...g.seedPools().spider4.medium, ...g.seedPools().spider4.hard];
+        const idxToday = flat.indexOf(todayS4);
+        // Find a seed whose fnv1a(seed + '|spider4') % flat.length === idxToday
+        let collidingSeed = 1;
+        for (let s = 1; s < 50000; s++) {
+          if (g.fnv1a(String(s) + '|spider4') % flat.length === idxToday) { collidingSeed = s; break; }
+        }
+        localStorage.removeItem('spa-solitaire:v1:meta');
+        return { today, todayS4, collidingSeed };
+      });
+      await t.reload();
+      await t.game('setSettings', { dealFairness: 'winnable', motion: 'reduced', tips: false, sound: false });
+      await t.seed(dailyAvoid.collidingSeed);
+      await t.game('newGame', { mode: 'spider', suits: 4 });
+      st = await t.state();
+      t.expect(st.deal !== dailyAvoid.todayS4 && !st.replay, 'non-daily Spider 4-suit skips today\'s Daily #' + dailyAvoid.todayS4 + ' (dealt #' + st.deal + ')');
+      await t.game('newGame', { mode: 'spider', suits: 4, daily: dailyAvoid.today });
+      t.equal((await t.state()).deal, dailyAvoid.todayS4, 'Daily Deal itself remains strictly date-deterministic');
+
+      // 6. randomFreecellDeal() retries up to 32 draws to avoid #11982, current S.deal, seenDeals, wonDeals, and today's Daily
+      await t.page.evaluate(() => {
+        localStorage.setItem('spa-solitaire:v1:meta', JSON.stringify({ lastMode: 'freecell', lastOpts: { draw: 1, suits: 1 }, totalWins: 1, daily: {}, seenDeals: ['freecell:555'], wonDeals: ['freecell:556'] }));
+      });
+      await t.reload();
+      await t.game('setSettings', { dealFairness: 'winnable', motion: 'reduced', tips: false, sound: false });
+      await t.game('newGame', { mode: 'freecell', deal: 554 }); // current S.deal = 554
+      const randFc = await t.page.evaluate(() => {
+        const g = window.__game;
+        const now = new Date();
+        const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const todayFc = g.dailyDealFor('freecell', {}, today);
+        const fresh = [557, 558, 559].find((n) => n !== todayFc);
+        const seq = [11982, 554, 555, 556, todayFc, fresh];
+        let idx = 0;
+        const origRand = Math.random;
+        Math.random = () => ((seq[Math.min(idx++, seq.length - 1)] - 0.5) / 32000);
+        try { g.newGame({ mode: 'freecell' }); } finally { Math.random = origRand; }
+        const st = g.getState();
+        return { deal: st.deal, replay: st.replay, fresh, draws: idx };
+      });
+      t.equal([randFc.deal, randFc.replay, randFc.draws], [randFc.fresh, false, 6], 'randomFreecellDeal() skips #11982, current, seenDeals, wonDeals, and todayDaily to land on fresh deal');
+    },
+  },
+  {
+    name: 'rules-28 W1-P-N01 simChild respects pullbackHold and noAutoplay on foundation pullbacks under autoFoundation: all',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { autoFoundation: 'all', motion: 'reduced', tips: false, sound: false });
+
+      // 1. Klondike Draw 1: only winning line pulls 3H down from f0 onto 4S so 2S can uncover #AS
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: { stock: [], waste: [], f0: ['AH', '2H', '3H'], f1: [], f2: [], f3: [], t0: ['4S'], t1: ['#AS', '2S'], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      const kStuck = await t.game('act', 'checkStuck');
+      t.equal(kStuck.verdict, 'live', 'Klondike: checkStuck() returns live when foundation pullback unblocks board under autoFoundation: all');
+      t.equal((await t.state()).modal, null, 'Klondike: no false dead-end modal');
+      const kHint = await t.game('act', 'hint');
+      t.equal([kHint.ok, !!kHint.stuck, kHint.move && kHint.move.from, kHint.move && kHint.move.to], [true, false, 'f0', 't0'], 'Klondike: hint() suggests pulling 3H from f0 to t0');
+      // Performing the hinted pullback succeeds and keeps 3H on t0 (pullbackHold)
+      t.equal((await t.game('act', 'move', 'f0', 't0')).ok, true, 'Klondike: manual pullback f0 -> t0 succeeds');
+      t.equal((await t.state()).piles.t0, ['4S', '3H'], 'Klondike: 3H remains held on t0 under autoFoundation: all');
+
+      // 2. Klondike Draw 3: tests held-card exclusion across an intermediate stock draw inside simChild -> simAutoplay(hold)
+      // Stock [QC, JC, AS, 2S, TD, 9C]: without pulling 3H down and playing 2S onto 3H, Draw-3 cycles 2S/QC forever and never exposes AS.
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 3 },
+        piles: { stock: ['QC', 'JC', 'AS', '2S', 'TD', '9C'], waste: [], f0: ['AH', '2H', '3H'], f1: [], f2: [], f3: [], t0: ['4S'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      const d3Stuck = await t.game('act', 'checkStuck');
+      t.equal(d3Stuck.verdict, 'live', 'Klondike Draw 3: checkStuck() keeps pulled-back 3H held across stock draw inside simAutoplay(hold)');
+      const d3Hint = await t.game('act', 'hint');
+      t.equal([d3Hint.ok, !!d3Hint.stuck, d3Hint.move && d3Hint.move.from, d3Hint.move && d3Hint.move.to], [true, false, 'f0', 't0'], 'Klondike Draw 3: hint() suggests foundation pullback f0 -> t0');
+
+      // 3. FreeCell: all 4 free cells and all 8 columns occupied with no tableau-to-tableau move; only pullback 3H -> 4S frees 2S to expose AS
+      await t.game('setState', {
+        mode: 'freecell',
+        piles: {
+          c0: ['9C'], c1: ['9D'], c2: ['9H'], c3: ['9S'],
+          f0: ['AH', '2H', '3H'], f1: [], f2: [], f3: [],
+          t0: ['4S'], t1: ['AS', '2S'], t2: ['7C'], t3: ['7D'], t4: ['7H'], t5: ['7S'], t6: ['JC'], t7: ['JD'],
+        },
+      });
+      const fcStuck = await t.game('act', 'checkStuck');
+      t.equal(fcStuck.verdict, 'live', 'FreeCell: checkStuck() returns live when foundation pullback unblocks AS under autoFoundation: all');
+      t.equal((await t.state()).modal, null, 'FreeCell: no false dead-end modal');
+      const fcHint = await t.game('act', 'hint');
+      t.equal([fcHint.ok, !!fcHint.stuck, fcHint.move && fcHint.move.from, fcHint.move && fcHint.move.to], [true, false, 'f0', 't0'], 'FreeCell: hint() suggests foundation pullback f0 -> t0');
+
+      // 4. Yukon: only foundation pullback 3H -> 4S frees 2S to uncover #AS
+      await t.game('setState', {
+        mode: 'yukon',
+        piles: { f0: ['AH', '2H', '3H'], f1: [], f2: [], f3: [], t0: ['4S'], t1: ['#AS', '2S'], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      const ykStuck = await t.game('act', 'checkStuck');
+      t.equal(ykStuck.verdict, 'live', 'Yukon: checkStuck() returns live when foundation pullback unblocks #AS under autoFoundation: all');
+      t.equal((await t.state()).modal, null, 'Yukon: no false dead-end modal');
+      const ykHint = await t.game('act', 'hint');
+      t.equal([ykHint.ok, !!ykHint.stuck, ykHint.move && ykHint.move.from, ykHint.move && ykHint.move.to], [true, false, 'f0', 't0'], 'Yukon: hint() suggests foundation pullback f0 -> t0');
+    },
+  },
+  {
+    name: 'rules-29 W1-S3-07 FreeCell solver-backed winning-line hints and bounded <2,000-position cluttered deadlock probe in lostKick()',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { autoFoundation: 'off', motion: 'reduced', tips: false, sound: false });
+      const runS = (s, n = 13) => ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'].slice(0, n).map((r) => r + s);
+
+      // 1. Solver-backed winning-line hints in FreeCell (including cell & tableau moves): following hints wins a multi-step cluttered FreeCell position
+      await t.game('setState', {
+        mode: 'freecell',
+        piles: {
+          c0: ['KC'], c1: ['KD'], c2: ['KH'], c3: ['KS'],
+          f0: runS('C', 9), f1: runS('D', 9), f2: runS('H', 9), f3: runS('S', 9),
+          t0: ['TC', 'JS'], t1: ['TD', 'JH'], t2: ['TH', 'JD'], t3: ['TS', 'JC'],
+          t4: ['QC'], t5: ['QD'], t6: ['QH'], t7: ['QS'],
+        },
+      });
+      const svWin = await t.game('solveState', 1500);
+      t.equal(svWin.result, 'won', 'makeSolver solves cluttered 52-card FreeCell position within <2,000 budget (used ' + svWin.used + ')');
+      const followWin = await t.page.evaluate(() => {
+        const G = window.__game;
+        let firstSolver = null, steps = 0;
+        for (; steps < 40; steps++) {
+          const st = G.getState(); if (st.won) break;
+          const h = G.act('hint'); if (!h.ok || h.stuck || !h.move) break;
+          if (firstSolver === null) firstSolver = !!h.move.solver;
+          G.act('move', h.move.from, h.move.to, st.piles[h.move.from].length - h.move.index);
+        }
+        return { won: G.getState().won || G.getState().scene === 'win', firstSolver, steps };
+      });
+      t.equal([followWin.firstSolver, followWin.won], [true, true], 'FreeCell Hint leads with solver winning line and following hints wins (' + followWin.steps + ' steps)');
+
+      // 2. Cluttered FreeCell deadlock (all 4 cells full, all 8 columns non-empty, no immediate foundation/column-freeing move, yet bury-reducing move keeps checkStuck live):
+      // lostKick() proves dead within <2,000 positions and shows the non-blocking early warning toast.
+      await t.game('setState', {
+        mode: 'freecell',
+        piles: {
+          c0: ['KC'], c1: ['KD'], c2: ['KH'], c3: ['KS'],
+          f0: runS('C', 7), f1: runS('D', 7), f2: runS('H', 7), f3: runS('S', 7),
+          t0: ['8C', 'QC'], t1: ['8D', 'QD'], t2: ['8H', 'QH'], t3: ['TS', 'QS', 'JD'],
+          t4: ['TD', 'JC', '9C'], t5: ['TH', 'JH', '9D'], t6: ['TC', 'JS', '9H'], t7: ['8S', '9S'],
+        },
+      });
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      t.equal((await t.game('act', 'move', 't3', 't0')).ok, true, 'legal move into cluttered FreeCell deadlock triggers scheduleStuckCheck/lostKick');
+      await t.page.waitForFunction(() => window.__game.getState().lost === 'dead', null, { timeout: 10000 });
+      const deadSnap = await t.page.evaluate(() => ({
+        st: window.__game.getState(),
+        toast: document.getElementById('toast').textContent,
+      }));
+      t.equal(deadSnap.st.stuck, 'live', 'checkStuck stays live because bury-reducing JD move still exists');
+      t.equal(deadSnap.st.scene, 'game', 'early dead-branch warning does not block play with a modal');
+      t.equal(deadSnap.toast, 'No winning line left from here. Undo takes you back.', 'FreeCell lostKick emits early dead-branch warning toast');
+
+      // 3. Cluttered but WINNABLE FreeCell position (all 4 cells full, all 8 cols non-empty, no immediate foundation/col-freeing move) resolves 'won' and stays quiet
+      await t.game('setState', {
+        mode: 'freecell',
+        piles: {
+          c0: ['KC'], c1: ['KD'], c2: ['KH'], c3: ['KS'],
+          f0: runS('C', 8), f1: runS('D', 8), f2: runS('H', 8), f3: runS('S', 8),
+          t0: ['9C', 'JS'], t1: ['9D', 'JH'], t2: ['9H', 'QD', 'JD'], t3: ['9S', 'JC'],
+          t4: ['TC', 'QH'], t5: ['TD', 'QS'], t6: ['TH', 'TS'], t7: ['QC'],
+        },
+      });
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      t.equal((await t.game('act', 'move', 't2', 't7')).ok, true, 'move JD onto QC keeps all 4 cells & 8 cols occupied with no immediate foundation/col-freeing move');
+      await t.page.waitForFunction(() => window.__game.getState().lost === 'won', null, { timeout: 10000 });
+      t.equal(await t.page.evaluate(() => document.getElementById('toast').textContent), '', 'cluttered winnable FreeCell board stays completely quiet (no false warning)');
+
+      // 4. Open free cell skips lostKick() cleanly (lost remains null)
+      await t.game('newGame', { mode: 'freecell', deal: 1 });
+      const m0 = (await t.game('legalMoves')).find((m) => m.to === 'c0');
+      t.expect(!!m0, 'deal #1 has legal move to c0');
+      await t.game('act', 'move', m0.from, m0.to, 1);
+      await t.page.waitForFunction(() => window.__game.getState().stuck !== null, null, { timeout: 8000 });
+      t.equal((await t.state()).lost, null, 'FreeCell with open free cells skips deadlock probe (lost === null)');
+    },
+  },
+  {
+    name: 'rules-30 W6-S3-07 non-Spider tap-to-move prefers longer descending runs, clean bases, face-down reveals & column clears over lateral leftmost ties',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { autoFoundation: 'off', motion: 'reduced', tips: false, sound: false });
+      const EK = { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: [], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] };
+      const EF = { c0: [], c1: [], c2: [], c3: [], f0: [], f1: [], f2: [], f3: [], t0: [], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [], t7: [] };
+
+      // 1. Klondike: prefer extending a longer descending alternating run (t2) ahead of leftmost bare equal-rank column (t1)
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EK, { t0: ['#5C', '7S'], t1: ['8H'], t2: ['TD', '9C', '8D'] }) });
+      t.equal((await t.game('act', 'tap', 't0', 1)).ok, true, 'Klondike tap 7S succeeds');
+      t.equal([(await t.state()).piles.t1, (await t.state()).piles.t2], [['8H'], ['TD', '9C', '8D', '7S']], 'Klondike chooses longer descending run t2 over leftmost bare 8H on t1');
+
+      // 2. Klondike: prefer clean column (t2) over piling onto a column with buried face-down cards (t1)
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EK, { waste: ['7S'], t1: ['#4C', '#3D', '8H'], t2: ['8D'] }) });
+      t.equal((await t.game('act', 'tap', 'waste', 0)).ok, true, 'Klondike waste tap 7S succeeds');
+      t.equal([(await t.state()).piles.t1, (await t.state()).piles.t2], [['#4C', '#3D', '8H'], ['8D', '7S']], 'Klondike avoids burying face-down column t1 when clean t2 is available');
+
+      // 3. Klondike: tapping bonded 7S on ['#KH','8H','7S'] prefers exposing #KH by moving [8H,7S] onto 9C (t2) over a lateral swap 7S->8D (t1)
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EK, { t0: ['#KH', '8H', '7S'], t1: ['8D'], t2: ['9C'] }) });
+      t.equal((await t.game('act', 'tap', 't0', 2)).ok, true, 'Klondike tap on bonded 7S succeeds');
+      t.equal([(await t.state()).piles.t0, (await t.state()).piles.t1, (await t.state()).piles.t2], [['KH'], ['8D'], ['9C', '8H', '7S']], 'Klondike exposes #KH via [8H,7S]->9C instead of lateral swap 7S->8D');
+
+      // 4. Klondike: deliberate lateral swap still works when no better upward move exists
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EK, { t0: ['8H', '7S'], t1: ['8D'] }) });
+      t.equal((await t.game('act', 'tap', 't0', 1)).ok, true, 'deliberate lateral swap still permitted when no better run exists');
+      t.equal([(await t.state()).piles.t0, (await t.state()).piles.t1], [['8H'], ['8D', '7S']], '7S moved onto 8D');
+
+      // 5. FreeCell: prefer clean longer run (t2) over burying low Ace on leftmost column (t1), and vacate column via upward run ahead of lateral swap
+      await t.game('setState', { mode: 'freecell', piles: Object.assign({}, EF, { t0: ['7S'], t1: ['AS', '8H'], t2: ['9C', '8D'] }) });
+      t.equal((await t.game('act', 'tap', 't0', 0)).ok, true, 'FreeCell tap 7S succeeds');
+      t.equal([(await t.state()).piles.t1, (await t.state()).piles.t2], [['AS', '8H'], ['9C', '8D', '7S']], 'FreeCell prefers longer clean run t2 over burying AS on leftmost t1');
+
+      await t.game('setState', { mode: 'freecell', piles: Object.assign({}, EF, { t0: ['8H', '7S'], t1: ['8D'], t2: ['9C'], t3: ['2C'], t4: ['2D'], t5: ['2H'], t6: ['2S'], t7: ['3C'] }) });
+      t.equal((await t.game('act', 'tap', 't0', 1)).ok, true, 'FreeCell tap on bonded 7S succeeds');
+      t.equal([(await t.state()).piles.t0, (await t.state()).piles.t1, (await t.state()).piles.t2], [[], ['8D'], ['9C', '8H', '7S']], 'FreeCell vacates t0 via [8H,7S]->9C ahead of lateral 7S->8D swap');
+
+      // 6. Yukon: prefer King-anchored longer run (t2) over leftmost buried face-down column (t1) while still keeping upward fallback excluded
+      await t.game('setState', { mode: 'yukon', piles: Object.assign({}, EK, { t0: ['JH', '3C'], t1: ['#2S', 'QS'], t2: ['KD', 'QC'] }) });
+      t.equal((await t.game('act', 'tap', 't0', 0)).ok, true, 'Yukon tap on [JH,3C] succeeds');
+      t.equal([(await t.state()).piles.t1, (await t.state()).piles.t2], [['#2S', 'QS'], ['KD', 'QC', 'JH', '3C']], 'Yukon prefers King-anchored run t2 over leftmost face-down column t1');
+    },
+  },
+  {
+    name: 'rules-31 W6-S3-04 verify pullback cap 4 + s.pb key, stock-empty late Spider lostKick, and MODALS.stuck Undo to last open line',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { autoFoundation: 'off', motion: 'reduced', tips: false, sound: false });
+      const runS = (s, n = 13) => ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'].slice(0, n).map((r) => r + s);
+
+      // 1. Klondike position requiring 3 foundation pullbacks (9H->TC, 8H->9C, 8D->9S) to uncover 6S & 6C:
+      //    proves verify pullback cap was raised from 2 to 4 (and s.pb is tracked in verify transposition keys).
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: {
+          stock: [], waste: [],
+          f0: runS('C', 5), f1: runS('D', 8), f2: runS('H', 9), f3: runS('S', 5),
+          t0: ['KC', '6C', '6S', '7C', '7S', '8S'],
+          t1: ['KD', 'TC'],
+          t2: ['KH', '9C'],
+          t3: ['KS', '8C'],
+          t4: ['QC', 'JC', 'TS', '9D', '9S'],
+          t5: ['QD', 'JD', 'TD', 'JS'],
+          t6: ['QH', 'JH', 'TH', 'QS'],
+        },
+      });
+      const pb3 = await t.game('solveState', 4000, { verify: true });
+      t.equal(pb3.result, 'won', 'verify solver solves 3-pullback Klondike board (cap 4, used ' + pb3.used + ')');
+      t.expect(Array.isArray(pb3.moves) && pb3.moves.filter((m) => m[1] === -3).length >= 3, 'solution actually uses >= 3 foundation pullbacks');
+
+      // 2. Stock-empty late Spider (<=4 face-down cards) in lostKick():
+      // 2a. Dead 2-suit Spider (stock empty, 2 face-down cards): checkStuck stays live (QH->KH, 7S->8S reduce breaks), while lostKick proves 'dead'
+      await t.game('setState', {
+        mode: 'spider', opts: { suits: 2 },
+        piles: {
+          stock: [],
+          f0: runS('S'), f1: runS('S'), f2: runS('S'), f3: runS('H'), f4: runS('H'), f5: runS('H'), f6: [], f7: [],
+          t0: ['#AS', 'KH'], t1: ['#AH', 'KS'],
+          t2: ['2S', '7S', 'QS'], t3: ['2H', '7H', 'QH'],
+          t4: ['JS', '6S', '8S'], t5: ['JH', '6H', '8H'],
+          t6: ['9S', '4S', '5S'], t7: ['9H', '4H', '5H'],
+          t8: ['3S', 'TS'], t9: ['3H', 'TH'],
+        },
+      });
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      t.equal((await t.game('act', 'move', 't2', 't1')).ok, true, 'legal move on late Spider triggers lostKick');
+      await t.page.waitForFunction(() => window.__game.getState().lost === 'dead', null, { timeout: 10000 });
+      const spDead = await t.page.evaluate(() => ({ st: window.__game.getState(), toast: document.getElementById('toast').textContent }));
+      t.equal(spDead.st.stuck, 'live', 'checkStuck stays live on late Spider because QH->KH/7S->8S still exist');
+      t.equal(spDead.st.scene, 'game', 'Spider lostKick warning does not block play with a modal');
+      t.equal(spDead.toast, 'No winning line left from here. Undo takes you back.', 'late stock-empty Spider emits dead-branch warning toast');
+
+      // 2b. Winnable stock-empty late Spider (<=4 face-down cards) resolves 'won', stays quiet, and marks curLive
+      await t.game('setState', {
+        mode: 'spider', opts: { suits: 1 },
+        piles: {
+          stock: [],
+          f0: runS('S'), f1: runS('S'), f2: runS('S'), f3: runS('S'), f4: runS('S'), f5: runS('S'), f6: runS('S'), f7: [],
+          t0: ['#KS', '6S', '5S', '4S', '3S', '2S'], t1: ['QS', 'JS', 'TS', '9S', '8S', '7S'], t2: ['AS'],
+          t3: [], t4: [], t5: [], t6: [], t7: [], t8: [], t9: [],
+        },
+      });
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      t.equal((await t.game('act', 'move', 't2', 't0')).ok, true, 'move AS onto 2S on late Spider');
+      await t.page.waitForFunction(() => window.__game.getState().lost === 'won', null, { timeout: 10000 });
+      t.equal([(await t.state()).curLive, await t.page.evaluate(() => document.getElementById('toast').textContent)], [true, ''], 'winnable late Spider sets curLive and stays quiet');
+
+      // 2c. Spider with non-empty stock OR >4 face-down cards skips lostKick cleanly (lost === null)
+      await t.game('setState', {
+        mode: 'spider', opts: { suits: 1 },
+        piles: {
+          stock: ['#AS'],
+          f0: runS('S'), f1: runS('S'), f2: runS('S'), f3: runS('S'), f4: runS('S'), f5: runS('S'), f6: runS('S'), f7: [],
+          t0: ['KS', 'QS', 'JS', 'TS', '9S', '8S'], t1: ['7S', '6S', '5S', '4S', '3S'], t2: ['2S'],
+          t3: [], t4: [], t5: [], t6: [], t7: [], t8: [], t9: [],
+        },
+      });
+      t.equal((await t.game('act', 'move', 't2', 't1')).ok, true, 'move with stock non-empty');
+      await t.page.waitForFunction(() => window.__game.getState().stuck !== null, null, { timeout: 8000 });
+      t.equal((await t.state()).lost, null, 'Spider with non-empty stock skips lostKick');
+
+      await t.game('setState', {
+        mode: 'spider', opts: { suits: 1 },
+        piles: {
+          stock: [],
+          f0: runS('S'), f1: runS('S'), f2: runS('S'), f3: runS('S'), f4: runS('S'), f5: runS('S'), f6: runS('S'), f7: [],
+          t0: ['#KS', '#QS', '#JS', '#TS', '#9S', '8S'], t1: ['7S', '6S', '5S', '4S', '3S'], t2: ['2S', 'AS'],
+          t3: [], t4: [], t5: [], t6: [], t7: [], t8: [], t9: [],
+        },
+      });
+      t.equal((await t.game('act', 'move', 't2', 't1', 2)).ok, true, 'move with 5 face-down cards (>4)');
+      await t.page.waitForFunction(() => window.__game.getState().stuck !== null, null, { timeout: 8000 });
+      t.equal((await t.state()).lost, null, 'Spider with >4 face-down cards skips lostKick');
+
+      // 3. MODALS.stuck 'Undo to last open line': jump multi-ply past dead branch straight back to last solver-verified live ply
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 }, winnable: true,
+        piles: {
+          stock: [], waste: ['8C', 'KC'],
+          f0: runS('C', 7), f1: runS('D', 7), f2: runS('H', 7), f3: runS('S', 7),
+          t0: ['8D', '9C', 'TC', 'TS', 'KH'],
+          t1: ['8H', 'TD', 'TH', 'KD'],
+          t2: ['8S', 'KS'],
+          t3: ['9D', 'JC', 'QH', 'QS'],
+          t4: ['9H', 'JD', 'QC'],
+          t5: ['9S', 'JH', 'JS', 'QD'],
+          t6: [],
+        },
+      });
+      // Ply 0 -> Move 1 (QS: t3 -> t1): still winnable -> lostKick proves 'won' and marks curLive=true
+      t.equal((await t.game('act', 'move', 't3', 't1')).ok, true, 'Move 1 (QS -> KD) succeeds');
+      await t.page.waitForFunction(() => window.__game.getState().lost === 'won', null, { timeout: 10000 });
+      t.equal((await t.state()).curLive, true, 'Ply 1 is solver-verified live');
+
+      // Move 2 (KC: waste -> t6): fills only empty column, entering unwinnable dead branch (lost === 'dead', stuck still 'live' due to 8C->f0)
+      t.equal((await t.game('act', 'move', 'waste', 't6')).ok, true, 'Move 2 (KC -> t6) enters dead branch');
+      await t.page.waitForFunction(() => window.__game.getState().lost === 'dead', null, { timeout: 10000 });
+      t.equal([(await t.state()).curLive, (await t.state()).lastLiveUndo, (await t.state()).undoDepth], [false, 1, 2], 'Ply 2 is dead while lastLiveUndo points to Ply 1');
+
+      // Move 3 (8C: waste -> f0): dead end; checkStuck() opens MODALS.stuck with 'Undo to last open line'
+      t.equal((await t.game('act', 'move', 'waste', 'f0')).ok, true, 'Move 3 (8C -> f0) reaches dead end');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'stuck', null, { timeout: 10000 });
+      const stuckBtns = await t.page.evaluate(() => ({
+        liveBtn: document.querySelector('#sheet [data-a="undoLive"]')?.textContent || null,
+        undoBtn: document.querySelector('#sheet [data-a="undo"]')?.textContent || null,
+        st: window.__game.getState(),
+      }));
+      t.equal([stuckBtns.liveBtn, stuckBtns.undoBtn, stuckBtns.st.lastLiveUndo, stuckBtns.st.undoDepth], ['Undo to last open line', 'Undo', 1, 3], 'MODALS.stuck offers primary Undo to last open line alongside 1-step Undo');
+
+      // Clicking 'Undo to last open line' jumps 2 moves straight back to Ply 1 (restoring t6=[] and winnable line)
+      await t.page.click('#sheet [data-a="undoLive"]');
+      await t.waitForStable();
+      const afterBack = await t.state();
+      t.equal([afterBack.modal, afterBack.undoDepth, afterBack.redoDepth, afterBack.curLive, afterBack.piles.t6.length, afterBack.piles.waste], [null, 1, 2, true, 0, ['8C', 'KC']], 'Undo to last open line rewinds 2 plies to Ply 1 with intact redoStack');
+      t.equal((await t.game('solveState', 4000, { verify: true })).result, 'won', 'board restored by Undo to last open line is solver-verified winnable');
+    },
+  },
 ];
