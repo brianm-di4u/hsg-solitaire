@@ -231,7 +231,7 @@ export const tests = [
     },
   },
   {
-    name: 'w4a C4-08 FreeCell carries a smaller bottom-band Spa City mark, Yukon side-rail uses its right-rail nook, and a band under 9% still gets none',
+    name: 'w4a C4-08 Klondike/Spider/Yukon carry full-size Spa City marks, tight desktop FreeCell omits textless r<46 arcs (W6-S1-07), and bands under 9% still get none',
     async run(t) {
       await t.game('unlockAll');
       await baseSettings(t, { sound: false, tips: false, motion: 'reduced', table: 'felt' });
@@ -243,8 +243,17 @@ export const tests = [
         for (const mode of ['klondike', 'freecell', 'yukon', 'spider']) {
           await t.game('newGame', { mode, opts: mode === 'spider' ? { suits: 1 } : {} }); await t.waitForStable();
           const q = await marks(), H = await stageH(), band = q.band.bottom - q.band.top;
+          if (t.viewport === 'desktop' && mode === 'freecell') {
+            // W6-S1-07: require r >= 46 before drawing desktop feltEmblem so FreeCell never paints an orphaned textless half-arc
+            const rawR = Math.min(w * .3, band * .8 / 1.55);
+            if (rawR < 46) t.expect(!q.emblem, mode + ': tight desktop band (r=' + rawR.toFixed(1) + ' < 46) omits truncated textless arc');
+            else t.expect(q.emblem && q.emblem.r >= 46, mode + ': desktop emblem draws only at r >= 46');
+            await shot(t, 'C4-08', mode + '-mark');
+            continue;
+          }
           t.expect(q.emblem, w + 'x' + h + ' ' + mode + ': the empty felt has the mark (band ' + Math.round(band / H * 100) + '% of the table)');
           if (q.emblem && t.viewport === 'desktop') {
+            t.expect(q.emblem.r >= 46, mode + ': desktop emblem radius >= 46 so Spa City label renders (' + Math.round(q.emblem.r) + ' px)');
             if (mode === 'yukon') {
               t.expect(q.emblem.inNook && q.nook, 'desktop Yukon side-rail places the Spa City mark cleanly in its right-rail nook: ' + JSON.stringify(q));
               t.expect(q.emblem.cy - q.emblem.r >= q.nook.top - 1 && q.emblem.cy + q.emblem.r * .6 <= q.nook.bottom + 1, 'yukon: and it sits inside the nook');
@@ -252,11 +261,6 @@ export const tests = [
             } else {
               t.expect(q.emblem.cy - q.emblem.r >= q.band.top - 1 && q.emblem.cy + q.emblem.r * .6 <= q.band.bottom + 1, mode + ': and it sits inside the band');
             }
-          }
-          if (t.viewport === 'desktop' && mode === 'freecell') {
-            t.expect(band >= H * .09 && band < H * .22, mode + ': this is the band that had no mark before, 9% to 22% (' + Math.round(band / H * 100) + '%)');
-            t.expect(q.emblem.r < 50, mode + ': and the mark is a smaller one (radius ' + Math.round(q.emblem.r) + ' px)');
-            await shot(t, 'C4-08', mode + '-mark');
           }
         }
       }

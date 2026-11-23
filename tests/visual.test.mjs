@@ -424,4 +424,45 @@ export const tests = [
       t.expect(resDisp && resDisp.dur === 0, 'resumeSaved() restores board instantaneously without silent dealAnimation() (dur ' + (resDisp && resDisp.dur) + ')');
     },
   },
+  {
+    name: 'visual-67 W6-S1-07 desktop FreeCell omits headless r<46 felt watermark and floats Max move badge >= 6px above free cells',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced', table: 'felt' });
+      await t.game('newGame', { mode: 'freecell', deal: 1 });
+      await t.waitForStable();
+      await t.page.waitForFunction(() => window.__game.placeMarks() && window.__game.maxMoveBadge());
+      const pm = await t.game('placeMarks');
+      const badge = await t.game('maxMoveBadge');
+      const im = await t.game('inlayMetrics');
+      const lay = await t.game('getLayout');
+      const stageRect = await t.page.evaluate(() => { const r = document.getElementById('cv').getBoundingClientRect(); return { left: r.left, top: r.top }; });
+      const hit = (a, b) => !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
+
+      if (t.viewport === 'desktop') {
+        t.equal(pm.emblem, null, '1280x800 FreeCell omits truncated textless r<46 felt watermark: ' + JSON.stringify(pm.emblem));
+        t.equal(badge.arr, 'top', '1280x800 FreeCell uses top-row layout');
+        const gapAboveCells = badge.c0y - (badge.y + badge.h);
+        t.expect(gapAboveCells >= 6, 'desktop FreeCell Max move badge clears free-cell bank by >= 6px (got ' + gapAboveCells + 'px): ' + JSON.stringify(badge));
+        t.expect(badge.y >= im.inlayInset + 2, 'desktop FreeCell Max move badge clears inner brass frame (' + badge.y + ' >= ' + (im.inlayInset + 2) + ')');
+        for (const [pid, pb] of Object.entries(lay.piles)) {
+          const pr = { x: pb.x - stageRect.left, y: pb.y - stageRect.top, w: pb.w, h: pb.zoneH || lay.cardH };
+          t.equal(hit(badge, pr), false, 'Max move badge does not overlap pile ' + pid + ': ' + JSON.stringify({ badge, pr }));
+        }
+        for (const chv of im.topChevrons) {
+          t.equal(hit(badge, chv), false, 'Max move badge clears top brass chevron: ' + JSON.stringify({ badge, chv }));
+        }
+        await t.shot('visual-67-w6-s1-07-freecell-desktop');
+        // Left-handed desktop FreeCell keeps the same clean >= 6px clearance above free cells
+        await t.game('setSettings', { leftHanded: true });
+        await t.waitForStable();
+        const lhBadge = await t.game('maxMoveBadge');
+        t.expect(lhBadge && lhBadge.c0y - (lhBadge.y + lhBadge.h) >= 6, 'left-handed desktop FreeCell Max move badge clears free cells >= 6px: ' + JSON.stringify(lhBadge));
+        await t.game('setSettings', { leftHanded: false });
+      } else {
+        t.expect(pm.emblem && pm.emblem.r >= 46, 'mobile portrait FreeCell keeps full-size Spa City emblem (r=' + (pm.emblem && Math.round(pm.emblem.r)) + ')');
+        t.expect(badge.c0y - (badge.y + badge.h) >= 6, 'mobile portrait FreeCell Max move badge clears free cells >= 6px: ' + JSON.stringify(badge));
+        await t.shot('visual-67-w6-s1-07-freecell-mobile');
+      }
+    },
+  },
 ];

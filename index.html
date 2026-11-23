@@ -3834,8 +3834,11 @@ function placeMarks(ctx, W, H, look, band, id) {
       feltEmblem(ctx, cx, cy, r, ink, look.light, 1.4);
     }
   } else if (free >= H * PLACE_MIN_FREE) {
-    const r = Math.min(W * .3, free * .8 / 1.55), cy = (band.top + band.bottom) / 2 + r * .225; // the mark is 1.55 r tall, from the arc's top to the foot of the small line
-    placeDrawn.emblem = { cx: W / 2, cy, r }; feltEmblem(ctx, W / 2, cy, r, ink, look.light, 1.6);
+    const r = Math.min(W * .3, free * .8 / 1.55);
+    if (r >= 46) {
+      const cy = (band.top + band.bottom) / 2 + r * .225; // the mark is 1.55 r tall, from the arc's top to the foot of the small line
+      placeDrawn.emblem = { cx: W / 2, cy, r }; feltEmblem(ctx, W / 2, cy, r, ink, look.light, 1.6);
+    }
   }
 }
 function feltEmblem(ctx, cx, cy, r, ink, light, boost = 1) { // boost: a little stronger where the mark is small beside a wide table
@@ -4221,7 +4224,8 @@ function computeLayout(fit = 1) {
   const rowW = units * cw + (units - 1) * gap + s * seam, x0 = Math.round((W - rowW) / 2);
   const slotX = (i) => Math.round(x0 + i * (cw + gap));
   const portrait = H > W * 1.25, lower = portrait && !side ? Math.round(clamp((H / W - 1.4) * W * .22, 0, H * .07)) : 0;
-  const vgap = Math.max(8, ch * .14), topY = Math.max(compact ? margin : fm.inlayInset + 6, margin + lower), tabY = side ? topY : Math.round(topY + ch + vgap);
+  const fcTopMin = S.mode === 'freecell' && !side && !compact ? fm.inlayInset + 4 + Math.round(clamp(cw * .14, 10, 12.5) * 1.65) + 7 : 0;
+  const vgap = Math.max(8, ch * .14), topY = Math.max(compact ? margin : fm.inlayInset + 6, margin + lower, fcTopMin), tabY = side ? topY : Math.round(topY + ch + vgap);
   const piles = {};
   if (side) {
     let x = x0;
@@ -4749,8 +4753,10 @@ function drawDropBrackets(x, y, w, h, alpha = 1) {
   ctx.globalAlpha = alpha; ctx.lineWidth = 3.5; ctx.stroke();
   ctx.restore();
 }
+let lastMaxMoveBadge = null;
 function frame(t) {
   if (!S || !L) return;
+  lastMaxMoveBadge = null;
   if (tableDirty) drawTableLayer();
   // Centrally time-prune expired shakes so idle shakes{} never leaks rAF frames (WF-4 §2.1).
   for (const k in shakes) if (t - shakes[k] >= 260) delete shakes[k];
@@ -4910,7 +4916,8 @@ function frame(t) {
     const t0y = L.piles.t0 ? L.piles.t0.y : c0.y + ch + bh + 4;
     const by = L.arr === 'side'
       ? Math.min(H - L.margin - bh - 2, Math.round(Math.max(c0.y, c1.y, c2.y, c3.y) + ch + 10))
-      : (c0.y >= bh + 18 ? Math.round(c0.y - bh - 5) : Math.round((c0.y + ch + t0y - bh) / 2));
+      : (c0.y >= bh + 11 ? Math.round(c0.y - bh - 7) : Math.round((c0.y + ch + t0y - bh) / 2));
+    lastMaxMoveBadge = { x: bx, y: by, w: bw, h: bh, arr: L.arr, c0y: c0.y, t0y };
     ctx.fillStyle = 'rgba(16,24,19,.88)'; ctx.strokeStyle = 'rgba(233,200,115,.55)'; ctx.lineWidth = 1;
     rrect(ctx, bx, by, bw, bh, bh / 2); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#EDE3C8'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -8057,6 +8064,7 @@ window.__game = {
     return m.map((v) => v / k);
   },
   placeMarks: () => (placeDrawn ? JSON.parse(JSON.stringify(placeDrawn)) : null),
+  maxMoveBadge: () => (lastMaxMoveBadge ? Object.assign({}, lastMaxMoveBadge) : null),
   inlayMetrics: () => (lastInlay ? JSON.parse(JSON.stringify(lastInlay)) : null),
   vfxCounts: () => ({ sparks: activeSparkCount(), rings: activeRingCount(), maxSparks: MAX_SPARKS, maxRings: MAX_RINGS, composite: 'source-over' }),
   titleHandsPainted: () => titleHandsPainted,
