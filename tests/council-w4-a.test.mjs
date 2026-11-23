@@ -808,4 +808,84 @@ export const tests = [
       t.expect(matched >= 3, 'Thermal Pool + Thermal Steam venue biases unseen fact picks toward thermal facts (' + matched + '/8 matched)');
     },
   },
+  {
+    name: 'w4a W6-S5-01 global M mute hotkey works on Title and non-text modals (ignoring #dealIn), and Title exposes 44x44 brass #tMute button',
+    async run(t) {
+      await baseSettings(t, { sound: true, tips: false, motion: 'reduced' });
+      await t.game('scene', 'title');
+      await t.waitForStable();
+
+      // 1. Title #tMute 44x44 brass button visible, inside viewport, clear of #tH and hero tag, toggles sound cleanly
+      const tmBox = await t.page.evaluate(() => {
+        const b = document.getElementById('tMute');
+        const r = b ? b.getBoundingClientRect() : null;
+        const h1 = document.getElementById('tH').getBoundingClientRect();
+        const tags = window.__game.heroTags().tags;
+        const overlapsTag = tags.some((tg) => r && r.left < tg.x + tg.w && r.right > tg.x && r.top < tg.y + tg.h && r.bottom > tg.y);
+        return {
+          exists: !!b,
+          w: r ? Math.round(r.width) : 0,
+          h: r ? Math.round(r.height) : 0,
+          inView: !!(r && r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight),
+          pressed: b ? b.getAttribute('aria-pressed') : null,
+          label: b ? b.getAttribute('aria-label') : null,
+          hasSvg: !!(b && b.querySelector('svg')),
+          overlapsH1: !!(r && r.left < h1.right && r.right > h1.left && r.top < h1.bottom && r.bottom > h1.top),
+          overlapsTag,
+        };
+      });
+      t.equal([tmBox.exists, tmBox.inView, tmBox.pressed, tmBox.label, tmBox.hasSvg], [true, true, 'false', 'Mute sound', true], '#tMute renders on Title with speaker icon and Mute sound label');
+      t.expect(tmBox.w >= 44 && tmBox.h >= 44, '#tMute meets >=44x44 touch target: ' + tmBox.w + 'x' + tmBox.h);
+      t.equal([tmBox.overlapsH1, tmBox.overlapsTag], [false, false], '#tMute clears #tH and Bathhouse Row hero tag');
+      await t.shot('W6-S5-01-title-mute');
+
+      // One-tap click on #tMute silences audio immediately
+      await t.page.click('#tMute');
+      t.equal((await t.state()).settings.sound, false, 'one-tap #tMute mutes sound from Title');
+      t.equal(await t.page.getAttribute('#tMute', 'aria-pressed'), 'true', '#tMute updates aria-pressed=true');
+
+      // 2. Pressing M on Title unmutes and syncs #tMute
+      await t.page.keyboard.press('m');
+      t.equal((await t.state()).settings.sound, true, 'M hotkey on Title unmutes sound');
+      t.equal(await t.page.getAttribute('#tMute', 'aria-pressed'), 'false', '#tMute syncs after Title M hotkey');
+
+      // 3. Pressing M inside Menu toggles sound and syncs both #mMute and #tMute
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 15 });
+      await t.game('scene', 'menu');
+      await t.page.keyboard.press('M');
+      const afterMenuM = await t.page.evaluate(() => ({
+        sound: window.__game.getState().settings.sound,
+        mPressed: document.getElementById('mMute').getAttribute('aria-pressed'),
+        tPressed: document.getElementById('tMute').getAttribute('aria-pressed'),
+      }));
+      t.equal(afterMenuM, { sound: false, mPressed: 'true', tPressed: 'true' }, 'M hotkey inside Menu toggles sound and syncs #mMute + #tMute');
+
+      // 4. Pressing M inside Settings Audio syncs [data-tog="sound"] and .is-muted rows live
+      await t.game('scene', 'settings', { tab: 'audio' });
+      await t.page.keyboard.press('m');
+      const afterSetM = await t.page.evaluate(() => ({
+        sound: window.__game.getState().settings.sound,
+        checked: document.querySelector('#sheet [data-tog="sound"]').getAttribute('aria-checked'),
+        dimmed: document.getElementById('row-sfxVol').classList.contains('is-muted'),
+      }));
+      t.equal(afterSetM, { sound: true, checked: 'true', dimmed: false }, 'M hotkey inside Settings Audio unmutes and syncs switch + row dimming');
+      await t.page.keyboard.press('m');
+      const afterSetM2 = await t.page.evaluate(() => ({
+        sound: window.__game.getState().settings.sound,
+        checked: document.querySelector('#sheet [data-tog="sound"]').getAttribute('aria-checked'),
+        dimmed: document.getElementById('row-sfxVol').classList.contains('is-muted'),
+      }));
+      t.equal(afterSetM2, { sound: false, checked: 'false', dimmed: true }, 'second M inside Settings Audio mutes and dims rows');
+
+      // 5. Pressing M while typing inside #dealIn text input is ignored (never hijacks text input)
+      await t.game('scene', 'deal');
+      await t.page.focus('#dealIn');
+      await t.page.keyboard.press('m');
+      t.equal((await t.state()).settings.sound, false, 'M while focused in #dealIn text input does not toggle mute');
+      // Moving focus to Close button in Deal modal allows M to toggle again
+      await t.page.focus('#sheet [data-close]');
+      await t.page.keyboard.press('m');
+      t.equal((await t.state()).settings.sound, true, 'M on non-text control in Deal modal toggles mute cleanly');
+    },
+  },
 ];

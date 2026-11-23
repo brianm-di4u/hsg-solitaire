@@ -141,6 +141,8 @@
     padding-bottom:max(22px,calc(env(safe-area-inset-bottom) + 16px));
     padding-left:max(16px,env(safe-area-inset-left))}
   #sky{position:fixed;inset:0;width:100%;height:100%;display:block}
+  #tMute{position:fixed;top:max(20px,calc(env(safe-area-inset-top) + 12px));right:max(20px,calc(env(safe-area-inset-right) + 12px));z-index:4}
+  #tMute[aria-pressed=true]{border-color:var(--ctrl-border);color:var(--color-muted)}
   #title h1{font-family:var(--font-display);font-size:clamp(2.4rem,7vw,4rem);letter-spacing:.05em;margin:4px 0 0;text-align:center;
     color:var(--t-brass);font-weight:400;text-shadow:0 2px 0 #3A2810,0 0 24px rgba(0,0,0,.85),0 0 4px rgba(0,0,0,.9)}
   #title .tnote{text-align:center;margin:0 auto 10px;font-family:var(--font-deco);font-size:.9rem;color:var(--brass-hi);letter-spacing:.03em;width:fit-content;max-width:94%;padding:3px 14px;border-radius:999px;background:rgba(8,12,10,.7);text-shadow:0 1px 6px rgba(0,0,0,.95)}
@@ -174,6 +176,7 @@
   #tCont{min-width:min(320px,100%);min-height:52px;border-radius:999px;font-size:1rem;padding:0 20px}
   /* Mobile portrait fold budget (390x844): frame Bathhouse Row above <h1> while fitting all 4 game plaques + Daily deals at/above 844 px (W6-S2-01). */
   @media (max-aspect-ratio:3/4){
+    #tMute{top:max(14px,calc(env(safe-area-inset-top) + 10px));right:max(14px,calc(env(safe-area-inset-right) + 10px))}
     #title .wrap{padding-top:max(clamp(74px,10.5vh,112px),calc(env(safe-area-inset-top) + 12px));padding-bottom:max(24px,calc(env(safe-area-inset-bottom) + 14px))}
     #title .wrap:has(#tCont:not([hidden])){padding-top:max(clamp(68px,9.5vh,104px),calc(env(safe-area-inset-top) + 10px))}
     #title h1{font-size:clamp(2rem,7.8vw,2.75rem);line-height:1.08;margin:2px 0 0}
@@ -197,6 +200,7 @@
     #title .tag{margin-bottom:8px} .tile canvas{height:clamp(50px,8.5vh,68px)} .tile p{font-size:.75rem;line-height:1.24}
   }
   @media (orientation:landscape) and (max-height:520px){
+    #tMute{top:max(8px,calc(env(safe-area-inset-top) + 6px));right:max(10px,calc(env(safe-area-inset-right) + 6px))}
     #title .wrap,#title .wrap:has(#tCont:not([hidden])){padding-top:max(clamp(20px,5.5vh,34px),calc(env(safe-area-inset-top) + 6px));padding-bottom:max(14px,env(safe-area-inset-bottom))}
     #title h1{font-size:clamp(1.3rem,3.8vw,1.78rem);line-height:1.08;margin:0} #title .tag{display:none}
     #tTop{margin:4px 0 6px} #tCont{min-height:44px;font-size:.9rem;padding:0 16px}
@@ -227,6 +231,7 @@
   .credit{margin-top:10px;text-align:center;font-size:.76rem;color:var(--color-muted)}
   /* Compact small-phone portrait mood-sync guard (W1-S5-07): surface primary CTA & all 4 mode titles cleanly on <=360x600 while preserving Bathhouse Row tag (CD-WF0-07), card hands (w3e S4-23), >=44px targets & #tRow copy (CD-WF6-05). */
   @media (max-height:600px) and (max-width:360px){
+    #tMute{top:max(4px,calc(env(safe-area-inset-top) + 2px));right:max(8px,calc(env(safe-area-inset-right) + 4px))}
     #title .wrap{padding-top:max(48px,calc(env(safe-area-inset-top) + 10px));padding-right:max(12px,env(safe-area-inset-right));padding-bottom:max(18px,calc(env(safe-area-inset-bottom) + 12px));padding-left:max(12px,env(safe-area-inset-left))}
     #title .wrap:has(#tCont:not([hidden])){padding-top:max(44px,calc(env(safe-area-inset-top) + 8px))}
     #title h1{font-size:clamp(1.55rem,7.6vw,1.85rem);line-height:1.05;margin:0}
@@ -632,6 +637,7 @@
 
 <section id="title" aria-labelledby="tH">
   <canvas id="sky" aria-hidden="true"></canvas>
+  <button type="button" class="ib" id="tMute" data-a="toggleMute" aria-pressed="false" aria-label="Mute sound" title="Mute sound (M)"></button>
   <div class="wrap">
     <h1 id="tH">Spa City Solitaire</h1>
     <p class="tag" id="tTag">Patience, the Spa City way: four classic games, twelve Hot Springs card backs.</p>
@@ -3933,6 +3939,7 @@ function heroLabels(ctx, img, W, H, ax, ay, dark) {
   const h1Rect = titleOn ? h1TextRect($('#tH')) : null;
   const tilesEl = $('#tiles'), tilesRect = tilesEl && titleOn ? tilesEl.getBoundingClientRect() : null;
   const contEl = $('#tCont'), contRect = contEl && titleOn && !contEl.hidden ? contEl.getBoundingClientRect() : null;
+  const muteEl = $('#tMute'), muteRect = muteEl && titleOn && !muteEl.hidden ? muteEl.getBoundingClientRect() : null;
   const h1Top = h1Rect ? h1Rect.top : H * .3;
   const tilesTop = tilesRect && tilesRect.height > 0 ? tilesRect.top : H;
   const lowerTop = contRect && contRect.height > 0 ? Math.min(tilesTop, contRect.top) : tilesTop;
@@ -3947,9 +3954,12 @@ function heroLabels(ctx, img, W, H, ax, ay, dark) {
       const maxCy = Math.min(h1Top, lowerTop) - 18;
       if (maxCy >= minCy) {
         const prefX = H > W ? px : px + dx;
-        cx = clamp(prefX, w / 2 + 16, W - w / 2 - 16);
         cy = clamp(py + dy, minCy, maxCy);
-        pocket = 'above';
+        const maxRight = muteRect && muteRect.width > 0 && (cy - 10) < muteRect.bottom + 4 && (cy + 10) > muteRect.top - 4 ? Math.min(W - 16, muteRect.left - 8) : (W - 16);
+        if (w <= maxRight - 16) {
+          cx = clamp(prefX, w / 2 + 16, maxRight - w / 2);
+          pocket = 'above';
+        }
       }
     }
     // Pocket 2: compact landscape left sky pocket beside <h1> and clear of #tiles (e.g. 844x390, CD-WF0-07 & CD-WF6-05).
@@ -5537,7 +5547,7 @@ function gameKey(e) {
   if (S.won) {
     if (k === 'Escape' || k === 'p' || k === 'P') { openModal('menu'); return true; }
     if (k === 'n' || k === 'N') { confirmAbandon({ mode: S.mode }); return true; }
-    if (k === 'm' || k === 'M') { setSetting('sound', !settings.sound); toast(settings.sound ? 'Sound on' : 'Sound muted'); return true; }
+    if (k === 'm' || k === 'M') { ACTIONS.toggleMute(); return true; }
     if ((k === 'a' || k === 'A') && lastWin) { openModal('win'); return true; }
     if (k === '?') { openModal('help'); return true; }
     return false;
@@ -5595,7 +5605,7 @@ function gameKey(e) {
     case 'i': case 'I': kbMode = true; announce(inspectColumn(cursor.pile)); break;
     case 'a': case 'A': if (!autoComplete().ok) toast('Finish appears once every card can go straight home'); break;
     case 'n': case 'N': confirmAbandon({ mode: S.mode }); break;
-    case 'm': case 'M': setSetting('sound', !settings.sound); toast(settings.sound ? 'Sound on' : 'Sound muted'); break;
+    case 'm': case 'M': ACTIONS.toggleMute(); break;
     case '?': openModal('help'); break;
     case 'p': case 'P': openModal('menu'); break;
     default:
@@ -5717,11 +5727,15 @@ function tableSummary() {
     'Columns: ' + kind('tab').map(columnSpeech).join('; ')].filter(Boolean).join('. ');
 }
 window.addEventListener('keydown', (e) => {
+  const ae = document.activeElement;
+  const inText = !!(ae && ((ae.tagName === 'INPUT' && !['range', 'checkbox', 'radio', 'button', 'submit', 'reset'].includes(ae.type)) || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable));
+  if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'm' || e.key === 'M') && !inText) {
+    e.preventDefault(); ACTIONS.toggleMute(); return;
+  }
   if (modalKind) { if (e.key === 'Escape') { e.preventDefault(); if (modalKind === 'win') closeModal(); else closeModal(true); } else if (e.key === 'Tab') trapFocus(e); return; }
   if (titleOn) return;
-  const ae = document.activeElement;
   if (ae && ae !== cv && ae !== document.body) {
-    if (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT') return;
+    if (inText) return;
     if (((e.key === 'i' || e.key === 'I') || (e.shiftKey && e.key === 'ArrowUp')) && mirror.contains(ae) && ae.dataset.pile) { e.preventDefault(); announce(inspectColumn(ae.dataset.pile)); return; }
     if (e.key !== 'Escape' && e.key !== 'Backspace' && !/^[?hHuUzZnNaAsSdDyYpPiImM]$/.test(e.key)) return;
   }
@@ -6853,6 +6867,9 @@ function buildTitle() {
   $('#tLedger').onclick = () => openModal('ledger', { tab: 'overview' });
   $('#tSet').onclick = () => openModal('settings');
   $('#tHelp').onclick = () => openModal('help');
+  const tm = $('#tMute');
+  if (tm) tm.onclick = () => ACTIONS.toggleMute();
+  syncMuteUI();
   syncTitleCTA();
 }
 // One line under the title, a different one each time the title comes up (the first is the plain description).
@@ -7385,6 +7402,26 @@ function doResetSaved() { // a table that will not come right: forget it and go 
   S = null; undoStack = []; redoStack = []; held = null; drag = null; clearHover(); cascade = null; hintState = null; lastWin = null;
   save('current', null); closeModal(false); showTitle(true); toast('Saved game cleared.');
 }
+function syncMuteUI() {
+  for (const id of ['mMute', 'tMute']) {
+    const b = $('#' + id);
+    if (!b) continue;
+    b.innerHTML = muteIcon(settings.sound);
+    b.setAttribute('aria-pressed', String(!settings.sound));
+    b.setAttribute('aria-label', settings.sound ? 'Mute sound' : 'Unmute sound');
+    b.title = settings.sound ? 'Mute sound (M)' : 'Unmute sound (M)';
+  }
+  if (modalKind === 'settings') {
+    const sw = sheet.querySelector('[data-tog="sound"]');
+    if (sw) sw.setAttribute('aria-checked', String(!!settings.sound));
+    const off = !settings.sound;
+    const setMuted = (id, m) => { const r = $('#' + id); if (r) r.classList.toggle('is-muted', !!m); };
+    setMuted('row-vol', off);
+    setMuted('row-sfx', off); setMuted('row-sfxVol', off || !settings.sfx);
+    setMuted('row-music', off); setMuted('row-musicVol', off || !settings.music);
+    setMuted('row-ambience', off); setMuted('row-ambVol', off || !settings.ambience);
+  }
+}
 const ACTIONS = {
   resetSaved: () => {
     if (storageOK && !newerSave && liveDeal()) {
@@ -7395,13 +7432,6 @@ const ACTIONS = {
   ticket: () => { if (lastWin) openModal('win'); else closeModal(false); },
   toggleMute: () => {
     setSetting('sound', !settings.sound);
-    const b = $('#mMute');
-    if (b) {
-      b.innerHTML = muteIcon(settings.sound);
-      b.setAttribute('aria-pressed', String(!settings.sound));
-      b.setAttribute('aria-label', settings.sound ? 'Mute sound' : 'Unmute sound');
-      b.title = settings.sound ? 'Mute sound (M)' : 'Unmute sound (M)';
-    }
     toast(settings.sound ? 'Sound on' : 'Sound muted');
   },
   new: () => confirmAbandon({ mode: S ? S.mode : meta.lastMode }), restart: () => confirmAbandon(null, true), undo: () => { const fromStuck = modalKind === 'stuck'; closeModal(false); if (fromStuck) stuckSuppressed = true; undo(); },
@@ -7741,6 +7771,7 @@ function setSetting(k, v) {
     settings.sound = !!v;
     if (v) { initAudio(); updateMasterGain(false); }
     else { cancelAutoCues(); updateMasterGain(false); }
+    syncMuteUI();
   }
   else if (k === 'volume') { settings.volume = clamp(+v, 0, 1); updateMasterGain(false); }
   else if (k === 'sfxVol') { settings.sfxVol = clamp(+v, 0, 1); updateSfxGain(false); }
