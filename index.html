@@ -1036,6 +1036,13 @@ function endsInRun(p) {
   return true;
 }
 
+function isDealAlreadyWon(st) {
+  const s = st || S;
+  if (!s) return false;
+  const k = modeKey(s.mode, s.opts), dk = k + ':' + s.deal;
+  return s.daily ? isDailyWon(meta.daily[s.daily + '|' + k]) : (meta.wonDeals.includes(dk) || meta.wonDeals.includes(s.mode + ':' + s.deal));
+}
+
 function settleTableau(delayBase) {
   let changed = true, d = delayBase || 0;
   while (changed) {
@@ -1061,7 +1068,8 @@ function settleTableau(delayBase) {
           if (j < run.length - 1) suppressLandFx.add(u); else milestoneLandFx.add(u);
         });
         d += 400; S.runs++; addScore(100, 'f' + f, run[run.length - 1]); changed = true; sfx('run', undefined, pilePan('f' + f));
-        if (!S.replay) { syncShared(); const a = earn({ wins: meta.totalWins, w: null, run: true }); if (a.length) { save('meta', meta); setTimeout(() => achToast(a), 900); } }
+        syncShared();
+        if (!isDealAlreadyWon()) { const a = earn({ wins: meta.totalWins, w: null, run: true }); if (a.length) { save('meta', meta); setTimeout(() => achToast(a), 900); } }
         announce('Completed a run of ' + SUIT_NAME[card(run[0]).s]);
       }
     }
@@ -2375,12 +2383,17 @@ function onWin(delay) {
   const scoring = settings.scoring, isTimed = S.mode !== 'spider' && scoring === 'timed', scoredMode = scoring !== 'none';
   let bonus = 0;
   if (isTimed) { bonus = timeBonus(S.elapsedMs); addScore(bonus); }
-  // Records and the 21-bath course count first, unaided wins (CD-WF6-05): replays still increment per-mode st.won,
-  // while freezing streaks, bests, meta.totalWins, course punches, unlocks, and achievements.
+  // Orthogonal victory flags (W1-S4-02, CD-WF6-04, CD-WF1-06): first-ever retried wins (!alreadyWon) still advance
+  // meta.totalWins, Bath Ticket punches, meta.gradeWins, UNLOCKS, completion/Daily ACH, and course/daily milestoneCue,
+  // while streaks, PBs, pb/streak cues, and speed/unaided execution ACH remain strictly guarded against peeked restarts.
   // Standard and Timed best scores are tracked independently (OQ-WF1-01); Spider has no time bonus and tracks Standard.
   const hadBestTime = st.bestTimeMs > 0, hadBestMoves = st.fewestMoves > 0;
   const prevModeBestScore = isTimed ? st.bestTimedScore : scoredMode ? st.bestStandardScore : 0;
-  const dealKey = k + ':' + S.deal, replay = !!S.replay || meta.wonDeals.includes(dealKey) || meta.wonDeals.includes(S.mode + ':' + S.deal), clean = !replay && !S.assisted;
+  const dealKey = k + ':' + S.deal;
+  const alreadyWon = isDealAlreadyWon();
+  const retried = !alreadyWon && !!S.replay;
+  const replay = alreadyWon || retried;
+  const clean = !alreadyWon && !retried && !S.assisted;
   const best = {
     time: clean && (!st.bestTimeMs || S.elapsedMs < st.bestTimeMs),
     moves: clean && (!st.fewestMoves || S.moves < st.fewestMoves),
@@ -2388,7 +2401,7 @@ function onWin(delay) {
   };
   const pb = (best.time && hadBestTime) || (best.moves && hadBestMoves) || (best.score && prevModeBestScore > 0);
   st.won++; if (st.played < st.won) st.played = st.won; st.totalMs += S.elapsedMs; noteResult(st, S.assisted ? 'A' : 'W');
-  if (!replay && S.winnable && Object.hasOwn(GRADE_RANK, S.grade)) meta.gradeWins[S.grade]++;
+  if (!alreadyWon && S.winnable && Object.hasOwn(GRADE_RANK, S.grade)) meta.gradeWins[S.grade]++;
   if (clean) { st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak); }
   if (S.assisted) st.assistedWon++;
   if (best.time) st.bestTimeMs = Math.max(1, Math.round(S.elapsedMs));
@@ -2400,28 +2413,29 @@ function onWin(delay) {
   }
   meta.wonDeals = meta.wonDeals.filter((x) => x !== dealKey).concat(dealKey).slice(-WON_DEALS_KEPT);
   saveStats();
-  if (!replay) meta.totalWins = (meta.totalWins || 0) + 1;
+  if (!alreadyWon) meta.totalWins = (meta.totalWins || 0) + 1;
   if (S.daily) {
     const dk = S.daily + '|' + k;
     // Same-day completions record 'won' (counting toward consecutive-day streaks); past-date archive completions record 'won-archive' (never downgrading 'won', CD-WF6-04).
     if (meta.daily[dk] !== 'won') meta.daily[dk] = S.daily === todayStr() ? 'won' : 'won-archive';
   }
   meta.dailyBest = dailyRun();
-  const opened = replay ? [] : UNLOCKS.filter((u) => !meta.unlock.ids.includes(u[0]) && (meta.totalWins >= u[1] || (u[4] && u[4]()))).map((u) => u[0]);
+  const opened = alreadyWon ? [] : UNLOCKS.filter((u) => !meta.unlock.ids.includes(u[0]) && (meta.totalWins >= u[1] || (u[4] && u[4]()))).map((u) => u[0]);
   if (opened.length) meta.unlock.ids.push(...opened);
-  const ach = replay ? [] : earn({ wins: meta.totalWins, w: { ms: S.elapsedMs, usedUndo: S.usedUndo, usedHint: S.usedHint } });
+  const ach = alreadyWon ? [] : earn({ wins: meta.totalWins, w: (!alreadyWon && !retried) ? { ms: S.elapsedMs, usedUndo: S.usedUndo, usedHint: S.usedHint } : null });
   const factIdx = pickFact(S.mode + ':' + S.deal);
   save('meta', meta); save('current', null);
   lastWin = { ach, opened: opened.map(unlockName), openedIds: opened, pb, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, scoring, bonus, moves: S.moves, ms: S.elapsedMs,
-    best, totalWins: meta.totalWins, streak: clean ? st.streak : 0, assisted: S.assisted, replay, fact: FACTS[factIdx] };
+    best, totalWins: meta.totalWins, streak: clean ? st.streak : 0, assisted: S.assisted, replay, alreadyWon, retried, fact: FACTS[factIdx] };
   syncMusicIntensity();
   announce(scoring === 'none' ? 'You won!' : 'You won! Score ' + S.score);
   winTimer = setTimeout(ceremony, Math.max(250, delay + 260));
 }
 // The one cue the win sheet adds for what the win earned: a whole course of baths or a daily, then a new personal best, then three or more wins in a row.
 function milestoneCue(w) {
-  if (!w || w.replay) return null;
+  if (!w || w.alreadyWon) return null;
   if ((w.totalWins > 0 && w.totalWins % 21 === 0) || w.daily) return ['course'];
+  if (w.retried || w.assisted) return null;
   if (w.pb) return ['best'];
   return w.streak >= 3 ? ['streak', Math.min(5, w.streak)] : null;
 }
@@ -6749,7 +6763,7 @@ function openModal(kind, data, opts) {
   if (kind === 'win') {
     clearWinTimers(); myEpoch = winEpoch;
     modalAnimUntil = reducedMotion() ? 0 : now() + 920;
-    if (lastWin && !lastWin.replay && (lastWin.totalWins || 0) > 0) trackWinTimer(() => { if (modalKind === 'win') sfx('punch'); }, reducedMotion() ? 150 : 650);
+    if (lastWin && !lastWin.alreadyWon && (lastWin.totalWins || 0) > 0) trackWinTimer(() => { if (modalKind === 'win') sfx('punch'); }, reducedMotion() ? 150 : 650);
   } else {
     modalAnimUntil = reducedMotion() ? 0 : now() + 190;
   }
@@ -7057,7 +7071,7 @@ const MODALS = {
   win: () => {
     const w = lastWin; if (!w) return head('Your bath is drawn');
     const k = modeKey(w.mode, w.opts), tw = Math.max(0, w.totalWins || 0);
-    const filled = tw > 0 ? ((tw - 1) % 21) + 1 : 0, courses = tw > 0 ? Math.floor((tw - 1) / 21) : 0, punched = !w.replay && tw > 0;
+    const filled = tw > 0 ? ((tw - 1) % 21) + 1 : 0, courses = tw > 0 ? Math.floor((tw - 1) / 21) : 0, punched = !w.alreadyWon && tw > 0;
     const f = w.fact, noScore = w.scoring === 'none';
     const nd = nextDailyFor(w.daily, k);
     const primaryBtn = nd.next
@@ -7073,7 +7087,7 @@ const MODALS = {
           : '') + '</div>'
       : '';
     let tierHtml = '';
-    if (!w.daily && !w.replay && !w.assisted) {
+    if (!w.daily && !w.alreadyWon && !w.retried && !w.assisted) {
       const st = statFor(k), cleanCnt = Math.max(0, st.won - st.assistedWon);
       if (k === 'klondike1' && cleanCnt >= 3 && statFor('klondike3').won === 0) tierHtml = '<div class="tier-up"><span>Ready for a deeper hand?</span><button type="button" class="chip equip-chip" data-tier-mode="klondike" data-tier-draw="3">Try Draw 3</button></div>';
       else if (k === 'spider1' && cleanCnt >= 3 && statFor('spider2').won === 0) tierHtml = '<div class="tier-up"><span>Ready for two suits?</span><button type="button" class="chip equip-chip" data-tier-mode="spider" data-tier-suits="2">Try 2 suits</button></div>';
@@ -7532,6 +7546,7 @@ window.__game = {
     for (const id in s.piles || {}) { if (!st.piles[id]) continue; for (const n of s.piles[id]) { const c = parseNote(n); st.piles[id].push(st.cards.length); st.cards.push({ s: c.s, r: c.r }); st.up.push(c.up); } }
     st.initDown = downCount(st);
     if (s.grade) { st.winnable = true; st.grade = s.grade; }
+    if (s.replay != null) st.replay = !!s.replay;
     if (s.score != null) st.score = s.score; if (s.moves != null) st.moves = s.moves;
     if (s.recycles != null) st.recycles = s.recycles;
     S = st; clearTransientFx(false); undoStack = []; redoStack = []; pullbackHold.clear(); held = null; drag = null; clearHover(); cascade = null; hintState = null; lastWin = null; clearStuck();
