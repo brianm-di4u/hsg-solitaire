@@ -452,8 +452,9 @@
     padding:6.5% 19% 6.5% 8%;display:flex;flex-direction:column;justify-content:center;transform:rotate(-1.2deg)}
   .ticket .hd{font-family:var(--font-display);letter-spacing:.14em;text-align:center;font-size:clamp(.62rem,2.6vw,.82rem);color:#8E3622}
   .ticket .big{font-family:"Libre Bodoni",var(--font-serif-victorian);font-size:clamp(1.5rem,7vw,2.3rem);font-weight:700;text-align:center;
-    color:#8E3622;letter-spacing:.03em;line-height:1.05;margin:1px 0 2px}
-  .ticket .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px;text-align:center;font-size:clamp(.56rem,2.3vw,.7rem);
+    color:#8E3622;letter-spacing:.03em;line-height:1.05;margin:1px 0 2px;display:flex;align-items:baseline;justify-content:center;gap:6px}
+  .ticket .big .best{font-family:var(--font-deco);text-transform:uppercase;letter-spacing:.08em}
+  .ticket .grid{display:grid;grid-template-columns:1fr 1fr;gap:2px;text-align:center;font-size:clamp(.56rem,2.3vw,.7rem);
     letter-spacing:.1em;text-transform:uppercase;color:#6B3A26}
   .ticket .grid b{display:block;font-size:clamp(.78rem,3.2vw,.98rem);letter-spacing:.02em;text-transform:none;color:#2A1408;font-variant-numeric:tabular-nums}
   .ticket .best{color:#2E6A3C;font-weight:700;font-size:.62rem;letter-spacing:.08em}
@@ -2638,7 +2639,13 @@ function onWin(delay) {
     moves: clean && (!st.fewestMoves || S.moves < st.fewestMoves),
     score: clean && scoredMode && S.score > 0 && S.score > prevModeBestScore,
   };
-  const pb = (best.time && hadBestTime) || (best.moves && hadBestMoves) || (best.score && prevModeBestScore > 0);
+  // Gate Bath Ticket BEST stamps strictly on beating a prior record (W6-S1-02), matching pb.
+  const beaten = {
+    time: best.time && hadBestTime,
+    moves: best.moves && hadBestMoves,
+    score: best.score && prevModeBestScore > 0,
+  };
+  const pb = beaten.time || beaten.moves || beaten.score;
   st.won++; if (st.played < st.won) st.played = st.won; st.totalMs += S.elapsedMs; noteResult(st, S.assisted ? 'A' : 'W');
   if (!alreadyWon && S.winnable && Object.hasOwn(GRADE_RANK, S.grade)) meta.gradeWins[S.grade]++;
   if (clean) { st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak); }
@@ -2665,7 +2672,7 @@ function onWin(delay) {
   const factIdx = pickFact(S.mode + ':' + S.deal);
   save('meta', meta); save('current', null);
   lastWin = { ach, opened: opened.map(unlockName), openedIds: opened, pb, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, score: S.score, scoring, bonus, effBonus, moves: S.moves, ms: S.elapsedMs,
-    best, totalWins: meta.totalWins, streak: clean ? st.streak : 0, assisted: S.assisted, replay, alreadyWon, retried, fact: FACTS[factIdx] };
+    best: beaten, totalWins: meta.totalWins, streak: clean ? st.streak : 0, assisted: S.assisted, replay, alreadyWon, retried, fact: FACTS[factIdx] };
   syncMusicIntensity();
   announce(scoring === 'none' ? 'You won!' : 'You won! Score ' + S.score);
   winTimer = setTimeout(ceremony, Math.max(250, delay + 260));
@@ -7496,15 +7503,28 @@ const MODALS = {
         else if (k === 'spider2' && statFor('spider4').won === 0) tierHtml = '<div class="tier-up"><span>Ready for all four suits?</span><button type="button" class="chip equip-chip" data-tier-mode="spider" data-tier-suits="4">Try 4 suits</button></div>';
       }
     }
+    const achList = w.ach || [];
+    const achSup = { 'Quick Dip': 'Steam Rush', 'Steady Hand': 'Own Two Hands', 'Warm Streak': 'Hot Streak', 'Three Days Running': 'A Week of Waters' };
+    let achHtml = '';
+    if (achList.length) {
+      if (achList.length <= 3) {
+        achHtml = '<div class="earn-ach">' + (achList.length > 1 ? 'Achievements' : 'Achievement') + ': ' + achList.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>';
+      } else {
+        const achSet = new Set(achList);
+        const ordered = achList.filter((n) => !achSup[n] || !achSet.has(achSup[n])).concat(achList.filter((n) => achSup[n] && achSet.has(achSup[n])));
+        const shown = ordered.slice(0, 3), extra = ordered.length - shown.length;
+        achHtml = '<div class="earn-ach" title="' + esc('All earned: ' + achList.join(', ')) + '">Achievements: ' + shown.map((n) => '<b>' + esc(n) + '</b>').join(', ') + ' <span class="ach-more">+' + extra + ' more</span></div>';
+      }
+    }
     return head('Your bath is drawn') + '<div class="win-cols">' +
       '<div class="ticket" role="group" aria-label="Bath ticket"><div class="hd">Spa City Bath Ticket</div>' +
       '<div class="serial" aria-hidden="true">No. ' + String(w.deal).padStart(6, '0') + '</div>' + (punched ? '<div class="punch" aria-hidden="true"></div>' : '') +
-      (noScore ? '' : '<div class="big">' + w.score + '</div>') +
-      '<div class="grid"' + (noScore ? ' style="grid-template-columns:1fr 1fr"' : '') + '><div>Time<b>' + fmtTime(w.ms) + '</b>' + (w.best.time ? '<span class="best">best</span>' : '') + '</div><div>Moves<b>' + w.moves + '</b>' + (w.best.moves ? '<span class="best">best</span>' : '') + '</div>' + (noScore ? '' : '<div>Score<b>' + w.score + '</b>' + (w.best.score ? '<span class="best">best</span>' : '') + '</div>') + '</div>' +
+      (noScore ? '' : '<div class="big" aria-label="Score ' + w.score + (w.best.score ? ', new best' : '') + '">' + w.score + (w.best.score ? '<span class="best" aria-hidden="true">best</span>' : '') + '</div>') +
+      '<div class="grid"><div>Time<b>' + fmtTime(w.ms) + '</b>' + (w.best.time ? '<span class="best">best</span>' : '') + '</div><div>Moves<b>' + w.moves + '</b>' + (w.best.moves ? '<span class="best">best</span>' : '') + '</div></div>' +
       '<div class="meta">' + esc(modeKeyLabel(k)) + ' · ' + (w.daily ? 'Daily ' + w.daily : 'Deal #' + w.deal) + (w.bonus ? ' · time bonus +' + w.bonus : '') + (w.effBonus > 0 ? ' · efficiency +' + w.effBonus : '') + (w.alreadyWon ? ' · replay' : w.retried ? ' · retried' : w.replay ? ' · replay' : '') + (w.assisted ? ' · assisted' : '') + '</div>' +
       '<div class="course" role="img" aria-label="Course progress ' + filled + ' of 21">' + Array.from({ length: 21 }, (_, i) => '<i class="' + (i < filled ? 'f' : '') + (punched && i === filled - 1 ? ' new' : '') + ((i + 1) % 7 === 0 ? ' m' : '') + '"' + ((i + 1) % 7 === 0 ? ' title="' + (i + 1) + ' baths"' : '') + '></i>').join('') + '</div>' +
       '<div class="meta">Course of 21 baths: ' + filled + ' of 21' + (courses > 0 ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : '') + '</div></div><div class="win-side">' +
-      (w.pb || w.streak >= 3 || (w.ach || []).length || (w.opened || []).length ? '<div class="earn" role="status">' + (w.pb ? '<div class="pb">New personal best</div>' : '') + (w.streak >= 3 ? '<div>' + w.streak + ' wins in a row</div>' : '') + ((w.ach || []).length ? '<div>' + (w.ach.length > 1 ? 'Achievements' : 'Achievement') + ': ' + w.ach.map((n) => '<b>' + esc(n) + '</b>').join(', ') + '</div>' : '') + unlockedHtml + '</div>' : '') +
+      (w.pb || w.streak >= 3 || achList.length || (w.opened || []).length ? '<div class="earn" role="status">' + (w.pb ? '<div class="pb">New personal best</div>' : '') + (w.streak >= 3 ? '<div>' + w.streak + ' wins in a row</div>' : '') + achHtml + unlockedHtml + '</div>' : '') +
       tierHtml +
       '<div class="fact"><div class="k">Did you know?</div><div class="q">' + esc(f[1]) + '</div><div class="a">' + esc(f[2]) + '</div><div>' + esc(f[3]) + '</div><div class="src">Source: ' + esc(f[4]) + '</div></div>' +
       '<div class="row">' + primaryBtn + '<button type="button" class="btn" data-a="restart">Replay this deal</button><button type="button" class="btn" data-a="title">Change game</button></div></div></div>';

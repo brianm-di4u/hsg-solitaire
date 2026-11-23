@@ -80,7 +80,9 @@ export const tests = [
       await eqBtn.click();
       t.equal((await t.state()).settings.back, 'paterae', 'inline Equip now equips unlocked back live');
       t.equal(await eqBtn.textContent(), 'Equipped ✓', 'Equip now flips to Equipped ✓ in place');
-      for (const n of ['First Soak', 'Parlor Game', 'Quick Dip', 'Steam Rush', 'Steady Hand', 'Own Two Hands']) t.expect(txt.includes(n), 'earned ' + n);
+      // W6-S1-02: win card condenses >3 simultaneous achievements to top 3 non-redundant headlines + '+N more' while meta.ach stores all 6
+      for (const n of ['First Soak', 'Parlor Game', 'Steam Rush']) t.expect(txt.includes(n), 'headline achievement ' + n + ' shown on ticket');
+      t.expect(txt.includes('+3 more') && !txt.includes('Quick Dip') && !txt.includes('Steady Hand'), 'ticket condenses 6 simultaneous achievements without crowding nested tiers: ' + txt);
       t.expect(!txt.includes('New personal best'), 'a first win is not a "new" best');
       await shot(t, 'S3-03', 'win-earned');
       t.equal(Object.keys(m.ach).sort(), ['alone', 'first', 'klon', 'quick', 'rush', 'steady'], 'six achievements recorded with a date');
@@ -673,6 +675,66 @@ export const tests = [
           t.expect(!!docked.leftStyle && Math.abs(parseFloat(docked.leftStyle) - docked.W / 2) > 40, 'dockNotices() shifts #notices clear of center column using live noticesEl.offsetHeight: ' + JSON.stringify(docked));
         }
       }
+    },
+  },
+  {
+    name: 'w2c W6-S1-02 Win #1 suppresses BEST badges, removes duplicate Score from .ticket .grid, and condenses >3 achievements while Win #2 stamps genuine PBs',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false, scoring: 'standard' });
+      // 1. Fresh Win #1 (moves: 60 -> final moves 61, card 10 + effBonus(61)=450 -> 460)
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 921, moves: 60 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 15000 });
+
+      const lw1 = await t.game('lastWin');
+      t.equal([lw1.pb, lw1.best.time, lw1.best.moves, lw1.best.score], [false, false, false, false], 'Win #1 with no prior record gates pb and all best flags to false');
+      const st1 = (await t.game('stats')).klondike1;
+      t.expect(st1.bestTimeMs > 0 && st1.fewestMoves === 61 && st1.bestStandardScore === 460, 'Win #1 still saves baseline records in stats: ' + JSON.stringify({ bestTimeMs: st1.bestTimeMs, fewestMoves: st1.fewestMoves, bestStandardScore: st1.bestStandardScore }));
+
+      const tk1 = await t.page.evaluate(() => ({
+        bestCount: document.querySelectorAll('#sheet .ticket .best').length,
+        bigText: document.querySelector('#sheet .ticket .big').textContent.trim(),
+        gridCols: [...document.querySelectorAll('#sheet .ticket .grid > div')].map((d) => d.firstChild.textContent.trim()),
+        achBold: [...document.querySelectorAll('#sheet .earn-ach b')].map((b) => b.textContent),
+        achMore: document.querySelector('#sheet .earn-ach .ach-more')?.textContent || '',
+        achTitle: document.querySelector('#sheet .earn-ach')?.getAttribute('title') || '',
+      }));
+      t.equal(tk1.bestCount, 0, 'Win #1 Bath Ticket stamps zero BEST badges');
+      t.equal(tk1.bigText, '460', 'Win #1 focal .big shows score');
+      t.equal(tk1.gridCols, ['Time', 'Moves'], '.ticket .grid keeps only Time and Moves without duplicating Score');
+      t.equal(tk1.achBold, ['First Soak', 'Parlor Game', 'Steam Rush'], 'Win #1 condenses 6 achievements to 3 non-redundant headlines');
+      t.equal(tk1.achMore, '+3 more', 'Win #1 shows +3 more counter');
+      t.expect(tk1.achTitle.includes('Quick Dip') && tk1.achTitle.includes('Own Two Hands'), 'full list preserved in title tooltip: ' + tk1.achTitle);
+      await t.shot('w2c-W6-S1-02-win1', { fullPage: false });
+      await t.checkLayout({ allowScrollY: true });
+
+      // 2. Win #2 beating prior moves (10 < 61) and score (score 500 + 10 + 450 = 960 > 460)
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 922, moves: 10, score: 500 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 15000 });
+
+      const lw2 = await t.game('lastWin');
+      t.equal([lw2.pb, lw2.best.moves, lw2.best.score], [true, true, true], 'Win #2 beating prior records sets pb, best.moves, and best.score');
+      const tk2 = await t.page.evaluate(() => ({
+        bigBest: document.querySelectorAll('#sheet .ticket .big .best').length,
+        gridBest: document.querySelectorAll('#sheet .ticket .grid .best').length,
+        gridCols: [...document.querySelectorAll('#sheet .ticket .grid > div')].map((d) => d.firstChild.textContent.trim()),
+        pbText: document.querySelector('#sheet .earn .pb')?.textContent || '',
+      }));
+      t.equal(tk2.bigBest, 1, 'Win #2 stamps BEST beside focal .big score');
+      t.expect(tk2.gridBest >= 1, 'Win #2 stamps BEST in .ticket .grid for beaten moves/time');
+      t.equal(tk2.gridCols, ['Time', 'Moves'], 'Win #2 .ticket .grid keeps 2 columns');
+      t.equal(tk2.pbText, 'New personal best', 'Win #2 announces New personal best');
+      await t.shot('w2c-W6-S1-02-win2-pb', { fullPage: false });
+      await t.checkLayout({ allowScrollY: true });
+
+      // 3. <=3 simultaneous achievements render in full without +N more
+      await t.game('scene', 'win', { ach: ['Cooling Room', 'Two Springs'], best: {}, totalWins: 3 });
+      const tk3 = await t.page.evaluate(() => ({
+        achBold: [...document.querySelectorAll('#sheet .earn-ach b')].map((b) => b.textContent),
+        achMore: document.querySelectorAll('#sheet .earn-ach .ach-more').length,
+      }));
+      t.equal([tk3.achBold, tk3.achMore], [['Cooling Room', 'Two Springs'], 0], '<=3 achievements render in full without +N more');
     },
   },
 ];
