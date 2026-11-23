@@ -583,4 +583,112 @@ export const tests = [
       t.equal(pOff2, pOff1, 'disconnecting gamepad halts rAF polling (0 idle polls)');
     },
   },
+  {
+    name: 'play-35 signed rawScore conservation blocks zero-clamped foundation pullback farming (W1-P-N03)',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced', scoring: 'standard', autoFoundation: 'off', tips: false });
+      // 1. Klondike Draw 1 Pass-2 recycle drives rawScore negative while keeping displayed S.score floored at 0;
+      //    pulling a foundation card down (-15) and re-pushing it (+10) must never regenerate positive points.
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 }, score: 20, recycles: 1,
+        piles: {
+          stock: [], waste: ['9C'],
+          f0: ['AS', '2S'], f1: [], f2: [], f3: [],
+          t0: ['3H'], t1: ['KD'], t2: [], t3: [], t4: [], t5: [], t6: [],
+        },
+      });
+      await t.game('act', 'draw'); // Pass 2 recycle: -50 => rawScore -30, displayed score 0
+      let s = await t.state();
+      t.equal([s.score, s.rawScore], [0, -30], 'Pass-2 recycle clamps display score at 0 while conserving rawScore = -30');
+      t.equal(await t.page.textContent('#sScore'), '0', 'HUD #sScore displays non-negative 0');
+
+      await t.game('act', 'move', 'f0', 't0'); // pullback 2S -> 3H: -15 => rawScore -45, score 0
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [0, -45], 'foundation pullback at 0 decrements rawScore to -45');
+
+      await t.game('act', 'move', 't0', 'f0'); // re-push 2S -> f0: +10 => rawScore -35, score 0 (NOT +10!)
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [0, -35], 're-pushing pulled card cannot regenerate points (score stays 0, rawScore = -35)');
+      t.equal(await t.page.textContent('#sScore'), '0', 'HUD #sScore stays 0 after pullback/re-push cycle');
+
+      // 2. Undo and Redo restore signed rawScore accurately across negative states
+      await t.game('act', 'undo');
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [0, -45], 'Undo restores rawScore = -45');
+      await t.game('act', 'undo');
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [0, -30], 'second Undo restores rawScore = -30');
+      await t.game('act', 'undo');
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [20, 20], 'third Undo restores pre-recycle score = 20 and rawScore = 20');
+      await t.game('act', 'redo');
+      await t.game('act', 'redo');
+      await t.game('act', 'redo');
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [0, -35], 'Redo re-applies signed rawScore = -35');
+
+      // 3. Direct zero-floor pullback (starting at score 0, rawScore 0) also conserves signed net score
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 }, score: 0,
+        piles: {
+          stock: [], waste: [],
+          f0: ['AS', '2S'], f1: [], f2: [], f3: [],
+          t0: ['3H'], t1: ['AH'], t2: [], t3: [], t4: [], t5: [], t6: [],
+        },
+      });
+      await t.game('act', 'move', 'f0', 't0'); // -15 => rawScore -15, score 0
+      await t.game('act', 'move', 't0', 'f0'); // +10 => rawScore -5, score 0
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [0, -5], 'zero-floor pullback + re-push nets -5 instead of +10');
+      await t.game('act', 'move', 't1', 'f1'); // +10 => rawScore +5, score 5
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [5, 5], 'subsequent legitimate +10 lifts rawScore from -5 to +5 and display score to 5');
+
+      // 4. Negative rawScore persists across reload (save + resumeSaved), and legacy saves without rawScore default cleanly
+      // Use a full 52-card deck so validSave() accepts the persisted save across reload.
+      const rest48 = run('C').concat(run('D'), run('H'), run('S')).filter((c) => !['AS', '2S', '3H', '9C'].includes(c));
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 }, deal: 903, score: 20, recycles: 1,
+        piles: {
+          stock: [], waste: ['9C'],
+          f0: ['AS', '2S'], f1: [], f2: [], f3: [],
+          t0: ['3H'], t1: rest48, t2: [], t3: [], t4: [], t5: [], t6: [],
+        },
+      });
+      await t.game('act', 'draw');             // rawScore -30, score 0
+      await t.game('act', 'move', 'f0', 't0'); // rawScore -45, score 0
+      await t.page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+      await t.page.waitForFunction(() => {
+        const raw = localStorage.getItem('spa-solitaire:v1:current');
+        return raw && JSON.parse(raw).state && JSON.parse(raw).state.deal === 903 && JSON.parse(raw).state.rawScore === -45;
+      });
+      await t.page.reload({ waitUntil: 'domcontentloaded' });
+      await t.page.waitForFunction(() => !!window.__game);
+      await t.page.click('#tCont');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'game');
+      s = await t.state();
+      t.equal([s.score, s.rawScore, s.undoDepth], [0, -45, 2], 'reloaded save preserves negative rawScore and undo snapshots');
+      await t.game('act', 'move', 't0', 'f0'); // +10 => rawScore -35, score 0
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [0, -35], 're-pushing after reload still cannot regenerate points');
+
+      // Legacy save without rawScore field restores cleanly with rawScore === score
+      await t.game('scene', 'title');
+      await t.page.evaluate(() => {
+        const k = 'spa-solitaire:v1:current';
+        const cur = JSON.parse(localStorage.getItem(k));
+        delete cur.state.rawScore;
+        cur.state.score = 15;
+        if (Array.isArray(cur.undo)) cur.undo.forEach((sn) => delete sn.rawScore);
+        localStorage.setItem(k, JSON.stringify(cur));
+      });
+      await t.page.reload({ waitUntil: 'domcontentloaded' });
+      await t.page.waitForFunction(() => !!window.__game);
+      await t.page.click('#tCont');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'game');
+      s = await t.state();
+      t.equal([s.score, s.rawScore], [15, 15], 'legacy save without rawScore defaults rawScore to saved score');
+    },
+  },
 ];

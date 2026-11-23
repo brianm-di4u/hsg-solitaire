@@ -812,7 +812,7 @@ function makeDeck(mode, opts) {
 
 function newState(mode, opts, deal, daily) {
   const st = { v: 1, mode, opts: { draw: opts.draw === 3 ? 3 : 1, suits: [1, 2, 4].includes(opts.suits) ? opts.suits : 1 }, deal, daily: daily || null,
-    cards: makeDeck(mode, opts), up: [], piles: {}, score: mode === 'spider' ? 500 : 0, moves: 0, elapsedMs: 0, recycles: 0, runs: 0,
+    cards: makeDeck(mode, opts), up: [], piles: {}, score: mode === 'spider' ? 500 : 0, rawScore: mode === 'spider' ? 500 : 0, moves: 0, elapsedMs: 0, recycles: 0, runs: 0,
     initDown: mode === 'spider' ? 44 : mode === 'freecell' ? 0 : 21, scoring: settings.scoring,
     started: false, won: false, usedUndo: false, usedHint: false, assisted: false, replay: false };
   for (const id of pileIds(mode)) st.piles[id] = [];
@@ -991,21 +991,28 @@ let nextDeal = null;         // set by __game.seed(n)
 
 function snapshot() {
   const piles = {}; for (const k in S.piles) piles[k] = S.piles[k].slice();
-  return { piles, up: S.up.slice(), score: S.score, moves: S.moves, recycles: S.recycles, runs: S.runs, won: S.won, pullback: [...pullbackHold] };
+  return { piles, up: S.up.slice(), score: S.score, rawScore: typeof S.rawScore === 'number' && isFinite(S.rawScore) ? S.rawScore : S.score, moves: S.moves, recycles: S.recycles, runs: S.runs, won: S.won, pullback: [...pullbackHold] };
 }
 function restore(sn) {
-  S.piles = sn.piles; S.up = sn.up; S.score = sn.score; S.moves = sn.moves; S.recycles = sn.recycles; S.runs = sn.runs; S.won = sn.won;
+  S.piles = sn.piles; S.up = sn.up;
+  S.rawScore = typeof sn.rawScore === 'number' && isFinite(sn.rawScore) ? sn.rawScore : sn.score;
+  S.score = Math.max(0, S.rawScore);
+  S.moves = sn.moves; S.recycles = sn.recycles; S.runs = sn.runs; S.won = sn.won;
   pullbackHold = new Set(Array.isArray(sn.pullback) ? sn.pullback : []);
 }
 function pushUndo() { undoStack.push(snapshot()); redoStack.length = 0; }
 
 // A score change of 5 points or more also floats up from the pile it happened at (S3-14), so the points can be learned by playing. Not with reduced motion,
 // and not when scoring is None; the change shown is the one the score really made (it never goes below 0).
+// Track signed unclamped S.rawScore alongside floored S.score = Math.max(0, S.rawScore) so zero-clamped pullbacks cannot regenerate points (W1-P-N03).
 let scoreFx = [];
 const suppressLandFx = new Set(), milestoneLandFx = new Set(), runArcFx = new Set(), seatOnLand = new Set();
 const SCORE_FX_MIN = 5, SCORE_FX_LIFE = 900;
 const addScore = (n, pile, uid) => {
-  const before = S.score; S.score = Math.max(0, S.score + n);
+  const before = S.score;
+  const base = typeof S.rawScore === 'number' && isFinite(S.rawScore) ? S.rawScore : S.score;
+  S.rawScore = base + n;
+  S.score = Math.max(0, S.rawScore);
   const d = S.score - before;
   if (pile && Math.abs(d) >= SCORE_FX_MIN && settings.scoring !== 'none' && !reducedMotion()) {
     scoreFx.push({ text: (d > 0 ? '+' : '−') + Math.abs(d), neg: d < 0, pile, uid: uid != null ? uid : -1, t0: now() + 170, synced: false });
@@ -2614,6 +2621,7 @@ function validSave(c) {
   const s = c.state;
   if (!isObj(s) || s.v !== 1 || !MODES[s.mode] || !isObj(s.opts) || ![1, 3].includes(s.opts.draw) || ![1, 2, 4].includes(s.opts.suits)) return false;
   if (!['deal', 'score', 'moves', 'elapsedMs', 'recycles', 'runs'].every((k) => num(s[k]) && s[k] >= 0) || (s.daily != null && typeof s.daily !== 'string')) return false;
+  if (s.rawScore !== undefined && !num(s.rawScore)) return false;
   const n = s.mode === 'spider' ? 104 : 52;
   if (!isArr(s.cards) || s.cards.length !== n || !isArr(s.up) || s.up.length !== n || !s.up.every((b) => typeof b === 'boolean')) return false;
   if (!s.cards.every((k) => isObj(k) && Number.isInteger(k.s) && k.s >= 0 && k.s < 4 && Number.isInteger(k.r) && k.r >= 1 && k.r <= 13)) return false;
@@ -2623,6 +2631,7 @@ function validSnapshot(sn, c) {
   const n = c.state.cards.length;
   if (!isObj(sn) || !Array.isArray(sn.up) || sn.up.length !== n || !sn.up.every((b) => typeof b === 'boolean')) return false;
   if (!['score', 'moves', 'recycles', 'runs'].every((k) => typeof sn[k] === 'number' && isFinite(sn[k]) && sn[k] >= 0)) return false;
+  if (sn.rawScore !== undefined && !(typeof sn.rawScore === 'number' && isFinite(sn.rawScore))) return false;
   if (sn.won !== undefined && typeof sn.won !== 'boolean') return false;
   return validPiles(sn.piles, c.state.mode, n);
 }
@@ -2640,6 +2649,8 @@ function resumeSaved() {
   const prev = { S, undoStack, tabSuperseded };
   try {
     S = c.state; undoStack = c.undo; redoStack = []; pullbackHold.clear(); clearTransientFx(false); hintState = null; held = null; drag = null; cascade = null; fitHold = 1; clearStuck();
+    if (typeof S.rawScore !== 'number' || !isFinite(S.rawScore)) S.rawScore = S.score;
+    S.score = Math.max(0, S.rawScore);
     if (S.scoring !== undefined && !SETTING_ENUMS.scoring.includes(S.scoring)) S.scoring = settings.scoring;
     prevCanAuto = canAutoComplete(); lastCompletedSuits = completedSuits();
     tabSuperseded = false; tabNoteHide();
@@ -7725,7 +7736,7 @@ window.__game = {
     tickClock(); // elapsedMs is otherwise only as fresh as the last half-second tick
     if (!S) return { scene: sceneName(), modal: modalKind, settings: Object.assign({}, settings) };
     return { scene: sceneName(), modal: modalKind, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, piles: notePiles(),
-      score: S.score, scoring: activeScoring(), moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, winnable: !!S.winnable, grade: S.winnable && Object.hasOwn(GRADE_RANK, S.grade) ? S.grade : '', started: S.started, canAutoComplete: canAutoComplete(),
+      score: S.score, rawScore: typeof S.rawScore === 'number' && isFinite(S.rawScore) ? S.rawScore : S.score, scoring: activeScoring(), moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, winnable: !!S.winnable, grade: S.winnable && Object.hasOwn(GRADE_RANK, S.grade) ? S.grade : '', started: S.started, canAutoComplete: canAutoComplete(),
       undoDepth: undoStack.length, redoDepth: redoStack.length, replay: !!S.replay, finishing: !!(finishRun && winTimer), ceremony: !!cascade, held: held ? { from: held.from, index: held.index } : null, dropTarget: drag ? dropTarget(drag) : null, cursor: Object.assign({}, cursor),
       settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, maxMove: S.mode === 'freecell' ? capacity(null) : null, stuck: stuckVerdict, lost: lostVerdict, hinting: !!hintJob, storageOK };
   },
@@ -7739,7 +7750,9 @@ window.__game = {
     if (s.grade) { st.winnable = true; st.grade = s.grade; }
     if (s.replay != null) st.replay = !!s.replay;
     if (s.scoring && SETTING_ENUMS.scoring.includes(s.scoring)) st.scoring = s.scoring;
-    if (s.score != null) st.score = s.score; if (s.moves != null) st.moves = s.moves;
+    if (s.rawScore != null) { st.rawScore = s.rawScore; st.score = Math.max(0, st.rawScore); }
+    else if (s.score != null) { st.score = Math.max(0, s.score); st.rawScore = st.score; }
+    if (s.moves != null) st.moves = s.moves;
     if (s.recycles != null) st.recycles = s.recycles;
     S = st; clearTransientFx(false); undoStack = []; redoStack = []; pullbackHold.clear(); held = null; drag = null; clearHover(); cascade = null; hintState = null; lastWin = null; clearStuck();
     clearWinTimers(); cancelAutoCues(); cancelBuzz(); clearCueCooldowns(); landCues.length = 0; flipQueue.length = 0; drawWaypoints = {};
