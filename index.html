@@ -793,7 +793,14 @@ if (!hadSave) save('settings', settings); // a save from here on is a player who
 let stats = loadObj('stats');
 let meta = Object.assign({ lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 0, daily: {} }, loadObj('meta'));
 const reduceQuery = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
-const reducedMotion = () => settings.motion === 'reduced' || (settings.motion === 'auto' && !!(reduceQuery && reduceQuery.matches));
+// Chromium drops a MediaQueryList's change event when script reads .matches between the OS change and the next style
+// recalc, which this game does often (timers, loop). So a read that sees the query flip runs syncMotion itself.
+let reduceSeen = !!(reduceQuery && reduceQuery.matches);
+const reducedMotion = () => {
+  const q = !!(reduceQuery && reduceQuery.matches);
+  if (q !== reduceSeen) { reduceSeen = q; setTimeout(syncMotion, 0); }
+  return settings.motion === 'reduced' || (settings.motion === 'auto' && q);
+};
 document.documentElement.classList.toggle('rm', reducedMotion());
 
 // 3. Cards and notation
@@ -7953,7 +7960,7 @@ function resize(skipArt) {
 window.addEventListener('resize', () => resize());
 // iOS can resize the visible area (toolbars collapsing, rotation settling) without a window resize event
 if (window.visualViewport) visualViewport.addEventListener('resize', () => { const r = stage.getBoundingClientRect(); if (Math.round(r.width) !== W || Math.round(r.height) !== H) resize(); });
-if (reduceQuery && reduceQuery.addEventListener) reduceQuery.addEventListener('change', syncMotion);
+if (reduceQuery && reduceQuery.addEventListener) reduceQuery.addEventListener('change', () => { reduceSeen = !!reduceQuery.matches; syncMotion(); });
 
 // 15. Test hooks (window.__game; see MECHANICS §9)
 const noteOf = (u) => (S.up[u] ? '' : '#') + RANKS[card(u).r - 1] + SUITS[card(u).s];
