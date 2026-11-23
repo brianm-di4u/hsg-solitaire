@@ -573,6 +573,7 @@
   .bk small{display:block;font-size:.7rem;color:var(--color-muted)} .bk.lk canvas{filter:saturate(.55) brightness(.82);opacity:.78} .bk.lk{cursor:default}
   .earn{margin:0 auto 12px;max-width:460px;text-align:center;font-size:.9rem} .earn b{font-family:var(--font-deco)} .earn .pb{color:#6FC3A8;font-weight:700}
   .earn-u{display:flex;align-items:center;justify-content:center;gap:6px 8px;flex-wrap:wrap;margin-top:4px}
+  .earn-next{margin-top:4px;font-size:.82rem;color:#D8CEB8}
   .equip-chip{min-height:44px;min-width:44px;padding:0 12px;font-size:.78rem;flex:none}
   .equip-chip[aria-pressed=true]{background:#1F3A2E;color:#8FE0C2;border-color:#6FC3A8;cursor:default}
   .tier-up{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin:6px auto 10px;max-width:460px;font-size:.84rem;color:var(--color-muted)}
@@ -7267,6 +7268,12 @@ const BATH_ROW_STOPS = [
   ['Superior', 3], ['Hale', 2], ['Maurice', 2], ['Fordyce', 3],
   ['Quapaw', 3], ['Ozark', 2], ['Buckstaff', 3], ['Lamar', 3],
 ];
+function bathRowStop(filled) {
+  if (!filled || filled < 1) return '';
+  let acc = 0;
+  for (const [name, count] of BATH_ROW_STOPS) { acc += count; if (filled <= acc) return name; }
+  return BATH_ROW_STOPS[BATH_ROW_STOPS.length - 1][0];
+}
 function ledgerGameHTML(k) {
   const st = statFor(k);
   const rowS = (a, b) => '<tr><td>' + a + '</td><td>' + b + '</td></tr>';
@@ -7488,6 +7495,7 @@ const MODALS = {
     const w = lastWin; if (!w) return head('Your bath is drawn');
     const k = modeKey(w.mode, w.opts), tw = Math.max(0, w.totalWins || 0);
     const filled = tw > 0 ? ((tw - 1) % 21) + 1 : 0, courses = tw > 0 ? Math.floor((tw - 1) / 21) : 0, punched = !w.alreadyWon && tw > 0;
+    const stopName = bathRowStop(filled);
     const f = w.fact, noScore = w.scoring === 'none';
     const nd = nextDailyFor(w.daily, k);
     const primaryBtn = nd.next
@@ -7502,6 +7510,13 @@ const MODALS = {
             }).join('')
           : '') + '</div>'
       : '';
+    const nx = !(w.opened || []).length ? UNLOCKS.find((u) => !isOpen(u[0][0], u[0].slice(2))) : null;
+    let nextUnlockHtml = '';
+    if (nx) {
+      const rem = nx[1] - tw;
+      const nextHint = rem > 0 ? 'in ' + rem + (rem === 1 ? ' win' : ' wins') + (nx[3] ? ' (or ' + nx[3] + ')' : '') : lockNote(nx[0]);
+      nextUnlockHtml = '<div class="earn-next">Next unlock: <b>' + esc(unlockName(nx[0])) + '</b> ' + esc(nextHint) + '</div>';
+    }
     let tierHtml = '';
     if (!w.daily && !w.alreadyWon && !w.retried && !w.assisted) {
       const st = statFor(k), cleanCnt = Math.max(0, st.won - st.assistedWon);
@@ -7532,9 +7547,12 @@ const MODALS = {
       (noScore ? '' : '<div class="big" aria-label="Score ' + w.score + (w.best.score ? ', new best' : '') + '">' + w.score + (w.best.score ? '<span class="best" aria-hidden="true">best</span>' : '') + '</div>') +
       '<div class="grid"><div>Time<b>' + fmtTime(w.ms) + '</b>' + (w.best.time ? '<span class="best">best</span>' : '') + '</div><div>Moves<b>' + w.moves + '</b>' + (w.best.moves ? '<span class="best">best</span>' : '') + '</div></div>' +
       '<div class="meta">' + esc(modeKeyLabel(k)) + ' · ' + (w.daily ? 'Daily ' + w.daily : 'Deal #' + w.deal) + (w.bonus ? ' · time bonus +' + w.bonus : '') + (w.effBonus > 0 ? ' · efficiency +' + w.effBonus : '') + (w.alreadyWon ? ' · replay' : w.retried ? ' · retried' : w.replay ? ' · replay' : '') + (w.assisted ? ' · assisted' : '') + '</div>' +
-      '<div class="course" role="img" aria-label="Course progress ' + filled + ' of 21">' + Array.from({ length: 21 }, (_, i) => '<i class="' + (i < filled ? 'f' : '') + (punched && i === filled - 1 ? ' new' : '') + ((i + 1) % 7 === 0 ? ' m' : '') + '"' + ((i + 1) % 7 === 0 ? ' title="' + (i + 1) + ' baths"' : '') + '></i>').join('') + '</div>' +
-      '<div class="meta">Course of 21 baths: ' + filled + ' of 21' + (courses > 0 ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : '') + '</div></div><div class="win-side">' +
-      (w.pb || w.streak >= 3 || achList.length || (w.opened || []).length ? '<div class="earn" role="status">' + (w.pb ? '<div class="pb">New personal best</div>' : '') + (w.streak >= 3 ? '<div>' + w.streak + ' wins in a row</div>' : '') + achHtml + unlockedHtml + '</div>' : '') +
+      '<div class="course" role="img" aria-label="Course progress ' + filled + ' of 21' + (stopName ? ', ' + stopName : '') + '">' + Array.from({ length: 21 }, (_, i) => {
+        const n = i + 1, msStop = n % 7 === 0 ? bathRowStop(n) : '';
+        return '<i class="' + (i < filled ? 'f' : '') + (punched && i === filled - 1 ? ' new' : '') + (msStop ? ' m' : '') + '"' + (msStop ? ' title="Bath ' + n + ' · ' + msStop + '"' : '') + '></i>';
+      }).join('') + '</div>' +
+      '<div class="meta">Course of 21 baths: ' + filled + ' of 21' + (stopName ? ' · ' + stopName : '') + (courses > 0 ? ' · ' + courses + ' course' + (courses > 1 ? 's' : '') + ' completed' : '') + '</div></div><div class="win-side">' +
+      (w.pb || w.streak >= 3 || achList.length || (w.opened || []).length || nextUnlockHtml ? '<div class="earn" role="status">' + (w.pb ? '<div class="pb">New personal best</div>' : '') + (w.streak >= 3 ? '<div>' + w.streak + ' wins in a row</div>' : '') + achHtml + unlockedHtml + nextUnlockHtml + '</div>' : '') +
       tierHtml +
       '<div class="fact"><div class="k">Did you know?</div><div class="q">' + esc(f[1]) + '</div><div class="a">' + esc(f[2]) + '</div><div>' + esc(f[3]) + '</div><div class="src">Source: ' + esc(f[4]) + '</div></div>' +
       '<div class="row">' + primaryBtn + '<button type="button" class="btn" data-a="restart">Replay this deal</button><button type="button" class="btn" data-a="title">Change game</button></div></div></div>';

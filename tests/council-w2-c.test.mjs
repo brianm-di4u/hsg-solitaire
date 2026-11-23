@@ -737,4 +737,68 @@ export const tests = [
       t.equal([tk3.achBold, tk3.achMore], [['Cooling Room', 'Two Springs'], 0], '<=3 achievements render in full without +N more');
     },
   },
+  {
+    name: 'w2c W6-S2-01 Bath Ticket weaves active Bathhouse Row stop inline and shows next-unlock breadcrumb only on non-unlock wins',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false, scoring: 'standard' });
+      // Seed 2 wins already earned (b:paterae + b:quapaw open) so Win #3 is a non-unlock win (next unlock: t:quapaw at Win 4 or Spider)
+      await put(t, {
+        meta: { lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 2, daily: {}, unlock: { ids: ['b:paterae', 'b:quapaw'] }, ach: { first: '2026-11-20', klon: '2026-11-20' } },
+        stats: { klondike1: { played: 2, won: 2, assistedWon: 0, streak: 2, bestStreak: 2, bestTimeMs: 30000, fewestMoves: 40, bestScore: 900, bestStandardScore: 900, bestTimedScore: 0, totalMs: 60000, recent: 'WW' } },
+      });
+      await reloadGame(t);
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false, scoring: 'standard' });
+
+      // 1. Real non-unlock Win #3 -> Bath 3 (Superior) inline + concise next-unlock note
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 931, moves: 90 }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 15000 });
+      const win3 = await t.page.evaluate(() => {
+        const metas = [...document.querySelectorAll('#sheet .ticket .meta')].map((x) => x.textContent.trim());
+        const nextEl = document.querySelector('#sheet .earn-next');
+        const unlEl = document.querySelector('#sheet .earn-u');
+        const tk = document.querySelector('#sheet .ticket');
+        const lastMeta = document.querySelectorAll('#sheet .ticket .meta')[1];
+        return {
+          courseCap: metas[1] || '',
+          nextText: nextEl ? nextEl.textContent.trim() : '',
+          hasUnlockBanner: !!unlEl,
+          fitsInTicket: !!(tk && lastMeta && lastMeta.getBoundingClientRect().bottom <= tk.getBoundingClientRect().bottom + 1),
+          milestoneTitles: [...document.querySelectorAll('#sheet .course i.m')].map((i) => i.title),
+        };
+      });
+      t.equal(win3.courseCap, 'Course of 21 baths: 3 of 21 · Superior', 'Win #3 weaves active stop name inline in course caption');
+      t.equal(win3.hasUnlockBanner, false, 'Win #3 is a non-unlock win');
+      t.expect(win3.nextText.includes('Next unlock: Quapaw Mosaic table') && win3.nextText.includes('in 1 win') && win3.nextText.includes('win Spider'), 'non-unlock win shows concise next-unlock breadcrumb: ' + win3.nextText);
+      t.equal(win3.fitsInTicket, true, 'inline stop name keeps course caption inside .ticket with zero height overflow');
+      t.equal(win3.milestoneTitles, ['Bath 7 · Maurice', 'Bath 14 · Ozark', 'Bath 21 · Lamar'], '7/14/21 milestone rings carry stop names');
+      await t.shot('w2c-W6-S2-01-win-non-unlock', { fullPage: false });
+      await t.checkLayout({ allowScrollY: true });
+
+      // 2. Active stop names across milestone boundaries + 0-win replay without stop suffix
+      for (const [tw, want] of [[1, 'Course of 21 baths: 1 of 21 · Superior'], [7, 'Course of 21 baths: 7 of 21 · Maurice'], [14, 'Course of 21 baths: 14 of 21 · Ozark'], [21, 'Course of 21 baths: 21 of 21 · Lamar'], [0, 'Course of 21 baths: 0 of 21']]) {
+        await t.game('scene', 'win', { totalWins: tw, opened: [], openedIds: [], alreadyWon: tw === 0 });
+        const cap = await t.page.locator('#sheet .ticket .meta').nth(1).textContent();
+        t.equal(cap.trim(), want, 'totalWins=' + tw + ' course caption');
+      }
+
+      // 3. Unlock win omits .earn-next so it never crowds Unlocked + Equip now banners
+      await t.game('scene', 'win', { totalWins: 4, opened: ['Quapaw Mosaic table'], openedIds: ['t:quapaw'] });
+      const winUnlock = await t.page.evaluate(() => ({
+        hasUnlock: !!document.querySelector('#sheet .earn-u'),
+        hasNext: !!document.querySelector('#sheet .earn-next'),
+      }));
+      t.equal(winUnlock, { hasUnlock: true, hasNext: false }, 'unlock win hides next-unlock note so Unlocked + Equip now stays uncrowded');
+
+      // 4. Fully unlocked profile omits .earn-next
+      await t.game('unlockAll');
+      await t.game('scene', 'win', { totalWins: 21, opened: [], openedIds: [] });
+      t.equal(await t.page.locator('#sheet .earn-next').count(), 0, 'fully unlocked profile omits next-unlock note');
+
+      // 5. #tRow Title button labels stay untouched (CD-WF6-05)
+      await t.game('scene', 'title');
+      const rowLabels = await t.page.locator('#tRow button').allTextContents();
+      t.expect(rowLabels.every((x) => !/\(0\/21\)|\(4\/12\)|\(0\/7\)/.test(x)), '#tRow Title buttons omit Win-0 counters (CD-WF6-05): ' + JSON.stringify(rowLabels));
+    },
+  },
 ];
