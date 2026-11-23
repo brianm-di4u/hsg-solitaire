@@ -295,4 +295,79 @@ export const tests = [
       await sizeTo(t, t.vp.width, t.vp.height);
     },
   },
+  {
+    name: 'layout-06 W6-S4-06 hint arc clears destination corner indices and mobile <560px notices clear bottom brass corner fans',
+    async run(t) {
+      await t.game('setSettings', { sound: false, motion: 'reduced', tips: false, autoFoundation: 'off' });
+      const checkArcClearsIndices = async (label) => {
+        await t.page.waitForFunction(() => !!window.__game.hintArrowGeom(), null, { timeout: 5000 });
+        const res = await t.page.evaluate(() => {
+          const a = window.__game.hintArrowGeom();
+          const lay = window.__game.getLayout();
+          const geom = window.__game.cardGeometry(lay.cardW, lay.cardH, false);
+          const pad = Math.max(2, lay.cardW * 0.025);
+          const hits = [];
+          for (let i = 0; i <= 40; i++) {
+            const k = i / 40, u = 1 - k;
+            const x = u * u * a.x0 + 2 * u * k * a.qx + k * k * a.x1;
+            const y = u * u * a.y0 + 2 * u * k * a.qy + k * k * a.y1;
+            for (const [bi, b] of geom.topBoxes.entries()) {
+              const bx = a.dl.x + b.x - pad, by = a.dl.y + b.y - pad, bw = b.w + pad * 2, bh = b.h + pad * 2;
+              if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) {
+                hits.push({ bi, k: +k.toFixed(2), x: Math.round(x), y: Math.round(y), box: [Math.round(bx), Math.round(by), Math.round(bx + bw), Math.round(by + bh)] });
+              }
+            }
+          }
+          return { a, hits };
+        });
+        t.equal(res.hits, [], `${label}: hint arc clears destination top-left & top-right corner index boxes (${JSON.stringify(res.a)})`);
+      };
+
+      // 1. Left-to-right Klondike tableau move (2D -> 3S): classic repro from mobile/desktop klondike-hint.png
+      const EK = { stock: ['#9C'], waste: [], f0: [], f1: [], f2: [], f3: [], t0: [], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] };
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EK, { t1: ['#7C', '2D'], t3: ['#8D', '3S'], t6: ['KH'] }) });
+      await t.waitForStable();
+      await t.game('act', 'hint');
+      await t.waitFrames(2);
+      await checkArcClearsIndices('left-to-right 2D->3S');
+      await t.shot('layout-06-hint-arc');
+
+      // 2. Right-to-left tableau move (5H -> 6C)
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EK, { t1: ['#7C', '6C'], t5: ['#8D', '5H'], t6: ['KH'] }) });
+      await t.waitForStable();
+      await t.game('act', 'hint');
+      await t.waitFrames(2);
+      await checkArcClearsIndices('right-to-left 5H->6C');
+
+      // 3. Downward Waste -> adjacent tableau column move (5H -> 6S on t5)
+      await t.game('setState', { mode: 'klondike', opts: { draw: 1 }, piles: Object.assign({}, EK, { waste: ['5H'], t5: ['6S'], t6: ['KH'] }) });
+      await t.waitForStable();
+      await t.game('act', 'hint');
+      await t.waitFrames(2);
+      await checkArcClearsIndices('downward waste->t5');
+
+      // 4. Mobile (<560px) #notices floats cleanly above bottom brass corner fans (no overlap with bottom corners)
+      if (t.viewport === 'mobile') {
+        await t.game('setSettings', { tips: true, tipModes: '', tipStep: 0 });
+        await t.game('newGame', { mode: 'klondike', draw: 1, deal: 5 });
+        await t.page.waitForFunction(() => !document.getElementById('coach').hidden && window.__game.inlayMetrics() && window.__game.inlayMetrics().hasBottomFans, null, { timeout: 8000 });
+        const clearance = await t.page.evaluate(() => {
+          const st = document.getElementById('stage').getBoundingClientRect();
+          const n = document.getElementById('notices').getBoundingClientRect();
+          const inl = window.__game.inlayMetrics();
+          const fanTop = st.bottom - inl.m - inl.cornerS;
+          return {
+            noticesBottom: Math.round(n.bottom),
+            fanTop: Math.round(fanTop),
+            stageBottom: Math.round(st.bottom),
+            m: inl.m,
+            cornerS: inl.cornerS,
+            hasBottomFans: inl.hasBottomFans,
+          };
+        });
+        t.expect(clearance.hasBottomFans && clearance.noticesBottom <= clearance.fanTop + 1, 'mobile <560px #notices clears bottom brass corner fans: ' + JSON.stringify(clearance));
+        await t.shot('layout-06-mobile-notices-clearance');
+      }
+    },
+  },
 ];

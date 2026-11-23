@@ -118,6 +118,7 @@
   #bar button:focus-visible,#tools button:focus-visible{outline-color:#4FC3FF;box-shadow:0 0 0 2px #101813}
   #notices{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);width:max-content;max-width:min(94%,calc(100% - 24px));
     display:flex;flex-direction:column;align-items:center;gap:8px;z-index:5;pointer-events:none}
+  @media (max-width:559px){#notices{bottom:var(--bot-fan,58px)}}
   @media (min-width:560px){#notices{max-width:min(92%,calc(100% - 108px))}}
   #toast,#dealing{background:rgba(16,24,19,.94);color:var(--lac-ink);padding:10px 18px;border-radius:var(--radius-pill);font-size:.92rem;
     font-family:var(--font-deco);font-weight:600;letter-spacing:.02em;border:1px solid rgba(233,200,115,.6);box-shadow:0 4px 14px rgba(0,0,0,.45);
@@ -3842,10 +3843,12 @@ function brassInlay(ctx, W, H) {
   }
   ctx.restore();
   lastInlay = { compact: narrow, m, inlayInset: fm.inlayInset, topChevrons, hasBottomFans: drawBottomFans, cornerS: s };
+  if (typeof noticesEl !== 'undefined' && noticesEl) noticesEl.style.setProperty('--bot-fan', drawBottomFans ? (m + s + 4) + 'px' : '12px');
 }
 
 function drawTable(ctx, id, W, H, band) {
   if (drawLitTable(ctx, id, W, H, band)) return;
+  if (typeof noticesEl !== 'undefined' && noticesEl) noticesEl.style.setProperty('--bot-fan', '12px');
   const rnd = mulberry32(77);
   if (id === 'felt') {
     const g = ctx.createRadialGradient(W / 2, H * .45, 10, W / 2, H * .45, Math.max(W, H) * .75); g.addColorStop(0, '#27744B'); g.addColorStop(1, '#123A27');
@@ -4616,13 +4619,27 @@ function shadowSprite(lifted) {
   }
   return c;
 }
-function hintArrow(x0, y0, x1, y1, t) {
+let lastHintArrow = null;
+function hintArrow(x0, y0, x1, y1, t, dl) {
   const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy); if (d < 8) return;
-  const bend = Math.min(d * .35, L.ch * .9), nx = -dy / d, ny = dx / d, side = dx >= 0 ? -1 : 1;
-  const qx = (x0 + x1) / 2 + nx * bend * side, qy = (y0 + y1) / 2 + ny * bend * side - bend * .3;
+  // Route hint trajectory through the lower card body / open felt so it never crosses destination top-corner rank/suit indices (W6-S4-06).
+  const bend = Math.min(d * .24, L.ch * .46), safeY = dl ? dl.y + L.ch * .54 : Math.max(y0, y1);
+  let qx, qy;
+  if (Math.abs(dx) < L.cw * .35) {
+    const outDir = x1 > W / 2 ? -1 : 1;
+    qx = clamp(x1 + (dy > 0 ? outDir * L.cw * 1.35 : outDir * L.cw * .55), 10, W - 10);
+    qy = dy > 0 ? clamp(y1 + bend * .2, y1, H - 10) : (y0 + y1) / 2;
+  } else if (y0 < safeY) {
+    qx = x0 + dx * .22;
+    qy = clamp(y1 + bend * .4, y1, H - 10);
+  } else {
+    qx = (x0 + x1) / 2;
+    qy = clamp(Math.max((y0 + y1) / 2 + bend * .55, safeY + bend * .35), safeY, H - 10);
+  }
   const head = Math.max(8, L.cw * .14), k = .92;
   const ex = (1 - k) * (1 - k) * x0 + 2 * (1 - k) * k * qx + k * k * x1, ey = (1 - k) * (1 - k) * y0 + 2 * (1 - k) * k * qy + k * k * y1;
   const ang = Math.atan2(y1 - ey, x1 - ex);
+  lastHintArrow = { x0, y0, qx, qy, x1, y1, dl: dl ? { x: dl.x, y: dl.y, w: L.cw, h: L.ch } : null };
   ctx.save(); ctx.lineCap = 'round';
   const lw = Math.max(3, L.cw * .045), path = () => { ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(qx, qy, ex, ey); };
   ctx.setLineDash([L.cw * .16, L.cw * .1]); ctx.lineDashOffset = reducedMotion() ? 0 : -(t / 18) % (L.cw * .26);
@@ -4843,6 +4860,7 @@ function frame(t) {
       drawHoverBrackets(first.x, first.y, cw, last.y + ch - first.y);
     }
   }
+  lastHintArrow = null;
   if (hintState && hintState.until > t) {
     const a = reducedMotion() ? .88 : (.55 + .45 * Math.sin(t / 140));
     if (hintState.cur) {
@@ -4850,7 +4868,7 @@ function frame(t) {
       if (first) glowRect(first.x, first.y, cw, last.y + ch - first.y, '#F6C933', a, 3);
       const dst = L.piles[m.to]; const dl = dst.cards.length ? dst.cards[dst.cards.length - 1] : { x: dst.x, y: dst.y };
       drawDropBrackets(dl.x, dl.y, cw, ch, .45 + .45 * a);
-      if (first) hintArrow(first.x + cw / 2, first.y + Math.min(ch, L.fanUp) * .5, dl.x + cw / 2, dl.y + ch * .45, t);
+      if (first) hintArrow(first.x + cw / 2, first.y + ch * .58, dl.x + cw / 2, dl.y + ch * .64, t, dl);
     } else if (hintState.stockHint && L.piles.stock) {
       const sb = L.piles.stock, stc = sb.cards && sb.cards.length ? sb.cards[sb.cards.length - 1] : sb;
       glowRect(stc.x, stc.y, cw, ch, '#F6C933', a, 3);
@@ -7847,6 +7865,7 @@ window.__game = {
   skyDue: (t) => skyDue(t),
   hintYields(reset) { const n = hintYields; if (reset) hintYields = 0; return n; },
   hintCurrent: () => (hintState && hintState.cur ? JSON.parse(JSON.stringify(hintState.cur)) : null),
+  hintArrowGeom: () => (lastHintArrow ? JSON.parse(JSON.stringify(lastHintArrow)) : null),
   pad: () => ({ connected: !!padFound(), polls: PAD.polls }),
   tableBlur(id, px) { TABLE_LOOK[id].blur = px; tableDirty = true; markDirty(); return true; },
   backMean(seed) { // the mean colour of the skylight back drawn with a deck seed
