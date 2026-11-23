@@ -2309,8 +2309,8 @@ function startDeal(mode, opts, deal, daily, winnable, grade) {
   syncMusicIntensity();
   if (winnable) S.winnable = true;
   if (winnable && grade) S.grade = grade;
-  const dk = modeKey(mode, S.opts) + ':' + deal;
-  if (meta.seenDeals.includes(dk) || meta.wonDeals.includes(dk) || meta.wonDeals.includes(mode + ':' + deal)) S.replay = true;
+  const k = modeKey(mode, S.opts), dk = k + ':' + deal;
+  if (meta.seenDeals.includes(dk) || meta.wonDeals.includes(dk) || meta.wonDeals.includes(mode + ':' + deal) || (!!daily && isDailyWon(meta.daily[daily + '|' + k]))) S.replay = true;
   pullbackHold.clear();
   undoStack = []; redoStack = []; hintState = null; held = null; drag = null; clearHover(); cascade = null; cursor = { pile: null, depth: 0 }; clearStuck();
   tabSuperseded = false; tabNoteHide();

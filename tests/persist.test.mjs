@@ -275,4 +275,70 @@ export const tests = [
       t.expect(!(await t.game('meta')).ach.run, 'already-won Spider deal suppresses ach:run');
     },
   },
+  {
+    name: 'persist-28 W1-S2-06 400-day Daily Archive wins evicted past the 200-entry wonDeals/seenDeals buffers still flag S.replay and alreadyWon',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced', tips: false, sound: false, scoring: 'standard' });
+      // Seed meta.daily with archive wins ('won' and 'won-archive') + an unwon 'played' entry,
+      // while seenDeals and wonDeals hold 200 unrelated newer deals (simulating >200-deal ring-buffer eviction).
+      const evictedDateWon = '2026-06-10', evictedDateArch = '2026-06-11', evictedDatePlayed = '2026-06-12', freshDate = '2026-06-13';
+      await t.page.evaluate(({ dWon, dArch, dPlayed }) => {
+        const filler = Array.from({ length: 200 }, (_, i) => 'klondike1:' + (50000 + i));
+        localStorage.setItem('spa-solitaire:v1:meta', JSON.stringify({
+          lastMode: 'klondike', lastOpts: { draw: 1, suits: 1 }, totalWins: 5,
+          daily: {
+            [dWon + '|klondike1']: 'won',
+            [dArch + '|klondike1']: 'won-archive',
+            [dPlayed + '|klondike1']: 'played',
+          },
+          seenDeals: filler, wonDeals: filler,
+          gradeWins: { easy: 1, medium: 1, hard: 1 }, unlock: { ids: [] }, ach: {},
+        }));
+        localStorage.setItem('spa-solitaire:v1:stats', JSON.stringify({
+          klondike1: { played: 5, won: 5, streak: 2, bestStreak: 2, bestTimeMs: 90000, fewestMoves: 80, bestStandardScore: 100, bestTimedScore: 0, bestScore: 100, totalMs: 450000, assistedWon: 0, recent: 'WWWWW' },
+        }));
+      }, { dWon: evictedDateWon, dArch: evictedDateArch, dPlayed: evictedDatePlayed });
+      await t.reload();
+      await baseSettings(t, { motion: 'reduced', tips: false, sound: false, scoring: 'standard' });
+
+      // 1. Evicted 'won' Daily Archive deal sets S.replay=true immediately in startDeal(), shows 'replay' pill, and freezes totalWins/gradeWins/streak/PBs/punch on win
+      await t.game('newGame', { mode: 'klondike', draw: 1, daily: evictedDateWon });
+      let s = await t.state();
+      t.equal(s.replay, true, 'evicted won Daily sets S.replay=true immediately in startDeal()');
+      t.equal(await t.page.evaluate(() => ({ hidden: document.getElementById('replayTag').hidden, text: document.getElementById('replayTag').textContent })), { hidden: false, text: 'replay' }, 'evicted won Daily shows replay HUD pill');
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: s.deal, daily: evictedDateWon, grade: 'hard', replay: s.replay }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      let lw = await t.game('lastWin'), m = await t.game('meta'), st = (await t.game('stats')).klondike1;
+      t.equal([lw.alreadyWon, lw.retried, m.totalWins, m.gradeWins.hard, st.streak, st.bestStandardScore], [true, false, 5, 1, 2, 100], 'evicted won Daily win is alreadyWon=true and freezes totalWins/gradeWins/streak/PB');
+      t.equal(await t.page.locator('#sheet .ticket .punch').count(), 0, 'evicted won Daily Bath Ticket is unpunched');
+
+      // 2. Evicted 'won-archive' Daily Archive deal also sets S.replay=true immediately in startDeal() and alreadyWon=true on win
+      await t.game('newGame', { mode: 'klondike', draw: 1, daily: evictedDateArch });
+      s = await t.state();
+      t.equal(s.replay, true, 'evicted won-archive Daily sets S.replay=true immediately in startDeal()');
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: s.deal, daily: evictedDateArch, grade: 'medium', replay: s.replay }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      lw = await t.game('lastWin'); m = await t.game('meta');
+      t.equal([lw.alreadyWon, m.totalWins, m.gradeWins.medium], [true, 5, 1], 'evicted won-archive Daily win stays alreadyWon=true');
+
+      // 3. Unplayed past Daily Archive deal starts fresh (S.replay=false) and punches normally
+      await t.game('newGame', { mode: 'klondike', draw: 1, daily: freshDate });
+      s = await t.state();
+      t.equal(s.replay, false, 'unplayed Daily Archive date starts with S.replay=false');
+
+      // 4. Evicted unwon 'played' Daily is not alreadyWon and still punches on first victory
+      await t.game('newGame', { mode: 'klondike', draw: 1, daily: evictedDatePlayed });
+      s = await t.state();
+      t.equal(s.replay, false, 'evicted unwon played Daily does not falsely trigger won-Daily check');
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: s.deal, daily: evictedDatePlayed, grade: 'easy', replay: false }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      lw = await t.game('lastWin'); m = await t.game('meta');
+      t.equal([lw.alreadyWon, m.totalWins, m.gradeWins.easy], [false, 6, 2], 'unwon archive Daily still punches and increments totalWins/gradeWins on first win');
+      t.equal(await t.page.locator('#sheet .ticket .punch').count(), 1, 'unwon archive Daily Bath Ticket is punched');
+    },
+  },
 ];
