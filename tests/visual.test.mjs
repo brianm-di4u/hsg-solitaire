@@ -631,4 +631,52 @@ export const tests = [
       await t.game('setSettings', { courts: 'deco' });
     },
   },
+  {
+    name: 'visual-71 W6-S4-07 desktop Art Deco court indices sit inside a widened radial cream buffer halo clear of dark hat/sleeve contrast',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced', table: 'felt', courts: 'deco' });
+      await t.game('newGame', { mode: 'freecell', deal: 1 });
+      await t.waitForStable();
+      await t.page.waitForFunction(() => {
+        const a = window.__game.art().loaded;
+        return a.includes('deco-jd') && a.includes('deco-kh') && a.includes('deco-ks');
+      }, null, { timeout: 15000 });
+      await t.waitForStable();
+
+      // Measure calm ivory pocket immediately bordering the top-left rank box of JD (t0[0]), KC (t1[1]), KS (t1[2]), and KH (t6[1])
+      // (outer halo ring 0.26..0.32*cw right of the rank glyph where dark hat brims and crimson sleeves sit closest).
+      const halos = await t.page.evaluate(() => {
+        const cv = document.getElementById('cv'), g = cv.getContext('2d');
+        const rect = cv.getBoundingClientRect(), k = cv.width / rect.width;
+        const lay = window.__game.getLayout(), st = window.__game.getState();
+        const sampleRightOfRank = (pid, idx) => {
+          const c = lay.piles[pid].cards[idx];
+          const sx = Math.round((c.x - rect.left + lay.cardW * 0.25) * k);
+          const sw = Math.max(4, Math.round(lay.cardW * 0.07 * k));
+          const sy = Math.round((c.y - rect.top + lay.cardH * 0.04) * k);
+          const sh = Math.max(6, Math.round(lay.cardH * 0.17 * k));
+          const d = g.getImageData(sx, sy, sw, sh).data;
+          let sum = 0, minLum = 255, n = 0;
+          for (let i = 0; i < d.length; i += 4) {
+            const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+            sum += lum; if (lum < minLum) minLum = lum; n++;
+          }
+          return { card: st.piles[pid][idx], meanLum: +(sum / n).toFixed(1), minLum: +minLum.toFixed(1) };
+        };
+        return {
+          jd: sampleRightOfRank('t0', 0),
+          kc: sampleRightOfRank('t1', 1),
+          ks: sampleRightOfRank('t1', 2),
+          kh: sampleRightOfRank('t6', 1),
+        };
+      });
+      t.log('court halos: ' + JSON.stringify(halos));
+      t.expect(halos.jd.meanLum >= 240, 'JD top-left rank pocket maintains widened ivory halo beside sleeve: ' + JSON.stringify(halos.jd));
+      t.expect(halos.kc.meanLum >= 216, 'KC top-left rank pocket maintains widened ivory halo beside brim: ' + JSON.stringify(halos.kc));
+      t.expect(halos.ks.meanLum >= 218, 'KS top-left rank pocket maintains widened ivory halo beside brim: ' + JSON.stringify(halos.ks));
+      t.expect(halos.kh.meanLum >= 221, 'KH top-left rank pocket maintains widened ivory halo beside portrait edge: ' + JSON.stringify(halos.kh));
+      await t.shot('visual-71-w6-s4-07-freecell-courts-desktop');
+    },
+  },
 ];

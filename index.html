@@ -3123,8 +3123,8 @@ function drawDecoCourt(ctx, c, w, h, small, rs, ss, col, large) {
   const corners = [];
   for (const n of [nr, ns]) for (const q of [n, { x: w - n.x - n.w, y: h - n.y - n.h, w: n.w, h: n.h }]) {
     corners.push(q);
-    const cx = q.x + q.w / 2, cy = q.y + q.h / 2, rr = Math.max(q.w, q.h) * .65;
-    const g = ctx.createRadialGradient(cx, cy, rr * .38, cx, cy, rr);
+    const cx = q.x + q.w / 2, cy = q.y + q.h / 2, rr = Math.max(q.w, q.h) * .82;
+    const g = ctx.createRadialGradient(cx, cy, rr * .52, cx, cy, rr);
     g.addColorStop(0, 'rgba(250,245,234,.96)'); g.addColorStop(1, 'rgba(250,245,234,0)');
     ctx.fillStyle = g; ctx.fillRect(cx - rr, cy - rr, rr * 2, rr * 2);
   }
