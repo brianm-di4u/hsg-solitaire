@@ -333,6 +333,17 @@
   .daily-prog.full{background:#D9B256;color:#1B1408;border-color:#E9C873}
   .daily-prog.full b{color:#1B1408}
   .daily-note{margin:8px 0 0;font-size:.78rem}
+  .cap.cal-cue{margin:4px 0 6px;min-height:0;font-size:.82rem;color:var(--color-primary)}
+  .cap.cal-note{margin:6px 0 0;min-height:0;font-size:.78rem}
+  .daily-arch-jump{flex:none;font-size:.78rem}
+  @media (min-width:820px){
+    .daily-cols{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(334px,1fr);gap:18px;align-items:start}
+    .daily-cols .daily-hist h3{margin-top:0}
+    .daily-cols .daily-hist p{margin:4px 0 6px}
+    .daily-cols .menu.daily-grid .btn.day{flex:0 1 calc(33.33% - 6px);min-width:108px;min-height:74px;padding:6px 4px}
+    .daily-cols .menu.daily-grid .btn.day canvas{height:34px}
+    .daily-arch-jump{display:none}
+  }
   @media (max-width:480px){.menu{grid-template-columns:repeat(2,1fr)}.menu.daily-grid .btn.day{flex:0 1 calc(50% - 4px);min-width:0}}
   .set{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--color-border);min-height:52px}
   .set.set-wide{flex-wrap:wrap;row-gap:8px}
@@ -7166,7 +7177,7 @@ function openModal(kind, data, opts) {
     modalStack.push({ kind: modalKind, data: snapData, scrollTop: sb ? sb.scrollTop : sheet.scrollTop, focusSelector: focusSelectorFor(document.activeElement) });
   }
   modalKind = kind; modalData = data ? Object.assign({}, data) : {}; syncInert();
-  const cls = (kind === 'backs' || kind === 'help' || kind === 'ledger' ? ' wide' : '') + (kind === 'daily' ? ' daily' : '') + (kind === 'win' ? ' win' : '') + (kind === 'win' && !reducedMotion() ? ' rise' : '');
+  const cls = (kind === 'backs' || kind === 'help' || kind === 'ledger' || kind === 'daily' ? ' wide' : '') + (kind === 'daily' ? ' daily' : '') + (kind === 'win' ? ' win' : '') + (kind === 'win' && !reducedMotion() ? ' rise' : '');
   sheetFrame.className = 'sheet-frame' + cls;
   sheet.className = 'sheet' + cls;
   let myEpoch = winEpoch;
@@ -7313,10 +7324,11 @@ function dailyDayHTML(day) {
   const won = nextDailyFor(day).won;
   const prog = '<div class="daily-prog' + (won >= 7 ? ' full' : '') + '" id="dailyProg" role="status"><b>' + won + ' of 7 won</b> · Full Bath ★' + (won >= 7 ? ' earned' : '') + '</div>';
   const backBtn = isToday ? '' : '<button type="button" class="chip" id="dailyTodayBtn" data-day="' + today + '">Back to today</button>';
+  const archBtn = '<button type="button" class="chip daily-arch-jump" id="dailyArchBtn">400-day archive ↓</button>';
   const intro = isToday
     ? '<p>Everyone gets the same seven winnable deals today (' + day + '). A new set arrives at midnight.</p>'
     : '<p>Archive deals for <b>' + day + '</b> — all seven are winnable. Archive wins earn seals, Full Bath stars, and course progress.</p>';
-  return '<div class="daily-hd">' + prog + backBtn + intro + '</div><div class="menu daily-grid">' +
+  return '<div class="daily-hd">' + prog + backBtn + archBtn + intro + '</div><div class="menu daily-grid">' +
     DAILY_LIST.map(([m, o], i) => {
       const k = modeKey(m, Object.assign({ draw: 1, suits: 1 }, o));
       const st = meta.daily[day + '|' + k];
@@ -7820,9 +7832,14 @@ const BIND = {
     inp.oninput = note; note();
   },
   daily(d) {
-    const today = todayStr(), minDay = dayShift(today, -DAILY_KEEP_DAYS);
+    const today = todayStr(), minDay = dayShift(today, -DAILY_KEEP_DAYS), explicitDay = !!(d && d.day);
     modalData.day = d && d.day && d.day >= minDay && d.day <= today ? d.day : today;
     modalData.ym = (d && d.ym) || modalData.day.slice(0, 7);
+    const scrollSelIntoView = (block = 'nearest') => {
+      if (window.innerWidth >= 820) return;
+      const sel = sheet.querySelector('#calW .cday.sel');
+      if (sel && sel.scrollIntoView) sel.scrollIntoView({ block, inline: 'nearest', behavior: 'instant' });
+    };
     const selectDay = (ds, keepFocus) => {
       if (!ds || ds < minDay || ds > today) return;
       modalData.day = ds;
@@ -7840,7 +7857,10 @@ const BIND = {
           b.setAttribute('aria-pressed', String(on));
         });
       }
-      if (keepFocus) { const f = sheet.querySelector('#calW [data-day="' + ds + '"]'); if (f) f.focus({ preventScroll: true }); }
+      if (keepFocus) {
+        const f = sheet.querySelector('#calW [data-day="' + ds + '"]');
+        if (f) { scrollSelIntoView('nearest'); f.focus({ preventScroll: true }); }
+      }
       announce('Daily deals for ' + ds);
     };
     const bindTiles = () => {
@@ -7858,6 +7878,12 @@ const BIND = {
       }));
       const tb = $('#dailyTodayBtn');
       if (tb) tb.onclick = () => selectDay(today, false);
+      const ab = $('#dailyArchBtn');
+      if (ab) ab.onclick = () => {
+        scrollSelIntoView('center');
+        const sel = sheet.querySelector('#calW .cday.sel');
+        if (sel) sel.focus({ preventScroll: true });
+      };
     };
     const bindCal = () => {
       sheet.querySelectorAll('[data-mo]').forEach((b) => (b.onclick = () => {
@@ -7867,6 +7893,7 @@ const BIND = {
         const cwEl = w.querySelector('.cal-wrap');
         if (cwEl && !reducedMotion()) cwEl.classList.add(isPrev ? 'cal-prev' : 'cal-next');
         bindCal();
+        scrollSelIntoView('nearest');
         const f = w.querySelector('[aria-label="' + dir + '"]:not(:disabled)') || w.querySelector('[data-mo]:not(:disabled)');
         if (f) f.focus({ preventScroll: true });
       }));
@@ -7874,6 +7901,7 @@ const BIND = {
     };
     bindTiles();
     bindCal();
+    if (explicitDay && window.innerWidth < 820) requestAnimationFrame(() => { if (modalKind === 'daily') scrollSelIntoView('nearest'); });
   },
   confirm(d) {
     const yb = sheet.querySelector('[data-a="yes"]');
@@ -7890,7 +7918,10 @@ const BIND = {
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 function dailyHistory(selDay, ym) {
   const day = todayStr(), full = Object.values(dailyDays(true)).filter((n) => n >= 7).length;
-  return '<h3>Your dailies</h3><p>Streak: <b>' + dailyStreak() + '</b> ' + (dailyStreak() === 1 ? 'day' : 'days') + ' · best ' + dailyRun() + ' · full baths (all seven): ' + full + '</p><div id="calW">' + calendar(ym || day.slice(0, 7), selDay || day) + '</div><p class="cap cal-note">Past dates within 400 days are playable for seals, Full Bath stars, and course progress; consecutive-day streaks count same-day wins.</p>';
+  return '<h3>Your dailies</h3><p>Streak: <b>' + dailyStreak() + '</b> ' + (dailyStreak() === 1 ? 'day' : 'days') + ' · best ' + dailyRun() + ' · full baths (all seven): ' + full + '</p>' +
+    '<p class="cap cal-cue" id="calCue">Select any past date to play the 400-day archive.</p>' +
+    '<div id="calW">' + calendar(ym || day.slice(0, 7), selDay || day) + '</div>' +
+    '<p class="cap cal-note">Archive dates earn seals, Full Bath stars, and course progress; consecutive-day streaks count same-day wins.</p>';
 }
 function calendar(ym, selDay) {
   const [Y, M] = ym.split('-').map(Number), pad = (n) => String(n).padStart(2, '0'), won = dailyDays(true), today = todayStr(), minDay = dayShift(today, -DAILY_KEEP_DAYS), sel = selDay || today;

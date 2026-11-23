@@ -801,4 +801,79 @@ export const tests = [
       t.expect(rowLabels.every((x) => !/\(0\/21\)|\(4\/12\)|\(0\/7\)/.test(x)), '#tRow Title buttons omit Win-0 counters (CD-WF6-05): ' + JSON.stringify(rowLabels));
     },
   },
+  {
+    name: 'w2c W6-S2-04 Daily Deals uses wide 2-column desktop layout above the fold, places archive cue above #calW, and scrolls selected date on portrait mobile',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false });
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 1 });
+      await t.game('scene', 'daily');
+      await t.waitForStable();
+      const info = await t.page.evaluate(() => {
+        const frame = document.getElementById('sheetFrame');
+        const body = document.getElementById('sheetBody');
+        const bodyR = body.getBoundingClientRect();
+        const cols = document.querySelector('#sheet .daily-cols');
+        const dayWrap = document.getElementById('dailyDayWrap').getBoundingClientRect();
+        const hist = document.querySelector('#sheet .daily-hist').getBoundingClientRect();
+        const cue = document.getElementById('calCue');
+        const calW = document.getElementById('calW');
+        const todayCell = document.querySelector('#calW .cday.t');
+        const calDays = [...document.querySelectorAll('#calW .cday')];
+        const lastCell = calDays[calDays.length - 1];
+        const archBtn = document.getElementById('dailyArchBtn');
+        return {
+          isWide: frame.classList.contains('wide'),
+          gridDisplay: getComputedStyle(cols).display,
+          sideBySide: hist.left >= dayWrap.right - 2,
+          cueText: cue ? cue.textContent.trim() : '',
+          cueAboveCal: !!(cue && calW && cue.getBoundingClientRect().bottom <= calW.getBoundingClientRect().top + 1),
+          todayInFold: !!(todayCell && todayCell.getBoundingClientRect().bottom <= bodyR.bottom + 1 && todayCell.getBoundingClientRect().top >= bodyR.top - 1),
+          fullMonthInFold: !!(lastCell && lastCell.getBoundingClientRect().bottom <= bodyR.bottom + 1),
+          allDealsInFold: dayWrap.bottom <= bodyR.bottom + 1,
+          archBtnVisible: !!(archBtn && getComputedStyle(archBtn).display !== 'none'),
+          archBtnH: archBtn ? Math.round(archBtn.getBoundingClientRect().height) : 0,
+        };
+      });
+      t.equal(info.isWide, true, 'Daily modal uses .sheet-frame.wide');
+      t.expect(info.cueText.includes('Select any past date to play the 400-day archive'), 'interactive archive cue sits above calendar: ' + info.cueText);
+      t.equal(info.cueAboveCal, true, 'archive cue renders directly above #calW');
+
+      if (t.viewport === 'desktop') {
+        t.equal([info.gridDisplay, info.sideBySide], ['grid', true], 'desktop Daily Deals renders 2-column side-by-side .daily-cols');
+        t.equal([info.allDealsInFold, info.todayInFold, info.fullMonthInFold], [true, true, true], 'desktop Daily Deals fits all 7 deals, today cell, and full month calendar above the fold: ' + JSON.stringify(info));
+        t.equal(info.archBtnVisible, false, 'desktop hides narrow-mobile jump button');
+        await t.shot('w2c-W6-S2-04-daily-desktop', { fullPage: false });
+        await t.checkLayout();
+      } else {
+        t.equal(info.archBtnVisible, true, 'portrait mobile exposes above-the-fold 400-day archive jump button');
+        t.expect(info.archBtnH >= 44, 'portrait mobile 400-day archive jump button meets 44px touch target: ' + info.archBtnH);
+        t.equal(await t.page.evaluate(() => document.getElementById('sheetBody').scrollTop), 0, 'initial Daily open on portrait mobile keeps today deals at top');
+        await t.shot('w2c-W6-S2-04-daily-mobile-top', { fullPage: false });
+        // Clicking the archive jump button scrolls the selected date row into view on portrait mobile
+        await t.page.click('#dailyArchBtn');
+        const afterJump = await t.page.evaluate(() => {
+          const bodyR = document.getElementById('sheetBody').getBoundingClientRect();
+          const sel = document.querySelector('#calW .cday.sel');
+          const r = sel ? sel.getBoundingClientRect() : null;
+          return {
+            scrollTop: document.getElementById('sheetBody').scrollTop,
+            selInView: !!(r && r.top >= bodyR.top - 1 && r.bottom <= bodyR.bottom + 1),
+          };
+        });
+        t.expect(afterJump.scrollTop > 0 && afterJump.selInView, 'portrait mobile scrolls selected date row into view: ' + JSON.stringify(afterJump));
+        await t.shot('w2c-W6-S2-04-daily-mobile-cal', { fullPage: false });
+        // Opening an explicit archive date on portrait mobile scrolls the selected date row into view automatically
+        const d1 = await daysAgo(t, 1);
+        await t.game('scene', 'daily', { day: d1 });
+        await t.page.waitForFunction(() => {
+          const bodyR = document.getElementById('sheetBody').getBoundingClientRect();
+          const sel = document.querySelector('#calW .cday.sel');
+          if (!sel) return false;
+          const r = sel.getBoundingClientRect();
+          return r.top >= bodyR.top - 1 && r.bottom <= bodyR.bottom + 1;
+        }, null, { timeout: 5000 });
+        await t.checkLayout({ allowScrollY: true });
+      }
+    },
+  },
 ];
