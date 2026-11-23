@@ -823,4 +823,171 @@ export const tests = [
       t.expect(m.unlock.ids.includes('b:lake') && m.unlock.ids.includes('b:silks'), 'Hard FreeCell win unlocks b:lake and b:silks mastery fast-tracks');
     },
   },
+  {
+    name: 'rules-27 W1-S3-01 unseen-first pickPoolDeal() probing (step 17), graduated exhaustion, Spider 4 wrap toast, and randomFreecellDeal() avoidance',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { dealFairness: 'easy', motion: 'reduced', tips: false, sound: false });
+
+      // 1. FreeCell Easy: 65 consecutive New Deals (recording each in seenDeals via 1 move or meta) -> 0 S.replay collisions;
+      // first 60 exhaust SEED_POOLS.freecell.easy, deals 61..65 spill over into unseen classic deals graded 'easy'
+      const fcRes = await t.page.evaluate(() => {
+        const g = window.__game;
+        const poolSet = new Set(g.seedPools().freecell.easy);
+        const now = new Date();
+        const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const todayFc = g.dailyDealFor('freecell', {}, today);
+        const deals = [], replays = [], badGrades = [];
+        let spilled = 0, hitToday = 0;
+        for (let i = 0; i < 65; i++) {
+          g.seed(12345); // identical seed every time to prove step-17 probing + spillover never collide
+          g.newGame({ mode: 'freecell' });
+          const st = g.getState();
+          deals.push(st.deal);
+          if (st.replay) replays.push(st.deal);
+          if (!st.winnable || st.grade !== 'easy' || g.gradeFreecellDeal(st.deal) !== 'easy' || st.deal === 11982) badGrades.push(st);
+          if (st.deal === todayFc) hitToday++;
+          if (!poolSet.has(st.deal)) spilled++;
+          // Make a legal move so startClock() records freecell:<deal> in meta.seenDeals
+          const mv = g.legalMoves()[0];
+          if (mv) g.act('move', mv.from, mv.to, mv.count);
+        }
+        return { total: deals.length, unique: new Set(deals).size, replays, badGrades, spilled, hitToday };
+      });
+      t.equal([fcRes.total, fcRes.unique, fcRes.replays.length, fcRes.badGrades.length, fcRes.hitToday], [65, 65, 0, 0, 0], '65 consecutive FreeCell Easy New Deals produce 65 unique fresh easy deals with 0 replays');
+      t.expect(fcRes.spilled >= 5, 'FreeCell Easy spills past 60-deal bucket into unseen graded classic deals (spilled=' + fcRes.spilled + ')');
+
+      // 2. Current S.deal avoidance (without making any move, same seed skips current deal)
+      await t.page.evaluate(() => { localStorage.removeItem('spa-solitaire:v1:meta'); });
+      await t.reload();
+      await t.game('setSettings', { dealFairness: 'easy', motion: 'reduced', tips: false, sound: false });
+      await t.seed(77); await t.game('newGame', { mode: 'spider', suits: 4 });
+      const s4a = await t.state();
+      await t.seed(77); await t.game('newGame', { mode: 'spider', suits: 4 });
+      const s4b = await t.state();
+      t.expect(s4a.deal !== s4b.deal && !s4b.replay, 're-dealing Spider 4-suit without moving avoids current S.deal (' + s4a.deal + ' -> ' + s4b.deal + ')');
+
+      // 3. Spider 2-suit Easy: 121/122 seen picks the exact last unseen deal; 122/122 seen spills into live WIN_SEARCH.spider2 on unseen seed
+      const s2Res = await t.page.evaluate(async () => {
+        const g = window.__game;
+        const arr = g.seedPools().spider2.easy;
+        const now = new Date();
+        const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const todayS2 = g.dailyDealFor('spider', { suits: 2 }, today);
+        const lastFresh = arr.find((d) => d !== todayS2);
+        const seen121 = arr.filter((d) => d !== lastFresh).map((d) => 'spider2:' + d);
+        localStorage.setItem('spa-solitaire:v1:meta', JSON.stringify({ lastMode: 'spider', lastOpts: { draw: 1, suits: 2 }, totalWins: 0, daily: {}, seenDeals: seen121, wonDeals: [] }));
+        return { lastFresh, poolSize: arr.length, todayS2 };
+      });
+      await t.reload();
+      await t.game('setSettings', { dealFairness: 'easy', motion: 'reduced', tips: false, sound: false });
+      await t.seed(42);
+      await t.game('newGame', { mode: 'spider', suits: 2 });
+      let st = await t.state();
+      t.equal([st.deal, st.replay, st.grade], [s2Res.lastFresh, false, 'easy'], 'Spider 2-suit Easy with 121/122 seen finds the 1 remaining fresh pool deal');
+
+      // Now mark ALL 122 Spider 2-suit Easy deals seen -> spills to live WIN_SEARCH.spider2 on unseen seed
+      await t.page.evaluate(() => {
+        const arr = window.__game.seedPools().spider2.easy;
+        localStorage.setItem('spa-solitaire:v1:meta', JSON.stringify({ lastMode: 'spider', lastOpts: { draw: 1, suits: 2 }, totalWins: 0, daily: {}, seenDeals: arr.map((d) => 'spider2:' + d), wonDeals: [] }));
+      });
+      await t.reload();
+      await t.game('setSettings', { dealFairness: 'easy', motion: 'reduced', tips: false, sound: false });
+      await t.seed(5001);
+      await t.page.evaluate(() => window.__game.newGame({ mode: 'spider', suits: 2 }));
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'game', null, { timeout: 25000 });
+      st = await t.state();
+      const inS2Easy = await t.page.evaluate((d) => window.__game.seedPools().spider2.easy.includes(d), st.deal);
+      t.equal([inS2Easy, st.replay, st.winnable], [false, false, true], 'Spider 2-suit Easy exhaustion spills to unseen solver-verified deal #' + st.deal + ' (grade=' + st.grade + ')');
+      const sv2 = await t.game('solve', 'spider', { suits: 2 }, st.deal, 3000);
+      t.equal(sv2.result, 'won', 'spilled Spider 2-suit deal #' + st.deal + ' solves won via makeSolver');
+
+      // 4. Spider 4-suit Easy exhaustion: (a) least-recently-seen unwon first (no wrap toast), (b) 100% won wraps to oldest won with calm toast & S.replay=true (CD-WF1-04)
+      const s4Info = await t.page.evaluate(() => {
+        const arr = window.__game.seedPools().spider4.easy;
+        const now = new Date();
+        const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const todayS4 = window.__game.dailyDealFor('spider', { suits: 4 }, today);
+        const nonToday = arr.filter((d) => d !== todayS4);
+        const oldestUnwon = nonToday[0], newerUnwon = nonToday[1];
+        const wonRest = arr.filter((d) => d !== oldestUnwon && d !== newerUnwon);
+        // Put oldestUnwon first in seenDeals, newerUnwon later, all others won
+        const seenAll = [oldestUnwon, ...wonRest, newerUnwon].map((d) => 'spider4:' + d);
+        const won122 = wonRest.map((d) => 'spider4:' + d);
+        localStorage.setItem('spa-solitaire:v1:meta', JSON.stringify({ lastMode: 'spider', lastOpts: { draw: 1, suits: 4 }, totalWins: 0, daily: {}, seenDeals: seenAll, wonDeals: won122 }));
+        return { oldestUnwon, newerUnwon, count: arr.length, oldestWonAll: nonToday[3] };
+      });
+      await t.reload();
+      await t.game('setSettings', { dealFairness: 'easy', motion: 'reduced', tips: false, sound: false });
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      await t.seed(99); await t.game('newGame', { mode: 'spider', suits: 4 });
+      st = await t.state();
+      const unwonToast = await t.page.locator('#toast').textContent();
+      t.equal([st.deal, st.replay], [s4Info.oldestUnwon, true], 'Spider 4-suit exhaustion picks least-recently-seen unwon deal first (retried && !alreadyWon)');
+      t.expect(!/All \d+ deals in this tier won/.test(unwonToast), 'unwon fallback does not emit all-won wrap toast: ' + unwonToast);
+
+      // Now mark ALL 124 Spider 4-suit Easy deals WON with oldestWonAll at index 0
+      await t.page.evaluate((oldest) => {
+        const arr = window.__game.seedPools().spider4.easy;
+        const ordered = [oldest, ...arr.filter((d) => d !== oldest)].map((d) => 'spider4:' + d);
+        localStorage.setItem('spa-solitaire:v1:meta', JSON.stringify({ lastMode: 'spider', lastOpts: { draw: 1, suits: 4 }, totalWins: 124, daily: {}, seenDeals: ordered, wonDeals: ordered }));
+      }, s4Info.oldestWonAll);
+      await t.reload();
+      await t.game('setSettings', { dealFairness: 'easy', motion: 'reduced', tips: false, sound: false });
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      await t.seed(99); await t.game('newGame', { mode: 'spider', suits: 4 });
+      st = await t.state();
+      const wrapToast = await t.page.locator('#toast').textContent();
+      t.equal([st.deal, st.replay], [s4Info.oldestWonAll, true], '100%-won Spider 4-suit tier wraps to oldest won deal while preserving S.replay=true (CD-WF1-04)');
+      t.equal(wrapToast, 'All ' + s4Info.count + ' deals in this tier won — replaying oldest.', 'emits calm tier-wrap toast');
+
+      // 5. Today's Daily is skipped in non-daily Spider 4-suit Winnable (Any), while Daily itself remains date-deterministic
+      const dailyAvoid = await t.page.evaluate(() => {
+        const g = window.__game;
+        const now = new Date();
+        const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const todayS4 = g.dailyDealFor('spider', { suits: 4 }, today);
+        const flat = [...g.seedPools().spider4.easy, ...g.seedPools().spider4.medium, ...g.seedPools().spider4.hard];
+        const idxToday = flat.indexOf(todayS4);
+        // Find a seed whose fnv1a(seed + '|spider4') % flat.length === idxToday
+        let collidingSeed = 1;
+        for (let s = 1; s < 50000; s++) {
+          if (g.fnv1a(String(s) + '|spider4') % flat.length === idxToday) { collidingSeed = s; break; }
+        }
+        localStorage.removeItem('spa-solitaire:v1:meta');
+        return { today, todayS4, collidingSeed };
+      });
+      await t.reload();
+      await t.game('setSettings', { dealFairness: 'winnable', motion: 'reduced', tips: false, sound: false });
+      await t.seed(dailyAvoid.collidingSeed);
+      await t.game('newGame', { mode: 'spider', suits: 4 });
+      st = await t.state();
+      t.expect(st.deal !== dailyAvoid.todayS4 && !st.replay, 'non-daily Spider 4-suit skips today\'s Daily #' + dailyAvoid.todayS4 + ' (dealt #' + st.deal + ')');
+      await t.game('newGame', { mode: 'spider', suits: 4, daily: dailyAvoid.today });
+      t.equal((await t.state()).deal, dailyAvoid.todayS4, 'Daily Deal itself remains strictly date-deterministic');
+
+      // 6. randomFreecellDeal() retries up to 32 draws to avoid #11982, current S.deal, seenDeals, wonDeals, and today's Daily
+      await t.page.evaluate(() => {
+        localStorage.setItem('spa-solitaire:v1:meta', JSON.stringify({ lastMode: 'freecell', lastOpts: { draw: 1, suits: 1 }, totalWins: 1, daily: {}, seenDeals: ['freecell:555'], wonDeals: ['freecell:556'] }));
+      });
+      await t.reload();
+      await t.game('setSettings', { dealFairness: 'winnable', motion: 'reduced', tips: false, sound: false });
+      await t.game('newGame', { mode: 'freecell', deal: 554 }); // current S.deal = 554
+      const randFc = await t.page.evaluate(() => {
+        const g = window.__game;
+        const now = new Date();
+        const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const todayFc = g.dailyDealFor('freecell', {}, today);
+        const fresh = [557, 558, 559].find((n) => n !== todayFc);
+        const seq = [11982, 554, 555, 556, todayFc, fresh];
+        let idx = 0;
+        const origRand = Math.random;
+        Math.random = () => ((seq[Math.min(idx++, seq.length - 1)] - 0.5) / 32000);
+        try { g.newGame({ mode: 'freecell' }); } finally { Math.random = origRand; }
+        const st = g.getState();
+        return { deal: st.deal, replay: st.replay, fresh, draws: idx };
+      });
+      t.equal([randFc.deal, randFc.replay, randFc.draws], [randFc.fresh, false, 6], 'randomFreecellDeal() skips #11982, current, seenDeals, wonDeals, and todayDaily to land on fresh deal');
+    },
+  },
 ];

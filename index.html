@@ -2068,7 +2068,18 @@ function dailyDeal(mode, opts, date) {
   const n = mode === 'freecell' ? 1 + (h % 32000) : 1 + (h % 2000000000);
   return mode === 'freecell' && n === FC_UNWINNABLE ? n + 1 : n;
 }
-function randomFreecellDeal() { let n; do n = 1 + Math.floor(Math.random() * 32000); while (n === FC_UNWINNABLE); return n; }
+function randomFreecellDeal() {
+  const cur = S && S.mode === 'freecell' ? S.deal : -1;
+  const today = dailyDeal('freecell', { draw: 1, suits: 1 }, todayStr());
+  let last = 1;
+  for (let i = 0; i < 32; i++) {
+    let n; do n = 1 + Math.floor(Math.random() * 32000); while (n === FC_UNWINNABLE);
+    last = n;
+    const dk = 'freecell:' + n;
+    if (n !== cur && n !== today && !meta.seenDeals.includes(dk) && !meta.wonDeals.includes(dk)) return n;
+  }
+  return last;
+}
 
 // --- Winnable deals ---
 // A deal is shown once a solver has won it (the deal, then fnv1a(tag|attempt)); positions, not time, so every machine agrees.
@@ -2125,16 +2136,72 @@ function dayIndex(dateStr) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || ''));
   return m ? Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000) : fnv1a(String(dateStr || ''));
 }
+const POOL_STEP = 17; // coprime to 60, 122, 124, 180, 366, 372 (W1-S3-01)
+const POOL_OPTS = { freecell: ['freecell', { draw: 1, suits: 1 }], spider2: ['spider', { draw: 1, suits: 2 }], spider4: ['spider', { draw: 1, suits: 4 }] };
 function pickPoolDeal(key, want, daily, seed) {
   const pool = SEED_POOLS[key];
-  if (want && pool[want] && pool[want].length) {
-    const arr = pool[want], idx = fnv1a((daily || String(seed)) + '|' + key + '|' + want) % arr.length;
-    return { deal: arr[idx], grade: want };
+  const hasTier = !!(want && pool[want] && pool[want].length);
+  if (daily) {
+    if (hasTier) {
+      const arr = pool[want], idx = fnv1a(daily + '|' + key + '|' + want) % arr.length;
+      return { deal: arr[idx], grade: want };
+    }
+    const flat = POOL_FLAT[key];
+    // Coprime stride 131 (gcd(131, 366)=1, gcd(131, 372)=1) rotates Easy/Medium/Hard with zero repeats across an entire leap year.
+    const idx = (((dayIndex(daily) * 131 + fnv1a(key)) % flat.length) + flat.length) % flat.length;
+    return { deal: flat[idx][0], grade: flat[idx][1] };
   }
-  const flat = POOL_FLAT[key];
-  // Coprime stride 131 (gcd(131, 366)=1, gcd(131, 372)=1) rotates Easy/Medium/Hard with zero repeats across an entire leap year.
-  const idx = daily ? (((dayIndex(daily) * 131 + fnv1a(key)) % flat.length) + flat.length) % flat.length : fnv1a(String(seed) + '|' + key) % flat.length;
-  return { deal: flat[idx][0], grade: flat[idx][1] };
+  // Non-daily New Deal: unseen-first probing with coprime step 17 (W1-S3-01, W1-S2-08)
+  const [pMode, pOpts] = POOL_OPTS[key];
+  const seenSet = new Set(meta.seenDeals), wonSet = new Set(meta.wonDeals);
+  const curDeal = S && modeKey(S.mode, S.opts) === key ? S.deal : -1;
+  const todayDaily = dailyDeal(pMode, pOpts, todayStr());
+  const isWonDeal = (d) => wonSet.has(key + ':' + d) || wonSet.has(pMode + ':' + d);
+  const isFresh = (d) => !seenSet.has(key + ':' + d) && !isWonDeal(d) && d !== curDeal && d !== todayDaily;
+  const entries = hasTier ? pool[want].map((d) => [d, want]) : POOL_FLAT[key];
+  const n = entries.length;
+  const idx0 = fnv1a(String(seed) + '|' + key + (hasTier ? '|' + want : '')) % n;
+  for (let i = 0; i < n; i++) {
+    const [d, g] = entries[(idx0 + i * POOL_STEP) % n];
+    if (isFresh(d)) return { deal: d, grade: g };
+  }
+  // Graduated exhaustion:
+  // (1) FreeCell graded tiers spill into unseen classic deals 1..32,000 \ {11982} matching the 2-bit FreeCell grade table (W1-S3-03)
+  if (key === 'freecell') {
+    const start = 1 + (fnv1a(String(seed) + '|freecell|spill|' + (want || 'any')) % 32000);
+    for (let i = 0; i < 32000; i++) {
+      const cand = 1 + ((start - 1 + i * 997) % 32000);
+      if (cand === FC_UNWINNABLE) continue;
+      const g = gradeFreecellDeal(cand);
+      if ((!want || g === want) && isFresh(cand)) return { deal: cand, grade: g };
+    }
+  }
+  // (2) Spider 2-suit spills into WIN_SEARCH.spider2 live solver on unseen seeds
+  if (key === 'spider2') return null;
+  // (3) Spider 4-suit: pick least-recently-seen unwon deal (retried && !alreadyWon) first;
+  // only wrap least-recently-won once 100% of the tier is won, with a calm toast, never clearing alreadyWon/S.replay (CD-WF1-04).
+  const seenIdx = (d) => { const j = meta.seenDeals.indexOf(key + ':' + d); return j < 0 ? 1e9 : j; };
+  const wonIdx = (d) => Math.max(meta.wonDeals.indexOf(key + ':' + d), meta.wonDeals.indexOf(pMode + ':' + d));
+  let bestUnwon = null, bestUnwonKey = null;
+  for (let i = 0; i < n; i++) {
+    const [d, g] = entries[(idx0 + i * POOL_STEP) % n];
+    if (isWonDeal(d)) continue;
+    const rk = [d === curDeal ? 2 : d === todayDaily ? 1 : 0, seenIdx(d), i];
+    if (!bestUnwonKey || rk[0] < bestUnwonKey[0] || (rk[0] === bestUnwonKey[0] && (rk[1] < bestUnwonKey[1] || (rk[1] === bestUnwonKey[1] && rk[2] < bestUnwonKey[2])))) {
+      bestUnwon = { deal: d, grade: g }; bestUnwonKey = rk;
+    }
+  }
+  if (bestUnwon) return bestUnwon;
+  let bestWon = null, bestWonKey = null;
+  for (let i = 0; i < n; i++) {
+    const [d, g] = entries[(idx0 + i * POOL_STEP) % n];
+    const wi = wonIdx(d);
+    const rk = [d === curDeal ? 1 : 0, wi < 0 ? 1e9 : wi, i];
+    if (!bestWonKey || rk[0] < bestWonKey[0] || (rk[0] === bestWonKey[0] && (rk[1] < bestWonKey[1] || (rk[1] === bestWonKey[1] && rk[2] < bestWonKey[2])))) {
+      bestWon = { deal: d, grade: g, wrapToast: 'All ' + n + ' deals in this tier won — replaying oldest.' }; bestWonKey = rk;
+    }
+  }
+  return bestWon || { deal: entries[idx0][0], grade: entries[idx0][1] };
 }
 let dealPending = null;
 const showDealing = (on) => {
@@ -2167,14 +2234,26 @@ function newGame(o = {}) {
   }
   if (key === 'spider2' || key === 'spider4') {
     const pk = pickPoolDeal(key, want, daily, deal);
-    return startDeal(mode, opts, pk.deal, daily, true, pk.grade);
+    if (pk) {
+      const res = startDeal(mode, opts, pk.deal, daily, true, pk.grade);
+      if (pk.wrapToast) toast(pk.wrapToast);
+      return res;
+    }
   }
   if (!cfg) return startDeal(mode, opts, deal, daily, false, '');
   const tag = daily ? daily + '|' + key : String(deal), tries = daily ? 160 : want ? GRADE_TRIES : cfg[1], budget = want === 'easy' ? GRADES[key][0] : want ? GRADE_CAP : cfg[0];
-  let a = 0, sv = null, cand = deal, near = 0, nearGrade = '', grade = '';
+  const skipSeen = !daily && key === 'spider2';
+  const todayD = skipSeen ? dailyDeal(mode, opts, todayStr()) : -1;
+  const curD = skipSeen && S && modeKey(S.mode, S.opts) === key ? S.deal : -1;
+  const seenCand = (c) => skipSeen && (c === curD || c === todayD || meta.seenDeals.includes(key + ':' + c) || meta.wonDeals.includes(key + ':' + c) || meta.wonDeals.includes(mode + ':' + c));
+  let a = 0, att = 0, sv = null, cand = deal, near = 0, nearGrade = '', grade = '';
   const slice = (ms) => { // null to keep going, else the deal (0 if none won)
     for (const end = now() + ms; ;) {
-      if (!sv) { cand = candidateDeal(deal, a, tag); sv = makeSolver(newState(mode, opts, cand, null), budget); }
+      if (!sv) {
+        let guard = 0;
+        do { cand = candidateDeal(deal, att++, tag); } while (seenCand(cand) && ++guard < 512);
+        sv = makeSolver(newState(mode, opts, cand, null), budget);
+      }
       const r = sv.step(20);
       if (r === 'won') {
         const g = gradeOf(key, sv.used);
