@@ -1,0 +1,10 @@
+[
+  {
+    "test": "S5-02 every cue is in the cue range",
+    "why": "measures live audio peaks, which drift past the range on a shared runner"
+  },
+  {
+    "test": "W4-B01 desktop fine-pointer hover signifiers, sfxVol attenuation",
+    "why": "measures live audio peaks, which drift past the range on a shared runner"
+  }
+]
