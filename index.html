@@ -813,7 +813,7 @@ function makeDeck(mode, opts) {
 function newState(mode, opts, deal, daily) {
   const st = { v: 1, mode, opts: { draw: opts.draw === 3 ? 3 : 1, suits: [1, 2, 4].includes(opts.suits) ? opts.suits : 1 }, deal, daily: daily || null,
     cards: makeDeck(mode, opts), up: [], piles: {}, score: mode === 'spider' ? 500 : 0, moves: 0, elapsedMs: 0, recycles: 0, runs: 0,
-    initDown: mode === 'spider' ? 44 : mode === 'freecell' ? 0 : 21,
+    initDown: mode === 'spider' ? 44 : mode === 'freecell' ? 0 : 21, scoring: settings.scoring,
     started: false, won: false, usedUndo: false, usedHint: false, assisted: false, replay: false };
   for (const id of pileIds(mode)) st.piles[id] = [];
   st.up = st.cards.map(() => false);
@@ -2390,12 +2390,13 @@ const efficiencyBonus = (k, moves) => {
   const cfg = EFF_PAR[k];
   return cfg && moves > 0 ? Math.max(0, Math.min(cfg.maxBonus, Math.round((cfg.parCeil - moves) * cfg.ptsPerMove))) : 0;
 };
+const activeScoring = () => (settings.scoring === 'none' ? 'none' : S && SETTING_ENUMS.scoring.includes(S.scoring) ? S.scoring : settings.scoring);
 let lastWin = null;
 function onWin(delay) {
   loadArt(LATE_ART); // the ticket stock, ready long before the ceremony ends
   tickClock(); syncShared();
   const k = modeKey(S.mode, S.opts); const st = statFor(k);
-  const scoring = settings.scoring, isTimed = S.mode !== 'spider' && scoring === 'timed', scoredMode = scoring !== 'none';
+  const scoring = activeScoring(), isTimed = S.mode !== 'spider' && scoring === 'timed', scoredMode = scoring !== 'none';
   let bonus = 0, effBonus = 0;
   if (isTimed) { bonus = timeBonus(S.elapsedMs); addScore(bonus); }
   else if (S.mode !== 'spider' && scoring === 'standard' && S.moves > 0) { effBonus = efficiencyBonus(k, S.moves); if (effBonus > 0) addScore(effBonus); }
@@ -2529,6 +2530,7 @@ function resumeSaved() {
   const prev = { S, undoStack, tabSuperseded };
   try {
     S = c.state; undoStack = c.undo; redoStack = []; pullbackHold.clear(); clearTransientFx(false); hintState = null; held = null; drag = null; cascade = null; fitHold = 1; clearStuck();
+    if (S.scoring !== undefined && !SETTING_ENUMS.scoring.includes(S.scoring)) S.scoring = settings.scoring;
     prevCanAuto = canAutoComplete(); lastCompletedSuits = completedSuits();
     tabSuperseded = false; tabNoteHide();
     clockMark = now(); closeModal(); showTitle(false); tipHide(); tipGoalShown = null; relayout(true); markDirty(); updateHUD(); tipResetIdle();
@@ -6542,7 +6544,7 @@ function updateGoal() {
 function updateTime() {
   if (!S) return;
   $('#sTime').textContent = fmtTime(S.elapsedMs);
-  const b = $('#sBonus'), timedMode = S.mode !== 'spider' && settings.scoring === 'timed' && !S.won, on = timedMode && settings.showTimer;
+  const b = $('#sBonus'), timedMode = S.mode !== 'spider' && activeScoring() === 'timed' && !S.won, on = timedMode && settings.showTimer;
   b.hidden = !on;
   if (on) { b.textContent = '+' + timeBonus(S.elapsedMs); b.title = 'Time bonus a win would add now; it falls 2 points a second'; }
   $('#sScoreW').title = timedMode && !settings.showTimer ? 'Timed scoring active: win bonus still counts elapsed time while timer is hidden' : '';
@@ -7560,6 +7562,14 @@ function setSetting(k, v) {
     settings.winnable = !!v;
     if (!settings.winnable) { settings.dealFairness = 'random'; settings.dealGrade = 'any'; }
     else settings.dealFairness = settings.dealGrade !== 'any' ? settings.dealGrade : 'winnable';
+  } else if (k === 'scoring') {
+    if (!SETTING_ENUMS.scoring.includes(v)) return;
+    const prev = settings.scoring;
+    settings.scoring = v;
+    if (S && !S.won) {
+      if (!S.started) S.scoring = v;
+      else if (v !== prev && v !== 'none' && S.scoring !== v) toast('Applies to the next deal.');
+    }
   } else if (k in DEFAULT_SETTINGS) settings[k] = typeof DEFAULT_SETTINGS[k] === 'boolean' ? !!v : v;
   saveSettings();
   if (k === 'tips' && !settings.tips) tipHide();
@@ -7605,7 +7615,7 @@ window.__game = {
     tickClock(); // elapsedMs is otherwise only as fresh as the last half-second tick
     if (!S) return { scene: sceneName(), modal: modalKind, settings: Object.assign({}, settings) };
     return { scene: sceneName(), modal: modalKind, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, piles: notePiles(),
-      score: S.score, moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, winnable: !!S.winnable, grade: S.winnable && Object.hasOwn(GRADE_RANK, S.grade) ? S.grade : '', started: S.started, canAutoComplete: canAutoComplete(),
+      score: S.score, scoring: activeScoring(), moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, winnable: !!S.winnable, grade: S.winnable && Object.hasOwn(GRADE_RANK, S.grade) ? S.grade : '', started: S.started, canAutoComplete: canAutoComplete(),
       undoDepth: undoStack.length, redoDepth: redoStack.length, replay: !!S.replay, finishing: !!(finishRun && winTimer), ceremony: !!cascade, held: held ? { from: held.from, index: held.index } : null, dropTarget: drag ? dropTarget(drag) : null, cursor: Object.assign({}, cursor),
       settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, maxMove: S.mode === 'freecell' ? capacity(null) : null, stuck: stuckVerdict, lost: lostVerdict, hinting: !!hintJob, storageOK };
   },
@@ -7618,6 +7628,7 @@ window.__game = {
     st.initDown = downCount(st);
     if (s.grade) { st.winnable = true; st.grade = s.grade; }
     if (s.replay != null) st.replay = !!s.replay;
+    if (s.scoring && SETTING_ENUMS.scoring.includes(s.scoring)) st.scoring = s.scoring;
     if (s.score != null) st.score = s.score; if (s.moves != null) st.moves = s.moves;
     if (s.recycles != null) st.recycles = s.recycles;
     S = st; clearTransientFx(false); undoStack = []; redoStack = []; pullbackHold.clear(); held = null; drag = null; clearHover(); cascade = null; hintState = null; lastWin = null; clearStuck();
