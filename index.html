@@ -1380,7 +1380,7 @@ const makeSolver = (() => {
   const fits = (lo, hi) => R(lo) === R(hi) + 1 && red(lo) !== red(hi);
   // Collision-free 52-char card alphabet 'B'..'u' (ASCII 66..117, 100% disjoint from digits, ':', '#', '|', ',') per CD-WF6-03.
   const chars = (a) => { let r = ''; for (let i = 0; i < a.length; i++) { const x = a[i]; r += String.fromCharCode(65 + (x >> 4) * 13 + (x & 15)); } return r; };
-  const clone = (s) => ({ t: s.t.map((p) => p.slice()), dn: s.dn.slice(), st: s.st.slice(), w: s.w.slice(), f: s.f.slice(), done: s.done, pb: s.pb });
+  const clone = (s) => ({ t: s.t.map((p) => p.slice()), dn: s.dn.slice(), st: s.st.slice(), w: s.w.slice(), c: s.c ? s.c.slice() : null, f: s.f.slice(), done: s.done, pb: s.pb });
   const flip = (s) => s.t.forEach((p, i) => { if (s.dn[i] > 0 && s.dn[i] >= p.length) s.dn[i] = p.length - 1; });
   const next = (s, u) => s.f[su(u)] === R(u) - 1;
   // In Yukon, rank-2 cards stay off foundations until both opposite-color Aces are home (a buried Ace may need to land on that 2).
@@ -1465,21 +1465,109 @@ const makeSolver = (() => {
     else { o.t[m[3]].push(...o.t[m[1]].splice(m[2])); clear(o, m[3]); clear(o, m[1]); }
     return o;
   }
+  const fcKey = (s, verify) => s.t.map((p) => chars(p)).sort().join('|') + '#' + chars(s.c.filter(Boolean).sort((a, b) => a - b)) + '#' + s.f + (verify ? '#' + s.pb : '');
+  const fcSettle = (s) => {
+    for (let m = 1; m;) {
+      m = 0;
+      for (let i = 0; i < 4; i++) {
+        const u = s.c[i];
+        if (u && next(s, u) && safe(s, u, false)) { s.f[su(u)]++; s.c[i] = 0; m = 1; }
+      }
+      for (const p of s.t) if (p.length && next(s, top(p)) && safe(s, top(p), false)) { s.f[su(p.pop())]++; m = 1; }
+    }
+  };
+  // FreeCell moves: cell indices encode as -10 - ci (c0=-10..c3=-13) for both from and to; to -1 is foundation; from -3 is foundation pullback.
+  function fcMoves(s, ms, verify) {
+    let emptyCells = 0, firstCell = -1, emptyCols = 0, firstEmpty = -1;
+    for (let i = 0; i < 4; i++) if (!s.c[i]) { emptyCells++; if (firstCell < 0) firstCell = i; }
+    for (let j = 0; j < s.t.length; j++) if (!s.t[j].length) { emptyCols++; if (firstEmpty < 0) firstEmpty = j; }
+    const capTo = (destEmpty) => (emptyCells + 1) * (1 << (emptyCols - (destEmpty ? 1 : 0)));
+    for (let i = 0; i < 4; i++) { const u = s.c[i]; if (u && next(s, u)) ms.push([10, -10 - i, 0, -1]); }
+    for (let c = 0; c < s.t.length; c++) { const p = s.t[c]; if (p.length && next(s, top(p))) ms.push([10, c, p.length - 1, -1]); }
+    for (let i = 0; i < 4; i++) {
+      const u = s.c[i]; if (!u) continue;
+      for (let j = 0; j < s.t.length; j++) {
+        const q = s.t[j];
+        if (!q.length) { if (j === firstEmpty) ms.push([3.5, -10 - i, 0, j]); }
+        else if (fits(top(q), u)) ms.push([6.5, -10 - i, 0, j]);
+      }
+    }
+    for (let c = 0; c < s.t.length; c++) {
+      const p = s.t[c]; if (!p.length) continue;
+      let b = p.length - 1;
+      while (b > 0 && fits(p[b - 1], p[b])) b--;
+      for (let i = b; i < p.length; i++) {
+        const len = p.length - i, u = p[i], under = i > 0 ? p[i - 1] : -1;
+        const isSplit = under >= 0 && fits(under, u);
+        for (let j = 0; j < s.t.length; j++) {
+          if (j === c) continue;
+          const q = s.t[j];
+          if (!q.length) {
+            if (j !== firstEmpty || i === 0 || len > capTo(true)) continue;
+            ms.push([isSplit ? 1.5 : 3, c, i, j]);
+          } else {
+            if (!fits(top(q), u) || len > capTo(false)) continue;
+            const empties = i === 0, exposes = under >= 0 && next(s, under);
+            ms.push([isSplit ? (exposes ? 5.5 : 1.8) : (empties ? 7 : exposes ? 6 : 4.5), c, i, j]);
+          }
+        }
+      }
+    }
+    if (firstCell >= 0) {
+      for (let c = 0; c < s.t.length; c++) {
+        const p = s.t[c]; if (!p.length) continue;
+        const empties = p.length === 1, exposes = p.length >= 2 && next(s, p[p.length - 2]);
+        ms.push([empties ? 4 : exposes ? 4.8 : 1.2, c, p.length - 1, -10 - firstCell]);
+      }
+    }
+    if (verify && s.pb < 2) {
+      for (let fs = 0; fs < 4; fs++) {
+        const rk = s.f[fs]; if (rk < 2) continue;
+        const u = (fs << 4) | rk;
+        if (safe(s, u, false)) continue;
+        if (firstCell >= 0) ms.push([0.5, -3, fs, -10 - firstCell]);
+        for (let j = 0; j < s.t.length; j++) {
+          const q = s.t[j];
+          if (!q.length) { if (j === firstEmpty) ms.push([0.5, -3, fs, j]); }
+          else if (fits(top(q), u)) ms.push([0.5, -3, fs, j]);
+        }
+      }
+    }
+  }
+  function fcApply(s, m) {
+    const o = clone(s);
+    if (m[1] === -3) {
+      const fs = m[2], u = (fs << 4) | o.f[fs]; o.f[fs]--;
+      if (m[3] <= -10) o.c[-10 - m[3]] = u; else o.t[m[3]].push(u);
+      o.pb++;
+    } else if (m[1] <= -10) {
+      const ci = -10 - m[1], u = o.c[ci]; o.c[ci] = 0;
+      if (m[3] < 0) o.f[su(u)]++; else o.t[m[3]].push(u);
+    } else {
+      const run = o.t[m[1]].splice(m[2]);
+      if (m[3] === -1) o.f[su(run[0])]++;
+      else if (m[3] <= -10) o.c[-10 - m[3]] = run[0];
+      else o.t[m[3]].push(...run);
+    }
+    fcSettle(o); return o;
+  }
   // makeSolver(state, budget, opts) -> { used, step(n), moves }: step(n) searches n more positions, answering 'won' (moves = the line), 'dead',
   // 'budget' or 'more'. The budget test ignores how the work is sliced. opts.verify permits productive partial-run splits & bounded pullbacks.
   return (st, budget, opts) => {
-    const mode = st.mode, draw = st.opts.draw, spider = mode === 'spider', yukon = mode === 'yukon', verify = !!(opts && opts.verify);
+    const mode = st.mode, draw = st.opts.draw, spider = mode === 'spider', yukon = mode === 'yukon', fc = mode === 'freecell', verify = !!(opts && opts.verify);
     const code = (u) => st.cards[u].s * 16 + st.cards[u].r;
     const t = [], dn = [];
     for (const id in st.piles) if (id[0] === 't') { const p = st.piles[id]; t.push(p.map(code)); const d = p.findIndex((u) => st.up[u]); dn.push(d < 0 ? p.length : d); }
-    const root = { t, dn, st: (st.piles.stock || []).map(code), w: (st.piles.waste || []).map(code), f: [0, 0, 0, 0], done: 0, pb: 0 };
+    const c = fc ? Array.from({ length: 4 }, (_, i) => { const p = st.piles['c' + i]; return p && p.length ? code(p[0]) : 0; }) : null;
+    const root = { t, dn, st: (st.piles.stock || []).map(code), w: (st.piles.waste || []).map(code), c, f: [0, 0, 0, 0], done: 0, pb: 0 };
     for (const id in st.piles) if (id[0] === 'f') { const p = st.piles[id]; if (spider) root.done += Math.floor(p.length / 13); else if (p.length) root.f[st.cards[p[0]].s] = p.length; } // a game part-way through
-    if (!spider) settle(root, yukon);
-    const gen = mode === 'klondike' ? (s, ms) => klondikeMoves(s, ms, verify) : yukon ? (s, ms) => tabMoves(s, ms, 0, verify, true) : spiderMoves;
-    const apply = spider ? spiderApply : (s, m) => tabApply(s, m, draw, yukon);
+    if (fc) fcSettle(root); else if (!spider) settle(root, yukon);
+    const gen = fc ? (s, ms) => fcMoves(s, ms, verify) : mode === 'klondike' ? (s, ms) => klondikeMoves(s, ms, verify) : yukon ? (s, ms) => tabMoves(s, ms, 0, verify, true) : spiderMoves;
+    const apply = fc ? fcApply : spider ? spiderApply : (s, m) => tabApply(s, m, draw, yukon);
+    const stateKey = fc ? (s) => fcKey(s, verify) : key;
     const frame = (s) => { const ms = []; gen(s, ms); return { s, ms: ms.sort((a, b) => b[0] - a[0]), i: 0 }; };
-    const stack = [frame(root)], seen = new Set([key(root)]), me = { used: 0 };
-    const home = (c) => (spider ? c.done === 8 : c.f[0] + c.f[1] + c.f[2] + c.f[3] === 52);
+    const stack = [frame(root)], seen = new Set([stateKey(root)]), me = { used: 0 };
+    const home = (s) => (spider ? s.done === 8 : fc ? s.t.every((p) => !p.length) && s.c.every((x) => !x) : s.f[0] + s.f[1] + s.f[2] + s.f[3] === 52);
     me.step = (n) => {
       const end = me.used + n;
       if (home(root)) { me.moves = []; return 'won'; } // a game part-way through can already be won by the safe moves
@@ -1488,10 +1576,10 @@ const makeSolver = (() => {
         if (me.used >= end) return 'more';
         const f = stack[stack.length - 1]; if (!f) return 'dead';
         if (f.i >= f.ms.length) { stack.pop(); continue; }
-        const c = apply(f.s, f.ms[f.i++]), id = key(c); if (seen.has(id)) continue;
+        const ch = apply(f.s, f.ms[f.i++]), id = stateKey(ch); if (seen.has(id)) continue;
         seen.add(id); me.used++;
-        if (home(c)) { me.moves = stack.map((x) => x.ms[x.i - 1]); return 'won'; }
-        stack.push(frame(c));
+        if (home(ch)) { me.moves = stack.map((x) => x.ms[x.i - 1]); return 'won'; }
+        stack.push(frame(ch));
       }
     };
     return me;
@@ -1703,14 +1791,17 @@ function stockHintText() {
 // Hints lead with the solver where it can: the first move of a line that wins from here (the solver sees the whole deal, as the search below
 // already does when it turns cards over). Set the budget to 0 to go back to the nearest-gain search alone. Null when no line is found in
 // budget, the move does not fit the table as it stands, or it would only return to a position this game has already been in.
-const HINT_SOLVER_BUDGET = 2000; // positions
+const HINT_SOLVER_BUDGET = 2000, FC_SOLVER_BUDGET = 1500; // positions (FreeCell bounded <2,000 per W1-S3-07)
 function* solverHintG() {
-  if (!HINT_SOLVER_BUDGET || !['klondike', 'yukon', 'spider'].includes(S.mode)) return null;
-  const sv = makeSolver(S, HINT_SOLVER_BUDGET);
+  if (!HINT_SOLVER_BUDGET || !['klondike', 'yukon', 'spider', 'freecell'].includes(S.mode)) return null;
+  const sv = makeSolver(S, S.mode === 'freecell' ? FC_SOLVER_BUDGET : HINT_SOLVER_BUDGET);
   let r; while ((r = sv.step(HINT_SLICE)) === 'more') { hintYields++; yield; }
   if (r !== 'won') return null;
   if (S.mode !== 'spider') { // the solver plays every safe card home before it starts: so does the hint, one card at a time
-    for (const from of (S.piles.waste ? ['waste'] : []).concat(Array.from({ length: def().cols }, (_, i) => 't' + i))) {
+    const srcs = (S.piles.waste ? ['waste'] : [])
+      .concat(Array.from({ length: def().cells }, (_, i) => 'c' + i))
+      .concat(Array.from({ length: def().cols }, (_, i) => 't' + i));
+    for (const from of srcs) {
       const p = S.piles[from], u = p[p.length - 1], f = u === undefined || !S.up[u] ? null : foundationFor(u);
       if (f && safeToAutoplay(u) && canDrop([u], f, from)) return { from, to: f, index: p.length - 1, count: 1, score: 100, depth: 1, solver: true };
     }
@@ -1718,9 +1809,9 @@ function* solverHintG() {
   if (!sv.moves.length) return null;
   const [sc, f, i, to] = sv.moves[0];
   if (f === -2 || (S.mode === 'spider' && sc < 0)) return { stock: true, solver: true };
-  const from = f < 0 ? 'waste' : 't' + f, p = S.piles[from], index = f < 0 ? p.length - 1 : i;
+  const from = f <= -10 ? 'c' + (-10 - f) : f < 0 ? 'waste' : 't' + f, p = S.piles[from], index = f < 0 ? p.length - 1 : i;
   if (!p.length || index < 0 || index >= p.length) return null;
-  const run = p.slice(index), dest = to < 0 ? foundationFor(run[0]) : 't' + to;
+  const run = p.slice(index), dest = to <= -10 ? 'c' + (-10 - to) : to < 0 ? foundationFor(run[0]) : 't' + to;
   if (!dest || !canPick(from, index) || !canDrop(run, dest, from)) return null;
   const m = { from, to: dest, index, count: run.length, score: 100, depth: 1, solver: true };
   const c = simChild({ piles: S.piles, up: S.up, hold: pullbackHold }, m);
@@ -1856,12 +1947,31 @@ function clearStuck() { clearTimeout(stuckTimer); stuckTimer = 0; stuckVerdict =
 // of lines it says so once, and stays quiet when it is only out of budget.
 const LOST_BUDGET = 4000, LOST_FACEDOWN = 8; // positions to search; most face-down cards worth asking about
 let lostRun = 0, lostVerdict = null, lostWarned = false;
+function fcDeadlockEligible() {
+  for (let i = 0; i < 4; i++) if (!S.piles['c' + i].length) return false;
+  for (let i = 0; i < 8; i++) if (!S.piles['t' + i].length) return false;
+  for (let i = 0; i < 4; i++) { const u = top('c' + i); if (u >= 0 && foundationFor(u)) return false; }
+  for (let i = 0; i < 8; i++) {
+    const id = 't' + i, p = S.piles[id], u = top(id);
+    if (u >= 0 && foundationFor(u)) return false;
+    if (p.length === 1) {
+      for (let j = 0; j < 8; j++) if (j !== i && canDrop(p, 't' + j, id)) return false;
+    }
+  }
+  return true;
+}
 function lostKick() {
   const my = ++lostRun; lostVerdict = null;
-  if (!S || S.won || modalKind || (S.mode !== 'klondike' && S.mode !== 'yukon')) return;
-  let down = 0; for (let i = 0; i < def().cols; i++) for (const u of S.piles['t' + i]) if (!S.up[u]) down++;
-  if (down > LOST_FACEDOWN) return;
-  const sv = makeSolver(S, LOST_BUDGET, { verify: true });
+  if (!S || S.won || modalKind || !['klondike', 'yukon', 'freecell'].includes(S.mode)) return;
+  let budget = LOST_BUDGET;
+  if (S.mode === 'freecell') {
+    if (!fcDeadlockEligible()) return;
+    budget = FC_SOLVER_BUDGET;
+  } else {
+    let down = 0; for (let i = 0; i < def().cols; i++) for (const u of S.piles['t' + i]) if (!S.up[u]) down++;
+    if (down > LOST_FACEDOWN) return;
+  }
+  const sv = makeSolver(S, budget, { verify: true });
   const tick = () => {
     if (lostRun !== my || !S) return;
     const end = now() + 6; let r;

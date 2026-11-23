@@ -1048,4 +1048,82 @@ export const tests = [
       t.equal([ykHint.ok, !!ykHint.stuck, ykHint.move && ykHint.move.from, ykHint.move && ykHint.move.to], [true, false, 'f0', 't0'], 'Yukon: hint() suggests foundation pullback f0 -> t0');
     },
   },
+  {
+    name: 'rules-29 W1-S3-07 FreeCell solver-backed winning-line hints and bounded <2,000-position cluttered deadlock probe in lostKick()',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { autoFoundation: 'off', motion: 'reduced', tips: false, sound: false });
+      const runS = (s, n = 13) => ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'].slice(0, n).map((r) => r + s);
+
+      // 1. Solver-backed winning-line hints in FreeCell (including cell & tableau moves): following hints wins a multi-step cluttered FreeCell position
+      await t.game('setState', {
+        mode: 'freecell',
+        piles: {
+          c0: ['KC'], c1: ['KD'], c2: ['KH'], c3: ['KS'],
+          f0: runS('C', 9), f1: runS('D', 9), f2: runS('H', 9), f3: runS('S', 9),
+          t0: ['TC', 'JS'], t1: ['TD', 'JH'], t2: ['TH', 'JD'], t3: ['TS', 'JC'],
+          t4: ['QC'], t5: ['QD'], t6: ['QH'], t7: ['QS'],
+        },
+      });
+      const svWin = await t.game('solveState', 1500);
+      t.equal(svWin.result, 'won', 'makeSolver solves cluttered 52-card FreeCell position within <2,000 budget (used ' + svWin.used + ')');
+      const followWin = await t.page.evaluate(() => {
+        const G = window.__game;
+        let firstSolver = null, steps = 0;
+        for (; steps < 40; steps++) {
+          const st = G.getState(); if (st.won) break;
+          const h = G.act('hint'); if (!h.ok || h.stuck || !h.move) break;
+          if (firstSolver === null) firstSolver = !!h.move.solver;
+          G.act('move', h.move.from, h.move.to, st.piles[h.move.from].length - h.move.index);
+        }
+        return { won: G.getState().won || G.getState().scene === 'win', firstSolver, steps };
+      });
+      t.equal([followWin.firstSolver, followWin.won], [true, true], 'FreeCell Hint leads with solver winning line and following hints wins (' + followWin.steps + ' steps)');
+
+      // 2. Cluttered FreeCell deadlock (all 4 cells full, all 8 columns non-empty, no immediate foundation/column-freeing move, yet bury-reducing move keeps checkStuck live):
+      // lostKick() proves dead within <2,000 positions and shows the non-blocking early warning toast.
+      await t.game('setState', {
+        mode: 'freecell',
+        piles: {
+          c0: ['KC'], c1: ['KD'], c2: ['KH'], c3: ['KS'],
+          f0: runS('C', 7), f1: runS('D', 7), f2: runS('H', 7), f3: runS('S', 7),
+          t0: ['8C', 'QC'], t1: ['8D', 'QD'], t2: ['8H', 'QH'], t3: ['TS', 'QS', 'JD'],
+          t4: ['TD', 'JC', '9C'], t5: ['TH', 'JH', '9D'], t6: ['TC', 'JS', '9H'], t7: ['8S', '9S'],
+        },
+      });
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      t.equal((await t.game('act', 'move', 't3', 't0')).ok, true, 'legal move into cluttered FreeCell deadlock triggers scheduleStuckCheck/lostKick');
+      await t.page.waitForFunction(() => window.__game.getState().lost === 'dead', null, { timeout: 10000 });
+      const deadSnap = await t.page.evaluate(() => ({
+        st: window.__game.getState(),
+        toast: document.getElementById('toast').textContent,
+      }));
+      t.equal(deadSnap.st.stuck, 'live', 'checkStuck stays live because bury-reducing JD move still exists');
+      t.equal(deadSnap.st.scene, 'game', 'early dead-branch warning does not block play with a modal');
+      t.equal(deadSnap.toast, 'No winning line left from here. Undo takes you back.', 'FreeCell lostKick emits early dead-branch warning toast');
+
+      // 3. Cluttered but WINNABLE FreeCell position (all 4 cells full, all 8 cols non-empty, no immediate foundation/col-freeing move) resolves 'won' and stays quiet
+      await t.game('setState', {
+        mode: 'freecell',
+        piles: {
+          c0: ['KC'], c1: ['KD'], c2: ['KH'], c3: ['KS'],
+          f0: runS('C', 8), f1: runS('D', 8), f2: runS('H', 8), f3: runS('S', 8),
+          t0: ['9C', 'JS'], t1: ['9D', 'JH'], t2: ['9H', 'QD', 'JD'], t3: ['9S', 'JC'],
+          t4: ['TC', 'QH'], t5: ['TD', 'QS'], t6: ['TH', 'TS'], t7: ['QC'],
+        },
+      });
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      t.equal((await t.game('act', 'move', 't2', 't7')).ok, true, 'move JD onto QC keeps all 4 cells & 8 cols occupied with no immediate foundation/col-freeing move');
+      await t.page.waitForFunction(() => window.__game.getState().lost === 'won', null, { timeout: 10000 });
+      t.equal(await t.page.evaluate(() => document.getElementById('toast').textContent), '', 'cluttered winnable FreeCell board stays completely quiet (no false warning)');
+
+      // 4. Open free cell skips lostKick() cleanly (lost remains null)
+      await t.game('newGame', { mode: 'freecell', deal: 1 });
+      const m0 = (await t.game('legalMoves')).find((m) => m.to === 'c0');
+      t.expect(!!m0, 'deal #1 has legal move to c0');
+      await t.game('act', 'move', m0.from, m0.to, 1);
+      await t.page.waitForFunction(() => window.__game.getState().stuck !== null, null, { timeout: 8000 });
+      t.equal((await t.state()).lost, null, 'FreeCell with open free cells skips deadlock probe (lost === null)');
+    },
+  },
 ];
