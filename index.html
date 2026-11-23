@@ -5844,13 +5844,14 @@ function padPoll() {
 }
 function padStep() {
   PAD.raf = 0;
-  if (!padFound()) { PAD.held = {}; return; }
+  if (document.hidden || !padFound()) { PAD.held = {}; return; }
   padPoll();
-  PAD.raf = requestAnimationFrame(padStep);
+  if (!document.hidden && padFound()) PAD.raf = requestAnimationFrame(padStep);
 }
-function padWatch() { if (!PAD.raf && padFound()) PAD.raf = requestAnimationFrame(padStep); }
+function padWatch() { if (!PAD.raf && !document.hidden && padFound()) PAD.raf = requestAnimationFrame(padStep); }
+function padStop() { if (PAD.raf) { cancelAnimationFrame(PAD.raf); PAD.raf = 0; } PAD.held = {}; }
 window.addEventListener('gamepadconnected', padWatch);
-window.addEventListener('gamepaddisconnected', () => { if (!padFound()) { if (PAD.raf) cancelAnimationFrame(PAD.raf); PAD.raf = 0; PAD.held = {}; } });
+window.addEventListener('gamepaddisconnected', () => { if (!padFound()) padStop(); });
 if (padFound()) padWatch();
 
 // 12. Audio (WebAudio synthesis; the context is created on the first user gesture)
@@ -6827,9 +6828,22 @@ function updateTime() {
   if (on) { b.textContent = '+' + timeBonus(S.elapsedMs); b.title = 'Time bonus a win would add now; it falls 2 points a second'; }
   $('#sScoreW').title = timedMode && !settings.showTimer ? 'Timed scoring active: win bonus still counts elapsed time while timer is hidden' : '';
 }
-setInterval(() => { tickClock(); updateTime(); ambientSync(); }, 500);
+let hudTimer = 0;
+function hudClockSync() {
+  const want = !document.hidden && !titleOn && !!S;
+  if (want && !hudTimer) {
+    hudTimer = setInterval(() => {
+      if (document.hidden || titleOn || !S) { hudClockSync(); return; }
+      tickClock(); updateTime(); ambientSync();
+    }, 500);
+  } else if (!want && hudTimer) {
+    clearInterval(hudTimer); hudTimer = 0;
+  }
+}
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { cancelBuzz(); tickClock(); if (!titleOn || saveTimer) flushSave(); } else clockMark = now();
+  if (document.hidden) { cancelBuzz(); tickClock(); padStop(); if (!titleOn || saveTimer) flushSave(); } else { clockMark = now(); padWatch(); }
+  hudClockSync();
+  ambientSync();
   if (AC) {
     clearTimeout(suspendTimer); suspendTimer = 0;
     syncAudio();
@@ -6841,6 +6855,9 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 window.addEventListener('pagehide', () => {
+  padStop();
+  if (hudTimer) { clearInterval(hudTimer); hudTimer = 0; }
+  ambientSync();
   if (!titleOn || saveTimer) flushSave();
   if (kit) kit.stop();
   if (AC) { try { AC.suspend().catch(() => {}); } catch (e) { /* context already closed */ } }
@@ -7013,8 +7030,9 @@ function showTitle(on, instant) {
     if (S && L && tableDirty) markDirty();
   }
   syncAudio();
+  hudClockSync();
+  ambientSync();
   if (on) {
-    syncTitleCTA();
     { const day = todayStr(); const n = Object.keys(meta.daily).filter((k) => k.startsWith(day + '|') && (meta.daily[k] === 'won' || meta.daily[k] === 'won-archive')).length; $('#tDaily').textContent = 'Daily deals' + (n ? ' (' + n + '/7 ✓)' : ''); }
     $('#tTag').textContent = TITLE_LINES[titleLineAt++ % TITLE_LINES.length];
     DPR = Math.min(3, window.devicePixelRatio || 1);
@@ -8002,7 +8020,7 @@ window.__game = {
   hintYields(reset) { const n = hintYields; if (reset) hintYields = 0; return n; },
   hintCurrent: () => (hintState && hintState.cur ? JSON.parse(JSON.stringify(hintState.cur)) : null),
   hintArrowGeom: () => (lastHintArrow ? JSON.parse(JSON.stringify(lastHintArrow)) : null),
-  pad: () => ({ connected: !!padFound(), polls: PAD.polls }),
+  pad: () => ({ connected: !!padFound(), polls: PAD.polls, raf: !!PAD.raf }),
   tableBlur(id, px) { TABLE_LOOK[id].blur = px; tableDirty = true; markDirty(); return true; },
   backMean(seed) { // the mean colour of the skylight back drawn with a deck seed
     const c = document.createElement('canvas'); c.width = 90; c.height = 135; const cx = c.getContext('2d'); drawBack(cx, 'skylight', 90, 135, seed);
@@ -8082,6 +8100,7 @@ window.__game = {
     hasTrail: !!(cascade && cascade.trail), flyers: cascade && cascade.fly ? cascade.fly.length : 0,
     maxFly: CER.maxFly, sprites: sprites.size, skyCached: !!skyCache, loadedArt: Object.keys(art).length,
     audioTimer: !!(kit && kit.active),
+    hudTimer: !!hudTimer, padRaf: !!PAD.raf,
   }),
   scene(name, data) {
     if (name === 'title') { closeModal(false); showTitle(true); }
@@ -8166,9 +8185,9 @@ try {
   const man = { name: 'Spa City Solitaire', short_name: 'Spa Solitaire', start_url: here, scope: here.slice(0, here.lastIndexOf('/') + 1), display: 'standalone',
     orientation: 'any', background_color: '#101813', theme_color: '#101813', icons: [{ src: icon, sizes: 'any', type: 'image/svg+xml', purpose: 'any' }] };
   const lk = document.createElement('link'); lk.rel = 'manifest'; lk.id = 'manifest';
-  lk.href = URL.createObjectURL(new Blob([JSON.stringify(man)], { type: 'application/manifest+json' }));
+  lk.href = 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify(man));
   document.head.appendChild(lk);
-} catch (e) { /* a browser without Blob URLs just stays in the tab */ }
+} catch (e) { /* a browser without inline manifest support just stays in the tab */ }
 
 uiReady = true;
 buildTitle();
