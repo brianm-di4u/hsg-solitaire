@@ -560,4 +560,119 @@ export const tests = [
       t.equal([preserved.ach.quick, preserved.ach.rush], ['2026-10-01', '2026-10-01'], 'Existing saves preserve previously earned quick and rush achievements');
     },
   },
+  {
+    name: 'w2c W6-S5-03 #toast and #coach mutually defer without double-banner stacking, and dockNotices uses live #notices height',
+    async run(t) {
+      // 1. Fresh opening deal: auto-foundation toast fires while opening goal tip is visible.
+      // Place Ace of Hearts on top of stock on an opening-like board (with face-down cards so dead-end solver stays idle)
+      // so drawing triggers the exact first-time auto-foundation toast while #coach is open.
+      await t.game('setSettings', { sound: false, motion: 'reduced', tips: true, tipStep: 0, tipModes: '', autoFoundation: 'safe', autoNoted: false });
+      await t.game('newGame', { mode: 'klondike', deal: 5 });
+      await waitCoach(t, true);
+      t.equal(await coachText(t), 'Build each suit from Ace to King on the foundations.', 'opening goal tip is visible before auto-foundation');
+
+      await t.game('setState', {
+        mode: 'klondike',
+        opts: { draw: 1 },
+        piles: {
+          stock: ['#2C', '#AH'],
+          waste: [],
+          f0: [], f1: [], f2: [], f3: [],
+          t0: ['KD'], t1: ['QS'], t2: ['#3C', '#4C', '#5C', 'JC'], t3: ['#3D', '#4D', '#5D', 'TH'],
+          t4: ['#3S', '#4S', '#5S', '9S'], t5: ['#3H', '#4H', '#5H', '8D'], t6: ['#6H', '#7H', '7C'],
+        },
+      });
+      await t.game('scene', 'settings');
+      await t.page.click('#sheet [data-close]');
+      await waitCoach(t, true);
+      t.equal(await coachText(t), 'Build each suit from Ace to King on the foundations.', 'goal tip appears cleanly after modal close');
+
+      // Drawing Ace of Hearts triggers first-time auto-foundation toast while #coach is open.
+      await t.game('act', 'draw');
+      await t.page.waitForFunction(() => document.getElementById('toast').classList.contains('on'), null, { timeout: 4000 });
+      const duringToast = await t.page.evaluate(() => ({
+        toastOn: document.getElementById('toast').classList.contains('on'),
+        toastText: document.getElementById('toast').textContent,
+        coachHidden: document.getElementById('coach').hidden,
+        noticesH: Math.round(document.getElementById('notices').getBoundingClientRect().height),
+      }));
+      t.expect(duringToast.toastOn && /ace of hearts/i.test(duringToast.toastText), 'first-time auto-foundation toast shows: ' + duringToast.toastText);
+      t.equal(duringToast.coachHidden, true, '#coach is paused while #toast.on is active (no double-banner stacking): ' + JSON.stringify(duringToast));
+      await t.shot('W6-S5-03-toast-defers-coach', { fullPage: false });
+
+      // Dismissing #toast cleanly resumes the unburned opening goal tip after toast clears.
+      await t.page.click('#toast');
+      await waitCoach(t, true);
+      const afterToast = await t.page.evaluate(() => ({
+        toastOn: document.getElementById('toast').classList.contains('on'),
+        coachHidden: document.getElementById('coach').hidden,
+        coachText: document.getElementById('coachTx').textContent,
+      }));
+      t.equal(afterToast.toastOn, false, '#toast is dismissed');
+      t.equal(afterToast.coachHidden, false, 'deferred opening goal tip resumes cleanly once #toast clears');
+      t.equal(afterToast.coachText, 'Build each suit from Ace to King on the foundations.', 'paused goal tip was not burned');
+
+      // 2. Reverse order: while #toast.on is already visible, a scheduled tipShow() (Move 1 -> stock tip at 700 ms) must stay deferred until #toast clears.
+      await t.game('setSettings', { autoNoted: false });
+      await t.game('setState', {
+        mode: 'klondike',
+        opts: { draw: 1 },
+        piles: {
+          stock: ['#2H'],
+          waste: [],
+          f0: [], f1: [], f2: [], f3: [],
+          t0: ['AH', '6C'], t1: ['7D'], t2: ['#3C', '#4C', '#5C', 'JC'], t3: ['#3D', '#4D', '#5D', 'TH'],
+          t4: ['#3S', '#4S', '#5S', '9S'], t5: ['#3H', '#4H', '#5H', '8D'], t6: ['#6H', '#7H', 'KD'],
+        },
+      });
+      await t.game('scene', 'settings');
+      await t.page.click('#sheet [data-close]');
+      await waitCoach(t, true);
+      // Real move of 6C -> 7D marks goal+move done (scheduling stock tip at 700 ms) AND exposes AH which auto-plays with a ~4.8 s toast.
+      await t.game('act', 'move', 't0', 't1');
+      await t.page.waitForFunction(() => document.getElementById('toast').classList.contains('on'), null, { timeout: 4000 });
+      await t.page.waitForTimeout(850); // bounded did-not-fire check past the 700 ms tipSchedule delay
+      const duringScheduled = await t.page.evaluate(() => ({
+        toastOn: document.getElementById('toast').classList.contains('on'),
+        coachHidden: document.getElementById('coach').hidden,
+      }));
+      t.equal(duringScheduled, { toastOn: true, coachHidden: true }, 'scheduled stock tip stays deferred while #toast.on is visible');
+      await t.page.click('#toast');
+      await waitText(t, /stock/i);
+      t.equal(await t.page.evaluate(() => document.getElementById('toast').classList.contains('on')), false, 'stock tip appears only after #toast clears');
+
+      // 3. Dynamic dockNotices() height check: a tall central column extending into the live #notices height band (above hardcoded H - 74) shifts #notices horizontally away from it.
+      if (t.viewport === 'desktop') {
+        const deck = ['KS', 'QD', 'JC', 'TH', '9S', '8D', '7C', '6H', '5S', '4D', '3C', '2H', 'AS'];
+        let docked = null;
+        for (let k = 6; k <= deck.length; k++) {
+          await t.game('setSettings', { tips: true, tipStep: 0, tipModes: '' });
+          await t.game('setState', {
+            mode: 'klondike',
+            opts: { draw: 1 },
+            piles: { stock: ['#AC'], waste: [], f0: [], f1: [], f2: [], f3: [], t0: [], t1: [], t2: [], t3: deck.slice(0, k), t4: [], t5: [], t6: [] },
+          });
+          await t.game('scene', 'settings');
+          await t.page.click('#sheet [data-close]');
+          await waitCoach(t, true);
+          const probe = await t.page.evaluate(() => {
+            const n = document.getElementById('notices');
+            const stage = document.getElementById('stage');
+            const H = stage.clientHeight, W = stage.clientWidth;
+            const t3 = window.__game.getLayout().piles.t3;
+            const last = t3.cards[t3.cards.length - 1];
+            const colBot = Math.round(last.y + last.h - stage.getBoundingClientRect().top);
+            const bandOld = Math.round(H - 74);
+            const bandDyn = Math.round(H - (n.offsetHeight + 24));
+            return { W, H, colBot, noticesH: n.offsetHeight, leftStyle: n.style.left, bandOld, bandDyn };
+          });
+          if (probe.colBot < probe.bandOld && probe.colBot > probe.bandDyn) { docked = probe; break; }
+        }
+        t.expect(!!docked, 'found a center column height strictly between dynamic bandY and old hardcoded H-74');
+        if (docked) {
+          t.expect(!!docked.leftStyle && Math.abs(parseFloat(docked.leftStyle) - docked.W / 2) > 40, 'dockNotices() shifts #notices clear of center column using live noticesEl.offsetHeight: ' + JSON.stringify(docked));
+        }
+      }
+    },
+  },
 ];

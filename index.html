@@ -6507,21 +6507,45 @@ function announce(msg) {
   off.textContent = '';
   on.textContent = msg;
 }
-let toastTimer = 0, lastToastMs = 0;
+let toastTimer = 0, lastToastMs = 0, tipDeferred = null;
 const toastDuration = (msg, minMs) => Math.max(minMs || 0, clamp(2400 + String(msg || '').length * 40, 2600, 6000));
+function toastDone() {
+  clearTimeout(toastTimer); toastTimer = 0;
+  toastEl.classList.remove('on');
+  const pending = tipDeferred;
+  tipDeferred = null;
+  if (pending && settings.tips && !titleOn && !modalKind && !cascade && S && !S.won) {
+    if (pending === 'hint') tipShowIdle();
+    else tipSchedule(200);
+  }
+  dockNotices();
+}
 function toast(msg, opts) {
   const dur = toastDuration(msg, opts && opts.minMs);
   lastToastMs = dur;
+  // Defer an active coach tip while a toast is visible so #notices never stacks two banners (W6-S5-03).
+  if (tip && !coachEl.hidden) {
+    const wasTip = tip;
+    clearTimeout(tipTimer); tipTimer = 0;
+    tip = null;
+    coachEl.hidden = true;
+    tipDeferred = wasTip === 'hint' ? 'hint' : 'tip';
+  }
   toastEl.textContent = msg; toastEl.classList.add('on');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('on'), dur);
+  clearTimeout(toastTimer); toastTimer = setTimeout(toastDone, dur);
+  dockNotices();
   announce(msg);
 }
-toastEl.onclick = () => { clearTimeout(toastTimer); toastTimer = 0; toastEl.classList.remove('on'); };
+toastEl.onclick = () => toastDone();
 function achToast(names) { sfx('ach'); toast('Achievement: ' + names[0] + (names.length > 1 ? ' and ' + (names.length - 1) + ' more' : '')); }
 function dockNotices() {
   if (!noticesEl) return;
-  if (!L || !S || !W || !H || coachEl.hidden) { noticesEl.style.left = ''; return; }
-  const cols = def().cols, pad = W >= 560 ? 54 : 12, bandY = H - 74, nw = Math.min(noticesEl.offsetWidth || 320, W - pad * 2);
+  const anyNotice = !coachEl.hidden || toastEl.classList.contains('on') || !tabEl.hidden;
+  if (!L || !S || !W || !H || !anyNotice) { noticesEl.style.left = ''; return; }
+  const cols = def().cols, pad = W >= 560 ? 54 : 12;
+  const botOff = parseFloat(getComputedStyle(noticesEl).bottom) || 12;
+  const bandY = H - ((noticesEl.offsetHeight || 50) + Math.max(24, botOff + 12));
+  const nw = Math.min(noticesEl.offsetWidth || 320, W - pad * 2);
   const blocked = [];
   for (let i = 0; i < cols; i++) {
     const b = L.piles['t' + i];
@@ -6555,7 +6579,7 @@ let touchIn = false, tip = null, tipTimer = 0, tipDelayTimer = 0, tipIdleTimer =
 // Two tabs share one saved game. When the other tab saves a different position than this one shows, say so once (no
 // locking, nothing blocked); the line goes when this tab moves, on its button, or when the title opens.
 const tabEl = $('#tabNote');
-function tabNoteHide() { tabEl.hidden = true; }
+function tabNoteHide() { tabEl.hidden = true; dockNotices(); }
 $('#tabNoteX').onclick = () => { tabNoteHide(); cv.focus({ preventScroll: true }); };
 window.addEventListener('storage', (e) => {
   if (newerSave || (e.key !== null && e.key !== KEY + 'current') || !S || S.won) return;
@@ -6567,7 +6591,7 @@ window.addEventListener('storage', (e) => {
   if (!isObj(o.opts)) return;
   if (o.mode === S.mode && o.deal === S.deal && o.moves === S.moves && o.score === S.score && o.recycles === S.recycles && o.runs === S.runs && !!o.usedUndo === !!S.usedUndo && o.opts.draw === S.opts.draw && o.opts.suits === S.opts.suits) return; // the same position: nothing to lose
   tabSuperseded = true; clearTimeout(saveTimer); saveTimer = 0;
-  if (!titleOn && tabEl.hidden) { tabEl.hidden = false; announce(tabEl.firstElementChild.textContent); }
+  if (!titleOn && tabEl.hidden) { tabEl.hidden = false; dockNotices(); announce(tabEl.firstElementChild.textContent); }
 });
 const coachEl = $('#coach');
 function tipText(id) {
@@ -6587,8 +6611,9 @@ function tipHide() {
   clearTimeout(tipDelayTimer); tipDelayTimer = 0;
   clearTimeout(tipIdleTimer); tipIdleTimer = 0;
   tip = null;
+  tipDeferred = null;
   coachEl.hidden = true;
-  if (noticesEl) noticesEl.style.left = '';
+  dockNotices();
   $('#bHint').classList.remove('pt');
 }
 function tipSchedule(ms) {
@@ -6603,6 +6628,7 @@ function tipResetIdle() {
 }
 function tipShowIdle() {
   if (tip || tipIdleShown || titleOn || modalKind || cascade || !settings.tips || !S || S.won) return;
+  if (toastEl.classList.contains('on')) { tipDeferred = 'hint'; return; }
   tip = 'hint';
   const x = tipText('hint');
   $('#coachTx').textContent = x;
@@ -6620,6 +6646,7 @@ function tipFade(id) {
 }
 function tipShow() {
   if (tip || titleOn || modalKind || cascade || !settings.tips || !S || S.won) return;
+  if (toastEl.classList.contains('on')) { tipDeferred = 'tip'; return; }
   const id = settings.tipModes.split(',').includes(S.mode) ? TIP_ORDER[settings.tipStep] : 'goal';
   if (!id || (id === 'stock' && !def().stock)) { tipResetIdle(); return; }
   clearTimeout(tipIdleTimer); tipIdleTimer = 0;
