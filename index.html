@@ -6503,10 +6503,10 @@ function audioList() {
   const barSeconds = {}; for (const k in SCORES) barSeconds[k] = +(60 / SCORES[k].bpm * (SCORES[k].beats || 4)).toFixed(3);
   return { music: Object.keys(SCORES), ambience: Object.keys(SCENES), cues: CUE_NAMES.slice(), barSeconds };
 }
-// `over` sets the volume controls to render at (volume, sfxVol, musicVol, ambVol, intensity, night); each one left out is the shipped default.
+// `over` sets the volume controls to render at (volume, volumeCurve, sfxVol, musicVol, ambVol, intensity, night); each one left out is the shipped fresh default (0.75^2 square curve).
 // 'mix' is the busiest moment: the title piece, the bed, and the loudest cues struck together every second (see below).
 function audioRender(name, seconds, wantWav, over) {
-  const ship = Object.assign({}, DEFAULT_SETTINGS, over);
+  const ship = Object.assign({}, DEFAULT_SETTINGS, { volume: FRESH_VOLUME, volumeCurve: 'square' }, over);
   return measureAudio((oc, dest) => {
     const m = oc.createGain(); m.gain.value = volumeGain(ship.volume, ship.volumeCurve); m.connect(makeLimiter(oc, dest));
     const sb = oc.createGain(); sb.gain.value = clamp(ship.sfxVol, 0, 1); sb.connect(m);
