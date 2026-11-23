@@ -568,4 +568,74 @@ export const tests = [
       t.equal([(await t.state()).deal, (await t.state()).scoring], [806, 'timed'], 'legacy save without state.scoring restores cleanly using settings.scoring');
     },
   },
+  {
+    name: 'w3b W6-P-N03 Settings displays inline mid-deal scoring lock note and validSave validates state.scoring',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false, scoring: 'standard', showTimer: true, autoFoundation: 'off' });
+      const runS = (s, n = 13) => ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'].slice(0, n).map((r) => r + s);
+      const twoMoveKlondike = (deal) => ({
+        mode: 'klondike', opts: { draw: 1 }, deal, score: 500, moves: 20,
+        piles: { stock: [], waste: [], f0: runS('C'), f1: runS('D'), f2: runS('H'), f3: runS('S', 12), t0: ['KS'], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      const readNote = () => t.page.evaluate(() => {
+        const el = document.getElementById('scoringNote');
+        return el ? { hidden: el.hidden, text: el.textContent } : null;
+      });
+
+      // 1. Started Standard deal -> switching to Timed inside Settings shows visible inline note
+      await t.game('setState', twoMoveKlondike(811));
+      await t.game('act', 'move', 't0', 't1');
+      await t.game('scene', 'settings');
+      t.equal((await readNote()).hidden, true, 'scoringNote starts hidden when preference matches active deal');
+      await t.page.click('#sheet [data-set="scoring"][data-val="timed"]');
+      let note = await readNote();
+      t.equal([note.hidden, note.text], [false, 'This hand stays Standard; Timed applies to the next deal.'], 'Standard->Timed inside Settings shows inline next-deal note');
+      // Reopening Settings while still mid-deal preserves the inline note
+      await t.game('scene', 'game');
+      await t.game('scene', 'settings');
+      note = await readNote();
+      t.equal([note.hidden, note.text], [false, 'This hand stays Standard; Timed applies to the next deal.'], 'reopening Settings mid-deal still renders inline scoringNote');
+      // Switching to None hides inline note (HUD toggles immediately), switching back to Standard hides inline note
+      await t.page.click('#sheet [data-set="scoring"][data-val="none"]');
+      t.equal((await readNote()).hidden, true, 'None toggles score display immediately and hides mid-deal note');
+      await t.page.click('#sheet [data-set="scoring"][data-val="standard"]');
+      t.equal((await readNote()).hidden, true, 'matching active deal hides scoringNote');
+
+      // 2. Started Timed deal -> switching to Standard inside Settings shows inline Timed->Standard note
+      await t.game('setSettings', { scoring: 'timed' });
+      await t.game('setState', twoMoveKlondike(812));
+      await t.game('act', 'move', 't0', 't1');
+      await t.game('scene', 'settings');
+      await t.page.click('#sheet [data-set="scoring"][data-val="standard"]');
+      note = await readNote();
+      t.equal([note.hidden, note.text], [false, 'This hand stays Timed; Standard applies to the next deal.'], 'Timed->Standard inside Settings shows inline next-deal note');
+
+      // 3. Unstarted 0-move deal adopts new scoring immediately and keeps scoringNote hidden
+      await t.game('setSettings', { scoring: 'standard' });
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 813 });
+      await t.game('scene', 'settings');
+      await t.page.click('#sheet [data-set="scoring"][data-val="timed"]');
+      t.equal([(await readNote()).hidden, (await t.state()).scoring], [true, 'timed'], 'unstarted deal updates immediately and keeps scoringNote hidden');
+
+      // 4. validSave() rejects a corrupted state.scoring enum while accepting valid saves
+      await t.game('setSettings', { scoring: 'standard' });
+      await t.game('setState', twoMoveKlondike(814));
+      await t.game('act', 'move', 't0', 't1');
+      await t.page.waitForFunction(() => {
+        const raw = localStorage.getItem('spa-solitaire:v1:current');
+        return raw && JSON.parse(raw).state && JSON.parse(raw).state.deal === 814;
+      });
+      await t.game('scene', 'title');
+      await t.page.evaluate(() => {
+        const k = 'spa-solitaire:v1:current';
+        const cur = JSON.parse(localStorage.getItem(k));
+        cur.state.scoring = 'bogus';
+        localStorage.setItem(k, JSON.stringify(cur));
+      });
+      await t.reload();
+      t.expect(await t.page.locator('#tCont').isHidden(), 'corrupted state.scoring is rejected by validSave() on boot');
+      t.equal(await t.page.evaluate(() => localStorage.getItem('spa-solitaire:v1:current')), null, 'corrupted state.scoring save is cleared cleanly');
+    },
+  },
 ];

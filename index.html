@@ -339,6 +339,8 @@
   .set.set-wide label{flex:1 1 240px}
   .set label{font-weight:600}
   .set small{display:block;font-weight:400;color:var(--color-muted)}
+  .set .set-note{color:var(--color-primary);margin-top:2px}
+  .set .set-note[hidden]{display:none}
   .set.is-muted label,.set.is-muted .sl-val{color:var(--color-muted)}
   .set.is-muted input[type=range],.set.is-muted .tog{opacity:.55}
   .set-slider .sl-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex:1 1 auto;min-width:0}
@@ -2686,6 +2688,7 @@ function validSave(c) {
   if (!isObj(s) || s.v !== 1 || !MODES[s.mode] || !isObj(s.opts) || ![1, 3].includes(s.opts.draw) || ![1, 2, 4].includes(s.opts.suits)) return false;
   if (!['deal', 'score', 'moves', 'elapsedMs', 'recycles', 'runs'].every((k) => num(s[k]) && s[k] >= 0) || (s.daily != null && typeof s.daily !== 'string')) return false;
   if (s.rawScore !== undefined && !num(s.rawScore)) return false;
+  if (s.scoring !== undefined && !SETTING_ENUMS.scoring.includes(s.scoring)) return false;
   const n = s.mode === 'spider' ? 104 : 52;
   if (!isArr(s.cards) || s.cards.length !== n || !isArr(s.up) || s.up.length !== n || !s.up.every((b) => typeof b === 'boolean')) return false;
   if (!s.cards.every((k) => isObj(k) && Number.isInteger(k.s) && k.s >= 0 && k.s < 4 && Number.isInteger(k.r) && k.r >= 1 && k.r <= 13)) return false;
@@ -7169,6 +7172,13 @@ function bindTablist(root, onSelect) {
 const timerNote = () => settings.scoring === 'timed'
   ? (settings.showTimer ? 'Timed scoring counts elapsed time for the win speed bonus' : 'Clock hidden; Timed scoring still counts elapsed time for the win speed bonus')
   : 'Display elapsed time in the bar (does not affect score)';
+const scoringMidNote = () => {
+  if (S && S.started && !S.won && settings.scoring !== 'none' && SETTING_ENUMS.scoring.includes(S.scoring) && S.scoring !== settings.scoring) {
+    const lbl = (v) => v === 'timed' ? 'Timed' : v === 'standard' ? 'Standard' : 'None';
+    return 'This hand stays ' + lbl(S.scoring) + '; ' + lbl(settings.scoring) + ' applies to the next deal.';
+  }
+  return '';
+};
 const bestScoresLabel = (k, st) => {
   if (k.startsWith('spider')) return st.bestStandardScore > 0 ? ' · score ' + st.bestStandardScore : '';
   const parts = [];
@@ -7267,11 +7277,11 @@ const MODALS = {
   },
   settings: (d) => {
     const tab = ['gameplay', 'comfort', 'audio'].includes(d && d.tab) ? d.tab : 'gameplay';
-    const sndOff = !settings.sound;
+    const sndOff = !settings.sound, sMid = scoringMidNote();
     return head('Settings') + tabBar('Settings sections', 'stab', 'spanel', 'stab', [['gameplay', 'Gameplay'], ['comfort', 'Table & Comfort'], ['audio', 'Audio']], tab) +
       '<div id="spanel-gameplay" role="tabpanel" aria-labelledby="stab-gameplay"' + (tab === 'gameplay' ? '' : ' hidden') + '>' +
         '<div class="set set-wide"><label id="lbl-dealFairness">Deal fairness<small id="desc-dealFairness">Fair, playable deals across all seven games—choose a challenge tier, or Classic Random for an open shuffle.</small></label>' + seg('dealFairness', [['winnable', 'Winnable (Any)'], ['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard'], ['random', 'Classic Random']], true, 'desc-dealFairness') + '</div>' +
-        '<div class="set"><label id="lbl-scoring">Scoring<small id="desc-scoring">Standard awards calm points plus a move-efficiency win bonus, with no countdown. Timed adds a win speed bonus. None hides the score.</small></label>' + seg('scoring', [['standard', 'Standard'], ['timed', 'Timed'], ['none', 'None']], false, 'desc-scoring') + '</div>' +
+        '<div class="set"><label id="lbl-scoring">Scoring<small id="desc-scoring">Standard awards calm points plus a move-efficiency win bonus, with no countdown. Timed adds a win speed bonus. None hides the score.</small><small id="scoringNote" class="set-note" role="status" aria-live="polite"' + (sMid ? '' : ' hidden') + '>' + sMid + '</small></label>' + seg('scoring', [['standard', 'Standard'], ['timed', 'Timed'], ['none', 'None']], false, 'desc-scoring') + '</div>' +
         '<div class="set"><label id="lbl-autoFoundation">Auto-move to foundations<small id="desc-autoFoundation">Safe sends up only cards nothing else needs</small></label>' + seg('autoFoundation', [['off', 'Off'], ['safe', 'Safe'], ['all', 'All']], false, 'desc-autoFoundation') + '</div>' +
         '<div class="set set-wide"><label id="lbl-tapMove">Move a card by<small id="tapNote">' + TAP_NOTES[tapMode()] + '</small></label>' + seg('tapMove', [['tap', 'Tap'], ['double', 'Double-tap'], ['select', 'Select & place'], ['drag', 'Drag only']], true, 'tapNote') + '</div>' +
         '<div class="set"><label id="lbl-tips">Show tips<small id="desc-tips">Brief table notes while you play</small></label>' + tog('tips', 'Show tips', 'desc-tips') + '</div>' +
@@ -7563,6 +7573,7 @@ const BIND = {
     BIND._common();
     wireTabs('stab', ['gameplay', 'comfort', 'audio'], 'spanel');
     const syncTimerNote = () => { const tn = $('#timerNote'); if (tn) tn.textContent = timerNote(); };
+    const syncScoringNote = () => { const sn = $('#scoringNote'); if (!sn) return; const txt = scoringMidNote(); sn.textContent = txt; sn.hidden = !txt; };
     const syncAudioMuteUI = () => {
       const off = !settings.sound;
       const setMuted = (id, m) => { const r = $('#' + id); if (r) r.classList.toggle('is-muted', !!m); };
@@ -7571,7 +7582,7 @@ const BIND = {
       setMuted('row-music', off); setMuted('row-musicVol', off || !settings.music);
       setMuted('row-ambience', off); setMuted('row-ambVol', off || !settings.ambience);
     };
-    sheet.querySelectorAll('[data-set]').forEach((b) => (b.onclick = () => { setSetting(b.dataset.set, b.dataset.val); sheet.querySelectorAll('[data-set="' + b.dataset.set + '"]').forEach((x) => x.setAttribute('aria-pressed', x === b)); if (b.dataset.set === 'tapMove') { const n = $('#tapNote'); if (n) n.textContent = TAP_NOTES[tapMode()]; } if (b.dataset.set === 'scoring') syncTimerNote(); }));
+    sheet.querySelectorAll('[data-set]').forEach((b) => (b.onclick = () => { setSetting(b.dataset.set, b.dataset.val); sheet.querySelectorAll('[data-set="' + b.dataset.set + '"]').forEach((x) => x.setAttribute('aria-pressed', x === b)); if (b.dataset.set === 'tapMove') { const n = $('#tapNote'); if (n) n.textContent = TAP_NOTES[tapMode()]; } if (b.dataset.set === 'scoring') { syncTimerNote(); syncScoringNote(); } }));
     sheet.querySelectorAll('[data-tog]').forEach((b) => (b.onclick = () => { const k = b.dataset.tog; setSetting(k, !settings[k]); b.setAttribute('aria-checked', String(!!settings[k])); if (k === 'showTimer') syncTimerNote(); if (['sound', 'sfx', 'music', 'ambience'].includes(k)) syncAudioMuteUI(); }));
     const bindSlider = (id, key, preview) => {
       const inp = $('#' + id); if (!inp) return;
