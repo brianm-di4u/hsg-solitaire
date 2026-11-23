@@ -6138,10 +6138,11 @@ async function measureAudio(build, seconds, o = {}) {
 }
 
 const ROOM_WET = { marble: 0.095, pool: 0.095, quapaw: 0.075, linen: 0.075, felt: 0.06, midnight: 0.06 };
-function makeCues(ctx, dest) {
+function makeCues(ctx, dest, seed) {
   const sr = ctx.sampleRate, nb = ctx.createBuffer(1, sr * 2, sr), nd = nb.getChannelData(0);
-  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
-  const rnd = Math.random, cents = () => (rnd() < .5 ? -1 : 1) * (10 + rnd() * 20), dbg = () => Math.pow(10, -rnd() * 2 / 20);
+  const rnd = seed != null ? mulberry32(seed >>> 0) : Math.random;
+  for (let i = 0; i < nd.length; i++) nd[i] = rnd() * 2 - 1;
+  const cents = () => (rnd() < .5 ? -1 : 1) * (10 + rnd() * 20), dbg = () => Math.pow(10, -rnd() * 2 / 20);
   let lastPlace = 0, curDst = dest, roomTarget = 0.06;
   // Zero-FFT 2-tap damped early-reflection DelayNode room glue (24/38 ms, LP 2.2 kHz, <=10% wet, tonal chimes only; CD-WF4-04).
   const roomIn = ctx.createGain(), roomLp = ctx.createBiquadFilter(), roomWet = ctx.createGain();
@@ -6228,7 +6229,8 @@ function makeCues(ctx, dest) {
         case 'latch': noise(t, .026, 'bandpass', 1400, .42, 2.0, pan); tone(t, 233.08, .065, 'triangle', .28, .003, pan, 650, 185); break;
         // Eb/Bb leaded-glass clink on Skylight Reshuffle (W6-S5-10).
         case 'glass': [622.25, 932.33, 1244.51].forEach((f, i) => tone(t + i * .032, f, .24, 'sine', .22 - i * .03, .003, pan, 1600, 0, true)); noise(t, .022, 'bandpass', 3200, .24, 3.0, pan); break;
-        case 'flip': noise(t, .03, 'highpass', 4200, .4, 1, pan); tone(t, 932.33, .022, 'sine', .1, .002, pan); break;
+        // Band-limited crisp linen snap (W6-S5-02): replaces unbounded 4.2 kHz highpass so peaks stay tightly in 0.26-0.36 without Nyquist spikes.
+        case 'flip': noise(t, .03, 'bandpass', 3500, .48, 1.1, pan); tone(t, 932.33, .022, 'sine', .12, .002, pan); break;
         // Bb/Eb pentatonic foundation ladder: C4..F6 (King = 1396.91 Hz < 1400 Hz, max partial 1396.92 <= 1500 Hz, CD-WF4-01 & w4c P-N06).
         case 'found': {
           const r = arg || 1, semi = 12 * Math.floor((r - 1) / 5) + PENTA[(r - 1) % 5], f = FOUND_BASE * Math.pow(2, semi / 12);
@@ -6460,8 +6462,9 @@ function audioRender(name, seconds, wantWav, over) {
   return measureAudio((oc, dest) => {
     const m = oc.createGain(); m.gain.value = volumeGain(ship.volume, ship.volumeCurve); m.connect(makeLimiter(oc, dest));
     const sb = oc.createGain(); sb.gain.value = clamp(ship.sfxVol, 0, 1); sb.connect(m);
+    const cueSeed = over && typeof over.seed === 'number' ? over.seed : fnv1a('cue:' + name);
     if (name === 'mix') {
-      const k = makeAudioKit(oc, m, { seed: 7, music: ship.musicVol, ambience: ship.ambVol }), c = makeCues(oc, sb);
+      const k = makeAudioKit(oc, m, { seed: 7, music: ship.musicVol, ambience: ship.ambVol }), c = makeCues(oc, sb, cueSeed);
       k.music.play(SCORES.title, { at: 0, fade: .02 }); k.amb.play(SCENES.bathhouse, { at: 0, fade: .02 });
       for (let i = 1; i < seconds - 1; i++) { // each second: the win ceremony begins over a run of cards going home, and half a second on its spray meets the course chord and a streak
         for (const n of ['win', 'deal', 'gather']) c.play(n, 1, i); c.play('found', 8, i + .03); c.play('place', 5, i + .05);
@@ -6469,7 +6472,7 @@ function audioRender(name, seconds, wantWav, over) {
       }
       k.scheduleUntil(seconds); return null;
     }
-    if (CUE_NAMES.includes(name)) { const c = makeCues(oc, sb); for (let i = 0; i < seconds - 1; i++) c.play(name, name === 'found' ? 1 + i % 8 : 1 + i % 5, .1 + i); return null; }
+    if (CUE_NAMES.includes(name)) { const c = makeCues(oc, sb, cueSeed); for (let i = 0; i < seconds - 1; i++) c.play(name, name === 'found' ? 1 + i % 8 : 1 + i % 5, .1 + i); return null; }
     const k = makeAudioKit(oc, m, { seed: 7, music: ship.musicVol, ambience: ship.ambVol });
     if (over && typeof over.intensity === 'number') k.music.intensity(over.intensity);
     if (over && typeof over.night === 'number') k.amb.set('night', over.night, 0.01);
