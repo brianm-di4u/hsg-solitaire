@@ -876,4 +876,78 @@ export const tests = [
       }
     },
   },
+  {
+    name: 'w2c W6-S2-05 Backs & Tables groups unlocked items first with dividers, scopes Skylight Reshuffle to Skylight, and adds mode fast-track quick-launch',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false });
+      await t.game('scene', 'backs');
+      await t.waitForStable();
+
+      // 1. Unlocked starter backs grouped first ahead of Earnable divider
+      const backOrder = await t.page.evaluate(() => ({
+        ids: [...document.querySelectorAll('#bkGrid [data-back]')].map((el) => ({ id: el.dataset.back, locked: el.classList.contains('lk') })),
+        secs: [...document.querySelectorAll('#bkGrid .bk-sec')].map((el) => el.textContent.trim()),
+        reseedHidden: document.querySelector('#bpanel-backs [data-a="reseed"]').hidden,
+        launchHidden: document.getElementById('bkLaunch').hidden,
+      }));
+      t.equal(backOrder.ids.slice(0, 4).map((x) => x.id), ['skylight', 'lozenge', 'ironwork', 'pines'], 'all 4 Win-0 starter backs appear first together');
+      t.equal(backOrder.ids.slice(0, 4).every((x) => !x.locked) && backOrder.ids.slice(4).every((x) => x.locked), true, 'all unlocked backs precede all locked backs');
+      t.equal(backOrder.secs, ['Unlocked (4)', 'Earnable (8)'], 'Card Backs renders Unlocked / Earnable dividers');
+      t.equal([backOrder.reseedHidden, backOrder.launchHidden], [false, true], 'Skylight selected shows Reshuffle and hides quick-launch');
+      await t.shot('w2c-W6-S2-05-backs-grouped', { fullPage: false });
+
+      // 2. Switching to another unlocked back hides/disables Reshuffle; focusing Skylight reveals it without switching back
+      await t.page.click('[data-back="lozenge"]');
+      const onLozenge = await t.page.evaluate(() => {
+        const b = document.querySelector('#bpanel-backs [data-a="reseed"]');
+        return { back: window.__game.getState().settings.back, hidden: b.hidden, disabled: b.disabled };
+      });
+      t.equal(onLozenge, { back: 'lozenge', hidden: true, disabled: true }, 'selecting Lozenge hides and disables Skylight Reshuffle');
+
+      await t.page.focus('[data-back="skylight"]');
+      const onSkylightFocus = await t.page.evaluate(() => {
+        const b = document.querySelector('#bpanel-backs [data-a="reseed"]');
+        return { back: window.__game.getState().settings.back, hidden: b.hidden, disabled: b.disabled };
+      });
+      t.equal(onSkylightFocus, { back: 'lozenge', hidden: false, disabled: false }, 'focusing Skylight reveals Reshuffle while keeping Lozenge equipped');
+
+      // 3. Inspecting locked back with mode fast-track renders contextual quick-launch in .bk-bar; non-fast-track hides it
+      await t.page.locator('[data-back="paterae"]').click({ force: true });
+      t.equal(await t.page.locator('#bkLaunch').isHidden(), true, 'locked Win-1 back without mode fast-track hides quick-launch');
+      await t.page.locator('[data-back="quapaw"]').click({ force: true });
+      const quapawBar = await t.page.evaluate(() => ({
+        launchHidden: document.getElementById('bkLaunch').hidden,
+        launchText: document.getElementById('bkLaunch').textContent.trim(),
+        reseedHidden: document.querySelector('#bpanel-backs [data-a="reseed"]').hidden,
+      }));
+      t.equal(quapawBar, { launchHidden: false, launchText: 'Play FreeCell', reseedHidden: true }, 'inspecting locked Quapaw Dome offers Play FreeCell quick-launch');
+      await t.shot('w2c-W6-S2-05-backs-locked-launch', { fullPage: false });
+
+      // 4. Parlor Tables also groups unlocked items first and offers contextual quick-launch on locked tables
+      await t.page.click('#btab-tables');
+      const tblOrder = await t.page.evaluate(() => ({
+        ids: [...document.querySelectorAll('#tblGrid [data-table]')].map((el) => ({ id: el.dataset.table, locked: el.classList.contains('lk') })),
+        secs: [...document.querySelectorAll('#tblGrid .bk-sec')].map((el) => el.textContent.trim()),
+      }));
+      t.equal(tblOrder.ids.slice(0, 2).map((x) => x.id), ['felt', 'marble'], 'Win-0 unlocked tables appear first');
+      t.equal(tblOrder.secs, ['Unlocked (2)', 'Earnable (4)'], 'Parlor Tables renders Unlocked / Earnable dividers');
+      await t.page.locator('[data-table="quapaw"]').click({ force: true });
+      t.equal(await t.page.locator('#tblLaunch').textContent(), 'Play Spider', 'locked Quapaw Mosaic table offers Play Spider quick-launch');
+      await t.page.locator('[data-table="pool"]').click({ force: true });
+      t.equal(await t.page.locator('#tblLaunch').textContent(), 'Open Daily deals', 'locked Thermal Pool table offers Open Daily deals quick-launch');
+      await t.checkLayout({ allowScrollY: true });
+
+      // 5. Clicking Play FreeCell on Quapaw Dome actually launches FreeCell
+      await t.page.click('#btab-backs');
+      await t.page.locator('[data-back="quapaw"]').click({ force: true });
+      await t.page.click('#bkLaunch');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'game' && window.__game.getState().mode === 'freecell', null, { timeout: 10000 });
+      t.equal((await t.state()).mode, 'freecell', 'Play FreeCell quick-launch starts a FreeCell game');
+
+      // 6. Fully unlocked profile omits Unlocked/Earnable dividers
+      await t.game('unlockAll');
+      await t.game('scene', 'backs');
+      t.equal(await t.page.locator('#bkGrid .bk-sec').count(), 0, 'fully unlocked profile omits Unlocked/Earnable dividers');
+    },
+  },
 ];

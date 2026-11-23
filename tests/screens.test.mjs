@@ -753,23 +753,30 @@ export const tests = [
       t.equal(settingsPatch.afterTabSame, true, 'Settings tab switch patches in place without rebuilding #sheetBody');
       t.expect(/transform/.test(settingsPatch.togProp) && !/left/.test(settingsPatch.togProp), '.tog::after animates GPU transform rather than left: ' + settingsPatch.togProp);
 
-      // Skylight Reshuffle patches in place and does NOT overwrite an equipped non-skylight card back
+      // Skylight Reshuffle hides on non-skylight back until Skylight is focused, then patches in place without overwriting equipped back (W6-S2-05, CD-WF5-03)
       await t.game('setSettings', { back: 'lozenge' });
       await t.game('scene', 'backs');
       const reseedPatch = await t.page.evaluate(() => {
         const sb = document.getElementById('sheetBody');
+        const btn = document.querySelector('[data-a="reseed"]');
+        const hiddenBefore = !!(btn && btn.hidden);
+        const seedBefore = window.__game.getState().settings.deckSeed;
+        document.querySelector('[data-back="skylight"]').focus();
         sb.scrollTop = 45;
         const beforeScroll = sb.scrollTop;
-        const btn = document.querySelector('[data-a="reseed"]');
+        const shownOnFocus = !!(btn && !btn.hidden && !btn.disabled);
         if (btn) btn.click();
         return {
           hadBtn: !!btn,
+          hiddenBefore,
+          shownOnFocus,
+          seedChanged: window.__game.getState().settings.deckSeed !== seedBefore,
           sameBody: document.getElementById('sheetBody') === sb,
           scrollDiff: Math.abs(sb.scrollTop - beforeScroll),
           back: window.__game.getState().settings.back,
         };
       });
-      t.expect(reseedPatch.hadBtn && reseedPatch.sameBody && reseedPatch.scrollDiff <= 2 && reseedPatch.back === 'lozenge', 'Reshuffle skylight glass patches in place without overwriting equipped non-skylight back: ' + JSON.stringify(reseedPatch));
+      t.expect(reseedPatch.hadBtn && reseedPatch.hiddenBefore && reseedPatch.shownOnFocus && reseedPatch.seedChanged && reseedPatch.sameBody && reseedPatch.scrollDiff <= 2 && reseedPatch.back === 'lozenge', 'Reshuffle skylight glass reveals on Skylight focus and patches in place without overwriting equipped non-skylight back: ' + JSON.stringify(reseedPatch));
 
       // Bathhouse Ledger tabs patch in place without tearing down #sheetBody
       await t.game('scene', 'records');

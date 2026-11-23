@@ -530,6 +530,9 @@ export const tests = [
       await t.page.click('[data-a="backs"]');
       await t.page.waitForFunction(() => window.__game.getState().modal === 'backs');
       t.equal(await t.game('modalStackDepth'), 1, 'modalStack pushes Settings underneath Backs');
+      // W6-S2-05: Reshuffle hides when a non-skylight back is equipped until Skylight is focused
+      t.equal(await t.page.locator('[data-a="reseed"]').isHidden(), true, 'Skylight Reshuffle hides while lozenge is selected and unfocused');
+      await t.page.focus('[data-back="skylight"]');
       await t.page.locator('[data-a="reseed"]').scrollIntoViewIfNeeded();
       await t.page.evaluate(() => { const s = document.getElementById('sheet'); if (s.scrollTop === 0) s.scrollTop = 80; });
       const backsScroll = await t.page.evaluate(() => document.getElementById('sheet').scrollTop);

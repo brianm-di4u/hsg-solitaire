@@ -406,7 +406,12 @@
   .bk b{font-size:.85rem;line-height:1.25}
   .bk-bar{position:sticky;top:-12px;z-index:2;background:var(--sheet);padding:8px 0;margin:-8px 0 10px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
   .bk-bar .cap{margin:0;flex:1 1 240px;min-height:2.4em}
+  .bk-acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:none}
   .bk-bar .btn{flex:none;min-height:44px;padding:0 14px;font-size:.82rem}
+  .bk-bar .btn[hidden]{display:none}
+  .bk-sec{grid-column:1/-1;display:flex;align-items:center;gap:10px;font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--color-primary);padding:2px 0 0}
+  .bk-sec::after{content:"";flex:1;height:1px;background:var(--color-border)}
+  .bk-sec.earn-sec{margin-top:6px;padding-top:8px;border-top:1px solid var(--color-border);color:var(--color-muted)}
   .bk-lock{position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;background:rgba(16,24,19,.88);border:1.5px solid #C9A04A;color:#E9C873;display:grid;place-items:center;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.55)}
   .bk-lock svg{width:13px;height:13px}
   .bk.lk.wiggle{animation:bkWiggle .16s ease-in-out}
@@ -7411,18 +7416,24 @@ const MODALS = {
   },
   backs: (d) => {
     const tab = d && d.tab === 'tables' ? 'tables' : 'backs';
+    const renderGallery = (items, kind, renderItem) => {
+      const open = items.filter((x) => isOpen(kind, x.id));
+      const locked = items.filter((x) => !isOpen(kind, x.id))
+        .sort((a, b) => ((UNLOCK_BY_ID[kind + ':' + a.id] || [0, 999])[1] - (UNLOCK_BY_ID[kind + ':' + b.id] || [0, 999])[1]));
+      if (!locked.length) return open.map(renderItem).join('');
+      return (open.length ? '<div class="bk-sec" role="presentation">Unlocked (' + open.length + ')</div>' + open.map(renderItem).join('') : '') +
+        '<div class="bk-sec earn-sec" role="presentation">Earnable (' + locked.length + ')</div>' + locked.map(renderItem).join('');
+    };
+    const renderBack = (b) => { const lk = !isOpen('b', b.id); return '<button type="button" class="bk' + (lk ? ' lk" aria-disabled="true' : '') + '" data-back="' + b.id + '" aria-pressed="' + (settings.back === b.id) + '"><canvas width="168" height="236"></canvas>' + (lk ? LOCK_BADGE : '') + '<b>' + b.name + '</b>' + (lk ? '<small>' + lockShort('b:' + b.id) + '</small>' : '') + '</button>'; };
+    const renderTable = (t) => { const lk = !isOpen('t', t.id); return '<button type="button" class="bk tbl' + (lk ? ' lk" aria-disabled="true' : '') + '" data-table="' + t.id + '" aria-pressed="' + (settings.table === t.id) + '"><canvas width="240" height="144"></canvas>' + (lk ? LOCK_BADGE : '') + '<b>' + t.name + '</b>' + (lk ? '<small>' + lockShort('t:' + t.id) + '</small>' : '') + '</button>'; };
     return head('Card backs &amp; tables') + tabBar('Backs and tables', 'btab', 'bpanel', 'btab', [['backs', 'Card Backs (' + BACKS.length + ')'], ['tables', 'Parlor Tables (' + TABLES.length + ')']], tab) +
       '<div id="bpanel-backs" role="tabpanel" aria-labelledby="btab-backs"' + (tab === 'backs' ? '' : ' hidden') + '>' +
-        '<div class="bk-bar"><p class="cap" id="bkCap" aria-live="polite"></p><button type="button" class="btn" data-a="reseed">Reshuffle the skylight glass</button></div>' +
-        '<div class="backs" id="bkGrid">' +
-        BACKS.map((b) => { const lk = !isOpen('b', b.id); return '<button type="button" class="bk' + (lk ? ' lk" aria-disabled="true' : '') + '" data-back="' + b.id + '" aria-pressed="' + (settings.back === b.id) + '"><canvas width="168" height="236"></canvas>' + (lk ? LOCK_BADGE : '') + '<b>' + b.name + '</b>' + (lk ? '<small>' + lockShort('b:' + b.id) + '</small>' : '') + '</button>'; }).join('') +
-        '</div>' +
+        '<div class="bk-bar"><p class="cap" id="bkCap" aria-live="polite"></p><div class="bk-acts"><button type="button" class="btn" id="bkLaunch" hidden></button><button type="button" class="btn" data-a="reseed">Reshuffle the skylight glass</button></div></div>' +
+        '<div class="backs" id="bkGrid">' + renderGallery(BACKS, 'b', renderBack) + '</div>' +
       '</div>' +
       '<div id="bpanel-tables" role="tabpanel" aria-labelledby="btab-tables"' + (tab === 'tables' ? '' : ' hidden') + '>' +
-        '<div class="bk-bar"><p class="cap" id="tblCap" aria-live="polite"></p></div>' +
-        '<div class="backs" id="tblGrid">' +
-        TABLES.map((t) => { const lk = !isOpen('t', t.id); return '<button type="button" class="bk tbl' + (lk ? ' lk" aria-disabled="true' : '') + '" data-table="' + t.id + '" aria-pressed="' + (settings.table === t.id) + '"><canvas width="240" height="144"></canvas>' + (lk ? LOCK_BADGE : '') + '<b>' + t.name + '</b>' + (lk ? '<small>' + lockShort('t:' + t.id) + '</small>' : '') + '</button>'; }).join('') +
-        '</div>' +
+        '<div class="bk-bar"><p class="cap" id="tblCap" aria-live="polite"></p><div class="bk-acts"><button type="button" class="btn" id="tblLaunch" hidden></button></div></div>' +
+        '<div class="backs" id="tblGrid">' + renderGallery(TABLES, 't', renderTable) + '</div>' +
       '</div>';
   },
   ledger: (d) => {
@@ -7734,14 +7745,44 @@ const BIND = {
   },
   backs(d) {
     BIND._common();
+    const UNLOCK_LAUNCH = {
+      'b:quapaw': { label: 'Play FreeCell', run: () => confirmAbandon({ mode: 'freecell' }) },
+      't:quapaw': { label: 'Play Spider', run: () => confirmAbandon({ mode: 'spider', suits: 1 }) },
+      'b:sculpin': { label: 'Play Yukon', run: () => confirmAbandon({ mode: 'yukon' }) },
+      'b:deco': { label: 'Play Draw 3', run: () => confirmAbandon({ mode: 'klondike', draw: 3 }) },
+      't:pool': { label: 'Open Daily deals', run: () => openModal('daily') },
+      'b:steam': { label: 'Play Spider 2-suit', run: () => confirmAbandon({ mode: 'spider', suits: 2 }) },
+      'b:neon': { label: 'Open Daily deals', run: () => openModal('daily') },
+      't:midnight': { label: 'Play Spider 4-suit', run: () => confirmAbandon({ mode: 'spider', suits: 4 }) },
+      't:linen': { label: 'Open Daily deals', run: () => openModal('daily') },
+    };
     const cap = $('#bkCap'), tcap = $('#tblCap');
+    const reseedBtn = sheet.querySelector('#bpanel-backs [data-a="reseed"]');
+    const bkLaunch = $('#bkLaunch'), tblLaunch = $('#tblLaunch');
+    let bkLaunchAct = null, tblLaunchAct = null;
+    const syncLaunch = (btn, uid, setAct) => {
+      if (!btn) return;
+      const act = uid && !isOpen(uid[0], uid.slice(2)) ? UNLOCK_LAUNCH[uid] : null;
+      setAct(act || null);
+      btn.hidden = !act;
+      if (act) btn.textContent = act.label;
+    };
+    if (bkLaunch) bkLaunch.onclick = () => { if (bkLaunchAct) bkLaunchAct.run(); };
+    if (tblLaunch) tblLaunch.onclick = () => { if (tblLaunchAct) tblLaunchAct.run(); };
     const show = (id) => {
       const b = BACKS.find((x) => x.id === id); if (!b || !cap) return;
       cap.textContent = b.name + ': ' + b.cap + (isOpen('b', id) ? '' : ' — Locked: ' + lockNote('b:' + id) + '.');
+      if (reseedBtn) {
+        const allowReseed = settings.back === 'skylight' || id === 'skylight';
+        reseedBtn.hidden = !allowReseed;
+        reseedBtn.disabled = !allowReseed;
+      }
+      syncLaunch(bkLaunch, 'b:' + id, (a) => { bkLaunchAct = a; });
     };
     const showTbl = (id) => {
       const t = TABLES.find((x) => x.id === id); if (!t || !tcap) return;
       tcap.textContent = t.name + ': ' + (t.cap || t.name) + (isOpen('t', id) ? '' : ' — Locked: ' + lockNote('t:' + id) + '.');
+      syncLaunch(tblLaunch, 't:' + id, (a) => { tblLaunchAct = a; });
     };
     const wiggle = (el) => {
       if (reducedMotion()) return;
