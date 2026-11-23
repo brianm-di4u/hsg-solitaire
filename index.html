@@ -7291,8 +7291,13 @@ const MODALS = {
     let tierHtml = '';
     if (!w.daily && !w.alreadyWon && !w.retried && !w.assisted) {
       const st = statFor(k), cleanCnt = Math.max(0, st.won - st.assistedWon);
-      if (k === 'klondike1' && cleanCnt >= 3 && statFor('klondike3').won === 0) tierHtml = '<div class="tier-up"><span>Ready for a deeper hand?</span><button type="button" class="chip equip-chip" data-tier-mode="klondike" data-tier-draw="3">Try Draw 3</button></div>';
-      else if (k === 'spider1' && cleanCnt >= 3 && statFor('spider2').won === 0) tierHtml = '<div class="tier-up"><span>Ready for two suits?</span><button type="button" class="chip equip-chip" data-tier-mode="spider" data-tier-suits="2">Try 2 suits</button></div>';
+      if (cleanCnt >= 3) {
+        if (k === 'klondike1' && statFor('klondike3').won === 0) tierHtml = '<div class="tier-up"><span>Ready for a deeper hand?</span><button type="button" class="chip equip-chip" data-tier-mode="klondike" data-tier-draw="3">Try Draw 3</button></div>';
+        else if (k === 'klondike3' && statFor('yukon').won === 0) tierHtml = '<div class="tier-up"><span>Ready for an open-stack puzzle?</span><button type="button" class="chip equip-chip" data-tier-mode="yukon">Try Yukon</button></div>';
+        else if (k === 'klondike3' && statFor('yukon').won > 0 && statFor('freecell').won === 0) tierHtml = '<div class="tier-up"><span>Ready for a pure-skill table?</span><button type="button" class="chip equip-chip" data-tier-mode="freecell">Try FreeCell</button></div>';
+        else if (k === 'spider1' && statFor('spider2').won === 0) tierHtml = '<div class="tier-up"><span>Ready for two suits?</span><button type="button" class="chip equip-chip" data-tier-mode="spider" data-tier-suits="2">Try 2 suits</button></div>';
+        else if (k === 'spider2' && statFor('spider4').won === 0) tierHtml = '<div class="tier-up"><span>Ready for all four suits?</span><button type="button" class="chip equip-chip" data-tier-mode="spider" data-tier-suits="4">Try 4 suits</button></div>';
+      }
     }
     return head('Your bath is drawn') + '<div class="win-cols">' +
       '<div class="ticket" role="group" aria-label="Bath ticket"><div class="hd">Spa City Bath Ticket</div>' +
@@ -7404,7 +7409,10 @@ const BIND = {
     sheet.querySelectorAll('[data-tier-mode]').forEach((b) => {
       b.onclick = () => {
         const m = b.dataset.tierMode;
-        newGame(m === 'klondike' ? { mode: m, draw: +b.dataset.tierDraw } : { mode: m, suits: +b.dataset.tierSuits });
+        const opts = { mode: m };
+        if (b.dataset.tierDraw) opts.draw = +b.dataset.tierDraw;
+        if (b.dataset.tierSuits) opts.suits = +b.dataset.tierSuits;
+        newGame(opts);
       };
     });
   },

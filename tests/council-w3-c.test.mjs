@@ -339,4 +339,101 @@ export const tests = [
       }
     },
   },
+  {
+    name: 'w3c W1-S4-06 Bath Ticket tier-up ladder covers spider2->spider4 and klondike3->yukon/freecell while suppressing Daily/retried/assisted wins',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false });
+      const seedStats = async (map) => {
+        await t.page.evaluate((statsObj) => {
+          const k = 'spa-solitaire:v1:stats';
+          const cur = JSON.parse(localStorage.getItem(k) || '{}');
+          for (const [mk, patch] of Object.entries(statsObj)) {
+            cur[mk] = Object.assign({ played: 0, won: 0, assistedWon: 0, streak: 0, bestStreak: 0, bestTimeMs: 0, fewestMoves: 0, bestScore: 0, bestStandardScore: 0, bestTimedScore: 0, totalMs: 0, recent: '' }, cur[mk] || {}, patch);
+          }
+          localStorage.setItem(k, JSON.stringify(cur));
+        }, map);
+        await t.reload();
+        await baseSettings(t, { sound: false, motion: 'reduced', tips: false });
+        await t.game('newGame', { mode: 'klondike', draw: 1, deal: 1 });
+      };
+      const tierBtn = () => t.page.locator('#sheet .tier-up [data-tier-mode]');
+
+      // 1. spider2 (3 clean wins, 0 spider4 wins) -> invites Spider 4 suits and launches Spider 4 on click
+      await seedStats({ spider2: { played: 3, won: 3, assistedWon: 0 }, spider4: { played: 0, won: 0, assistedWon: 0 } });
+      await t.game('scene', 'win', { mode: 'spider', opts: { draw: 1, suits: 2 }, deal: 501, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 3 });
+      t.equal(await tierBtn().count(), 1, 'spider2 with 3 clean wins shows tier-up invitation');
+      if (await tierBtn().count()) {
+        t.equal((await tierBtn().textContent()).trim(), 'Try 4 suits', 'spider2 invites Spider 4 suits');
+        await t.shot('w3c-W1-S4-06-tier-spider4', { fullPage: false });
+        await t.checkLayout({ allowScrollY: true });
+      }
+
+      // Suppression checks: Daily, retried, alreadyWon, and assisted must suppress tier-up
+      for (const [label, flags] of [
+        ['Daily', { daily: '2026-11-22' }],
+        ['retried', { retried: true, replay: true }],
+        ['alreadyWon', { alreadyWon: true, replay: true }],
+        ['assisted', { assisted: true }],
+      ]) {
+        await t.game('scene', 'win', Object.assign({ mode: 'spider', opts: { draw: 1, suits: 2 }, deal: 501, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 3 }, flags));
+        t.equal(await tierBtn().count(), 0, label + ' win suppresses spider2->spider4 tier-up');
+      }
+
+      // Clicking Try 4 suits launches Spider 4 suits directly
+      await t.game('scene', 'win', { mode: 'spider', opts: { draw: 1, suits: 2 }, deal: 501, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 3 });
+      if (await tierBtn().count()) {
+        await tierBtn().click();
+        await t.page.waitForFunction(() => { const st = window.__game.getState(); return st.scene === 'game' && st.mode === 'spider' && st.opts.suits === 4; });
+        const s = await t.state();
+        t.equal([s.mode, s.opts.suits], ['spider', 4], 'clicking Try 4 suits starts a 4-suit Spider deal');
+      }
+
+      // Below threshold (only 2 clean wins: 3 won, 1 assisted) suppresses invitation
+      await seedStats({ spider2: { played: 3, won: 3, assistedWon: 1 }, spider4: { played: 0, won: 0, assistedWon: 0 } });
+      await t.game('scene', 'win', { mode: 'spider', opts: { draw: 1, suits: 2 }, deal: 502, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 3 });
+      t.equal(await tierBtn().count(), 0, 'spider2 with only 2 clean wins omits tier-up');
+
+      // Already won spider4 suppresses invitation
+      await seedStats({ spider2: { played: 4, won: 4, assistedWon: 0 }, spider4: { played: 1, won: 1, assistedWon: 0 } });
+      await t.game('scene', 'win', { mode: 'spider', opts: { draw: 1, suits: 2 }, deal: 503, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 5 });
+      t.equal(await tierBtn().count(), 0, 'spider2 omits tier-up once spider4 has a win');
+
+      // 2. klondike3 (3 clean wins, 0 yukon wins) -> invites Yukon and launches Yukon on click
+      await seedStats({ klondike3: { played: 3, won: 3, assistedWon: 0 }, yukon: { played: 0, won: 0, assistedWon: 0 }, freecell: { played: 0, won: 0, assistedWon: 0 } });
+      await t.game('scene', 'win', { mode: 'klondike', opts: { draw: 3, suits: 1 }, deal: 504, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 6 });
+      t.equal(await tierBtn().count(), 1, 'klondike3 with 3 clean wins and 0 yukon wins shows Yukon bridge');
+      if (await tierBtn().count()) {
+        t.equal((await tierBtn().textContent()).trim(), 'Try Yukon', 'klondike3 invites Yukon first');
+        if (t.viewport === 'desktop') await t.shot('w3c-W1-S4-06-tier-yukon', { fullPage: false });
+        await tierBtn().click();
+        await t.page.waitForFunction(() => { const st = window.__game.getState(); return st.scene === 'game' && st.mode === 'yukon'; });
+        t.equal((await t.state()).mode, 'yukon', 'clicking Try Yukon starts a Yukon deal');
+      }
+
+      // 3. klondike3 (3 clean wins, 1 yukon win, 0 freecell wins) -> invites FreeCell and launches FreeCell on click
+      await seedStats({ klondike3: { played: 3, won: 3, assistedWon: 0 }, yukon: { played: 1, won: 1, assistedWon: 0 }, freecell: { played: 0, won: 0, assistedWon: 0 } });
+      await t.game('scene', 'win', { mode: 'klondike', opts: { draw: 3, suits: 1 }, deal: 505, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 7 });
+      t.equal(await tierBtn().count(), 1, 'klondike3 with yukon won and 0 freecell wins shows FreeCell bridge');
+      if (await tierBtn().count()) {
+        t.equal((await tierBtn().textContent()).trim(), 'Try FreeCell', 'klondike3 invites FreeCell once Yukon is won');
+        await tierBtn().click();
+        await t.page.waitForFunction(() => { const st = window.__game.getState(); return st.scene === 'game' && st.mode === 'freecell'; });
+        t.equal((await t.state()).mode, 'freecell', 'clicking Try FreeCell starts a FreeCell deal');
+      }
+
+      // Once both Yukon and FreeCell are won, klondike3 omits tier-up
+      await seedStats({ klondike3: { played: 3, won: 3, assistedWon: 0 }, yukon: { played: 1, won: 1, assistedWon: 0 }, freecell: { played: 1, won: 1, assistedWon: 0 } });
+      await t.game('scene', 'win', { mode: 'klondike', opts: { draw: 3, suits: 1 }, deal: 506, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 8 });
+      t.equal(await tierBtn().count(), 0, 'klondike3 omits tier-up once both Yukon and FreeCell are won');
+
+      // 4. Existing klondike1->klondike3 and spider1->spider2 branches remain intact
+      await seedStats({ klondike1: { played: 3, won: 3, assistedWon: 0 }, klondike3: { played: 0, won: 0, assistedWon: 0 }, spider1: { played: 3, won: 3, assistedWon: 0 }, spider2: { played: 0, won: 0, assistedWon: 0 } });
+      await t.game('scene', 'win', { mode: 'klondike', opts: { draw: 1, suits: 1 }, deal: 507, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 3 });
+      t.equal(await tierBtn().count(), 1, 'klondike1->klondike3 ladder shows');
+      if (await tierBtn().count()) t.equal((await tierBtn().textContent()).trim(), 'Try Draw 3', 'klondike1->klondike3 ladder remains intact');
+      await t.game('scene', 'win', { mode: 'spider', opts: { draw: 1, suits: 1 }, deal: 508, daily: null, alreadyWon: false, retried: false, replay: false, assisted: false, totalWins: 3 });
+      t.equal(await tierBtn().count(), 1, 'spider1->spider2 ladder shows');
+      if (await tierBtn().count()) t.equal((await tierBtn().textContent()).trim(), 'Try 2 suits', 'spider1->spider2 ladder remains intact');
+    },
+  },
 ];
