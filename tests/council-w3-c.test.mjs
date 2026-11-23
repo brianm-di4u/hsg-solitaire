@@ -222,9 +222,11 @@ export const tests = [
       await t.game('newGame', { mode: 'klondike', draw: 1, deal: 901 });
       let rt = await rtag();
       t.expect(rt && rt.hidden === true, 'fresh deal hides #replayTag');
-      // 2. Restarting an untouched deal flags retried immediately on the HUD
+      // 2. Restarting a started unwon deal flags retried immediately on the HUD (untouched 0-move restart stays fresh per W6-P-N05)
+      await t.game('act', 'draw');
       await t.game('scene', 'menu');
       await t.page.click('#sheet [data-a="restart"]');
+      await t.page.click('#sheet [data-a="yes"]');
       await t.page.waitForFunction(() => { const el = document.getElementById('replayTag'); return el && !el.hidden; });
       rt = await rtag();
       t.equal([rt.hidden, rt.text, rt.title], [false, 'retried', RETRIED_NOTE], 'restarted unwon deal renders quiet retried HUD pill with parlor tooltip');

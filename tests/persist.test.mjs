@@ -341,4 +341,59 @@ export const tests = [
       t.equal(await t.page.locator('#sheet .ticket .punch').count(), 1, 'unwon archive Daily Bath Ticket is punched');
     },
   },
+  {
+    name: 'persist-29 W6-P-N05 restarting an untouched 0-move deal keeps S.replay false while started/assisted/seen restarts stay flagged',
+    viewports: ['desktop'],
+    async run(t) {
+      await baseSettings(t, { motion: 'reduced', tips: false, sound: false, scoring: 'standard' });
+
+      // 1. Untouched 0-move fresh deal: Menu -> Restart skips confirm, keeps S.replay === false and #replayTag hidden
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 910 });
+      t.equal([(await t.state()).started, (await t.state()).replay], [false, false], 'fresh deal #910 starts unstarted and not replay');
+      await t.game('scene', 'menu');
+      await t.page.click('#sheet [data-a="restart"]');
+      await t.waitForStable();
+      let s = await t.state();
+      t.equal([s.deal, s.started, s.replay], [910, false, false], 'restarting untouched 0-move deal keeps S.replay false');
+      t.equal(await t.page.evaluate(() => document.getElementById('replayTag').hidden), true, 'untouched 0-move restart keeps #replayTag hidden');
+
+      // Winning that untouched-restarted deal awards clean first-try streak, PB, punch, and totalWins
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 910, replay: s.replay }));
+      await t.game('act', 'move', 't0', 'f3');
+      await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
+      const lw = await t.game('lastWin'), st = (await t.game('stats')).klondike1, m = await t.game('meta');
+      t.equal([lw.retried, lw.alreadyWon, st.streak, m.totalWins], [false, false, 1, 1], 'winning after 0-move restart preserves clean first-try streak and totalWins');
+      t.expect(st.bestStandardScore > 0, 'winning after 0-move restart records bestStandardScore');
+      t.equal(await t.page.locator('#sheet .ticket .punch').count(), 1, 'Bath Ticket is punched');
+
+      // 2. Started deal (1 move made, even if undone): Restart asks confirmation and flags S.replay === true (CD-WF6-04)
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 911 });
+      await t.game('act', 'draw');
+      await t.game('act', 'undo');
+      await t.game('scene', 'menu');
+      await t.page.click('#sheet [data-a="restart"]');
+      t.equal((await t.state()).modal, 'confirm', 'restarting a started deal still asks confirmation even after undo');
+      await t.page.click('#sheet [data-a="yes"]');
+      await t.waitForStable();
+      s = await t.state();
+      t.equal([s.deal, s.replay], [911, true], 'restarting a started deal sets S.replay true');
+      t.equal(await t.page.evaluate(() => ({ hidden: document.getElementById('replayTag').hidden, text: document.getElementById('replayTag').textContent })), { hidden: false, text: 'retried' }, 'started deal restart shows retried HUD pill');
+
+      // 3. Untouched 0-move deal where player pressed Hint (assisted): Restart flags S.replay === true
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 912 });
+      await t.game('act', 'hint');
+      await t.game('scene', 'menu');
+      await t.page.click('#sheet [data-a="restart"]');
+      await t.waitForStable();
+      t.equal((await t.state()).replay, true, 'restarting after pressing Hint at 0 moves flags S.replay true');
+
+      // 4. Already-won deal re-entered at 0 moves and restarted stays S.replay === true
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 910 });
+      t.equal((await t.state()).replay, true, 'already-won deal #910 starts with S.replay true');
+      await t.game('scene', 'menu');
+      await t.page.click('#sheet [data-a="restart"]');
+      await t.waitForStable();
+      t.equal((await t.state()).replay, true, 'restarting already-won deal at 0 moves keeps S.replay true');
+    },
+  },
 ];

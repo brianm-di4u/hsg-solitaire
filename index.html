@@ -2521,11 +2521,11 @@ function confirmAbandon(o, restart) {
     text: (restart ? 'Restart ' + dealTag + '? Your moves so far will be lost.' : dealTag + ' is in progress. The game in progress will be lost.') + (streak > 0 ? ' Your ' + modeKeyLabel(k) + ' streak of ' + streak + ' will reset.' : ''),
     yes: restart ? 'Restart' : 'New deal', danger: true, onYes: go });
 }
-function restartDeal() { // the same deal again: the player has now seen its cards, so a win here is a replay
+function restartDeal() { // restarting a started, assisted, or already-seen deal marks a replay; an untouched 0-move deal stays fresh (W6-P-N05)
   if (!S) return;
-  const deal = S.deal;
+  const deal = S.deal, wasStarted = !!S.started || !!S.replay || !!S.assisted;
   newGame({ mode: S.mode, draw: S.opts.draw, suits: S.opts.suits, deal, daily: S.daily, winnable: S.winnable, grade: S.grade });
-  if (S && S.deal === deal) { S.replay = true; updateHUD(); }
+  if (S && S.deal === deal && wasStarted) { S.replay = true; updateHUD(); }
 }
 
 function earn(c) {
