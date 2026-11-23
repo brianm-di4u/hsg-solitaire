@@ -370,4 +370,157 @@ export const tests = [
       }
     },
   },
+  {
+    name: 'layout-07 W6-S5-05 compact <=360x620 Title with scroll-fade cue, #tStore .credit clearance, and 390x844 Settings Audio Vibration clearance',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { sound: false, motion: 'reduced', tips: false });
+
+      // 1. Compact <=360x620 Title (320x568 and 360x620): compact card hands, all 4 mode titles + chips above fold, and subtle scroll-fade cue when #title overflows
+      for (const [w, h, shotName] of [[320, 568, 'layout-07-w6-s5-05-320x568-cue'], [360, 620, null]]) {
+        await sizeTo(t, w, h);
+        await t.game('scene', 'title');
+        await t.page.evaluate(() => {
+          const el = document.getElementById('tTag');
+          if (el) el.textContent = 'Patience, the Spa City way: four classic games, twelve Hot Springs card backs.';
+          document.getElementById('title').scrollTop = 0;
+        });
+        await t.page.waitForFunction(() => {
+          const c = document.getElementById('sky');
+          return c && c.clientWidth === window.innerWidth && window.__game.heroTags().drawn;
+        }, null, { timeout: 10000 });
+        await t.waitFrames(2);
+        const topState = await t.page.evaluate(() => {
+          const title = document.getElementById('title');
+          const cue = document.getElementById('tScrollCue');
+          const tiles = [...title.querySelectorAll('.tile')].map((el) => ({
+            name: el.querySelector('h2').textContent.trim(),
+            h2Bot: Math.round(el.querySelector('h2').getBoundingClientRect().bottom),
+            cvH: Math.round(el.querySelector('canvas').getBoundingClientRect().height),
+            maxChipBot: Math.round(Math.max(...[...el.querySelectorAll('.chip')].map((c) => c.getBoundingClientRect().bottom))),
+          }));
+          return {
+            H: innerHeight,
+            overflowX: document.documentElement.scrollWidth > innerWidth,
+            scrollH: title.scrollHeight,
+            clientH: title.clientHeight,
+            hasMore: title.classList.contains('has-more'),
+            cueExists: !!cue,
+            cueOpacity: cue ? parseFloat(getComputedStyle(cue).opacity) : 0,
+            cuePtr: cue ? getComputedStyle(cue).pointerEvents : '',
+            tiles,
+          };
+        });
+        const lbl = `${w}x${h}`;
+        t.expect(!topState.overflowX, `${lbl}: zero horizontal overflow`);
+        t.equal(topState.tiles[0].cvH, 38, `${lbl}: <=360x620 applies compact 38px card-fan height`);
+        t.expect(topState.tiles.every((tl) => tl.h2Bot <= topState.H && tl.maxChipBot <= topState.H), `${lbl}: all 4 mode titles and Play chips fit above fold: ${JSON.stringify(topState.tiles)}`);
+        t.equal([topState.cueExists, topState.hasMore, topState.cueOpacity, topState.cuePtr], [true, true, 1, 'none'], `${lbl}: shows non-blocking bottom scroll-fade cue when #title overflows`);
+        if (shotName) await t.shot(shotName);
+
+        // Scrolling #title to the bottom dismisses the scroll-fade cue cleanly
+        await t.page.evaluate(() => {
+          const title = document.getElementById('title');
+          title.scrollTop = title.scrollHeight;
+          title.dispatchEvent(new Event('scroll'));
+        });
+        await t.waitFrames(2);
+        const botState = await t.page.evaluate(() => {
+          const title = document.getElementById('title');
+          const cue = document.getElementById('tScrollCue');
+          return { hasMore: title.classList.contains('has-more'), cueOpacity: cue ? parseFloat(getComputedStyle(cue).opacity) : 0 };
+        });
+        t.equal(botState, { hasMore: false, cueOpacity: 0 }, `${lbl}: hides bottom scroll-fade cue once scrolled to the bottom`);
+        await t.page.evaluate(() => { document.getElementById('title').scrollTop = 0; });
+      }
+
+      // 2. Non-overflowing viewports (1280x800 and 390x844 fresh) keep the scroll-fade cue hidden, and 1280x800 blocked-storage #tStore keeps .credit clear of the bottom brass border
+      await sizeTo(t, 390, 844);
+      await t.game('scene', 'title');
+      await t.waitFrames(2);
+      const mob390 = await t.page.evaluate(() => ({
+        hasMore: document.getElementById('title').classList.contains('has-more'),
+        cvH: Math.round(document.querySelector('#tiles .tile canvas').getBoundingClientRect().height),
+      }));
+      t.equal(mob390, { hasMore: false, cvH: 52 }, '390x844 fresh Title keeps standard 52px fans and hides scroll-fade cue when all controls fit');
+
+      await sizeTo(t, 1280, 800);
+      await t.game('scene', 'title');
+      await t.waitFrames(2);
+      const deskFresh = await t.page.evaluate(() => ({
+        hasMore: document.getElementById('title').classList.contains('has-more'),
+        padTop: parseFloat(getComputedStyle(document.querySelector('#title .wrap')).paddingTop),
+      }));
+      t.equal(deskFresh.hasMore, false, '1280x800 fresh Title hides scroll-fade cue');
+
+      // Show blocked-storage #tStore notice on 1280x800 Title: top padding compacts like #tCont so .credit clears the bottom brass border (inner line at H - 16.2px)
+      await t.page.evaluate(() => {
+        const el = document.getElementById('tStore');
+        el.textContent = "Progress won't be kept in this browser.";
+        el.hidden = false;
+        window.dispatchEvent(new Event('resize'));
+      });
+      await t.waitFrames(2);
+      const deskStore = await t.page.evaluate(() => {
+        const title = document.getElementById('title');
+        const wrap = title.querySelector('.wrap');
+        const cred = title.querySelector('.credit').getBoundingClientRect();
+        const m = Math.min(12, Math.max(6, Math.min(innerWidth, innerHeight) * 0.014));
+        const innerBrassTop = innerHeight - (m + 5);
+        return {
+          padTop: parseFloat(getComputedStyle(wrap).paddingTop),
+          scrollH: title.scrollHeight,
+          clientH: title.clientHeight,
+          credBot: Math.round(cred.bottom),
+          innerBrassTop: Math.round(innerBrassTop),
+          clearance: Math.round(innerBrassTop - cred.bottom),
+          hasMore: title.classList.contains('has-more'),
+        };
+      });
+      t.expect(deskStore.padTop < deskFresh.padTop - 10, `1280x800 #tStore compacts #title .wrap top padding (${deskFresh.padTop} -> ${deskStore.padTop})`);
+      t.expect(deskStore.credBot <= deskStore.innerBrassTop - 12 && deskStore.scrollH <= deskStore.clientH + 1, `1280x800 #tStore keeps .credit clear of bottom brass border with zero vertical overflow: ${JSON.stringify(deskStore)}`);
+      t.equal(deskStore.hasMore, false, '1280x800 #tStore Title stays unclipped with scroll-fade cue hidden');
+      await t.shot('layout-07-w6-s5-05-1280x800-tstore');
+      await t.page.evaluate(() => { document.getElementById('tStore').hidden = true; });
+
+      // 3. 390x844 Settings -> Audio (both from Title and from Game table, with Vibration visible): Vibration clears the bottom brass border with zero scroll clipping and >=44px touch targets
+      await sizeTo(t, 390, 844);
+      await t.page.evaluate(() => { if (!navigator.vibrate) navigator.vibrate = () => true; });
+      for (const [origin, shotName] of [['title', null], ['game', 'layout-07-w6-s5-05-390x844-audio']]) {
+        if (origin === 'game') await t.game('newGame', { mode: 'klondike', draw: 1, deal: 5 });
+        else await t.game('scene', 'title');
+        await t.game('scene', 'settings', { tab: 'audio' });
+        await t.waitFrames(2);
+        const audio = await t.page.evaluate(() => {
+          const sf = document.getElementById('sheetFrame').getBoundingClientRect();
+          const sb = document.getElementById('sheetBody');
+          const sbr = sb.getBoundingClientRect();
+          const vib = document.getElementById('lbl-haptics')?.closest('.set');
+          const vr = vib ? vib.getBoundingClientRect() : null;
+          const borderW = parseFloat(getComputedStyle(document.getElementById('sheetFrame'), '::after').borderBottomWidth) || 14;
+          const brassInnerBot = sf.bottom - borderW;
+          const controls = [...document.querySelectorAll('#spanel-audio input[type=range], #spanel-audio button.tog')].map((el) => {
+            const r = el.getBoundingClientRect();
+            return { id: el.id || el.dataset.tog, w: Math.round(r.width), h: Math.round(r.height) };
+          });
+          return {
+            hasVib: !!vib,
+            sbOverflow: sb.scrollHeight - sb.clientHeight,
+            vibBot: vr ? Math.round(vr.bottom) : null,
+            sbBot: Math.round(sbr.bottom),
+            brassInnerBot: Math.round(brassInnerBot),
+            clearsBrass: vr ? Math.round(brassInnerBot - vr.bottom) : null,
+            controls,
+          };
+        });
+        t.equal(audio.hasVib, true, `390x844 Settings->Audio (${origin}): Vibration row rendered`);
+        t.expect(audio.sbOverflow <= 1, `390x844 Settings->Audio (${origin}): fits without vertical scroll overflow (${audio.sbOverflow}px): ${JSON.stringify(audio)}`);
+        t.expect(audio.clearsBrass !== null && audio.clearsBrass >= 0, `390x844 Settings->Audio (${origin}): Vibration clears bottom brass border (${audio.vibBot} <= ${audio.brassInnerBot}): ${JSON.stringify(audio)}`);
+        t.expect(audio.controls.every((c) => c.w >= 44 && c.h >= 44), `390x844 Settings->Audio (${origin}): all sliders and toggles preserve >=44px touch targets: ${JSON.stringify(audio.controls)}`);
+        if (shotName) await t.shot(shotName);
+      }
+
+      await sizeTo(t, t.vp.width, t.vp.height);
+    },
+  },
 ];
