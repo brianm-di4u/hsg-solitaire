@@ -176,7 +176,7 @@
   #title .chip.solid{background:#D2A84E linear-gradient(#E9C873,#B8862C);color:#1B1408;border-color:#F3DA92}
   #title .btn{background:#16201B;color:var(--t-ink);border-color:rgba(233,200,115,.5)}
   #title .btn.solid{background:#D2A84E linear-gradient(#E9C873,#B8862C);color:#1B1408;border-color:#F3DA92}
-  #title .credit{color:var(--t-muted)}
+  #title .credit{color:var(--t-muted);width:fit-content;max-width:94%;margin:10px auto 0;padding:4px 14px;border-radius:999px;background:rgba(8,12,10,.68);text-shadow:0 1px 6px rgba(0,0,0,.95)}
   #tTop{margin:0 0 10px} #tTop:has(#tCont[hidden]){display:none}
   #title .wrap:has(#tCont:not([hidden]),#tStore:not([hidden])){padding-top:max(clamp(108px,19.5vh,224px),calc(env(safe-area-inset-top) + 12px))}
   #tCont{min-width:min(320px,100%);min-height:52px;border-radius:999px;font-size:1rem;padding:0 20px}
@@ -197,7 +197,7 @@
     .tile .tmeta{gap:4px} .tile .tbadge,.tile .tstart{font-size:.58rem;padding:1px 6px}
     .chips{gap:5px} .chip{padding:0 9px;font-size:.82rem}
     .row{margin-top:10px;gap:6px} #tRow .btn{min-height:44px;padding:0 12px;font-size:.84rem}
-    .credit{margin-top:8px;font-size:.7rem}
+    #title .credit{margin-top:8px;font-size:.7rem}
   }
   @media (max-width:520px){ #title .tag{padding:3px 10px;background:rgba(8,12,10,.62);text-shadow:0 1px 2px #000,0 0 10px rgba(0,0,0,.95),0 0 3px rgba(0,0,0,.9)} } /* translucent dark scrim keeps tagline legible over bright Ouachita skyline on mobile portrait */
   /* Short screens on their side: keep compact 1-line Hot Springs subtitles (preserving full 'Central Avenue') + spectrum tags within <=360 px WITH #tCont visible (CD-WF2-07, CD-WF5-05, CD-WF6-01). */
@@ -217,14 +217,14 @@
     .tile .tsub{display:block;font-size:.63rem;line-height:1.15;margin-top:0;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .tile .tmeta{margin:0;gap:4px} .tile .tbadge,.tile .tstart{font-size:.56rem;padding:0 6px;line-height:1.3}
     .chips{gap:4px} .chip{padding:0 8px;font-size:.82rem}
-    .row{margin-top:8px;gap:6px} #tRow .btn{min-height:44px;padding:0 12px;font-size:.82rem} .credit{margin-top:8px}
+    .row{margin-top:8px;gap:6px} #tRow .btn{min-height:44px;padding:0 12px;font-size:.82rem} #title .credit{margin-top:8px;padding:3px 12px}
   }
   /* Strictly <=340 px high embedded/mini landscape screens (e.g. 568x320): bare name+chips guarantees all 8 chips + 44 px Continue stay above the fold (w4a C4-09). */
   @media (orientation:landscape) and (max-height:340px){
     #title .wrap,#title .wrap:has(#tCont:not([hidden]),#tStore:not([hidden])){padding-top:max(14px,env(safe-area-inset-top));padding-bottom:max(8px,env(safe-area-inset-bottom))}
     #title h1{font-size:1.25rem} #tCont{min-height:44px} #tTop{margin:3px 0 5px}
     .tile{padding:8px 8px 10px;gap:4px} .tile .tsub,.tile .tmeta{display:none}
-    .row{margin-top:6px} .credit{margin-top:6px}
+    .row{margin-top:6px} #title .credit{margin-top:6px;padding:2px 10px}
   }
   .chips{display:flex;flex-wrap:wrap;gap:6px}
   .chip{min-height:44px;min-width:44px;padding:0 12px;border-radius:var(--radius-pill);border:1px solid var(--color-primary);
@@ -254,7 +254,7 @@
     #title .tile p{font-size:.66rem;line-height:1.16}
     #title .chips{gap:4px} #title .chip{min-height:44px;min-width:44px;padding:0 6px;font-size:.74rem}
     #title .row{margin-top:8px;gap:6px} #title #tRow .btn{min-height:44px;padding:0 11px;font-size:.8rem}
-    #title .credit{margin-top:8px;font-size:.68rem}
+    #title .credit{margin-top:8px;padding:3px 10px;font-size:.68rem}
   }
   /* Modal */
   #modal{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;background:rgba(10,9,16,.55);

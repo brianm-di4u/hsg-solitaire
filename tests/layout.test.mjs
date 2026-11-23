@@ -523,4 +523,44 @@ export const tests = [
       await sizeTo(t, t.vp.width, t.vp.height);
     },
   },
+  {
+    name: 'layout-08 W6-S4-05 title .credit keeps approved AI-art wording inside a translucent dark pill scrim across tall and standard viewports',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { sound: false, tips: false, motion: 'reduced' });
+      const vps = [[800, 1100, 'layout-08-w6-s4-05-800x1100'], [820, 1180, 'layout-08-w6-s4-05-820x1180'], [1280, 800, null], [390, 844, null]];
+      for (const [w, h, shotName] of vps) {
+        await sizeTo(t, w, h);
+        await t.game('scene', 'title');
+        await t.waitFrames(2);
+        const info = await t.page.evaluate(() => {
+          const el = document.querySelector('#title .credit');
+          const cs = getComputedStyle(el);
+          const r = el.getBoundingClientRect();
+          const m = cs.backgroundColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+          const bg = m ? { r: +m[1], g: +m[2], b: +m[3], a: m[4] != null ? +m[4] : 1 } : null;
+          return {
+            text: el.textContent.trim(),
+            bg,
+            textShadow: cs.textShadow,
+            radius: parseFloat(cs.borderTopLeftRadius) || 0,
+            padX: parseFloat(cs.paddingLeft) || 0,
+            padY: parseFloat(cs.paddingTop) || 0,
+            left: Math.round(r.left),
+            right: Math.round(r.right),
+            centerErr: Math.abs((r.left + r.right) / 2 - innerWidth / 2),
+            vw: innerWidth,
+            overflowX: el.scrollWidth > el.clientWidth + 1,
+          };
+        });
+        t.expect(info.text.includes('Art: painted with AI image tools for this game'), `${w}x${h}: preserves approved AI-art credit wording (CD-WF0-04)`);
+        t.expect(info.bg && info.bg.a >= 0.6 && info.bg.r <= 20 && info.bg.g <= 20 && info.bg.b <= 20, `${w}x${h}: #title .credit carries translucent dark scrim: ${JSON.stringify(info.bg)}`);
+        t.expect(info.textShadow && info.textShadow !== 'none', `${w}x${h}: #title .credit has text-shadow (${info.textShadow})`);
+        t.expect(info.radius >= 12 && info.padX >= 10 && info.padY >= 2, `${w}x${h}: #title .credit renders as a padded pill: ${JSON.stringify(info)}`);
+        t.expect(info.left >= 0 && info.right <= info.vw && info.centerErr <= 2 && !info.overflowX, `${w}x${h}: #title .credit stays centered and unclipped: ${JSON.stringify(info)}`);
+        if (shotName) await t.shot(shotName);
+      }
+      await sizeTo(t, t.vp.width, t.vp.height);
+    },
+  },
 ];
