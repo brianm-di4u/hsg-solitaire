@@ -3501,7 +3501,7 @@ function drawBack(ctx, id, w, h, seed) {
     ctx.save(); rrect(ctx, x0, y0, iw, ih, r * .6); ctx.clip(); let tint = null;
     if (id === 'skylight' && seed) {
       const s = seed >>> 0; ctx.translate(w / 2, h / 2); ctx.scale(s & 1 ? -1 : 1, s & 2 ? -1 : 1); ctx.translate(-w / 2, -h / 2);
-      const deg = (s * 37) % 50 - 25, sat = 1 + ((s >> 3) % 20) / 100;
+      const deg = (s * 37) % 50 - 25, sat = .88 + ((s >> 3) % 11) / 100;
       if (CANVAS_FILTER) ctx.filter = 'hue-rotate(' + deg + 'deg) saturate(' + sat + ')';
       else tint = hueShifted(img, iw, ih, Math.abs(ctx.getTransform().a) || 1, deg, sat);
     }
@@ -4501,7 +4501,10 @@ function sprite(key, draw) {
   return c;
 }
 const faceSprite = (u, wastePip) => { const c = card(u); return sprite('f' + c.s + c.r + settings.courts[0] + (settings.fourColor ? 'q' : '') + (L.largeIdx ? 'L' : '') + (wastePip ? 'w' : ''), (g, w, h) => drawFace(g, c, w, h, L.largeIdx, wastePip)); };
-const backSprite = () => sprite('b' + settings.back + settings.deckSeed, (g, w, h) => drawBack(g, settings.back, w, h, settings.deckSeed));
+const backSprite = (buried = false) => sprite('b' + settings.back + settings.deckSeed + (buried ? ':d' : ''), (g, w, h) => {
+  drawBack(g, settings.back, w, h, settings.deckSeed);
+  if (buried) { g.save(); rrect(g, .5, .5, w - 1, h - 1, w * .075); g.fillStyle = 'rgba(12,20,16,.16)'; g.fill(); g.restore(); }
+});
 const tableInfo = () => TABLES.find((t) => t.id === settings.table) || TABLES[0];
 
 let rafId = 0, steam = [], shakes = {};
@@ -4634,7 +4637,7 @@ function placeholder(id, b) {
   }
 }
 const FLIP_MS = 220;
-function drawCardAt(u, x, y, t, lift = 0, rot = 0, wastePip = false, scaleMul = 1) {
+function drawCardAt(u, x, y, t, lift = 0, rot = 0, wastePip = false, scaleMul = 1, buried = false) {
   const { cw, ch } = L; const d = D[u];
   let showUp = S.up[u], sx = 1, fk = -1;
   if (d && t < d.f0 + FLIP_MS && t >= d.f0) { fk = (t - d.f0) / FLIP_MS; sx = Math.abs(Math.cos(fk * Math.PI)); showUp = fk >= .5 ? S.up[u] : !S.up[u]; lift = Math.max(lift, Math.sin(fk * Math.PI) * .7); }
@@ -4647,7 +4650,7 @@ function drawCardAt(u, x, y, t, lift = 0, rot = 0, wastePip = false, scaleMul = 
     if (sk >= 1) d.seatAt = 0;
     else { const s = Math.sin(Math.PI * sk); seatX = 1 + .018 * s; seatY = 1 - .015 * s; }
   }
-  const img = showUp ? faceSprite(u, wastePip) : backSprite();
+  const img = showUp ? faceSprite(u, wastePip) : backSprite(buried);
   if (lift < .01 && !rot && sx > .999 && seatX === 1 && scaleMul === 1) { // resting card: crisp, pixel-aligned fast path
     x = Math.round(x * DPR) / DPR; y = Math.round(y * DPR) / DPR;
     const shd = shadowSprite(false), p = shd.pad;
@@ -4877,7 +4880,7 @@ function frame(t) {
       let lift = 0, rot = 0, scMul = 1;
       if (pressPile && pd.pressLift && idx >= pd.hit.index) lift = .22;
       else if (hintNod > 0 && id === hintPile && idx >= hintIdx) { lift = .35 * hintNod; rot = hintNodDir * .03 * hintNod; }
-      drawCardAt(u, d.tx, d.ty, t, lift, rot, false, scMul);
+      drawCardAt(u, d.tx, d.ty, t, lift, rot, false, scMul, k === 'tab' && !S.up[u]);
     }
   }
   moving.sort((a, b) => a.t0 - b.t0);

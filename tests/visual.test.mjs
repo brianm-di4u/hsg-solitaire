@@ -465,4 +465,65 @@ export const tests = [
       }
     },
   },
+  {
+    name: 'visual-68 W6-S4-02 buried face-down Skylight tableau strips recess softly while Stock, Title fans, and picker swatches stay vibrant',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'reduced', back: 'skylight', table: 'felt', deckSeed: 2026 });
+      await t.game('newGame', { mode: 'klondike', draw: 1, deal: 5 });
+      await t.waitForStable();
+      await t.page.waitForFunction(() => window.__game.art().loaded.includes('back-skylight'), null, { timeout: 15000 });
+      await t.waitForStable();
+
+      // 1. Compare top exposed strip of Stock (unglazed) vs top buried face-down card in t6 (glazed) on #cv
+      const strip = await t.page.evaluate(() => {
+        const cv = document.getElementById('cv'), g = cv.getContext('2d');
+        const rect = cv.getBoundingClientRect(), k = cv.width / rect.width;
+        const lay = window.__game.getLayout();
+        const st = lay.piles.stock, t6 = lay.piles.t6.cards[0], cw = lay.cardW, ch = lay.cardH;
+        const sample = (bx, by) => {
+          const sx = Math.round((bx - rect.left + cw * 0.14) * k);
+          const sy = Math.round((by - rect.top + ch * 0.06) * k);
+          const sw = Math.max(4, Math.round(cw * 0.72 * k));
+          const sh = Math.max(2, Math.round(Math.min(ch * 0.07, 10) * k));
+          const d = g.getImageData(sx, sy, sw, sh).data;
+          let lum = 0, sat = 0, n = 0;
+          for (let i = 0; i < d.length; i += 4) {
+            const r = d[i], gr = d[i + 1], b = d[i + 2];
+            lum += 0.299 * r + 0.587 * gr + 0.114 * b;
+            sat += Math.max(r, gr, b) - Math.min(r, gr, b);
+            n++;
+          }
+          return { lum: +(lum / n).toFixed(2), sat: +(sat / n).toFixed(2) };
+        };
+        return { stock: sample(st.x, st.y), buried: sample(t6.x, t6.y) };
+      });
+      const lumRatio = strip.buried.lum / strip.stock.lum;
+      t.expect(strip.buried.lum < strip.stock.lum - 5 && lumRatio >= 0.80 && lumRatio <= 0.91,
+        'buried face-down tableau strip is subtly glazed vs vibrant Stock (stock ' + strip.stock.lum + ', buried ' + strip.buried.lum + ', ratio ' + lumRatio.toFixed(3) + ')');
+      t.expect(strip.stock.lum >= 55, 'Stock pile keeps full vibrant Fordyce Skylight brightness (' + strip.stock.lum + ')');
+      await t.shot('visual-68-w6-s4-02-klondike-felt');
+
+      // 2. Verify drawBack() skylight saturation stays calibrated in 0.88-0.98 (strictly below 1.00x plain at deg=0)
+      const satCheck = await t.page.evaluate(() => {
+        const plain = window.__game.backMean(0);
+        const satOf = (rgb) => Math.max(...rgb) - Math.min(...rgb);
+        const plainSpread = satOf(plain);
+        const spreads = [];
+        // Seeds 25 + 50*k all satisfy ((s * 37) % 50) - 25 === 0 (zero hue rotation), isolating pure saturation
+        for (let k = 0; k < 11; k++) {
+          const m = window.__game.backMean(25 + 50 * k);
+          spreads.push(satOf(m));
+        }
+        return { plainSpread: +plainSpread.toFixed(2), maxSpread: +Math.max(...spreads).toFixed(2), minSpread: +Math.min(...spreads).toFixed(2) };
+      });
+      t.expect(satCheck.maxSpread < satCheck.plainSpread && satCheck.minSpread >= satCheck.plainSpread * 0.84,
+        'drawBack() skylight saturation stays calibrated in 0.88-0.98x at deg=0 (plain ' + satCheck.plainSpread + ', range ' + satCheck.minSpread + '..' + satCheck.maxSpread + ')');
+
+      // 3. Also check Klondike on sunlit Fordyce Marble so glaze reads cleanly on light tables too
+      await t.game('setSettings', { table: 'marble' });
+      await t.waitForStable();
+      await t.shot('visual-68-w6-s4-02-klondike-marble');
+      await t.game('setSettings', { table: 'felt' });
+    },
+  },
 ];
