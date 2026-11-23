@@ -5414,7 +5414,7 @@ function finishDrag() {
   else if (Math.hypot(dr.x - dr.x0, (dr.rawY != null ? dr.rawY : dr.y) - dr.y0) < DRAG_TAP_REACH * (dr.touch ? 10 : 6)) {
     const tm = tapMode();
     if (tm === 'tap') { const r = tapAt(dr.from, dr.index); tapped = !!(r && r.ok); }
-    else if (tm === 'select' && canPick(dr.from, dr.index)) { held = { from: dr.from, index: dr.index }; sfx('pick', undefined, pilePan(dr.from)); announce('Picked up ' + describeRun(dr.run) + '. Tap a pile to place it.'); }
+    else if (tm === 'select' && canPick(dr.from, dr.index)) { held = { from: dr.from, index: dr.index, t0: now() }; sfx('pick', undefined, pilePan(dr.from)); announce('Picked up ' + describeRun(dr.run) + '. Tap a pile to place it.'); startLoop(); }
   } // a wobbly tap is still a tap
   else if (!overSource(dr)) { illegalDrop = true; sfx('nope', undefined, pilePan(dr.from)); const to = dropTarget(dr, true); if (to) explain(refusalReason(dr.run, to, dr.from)); } // putting a card back where it came from is not a mistake
   // Apply monotonic drag-release settle ONLY to cards remaining on best or dr.from (never clobbering autoplay/Spider/wobbly-tap tweens & landFx, W6-S5-04).
@@ -5448,9 +5448,10 @@ cv.addEventListener('pointerup', (e) => {
   if (wasHeld && held) {
     if (hit.pile === held.from) {
       if (m === 'select' && hit.index >= 0 && hit.index !== held.index && canPick(hit.pile, hit.index)) {
-        held = { from: hit.pile, index: hit.index };
+        held = { from: hit.pile, index: hit.index, t0: now() };
         sfx('pick', undefined, pilePan(hit.pile));
         announce('Picked up ' + describeRun(S.piles[hit.pile].slice(hit.index)) + '. Tap a pile to place it.');
+        startLoop();
       } else {
         sfx('place', 1, pilePan(held.from)); held = null; announce('Put back');
       }
@@ -7935,6 +7936,7 @@ window.__game = {
   glideOf(pile) { const p = S.piles[pile], d = p.length ? D[p[p.length - 1]] : null; return d ? d.dur : null; },
   dispOf(pile, idx) { const p = S && S.piles[pile], i = idx != null ? idx : (p ? p.length - 1 : -1), u = p && i >= 0 && i < p.length ? p[i] : -1, d = u >= 0 ? D[u] : null; return d ? { t0: d.t0, dur: d.dur, f0: d.f0, sx: d.sx, sy: d.sy, tx: d.tx, ty: d.ty, via: d.via ? { sx: d.via.sx, sy: d.via.sy, t0: d.via.t0, dur: d.via.dur } : null, fromLift: d.fromLift, fromRot: d.fromRot, seatAt: d.seatAt, pos: dispPos(u, now()) } : null; },
   dragInfo: () => (drag ? { curLift: +(drag.curLift || 0).toFixed(4), tilt: +(drag.tilt || 0).toFixed(4), touchOff: +(drag.touchOff || 0).toFixed(2), hasTrail: !!drag.trail, y: drag.y, rawY: drag.rawY } : null),
+  heldInfo: () => (held ? { from: held.from, index: held.index, t0: held.t0 || 0 } : null),
   dragTilt: () => (drag ? +(drag.tilt || 0).toFixed(4) : 0),
   tableLook(id, patch) {
     const cur = TABLE_LOOK[id]; if (!cur) return null;

@@ -763,4 +763,58 @@ export const tests = [
       t.equal((await t.state()).piles.t0, ['#2D', 'KH'], 'KH remains on t0 after put-back');
     },
   },
+  {
+    name: 'play-37 Select & place sets t0 and runs 90 ms lift ease on wobbly-tap and same-column re-select (W6-S5-06)',
+    async run(t) {
+      await baseSettings(t, { sound: false, tips: false, motion: 'full', tapMove: 'select', autoFoundation: 'off' });
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: { stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: ['KH', 'QS'], t1: ['9C'], t2: [], t3: [], t4: [], t5: [], t6: [] },
+      });
+      await t.waitForStable();
+      const lay = await t.game('getLayout');
+      const c0 = lay.piles.t0.cards[0], c1 = lay.piles.t0.cards[1];
+
+      // 1. Wobbly-tap pickup (exceeds 6px mouse drag threshold to enter finishDrag(), stays < DRAG_TAP_REACH * 6 = 15px)
+      const cx1 = c1.x + c1.w / 2, cy1 = c1.y + c1.h / 2;
+      await t.page.mouse.move(cx1, cy1);
+      await t.page.mouse.down();
+      await t.page.mouse.move(cx1 + 9, cy1, { steps: 3 });
+      const wasDrag = await t.game('dragInfo');
+      t.expect(!!wasDrag, 'wobbly press crosses drag threshold into finishDrag() path');
+      const tBeforeWobble = await t.page.evaluate(() => performance.now());
+      await t.page.mouse.up();
+      const afterWobble = await t.page.evaluate(() => ({
+        now: performance.now(),
+        held: window.__game.heldInfo(),
+        raf: window.__game.runtimeEconomy().rafActive,
+      }));
+      t.equal([afterWobble.held && afterWobble.held.from, afterWobble.held && afterWobble.held.index], ['t0', 1], 'wobbly-tap picks up QS in Select & place');
+      t.expect(afterWobble.held && afterWobble.held.t0 >= tBeforeWobble - 2 && afterWobble.held.t0 <= afterWobble.now + 2, 'wobbly-tap pickup stamps fresh t0 for 90 ms lift ease: ' + JSON.stringify({ tBeforeWobble, afterWobble }));
+      t.equal(afterWobble.raf, true, 'wobbly-tap pickup schedules rAF loop via startLoop()');
+
+      // Wait until the 90 ms lift ease completes and the loop returns to idle
+      await t.page.waitForFunction(() => !window.__game.runtimeEconomy().rafActive, null, { timeout: 5000 });
+      const wobbleT0 = afterWobble.held.t0;
+
+      // 2. Same-column depth re-select (tap exposed strip of KH while holding QS)
+      await t.game('frameStats', true);
+      const tBeforeReselect = await t.page.evaluate(() => performance.now());
+      await t.page.mouse.click(c0.x + c0.w / 2, c0.y + Math.max(4, Math.min(12, (c1.y - c0.y) * 0.5)));
+      const afterReselect = await t.page.evaluate(() => ({
+        now: performance.now(),
+        held: window.__game.heldInfo(),
+        raf: window.__game.runtimeEconomy().rafActive,
+      }));
+      t.equal([afterReselect.held && afterReselect.held.from, afterReselect.held && afterReselect.held.index], ['t0', 0], 'same-column re-select shifts held depth to KH (index 0)');
+      t.expect(afterReselect.held && afterReselect.held.t0 >= tBeforeReselect - 2 && afterReselect.held.t0 > wobbleT0, 'same-column re-select stamps fresh t0 for 90 ms lift ease: ' + JSON.stringify({ wobbleT0, tBeforeReselect, afterReselect }));
+      t.equal(afterReselect.raf, true, 'same-column re-select schedules rAF loop via startLoop()');
+
+      // Confirm multiple lift animation frames render over the 90 ms ease and stop cleanly once complete
+      await t.page.waitForFunction(() => !window.__game.runtimeEconomy().rafActive, null, { timeout: 5000 });
+      const stats = await t.game('frameStats');
+      t.expect(stats.frames >= 2, 'same-column re-select renders multi-frame 90 ms lift ease (' + stats.frames + ' frames)');
+      await t.shot('play-37-w6-s5-06-reselect-held');
+    },
+  },
 ];
