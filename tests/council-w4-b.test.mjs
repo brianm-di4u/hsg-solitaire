@@ -219,6 +219,10 @@ export const tests = [
       const advance = (ms) => t.page.evaluate((m) => { window.__off += m; }, ms);
       const floats = () => t.game('scoreFx');
       const K = (piles, extra) => Object.assign({ mode: 'klondike', opts: { draw: 1 }, score: 200, piles: Object.assign({ stock: [], waste: [], f0: [], f1: [], f2: [], f3: [], t0: [], t1: [], t2: [], t3: [], t4: [], t5: [], t6: [] }, piles) }, extra);
+      // After a move the game looks for a dead end on a real 500 ms timer and, finding one, opens 'no moves left' (scheduleStuckCheck).
+      // With the clock frozen that dialog's 190 ms entrance never ends, so the table is never idle again, and whether it opened before
+      // the check depended on how long the screenshot took. A red queen that can still go on the king keeps this board out of a dead end.
+      const LIVE = { f0: ['AC'], t0: ['2C'], t6: ['KS'], t5: ['QH'] };
       const move = async (from, to) => { t.expect((await t.game('act', 'move', from, to, 1)).ok, from + ' to ' + to + ' is legal'); };
       await t.game('setState', K({ f0: ['AC'], t0: ['2C'], t1: ['#9H', '8S'], t2: ['9D'], t3: ['3D'], t4: ['8C'], waste: ['7H'], t6: ['KS'] }));
       await move('t0', 'f0');
@@ -231,7 +235,7 @@ export const tests = [
       const last = (await floats()).slice(-1)[0];
       t.equal([last.text, last.neg, last.pile], ['−15', true, 't3'], 'a card back from a foundation: a red minus 15 at the column');
       // the float is painted: gold digits near the foundation a little way into its life (and red ones for the penalty)
-      await t.game('setState', K({ f0: ['AC'], t0: ['2C'], t6: ['KS'] }));
+      await t.game('setState', K(LIVE));
       await move('t0', 'f0');
       await advance(170 + 300); await t.waitFrames(3);
       const lay = await t.game('getLayout'), f0 = lay.piles.f0;
@@ -249,14 +253,14 @@ export const tests = [
       t.equal(await floats(), [], 'the float is gone a second later');
       t.expect(await t.game('isIdle'), 'and the table is idle again');
       // a float does not outlive the game it belongs to, or the move that is taken back
-      await t.game('setState', K({ f0: ['AC'], t0: ['2C'], t6: ['KS'] }));
+      await t.game('setState', K(LIVE));
       await move('t0', 'f0'); t.expect((await floats()).length === 1, 'a float is up');
       await t.game('act', 'undo'); t.equal(await floats(), [], 'taking the move back takes its float away');
       await move('t0', 'f0'); await t.game('newGame', { mode: 'klondike' }); t.equal(await floats(), [], 'a new deal starts with none');
       // no float with reduced motion, and none with scoring set to None
       for (const extra of [{ motion: 'reduced' }, { motion: 'full', scoring: 'none' }]) {
         await t.game('setSettings', extra);
-        await t.game('setState', K({ f0: ['AC'], t0: ['2C'], t6: ['KS'] }));
+        await t.game('setState', K(LIVE));
         await move('t0', 'f0');
         t.equal(await floats(), [], 'no float with ' + JSON.stringify(extra));
       }
