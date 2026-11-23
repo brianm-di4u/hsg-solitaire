@@ -1169,4 +1169,138 @@ export const tests = [
       t.equal([(await t.state()).piles.t1, (await t.state()).piles.t2], [['#2S', 'QS'], ['KD', 'QC', 'JH', '3C']], 'Yukon prefers King-anchored run t2 over leftmost face-down column t1');
     },
   },
+  {
+    name: 'rules-31 W6-S3-04 verify pullback cap 4 + s.pb key, stock-empty late Spider lostKick, and MODALS.stuck Undo to last open line',
+    viewports: ['desktop'],
+    async run(t) {
+      await t.game('setSettings', { autoFoundation: 'off', motion: 'reduced', tips: false, sound: false });
+      const runS = (s, n = 13) => ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'].slice(0, n).map((r) => r + s);
+
+      // 1. Klondike position requiring 3 foundation pullbacks (9H->TC, 8H->9C, 8D->9S) to uncover 6S & 6C:
+      //    proves verify pullback cap was raised from 2 to 4 (and s.pb is tracked in verify transposition keys).
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 },
+        piles: {
+          stock: [], waste: [],
+          f0: runS('C', 5), f1: runS('D', 8), f2: runS('H', 9), f3: runS('S', 5),
+          t0: ['KC', '6C', '6S', '7C', '7S', '8S'],
+          t1: ['KD', 'TC'],
+          t2: ['KH', '9C'],
+          t3: ['KS', '8C'],
+          t4: ['QC', 'JC', 'TS', '9D', '9S'],
+          t5: ['QD', 'JD', 'TD', 'JS'],
+          t6: ['QH', 'JH', 'TH', 'QS'],
+        },
+      });
+      const pb3 = await t.game('solveState', 4000, { verify: true });
+      t.equal(pb3.result, 'won', 'verify solver solves 3-pullback Klondike board (cap 4, used ' + pb3.used + ')');
+      t.expect(Array.isArray(pb3.moves) && pb3.moves.filter((m) => m[1] === -3).length >= 3, 'solution actually uses >= 3 foundation pullbacks');
+
+      // 2. Stock-empty late Spider (<=4 face-down cards) in lostKick():
+      // 2a. Dead 2-suit Spider (stock empty, 2 face-down cards): checkStuck stays live (QH->KH, 7S->8S reduce breaks), while lostKick proves 'dead'
+      await t.game('setState', {
+        mode: 'spider', opts: { suits: 2 },
+        piles: {
+          stock: [],
+          f0: runS('S'), f1: runS('S'), f2: runS('S'), f3: runS('H'), f4: runS('H'), f5: runS('H'), f6: [], f7: [],
+          t0: ['#AS', 'KH'], t1: ['#AH', 'KS'],
+          t2: ['2S', '7S', 'QS'], t3: ['2H', '7H', 'QH'],
+          t4: ['JS', '6S', '8S'], t5: ['JH', '6H', '8H'],
+          t6: ['9S', '4S', '5S'], t7: ['9H', '4H', '5H'],
+          t8: ['3S', 'TS'], t9: ['3H', 'TH'],
+        },
+      });
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      t.equal((await t.game('act', 'move', 't2', 't1')).ok, true, 'legal move on late Spider triggers lostKick');
+      await t.page.waitForFunction(() => window.__game.getState().lost === 'dead', null, { timeout: 10000 });
+      const spDead = await t.page.evaluate(() => ({ st: window.__game.getState(), toast: document.getElementById('toast').textContent }));
+      t.equal(spDead.st.stuck, 'live', 'checkStuck stays live on late Spider because QH->KH/7S->8S still exist');
+      t.equal(spDead.st.scene, 'game', 'Spider lostKick warning does not block play with a modal');
+      t.equal(spDead.toast, 'No winning line left from here. Undo takes you back.', 'late stock-empty Spider emits dead-branch warning toast');
+
+      // 2b. Winnable stock-empty late Spider (<=4 face-down cards) resolves 'won', stays quiet, and marks curLive
+      await t.game('setState', {
+        mode: 'spider', opts: { suits: 1 },
+        piles: {
+          stock: [],
+          f0: runS('S'), f1: runS('S'), f2: runS('S'), f3: runS('S'), f4: runS('S'), f5: runS('S'), f6: runS('S'), f7: [],
+          t0: ['#KS', '6S', '5S', '4S', '3S', '2S'], t1: ['QS', 'JS', 'TS', '9S', '8S', '7S'], t2: ['AS'],
+          t3: [], t4: [], t5: [], t6: [], t7: [], t8: [], t9: [],
+        },
+      });
+      await t.page.evaluate(() => { document.getElementById('toast').textContent = ''; });
+      t.equal((await t.game('act', 'move', 't2', 't0')).ok, true, 'move AS onto 2S on late Spider');
+      await t.page.waitForFunction(() => window.__game.getState().lost === 'won', null, { timeout: 10000 });
+      t.equal([(await t.state()).curLive, await t.page.evaluate(() => document.getElementById('toast').textContent)], [true, ''], 'winnable late Spider sets curLive and stays quiet');
+
+      // 2c. Spider with non-empty stock OR >4 face-down cards skips lostKick cleanly (lost === null)
+      await t.game('setState', {
+        mode: 'spider', opts: { suits: 1 },
+        piles: {
+          stock: ['#AS'],
+          f0: runS('S'), f1: runS('S'), f2: runS('S'), f3: runS('S'), f4: runS('S'), f5: runS('S'), f6: runS('S'), f7: [],
+          t0: ['KS', 'QS', 'JS', 'TS', '9S', '8S'], t1: ['7S', '6S', '5S', '4S', '3S'], t2: ['2S'],
+          t3: [], t4: [], t5: [], t6: [], t7: [], t8: [], t9: [],
+        },
+      });
+      t.equal((await t.game('act', 'move', 't2', 't1')).ok, true, 'move with stock non-empty');
+      await t.page.waitForFunction(() => window.__game.getState().stuck !== null, null, { timeout: 8000 });
+      t.equal((await t.state()).lost, null, 'Spider with non-empty stock skips lostKick');
+
+      await t.game('setState', {
+        mode: 'spider', opts: { suits: 1 },
+        piles: {
+          stock: [],
+          f0: runS('S'), f1: runS('S'), f2: runS('S'), f3: runS('S'), f4: runS('S'), f5: runS('S'), f6: runS('S'), f7: [],
+          t0: ['#KS', '#QS', '#JS', '#TS', '#9S', '8S'], t1: ['7S', '6S', '5S', '4S', '3S'], t2: ['2S', 'AS'],
+          t3: [], t4: [], t5: [], t6: [], t7: [], t8: [], t9: [],
+        },
+      });
+      t.equal((await t.game('act', 'move', 't2', 't1', 2)).ok, true, 'move with 5 face-down cards (>4)');
+      await t.page.waitForFunction(() => window.__game.getState().stuck !== null, null, { timeout: 8000 });
+      t.equal((await t.state()).lost, null, 'Spider with >4 face-down cards skips lostKick');
+
+      // 3. MODALS.stuck 'Undo to last open line': jump multi-ply past dead branch straight back to last solver-verified live ply
+      await t.game('setState', {
+        mode: 'klondike', opts: { draw: 1 }, winnable: true,
+        piles: {
+          stock: [], waste: ['8C', 'KC'],
+          f0: runS('C', 7), f1: runS('D', 7), f2: runS('H', 7), f3: runS('S', 7),
+          t0: ['8D', '9C', 'TC', 'TS', 'KH'],
+          t1: ['8H', 'TD', 'TH', 'KD'],
+          t2: ['8S', 'KS'],
+          t3: ['9D', 'JC', 'QH', 'QS'],
+          t4: ['9H', 'JD', 'QC'],
+          t5: ['9S', 'JH', 'JS', 'QD'],
+          t6: [],
+        },
+      });
+      // Ply 0 -> Move 1 (QS: t3 -> t1): still winnable -> lostKick proves 'won' and marks curLive=true
+      t.equal((await t.game('act', 'move', 't3', 't1')).ok, true, 'Move 1 (QS -> KD) succeeds');
+      await t.page.waitForFunction(() => window.__game.getState().lost === 'won', null, { timeout: 10000 });
+      t.equal((await t.state()).curLive, true, 'Ply 1 is solver-verified live');
+
+      // Move 2 (KC: waste -> t6): fills only empty column, entering unwinnable dead branch (lost === 'dead', stuck still 'live' due to 8C->f0)
+      t.equal((await t.game('act', 'move', 'waste', 't6')).ok, true, 'Move 2 (KC -> t6) enters dead branch');
+      await t.page.waitForFunction(() => window.__game.getState().lost === 'dead', null, { timeout: 10000 });
+      t.equal([(await t.state()).curLive, (await t.state()).lastLiveUndo, (await t.state()).undoDepth], [false, 1, 2], 'Ply 2 is dead while lastLiveUndo points to Ply 1');
+
+      // Move 3 (8C: waste -> f0): dead end; checkStuck() opens MODALS.stuck with 'Undo to last open line'
+      t.equal((await t.game('act', 'move', 'waste', 'f0')).ok, true, 'Move 3 (8C -> f0) reaches dead end');
+      await t.page.waitForFunction(() => window.__game.getState().modal === 'stuck', null, { timeout: 10000 });
+      const stuckBtns = await t.page.evaluate(() => ({
+        liveBtn: document.querySelector('#sheet [data-a="undoLive"]')?.textContent || null,
+        undoBtn: document.querySelector('#sheet [data-a="undo"]')?.textContent || null,
+        st: window.__game.getState(),
+      }));
+      t.equal([stuckBtns.liveBtn, stuckBtns.undoBtn, stuckBtns.st.lastLiveUndo, stuckBtns.st.undoDepth], ['Undo to last open line', 'Undo', 1, 3], 'MODALS.stuck offers primary Undo to last open line alongside 1-step Undo');
+
+      // Clicking 'Undo to last open line' jumps 2 moves straight back to Ply 1 (restoring t6=[] and winnable line)
+      await t.page.click('#sheet [data-a="undoLive"]');
+      await t.waitForStable();
+      const afterBack = await t.state();
+      t.equal([afterBack.modal, afterBack.undoDepth, afterBack.redoDepth, afterBack.curLive, afterBack.piles.t6.length, afterBack.piles.waste], [null, 1, 2, true, 0, ['8C', 'KC']], 'Undo to last open line rewinds 2 plies to Ply 1 with intact redoStack');
+      t.equal((await t.game('solveState', 4000, { verify: true })).result, 'won', 'board restored by Undo to last open line is solver-verified winnable');
+    },
+  },
 ];

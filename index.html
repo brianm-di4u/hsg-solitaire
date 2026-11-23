@@ -1020,7 +1020,7 @@ function finishWins() {
 }
 
 // 5. Game controller: moves, undo/redo, scoring, autoplay, hints, auto-complete
-let undoStack = [], redoStack = [];
+let undoStack = [], redoStack = [], curVerifiedLive = false;
 let pullbackHold = new Set(); // card UIDs manually pulled down from a foundation; suppressed from autoplay until sent home or undone
 let animDelay = {};          // uid → ms delay before its next tween starts (staggered autoplay)
 let drawWaypoints = {};      // uid → { x, y, delay } waste staging waypoint when a drawn card autoplays to foundation (W6-P-N03)
@@ -1033,9 +1033,13 @@ let stuckSuppressed = false; // suppress auto-repop after Undo from MODALS.stuck
 let stuckTimer = 0;
 let nextDeal = null;         // set by __game.seed(n)
 
+function lastLiveUndoIndex() {
+  for (let i = undoStack.length - 1; i >= 0; i--) if (undoStack[i] && undoStack[i].live) return i;
+  return -1;
+}
 function snapshot() {
   const piles = {}; for (const k in S.piles) piles[k] = S.piles[k].slice();
-  return { piles, up: S.up.slice(), score: S.score, rawScore: typeof S.rawScore === 'number' && isFinite(S.rawScore) ? S.rawScore : S.score, moves: S.moves, recycles: S.recycles, runs: S.runs, won: S.won, pullback: [...pullbackHold] };
+  return { piles, up: S.up.slice(), score: S.score, rawScore: typeof S.rawScore === 'number' && isFinite(S.rawScore) ? S.rawScore : S.score, moves: S.moves, recycles: S.recycles, runs: S.runs, won: S.won, pullback: [...pullbackHold], live: curVerifiedLive };
 }
 function restore(sn) {
   S.piles = sn.piles; S.up = sn.up;
@@ -1043,8 +1047,9 @@ function restore(sn) {
   S.score = Math.max(0, S.rawScore);
   S.moves = sn.moves; S.recycles = sn.recycles; S.runs = sn.runs; S.won = sn.won;
   pullbackHold = new Set(Array.isArray(sn.pullback) ? sn.pullback : []);
+  curVerifiedLive = !!sn.live;
 }
-function pushUndo() { undoStack.push(snapshot()); redoStack.length = 0; }
+function pushUndo() { undoStack.push(snapshot()); redoStack.length = 0; curVerifiedLive = false; }
 
 // A score change of 5 points or more also floats up from the pile it happened at (S3-14), so the points can be learned by playing. Not with reduced motion,
 // and not when scoring is None; the change shown is the one the score really made (it never goes below 0).
@@ -1343,6 +1348,23 @@ function undo() {
   sfx('undo'); announce('Undone'); relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   return { ok: true };
 }
+function undoToLastLive() {
+  const idx = lastLiveUndoIndex();
+  if (idx < 0 || !S || S.won) return { ok: false };
+  cancelAutoCues();
+  const prev = pileMap();
+  const steps = undoStack.length - idx;
+  redoStack.push(snapshot());
+  for (let i = undoStack.length - 1; i > idx; i--) redoStack.push(undoStack[i]);
+  const target = undoStack[idx];
+  undoStack.length = idx;
+  restore(target);
+  scoreFx = []; landFx = []; staggerRestore(prev);
+  S.usedUndo = true; S.assisted = true; hintState = null; tipEvent('undo');
+  sfx('undo'); announce('Undid ' + steps + (steps === 1 ? ' move' : ' moves') + ' to last open line');
+  relayout(); updateHUD(); scheduleSave(); scheduleStuckCheck();
+  return { ok: true, steps };
+}
 // What a Redo sounds like: the move it puts back, synced to landing instead of t=0 (W6-S5-05).
 function redoCue(was, runs, prev) {
   for (const id in S.piles) {
@@ -1443,7 +1465,7 @@ const makeSolver = (() => {
       for (const p of s.t.concat([s.w])) if (p.length && next(s, top(p)) && safe(s, top(p), yukon)) { s.f[su(p.pop())]++; flip(s); m = 1; }
     }
   };
-  const key = (s) => s.t.map((p, i) => s.dn[i] + ':' + chars(p)).sort().join('|') + '#' + chars(s.st) + '#' + chars(s.w) + '#' + s.f + '#' + s.done;
+  const key = (s, verify) => s.t.map((p, i) => s.dn[i] + ':' + chars(p)).sort().join('|') + '#' + chars(s.st) + '#' + chars(s.w) + '#' + s.f + '#' + s.done + (verify ? '#' + s.pb : '');
   // Moves are [score, from, index, to], best score first; to -1 is foundation, from -1 waste, from -2 draw, from -3 foundation pullback, score -1 (Spider) deal.
   function tabMoves(s, ms, spider, verify, yukon) {
     s.t.forEach((p, c) => {
@@ -1462,15 +1484,19 @@ const makeSolver = (() => {
           if (!q.length) { if (gap || !i || (!spider && R(u) !== 13)) return; gap = 1; sc = 2; }
           else {
             const t = top(q), same = su(t) === su(u);
-            if (spider ? R(t) !== R(u) + 1 || (under >= 0 && R(under) === R(u) + 1 && !(same && su(under) !== su(u))) : !fits(t, u)) return;
-            if (spider) sc = same ? 30 : 8;
+            if (spider) {
+              if (R(t) !== R(u) + 1) return;
+              const offSplit = under >= 0 && R(under) === R(u) + 1 && !(same && su(under) !== su(u));
+              if (offSplit && !verify) return;
+              sc = offSplit ? (same ? 12 : 2) : same ? 30 : 8;
+            } else if (!fits(t, u)) return;
           }
           const score = spider ? sc + (rev ? 45 : 0) : isSplit ? (next(s, under) ? 3.5 : 1.2) : rev ? 4 : 3;
           ms.push([score, c, i, j]);
         });
       }
     });
-    if (verify && !spider && s.pb < 2) {
+    if (verify && !spider && s.pb < 4) {
       for (let fs = 0; fs < 4; fs++) {
         const rk = s.f[fs]; if (rk < 2) continue;
         const u = (fs << 4) | rk;
@@ -1505,8 +1531,8 @@ const makeSolver = (() => {
     if (b >= o.dn[c] && p.slice(b).every((x, i) => x === (p[b] & 0x30) + 13 - i)) { p.length = b; o.done++; }
     flip(o);
   }
-  function spiderMoves(s, ms) {
-    tabMoves(s, ms, 1, false, false);
+  function spiderMoves(s, ms, verify) {
+    tabMoves(s, ms, 1, verify, false);
     let tabCards = 0; for (let i = 0; i < s.t.length; i++) tabCards += s.t[i].length;
     if (s.st.length && (tabCards < 10 || s.t.every((p) => p.length))) ms.push([-1, 0, 0, 0]);
   }
@@ -1571,7 +1597,7 @@ const makeSolver = (() => {
         ms.push([empties ? 4 : exposes ? 4.8 : 1.2, c, p.length - 1, -10 - firstCell]);
       }
     }
-    if (verify && s.pb < 2) {
+    if (verify && s.pb < 4) {
       for (let fs = 0; fs < 4; fs++) {
         const rk = s.f[fs]; if (rk < 2) continue;
         const u = (fs << 4) | rk;
@@ -1613,12 +1639,12 @@ const makeSolver = (() => {
     const root = { t, dn, st: (st.piles.stock || []).map(code), w: (st.piles.waste || []).map(code), c, f: [0, 0, 0, 0], done: 0, pb: 0 };
     for (const id in st.piles) if (id[0] === 'f') { const p = st.piles[id]; if (spider) root.done += Math.floor(p.length / 13); else if (p.length) root.f[st.cards[p[0]].s] = p.length; } // a game part-way through
     if (fc) fcSettle(root); else if (!spider) settle(root, yukon);
-    const gen = fc ? (s, ms) => fcMoves(s, ms, verify) : mode === 'klondike' ? (s, ms) => klondikeMoves(s, ms, verify) : yukon ? (s, ms) => tabMoves(s, ms, 0, verify, true) : spiderMoves;
+    const gen = fc ? (s, ms) => fcMoves(s, ms, verify) : mode === 'klondike' ? (s, ms) => klondikeMoves(s, ms, verify) : yukon ? (s, ms) => tabMoves(s, ms, 0, verify, true) : (s, ms) => spiderMoves(s, ms, verify);
     const apply = fc ? fcApply : spider ? spiderApply : (s, m) => tabApply(s, m, draw, yukon);
-    const stateKey = fc ? (s) => fcKey(s, verify) : key;
+    const stateKey = fc ? (s) => fcKey(s, verify) : (s) => key(s, verify);
     const frame = (s) => { const ms = []; gen(s, ms); return { s, ms: ms.sort((a, b) => b[0] - a[0]), i: 0 }; };
     const stack = [frame(root)], seen = new Set([stateKey(root)]), me = { used: 0 };
-    const home = (s) => (spider ? s.done === 8 : fc ? s.t.every((p) => !p.length) && s.c.every((x) => !x) : s.f[0] + s.f[1] + s.f[2] + s.f[3] === 52);
+    const home = (s) => (spider ? (s.done === 8 || (!s.st.length && s.t.every((p) => !p.length))) : fc ? s.t.every((p) => !p.length) && s.c.every((x) => !x) : !s.st.length && !s.w.length && s.t.every((p) => !p.length));
     me.step = (n) => {
       const end = me.used + n;
       if (home(root)) { me.moves = []; return 'won'; } // a game part-way through can already be won by the safe moves
@@ -1848,6 +1874,7 @@ function* solverHintG() {
   const sv = makeSolver(S, S.mode === 'freecell' ? FC_SOLVER_BUDGET : HINT_SOLVER_BUDGET);
   let r; while ((r = sv.step(HINT_SLICE)) === 'more') { hintYields++; yield; }
   if (r !== 'won') return null;
+  curVerifiedLive = true;
   if (S.mode !== 'spider') { // the solver plays every safe card home before it starts: so does the hint, one card at a time
     const srcs = (S.piles.waste ? ['waste'] : [])
       .concat(Array.from({ length: def().cells }, (_, i) => 'c' + i))
@@ -1996,7 +2023,7 @@ function clearStuck() { clearTimeout(stuckTimer); stuckTimer = 0; stuckVerdict =
 // A deal can become unwinnable long before it runs out of moves. Once few cards are face down, ask the solver (with verification mode
 // permitting productive partial-run splits and bounded foundation pullbacks) a few positions at a time between frames; if it runs out
 // of lines it says so once, and stays quiet when it is only out of budget.
-const LOST_BUDGET = 4000, LOST_FACEDOWN = 8; // positions to search; most face-down cards worth asking about
+const LOST_BUDGET = 4000, LOST_FACEDOWN = 8, LOST_SPIDER_FACEDOWN = 4, LOST_SLICE_MS = 8; // positions to search; max face-down cards; 8 ms bounded slice
 let lostRun = 0, lostVerdict = null, lostWarned = false;
 function fcDeadlockEligible() {
   for (let i = 0; i < 4; i++) if (!S.piles['c' + i].length) return false;
@@ -2013,11 +2040,15 @@ function fcDeadlockEligible() {
 }
 function lostKick() {
   const my = ++lostRun; lostVerdict = null;
-  if (!S || S.won || modalKind || !['klondike', 'yukon', 'freecell'].includes(S.mode)) return;
+  if (!S || S.won || modalKind || !['klondike', 'yukon', 'freecell', 'spider'].includes(S.mode)) return;
   let budget = LOST_BUDGET;
   if (S.mode === 'freecell') {
     if (!fcDeadlockEligible()) return;
     budget = FC_SOLVER_BUDGET;
+  } else if (S.mode === 'spider') {
+    if (S.piles.stock.length > 0) return;
+    let down = 0; for (let i = 0; i < def().cols; i++) for (const u of S.piles['t' + i]) if (!S.up[u]) down++;
+    if (down > LOST_SPIDER_FACEDOWN) return;
   } else {
     let down = 0; for (let i = 0; i < def().cols; i++) for (const u of S.piles['t' + i]) if (!S.up[u]) down++;
     if (down > LOST_FACEDOWN) return;
@@ -2025,10 +2056,11 @@ function lostKick() {
   const sv = makeSolver(S, budget, { verify: true });
   const tick = () => {
     if (lostRun !== my || !S) return;
-    const end = now() + 6; let r;
+    const end = now() + LOST_SLICE_MS; let r;
     do r = sv.step(25); while (r === 'more' && now() < end);
     if (r === 'more') return void setTimeout(tick, 0);
     lostVerdict = r;
+    if (r === 'won') curVerifiedLive = true;
     if (r === 'dead' && !lostWarned && !modalKind) { lostWarned = true; sfx('woodTap'); toast('No winning line left from here. Undo takes you back.', { minMs: 5500 }); }
     else if (r !== 'dead') lostWarned = false;
   };
@@ -2495,7 +2527,7 @@ function startDeal(mode, opts, deal, daily, winnable, grade) {
   const k = modeKey(mode, S.opts), dk = k + ':' + deal;
   if (meta.seenDeals.includes(dk) || meta.wonDeals.includes(dk) || meta.wonDeals.includes(mode + ':' + deal) || (!!daily && isDailyWon(meta.daily[daily + '|' + k]))) S.replay = true;
   pullbackHold.clear();
-  undoStack = []; redoStack = []; hintState = null; held = null; drag = null; clearHover(); cascade = null; cursor = { pile: null, depth: 0 }; clearStuck();
+  undoStack = []; redoStack = []; curVerifiedLive = !!winnable; hintState = null; held = null; drag = null; clearHover(); cascade = null; cursor = { pile: null, depth: 0 }; clearStuck();
   tabSuperseded = false; tabNoteHide();
   meta.lastMode = mode; meta.lastOpts = { draw: S.opts.draw, suits: S.opts.suits }; save('meta', meta);
   closeModal(); showTitle(false); tipHide(); tipGoalShown = null; tipSchedule(1650);
@@ -2700,6 +2732,7 @@ function validSnapshot(sn, c) {
   if (!['score', 'moves', 'recycles', 'runs'].every((k) => typeof sn[k] === 'number' && isFinite(sn[k]) && sn[k] >= 0)) return false;
   if (sn.rawScore !== undefined && !(typeof sn.rawScore === 'number' && isFinite(sn.rawScore))) return false;
   if (sn.won !== undefined && typeof sn.won !== 'boolean') return false;
+  if (sn.live !== undefined && typeof sn.live !== 'boolean') return false;
   return validPiles(sn.piles, c.state.mode, n);
 }
 function loadSaved() {
@@ -2715,7 +2748,7 @@ function resumeSaved() {
   clearWinTimers(); cancelAutoCues(); cancelBuzz(); clearCueCooldowns(); landCues.length = 0; flipQueue.length = 0; drawWaypoints = {};
   const prev = { S, undoStack, tabSuperseded };
   try {
-    S = c.state; undoStack = c.undo; redoStack = []; pullbackHold.clear(); clearTransientFx(false); hintState = null; held = null; drag = null; cascade = null; fitHold = 1; clearStuck();
+    S = c.state; undoStack = c.undo; redoStack = []; curVerifiedLive = !!(S.winnable && !S.started); pullbackHold.clear(); clearTransientFx(false); hintState = null; held = null; drag = null; cascade = null; fitHold = 1; clearStuck();
     if (typeof S.rawScore !== 'number' || !isFinite(S.rawScore)) S.rawScore = S.score;
     S.score = Math.max(0, S.rawScore);
     if (S.scoring !== undefined && !SETTING_ENUMS.scoring.includes(S.scoring)) S.scoring = settings.scoring;
@@ -7453,14 +7486,22 @@ const MODALS = {
   confirm: (d) => head(d.title) + '<p>' + d.text + '</p><div class="row"><button class="btn' + (d.danger ? ' danger' : ' solid') + '" data-a="yes">' + d.yes + '</button><button class="btn" data-close data-focus>Cancel</button></div>',
   fault: () => head('Something went wrong') + '<p>The table could not be drawn as it should, so it has been redrawn. Your game is still here.</p><p>If it keeps happening, clear the saved game and start again.</p>' +
     '<div class="row"><button class="btn solid" data-close data-focus>Carry on</button><button class="btn danger" data-a="resetSaved">Reset saved game</button></div>',
-  stuck: (d) => head('The waters have gone still') + '<p>Nothing left on the table leads anywhere; the moves that remain only shuffle cards about.</p>' +
-    (d.fact ? '<div class="fact"><div class="k">Did you know?</div><div class="q">' + esc(d.fact[1]) + '</div><div class="a">' + esc(d.fact[2]) + '</div><div>' + esc(d.fact[3]) + '</div><div class="src">Source: ' + esc(d.fact[4]) + '</div></div>' : '') + '<div class="row">' +
-    (undoStack.length ? '<button class="btn solid" data-a="undo" data-focus>Undo</button>' : '') +
-    '<button class="btn' + (undoStack.length ? '' : ' solid" data-focus="1') + '" data-a="restart">Restart this deal</button><button class="btn" data-a="new">New deal</button><button class="btn" data-close>Keep looking</button></div>',
+  stuck: (d) => {
+    const liveIdx = lastLiveUndoIndex(), hasDeepLive = liveIdx >= 0 && liveIdx < undoStack.length - 1;
+    const undoBtns = hasDeepLive
+      ? '<button class="btn solid" data-a="undoLive" data-focus>Undo to last open line</button><button class="btn" data-a="undo">Undo</button>'
+      : undoStack.length
+        ? '<button class="btn solid" data-a="undo" data-focus>' + (liveIdx === undoStack.length - 1 ? 'Undo to last open line' : 'Undo') + '</button>'
+        : '';
+    return head('The waters have gone still') + '<p>Nothing left on the table leads anywhere; the moves that remain only shuffle cards about.</p>' +
+      (d.fact ? '<div class="fact"><div class="k">Did you know?</div><div class="q">' + esc(d.fact[1]) + '</div><div class="a">' + esc(d.fact[2]) + '</div><div>' + esc(d.fact[3]) + '</div><div class="src">Source: ' + esc(d.fact[4]) + '</div></div>' : '') + '<div class="row">' +
+      undoBtns +
+      '<button class="btn' + (undoStack.length ? '' : ' solid" data-focus="1') + '" data-a="restart">Restart this deal</button><button class="btn" data-a="new">New deal</button><button class="btn" data-close>Keep looking</button></div>';
+  },
 };
 function doResetSaved() { // a table that will not come right: forget it and go back to the title
   clearTimeout(saveTimer); saveTimer = 0; clearWinTimers(); cancelAutoCues(); cancelBuzz(); clearCueCooldowns(); prevCanAuto = false; landCues.length = 0; flipQueue.length = 0; drawWaypoints = {}; clearStuck(); tipHide(); pullbackHold.clear(); clearTransientFx(false);
-  S = null; undoStack = []; redoStack = []; held = null; drag = null; clearHover(); cascade = null; hintState = null; lastWin = null;
+  S = null; undoStack = []; redoStack = []; curVerifiedLive = false; held = null; drag = null; clearHover(); cascade = null; hintState = null; lastWin = null;
   save('current', null); closeModal(false); showTitle(true); toast('Saved game cleared.');
 }
 function syncMuteUI() {
@@ -7495,7 +7536,7 @@ const ACTIONS = {
     setSetting('sound', !settings.sound);
     toast(settings.sound ? 'Sound on' : 'Sound muted');
   },
-  new: () => confirmAbandon({ mode: S ? S.mode : meta.lastMode }), restart: () => confirmAbandon(null, true), undo: () => { const fromStuck = modalKind === 'stuck'; closeModal(false); if (fromStuck) stuckSuppressed = true; undo(); },
+  new: () => confirmAbandon({ mode: S ? S.mode : meta.lastMode }), restart: () => confirmAbandon(null, true), undo: () => { const fromStuck = modalKind === 'stuck'; closeModal(false); if (fromStuck) stuckSuppressed = true; undo(); }, undoLive: () => { const fromStuck = modalKind === 'stuck'; closeModal(false); if (fromStuck) stuckSuppressed = true; undoToLastLive(); },
   deal: () => openModal('deal'), daily: () => openModal('daily'), title: () => { closeModal(false); showTitle(true); },
   backs: () => openModal('backs'), settings: () => openModal('settings'), ledger: () => openModal('ledger', { tab: 'overview' }), stats: () => openModal('ledger', { tab: 'games' }), records: () => openModal('ledger', { tab: 'overview' }), help: () => openModal('help'),
   tipsAgain: () => {
@@ -7906,7 +7947,7 @@ window.__game = {
     if (!S) return { scene: sceneName(), modal: modalKind, settings: Object.assign({}, settings) };
     return { scene: sceneName(), modal: modalKind, mode: S.mode, opts: Object.assign({}, S.opts), deal: S.deal, daily: S.daily, piles: notePiles(),
       score: S.score, rawScore: typeof S.rawScore === 'number' && isFinite(S.rawScore) ? S.rawScore : S.score, scoring: activeScoring(), moves: S.moves, elapsedMs: Math.round(S.elapsedMs), won: S.won, winnable: !!S.winnable, grade: S.winnable && Object.hasOwn(GRADE_RANK, S.grade) ? S.grade : '', started: S.started, canAutoComplete: canAutoComplete(),
-      undoDepth: undoStack.length, redoDepth: redoStack.length, replay: !!S.replay, finishing: !!(finishRun && winTimer), ceremony: !!cascade, held: held ? { from: held.from, index: held.index } : null, dropTarget: drag ? dropTarget(drag) : null, cursor: Object.assign({}, cursor),
+      undoDepth: undoStack.length, redoDepth: redoStack.length, lastLiveUndo: lastLiveUndoIndex(), curLive: curVerifiedLive, replay: !!S.replay, finishing: !!(finishRun && winTimer), ceremony: !!cascade, held: held ? { from: held.from, index: held.index } : null, dropTarget: drag ? dropTarget(drag) : null, cursor: Object.assign({}, cursor),
       settings: Object.assign({}, settings), stockCount: S.piles.stock ? S.piles.stock.length : 0, runs: S.runs, maxMove: S.mode === 'freecell' ? capacity(null) : null, stuck: stuckVerdict, lost: lostVerdict, hinting: !!hintJob, storageOK };
   },
   setState(s) {
@@ -7916,6 +7957,7 @@ window.__game = {
     st.cards = []; st.up = []; for (const id in st.piles) st.piles[id] = [];
     for (const id in s.piles || {}) { if (!st.piles[id]) continue; for (const n of s.piles[id]) { const c = parseNote(n); st.piles[id].push(st.cards.length); st.cards.push({ s: c.s, r: c.r }); st.up.push(c.up); } }
     st.initDown = downCount(st);
+    if (s.winnable != null) st.winnable = !!s.winnable;
     if (s.grade) { st.winnable = true; st.grade = s.grade; }
     if (s.replay != null) st.replay = !!s.replay;
     if (s.scoring && SETTING_ENUMS.scoring.includes(s.scoring)) st.scoring = s.scoring;
@@ -7923,7 +7965,7 @@ window.__game = {
     else if (s.score != null) { st.score = Math.max(0, s.score); st.rawScore = st.score; }
     if (s.moves != null) st.moves = s.moves;
     if (s.recycles != null) st.recycles = s.recycles;
-    S = st; clearTransientFx(false); undoStack = []; redoStack = []; pullbackHold.clear(); held = null; drag = null; clearHover(); cascade = null; hintState = null; lastWin = null; clearStuck();
+    S = st; clearTransientFx(false); undoStack = []; redoStack = []; curVerifiedLive = !!st.winnable; pullbackHold.clear(); held = null; drag = null; clearHover(); cascade = null; hintState = null; lastWin = null; clearStuck();
     clearWinTimers(); cancelAutoCues(); cancelBuzz(); clearCueCooldowns(); landCues.length = 0; flipQueue.length = 0; drawWaypoints = {};
     prevCanAuto = canAutoComplete(); lastCompletedSuits = completedSuits();
     closeModal(); showTitle(false, true); tipHide(); tipGoalShown = null; relayout(true); updateHUD(); markDirty();
@@ -8071,6 +8113,7 @@ window.__game = {
       case 'move': { const from = a[0], to = a[1]; const p = S.piles[from]; const idx = a[2] != null ? p.length - a[2] : p.length - 1; return tryMove(from, idx, to); }
       case 'draw': return stockAction();
       case 'undo': return undo();
+      case 'undoLive': return undoToLastLive();
       case 'redo': return redo();
       case 'hint': return hint();
       case 'checkStuck': clearTimeout(stuckTimer); stuckTimer = 0; return { ok: true, verdict: checkStuck() };
