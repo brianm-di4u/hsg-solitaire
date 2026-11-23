@@ -510,4 +510,54 @@ export const tests = [
       if (await prog.count()) t.equal((await prog.textContent()).trim(), '2 of 7 won · Full Bath ★', 'Back to today restores today progress count');
     },
   },
+  {
+    name: 'w2c W1-P-N04 Quick Dip and Steam Rush require unaided first-try wins and state unaided in Ledger descriptions',
+    async run(t) {
+      await baseSettings(t, { sound: false, motion: 'reduced', tips: false, scoring: 'standard' });
+      const winFast = async (patch, prep) => {
+        await t.game('setState', Object.assign(nearWinKlondike(), patch));
+        if (prep) await prep();
+        await t.game('act', 'move', 't0', 'f3');
+        await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 15000 });
+        return meta(t);
+      };
+
+      // 1. Fast Hint-assisted win must NOT earn Quick Dip, Steam Rush, or Own Two Hands (blocks solver-hint speedruns)
+      let m = await winFast({ deal: 811 }, async () => {
+        await t.game('act', 'hint');
+      });
+      t.expect(!!m.ach.first && !!m.ach.klon && !!m.ach.steady, 'Hint-assisted win still awards completion and Steady Hand');
+      t.expect(!m.ach.quick && !m.ach.rush && !m.ach.alone, 'Hint-assisted <1s win blocks quick, rush, and alone: ' + JSON.stringify(Object.keys(m.ach)));
+
+      // 2. Fast Undo-assisted win must NOT earn Quick Dip or Steam Rush
+      m = await winFast({ deal: 812 }, async () => {
+        await t.game('act', 'move', 't0', 't1');
+        await t.game('act', 'undo');
+      });
+      t.expect(!m.ach.quick && !m.ach.rush && !m.ach.alone, 'Undo-assisted <1s win blocks quick, rush, and alone: ' + JSON.stringify(Object.keys(m.ach)));
+
+      // 3. Retried fast win (no Undo/Hint) must NOT earn Quick Dip or Steam Rush (P-F03 / CD-WF1-06)
+      m = await winFast({ deal: 813, replay: true });
+      t.expect(!m.ach.quick && !m.ach.rush && !m.ach.alone, 'Retried <1s win blocks quick, rush, and alone: ' + JSON.stringify(Object.keys(m.ach)));
+
+      // 4. Clean unaided first-try fast win earns Quick Dip, Steam Rush, and Own Two Hands
+      m = await winFast({ deal: 814 });
+      t.expect(!!m.ach.quick && !!m.ach.rush && !!m.ach.alone, 'Clean unaided <1s win earns quick, rush, and alone: ' + JSON.stringify(Object.keys(m.ach)));
+
+      // 5. Ledger Achievements tab renders updated unaided descriptions cleanly
+      await t.game('scene', 'records');
+      await t.page.click('#ltab-ach');
+      const achText = await t.page.locator('#lpanel-ach').textContent();
+      t.expect(achText.includes('Quick Dip') && achText.includes('Win an unaided game in under five minutes.'), 'Quick Dip description states unaided win: ' + achText);
+      t.expect(achText.includes('Steam Rush') && achText.includes('Win an unaided game in under three minutes.'), 'Steam Rush description states unaided win: ' + achText);
+      if (t.viewport === 'desktop') await t.shot('w2c-W1-P-N04-ach-ledger', { fullPage: false });
+      await t.checkLayout({ allowScrollY: true });
+
+      // 6. Existing saves with previously earned quick/rush preserve them across reload
+      await put(t, { meta: Object.assign({}, OLD.meta, { ach: { quick: '2026-10-01', rush: '2026-10-01' } }) });
+      await reloadGame(t);
+      const preserved = await meta(t);
+      t.equal([preserved.ach.quick, preserved.ach.rush], ['2026-10-01', '2026-10-01'], 'Existing saves preserve previously earned quick and rush achievements');
+    },
+  },
 ];
