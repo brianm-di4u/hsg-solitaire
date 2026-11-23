@@ -24,7 +24,10 @@ export const tests = [
       t.equal(unknown, [], 'the game asks only for packed assets');
       await t.game('scene', 'backs');
       await t.waitForStable();
-      await t.shot('art-50-backs');
+      await t.waitForAnimations();
+      const modalOpacity = await t.page.evaluate(() => parseFloat(getComputedStyle(document.getElementById('modal')).opacity));
+      t.equal(modalOpacity, 1, 'Backs modal fade finished before art-50-backs capture');
+      await t.shot('art-50-backs', { animations: true });
       await t.game('newGame', { mode: 'freecell', deal: 1 });
       await t.shot('art-50-courts');
     },
