@@ -259,12 +259,12 @@ export const tests = [
       await t.game('act', 'move', 't0', 'f3');
       await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
       const lwRetried = await t.game('lastWin');
-      t.equal([lwRetried.alreadyWon, lwRetried.retried, lwRetried.effBonus], [false, true, 0], 'lastWin carries alreadyWon=false, retried=true, effBonus=0');
+      t.equal([lwRetried.alreadyWon, lwRetried.retried, lwRetried.effBonus], [false, true, 450], 'lastWin carries alreadyWon=false, retried=true, effBonus=450');
       const retTicket = await t.page.evaluate(() => ({
         meta: document.querySelector('#sheet .ticket .meta').textContent,
         punches: document.querySelectorAll('#sheet .ticket .punch').length,
       }));
-      t.expect(retTicket.meta.includes(' · retried') && !retTicket.meta.includes(' · replay') && !retTicket.meta.includes('efficiency'), 'retried first-ever Bath Ticket renders · retried without · replay: ' + retTicket.meta);
+      t.expect(retTicket.meta.includes(' · efficiency +450') && retTicket.meta.includes(' · retried') && !retTicket.meta.includes(' · replay'), 'retried first-ever Bath Ticket renders · efficiency +450 and · retried without · replay: ' + retTicket.meta);
       t.equal(retTicket.punches, 1, 'retried first-ever Bath Ticket is punched');
       await shot(t, 'W1-S5-05', 'ticket-retried');
       await t.game('scene', 'game');
@@ -282,7 +282,7 @@ export const tests = [
       await t.game('act', 'move', 't0', 'f3');
       await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
       const lwReplay = await t.game('lastWin');
-      t.equal([lwReplay.alreadyWon, lwReplay.retried, lwReplay.effBonus], [true, false, 0], 'lastWin carries alreadyWon=true, retried=false, effBonus=0');
+      t.equal([lwReplay.alreadyWon, lwReplay.retried, lwReplay.effBonus], [true, false, 450], 'lastWin carries alreadyWon=true, retried=false, effBonus=450');
       const repTicket = await t.page.evaluate(() => ({
         meta: document.querySelector('#sheet .ticket .meta').textContent,
         punches: document.querySelectorAll('#sheet .ticket .punch').length,
@@ -291,8 +291,8 @@ export const tests = [
       t.equal(repTicket.punches, 0, 'already-won Bath Ticket is unpunched');
       await shot(t, 'W1-S5-05', 'ticket-replay');
 
-      // 5. Fresh clean win keeps #replayTag hidden both before and after winning
-      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 903 }));
+      // 5. Fresh clean win keeps #replayTag hidden both before and after winning (at moves=220, zero efficiency tag omitted)
+      await t.game('setState', Object.assign(nearWinKlondike(), { deal: 903, moves: 219 }));
       t.equal((await rtag()).hidden, true, 'fresh deal 903 hides #replayTag');
       await t.game('act', 'move', 't0', 'f3');
       await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });

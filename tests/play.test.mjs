@@ -269,7 +269,7 @@ export const tests = [
       });
       // Wait: with waste=['KS','QS'] (QS is top of waste), QS plays directly -> f3 (+10, move 1), then KS is exposed on waste -> f3 (+10, move 2) -> no recycle needed.
       // To force a recycle inside autoComplete, put KS on top of waste and QS buried under KS in waste (waste=['QS','KS']), stock=[]:
-      // Recycle waste->stock (stock=['KS','QS'], QS on top! recycles 1->2 => -50 pts, move +1), draw QS (move +1), play QS (+10, move +1), draw KS (move +1), play KS (+10, move +1) => +5 moves, net -30 pts (score 70)!
+      // Recycle waste->stock (stock=['KS','QS'], QS on top! recycles 1->2 => -50 pts, move +1), draw QS (move +1), play QS waste->f3 (+15, move +1), draw KS (move +1), play KS waste->f3 (+15, move +1) => +5 moves (15), card pts 80 + Klondike Draw 1 efficiencyBonus(15)=450 => 530!
       await t.game('setState', {
         mode: 'klondike', opts: { draw: 1 }, score: 100, moves: 10, recycles: 1,
         piles: {
@@ -282,7 +282,7 @@ export const tests = [
       t.equal((await t.game('act', 'autoComplete')).ok, true, 'autoComplete succeeds');
       await t.page.waitForFunction(() => window.__game.getState().won, null, { timeout: 10000 });
       s = await t.state();
-      t.equal([s.moves, s.score, s.undoDepth], [15, 70, 1], 'autoComplete applies exact per-action moves (+5), Pass 2 recycle fee (-50 + 20 = 70), and single Undo snapshot');
+      t.equal([s.moves, s.score, s.undoDepth], [15, 530, 1], 'autoComplete applies exact per-action moves (+5), Pass 2 recycle fee (-50 + 30 direct waste->found = 80), Standard efficiency bonus (+450 = 530), and single Undo snapshot');
 
       // 3. Superseded async hint(true) never stamps S.assisted
       await t.game('setState', {

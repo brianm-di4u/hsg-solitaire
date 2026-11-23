@@ -1020,7 +1020,7 @@ function scoreMove(from, to, n, leadUid) {
     if (tk === 'found') addScore(10 * n, to, leadUid); else if (fk === 'found') addScore(-10 * n, to, leadUid);
     return;
   }
-  if (tk === 'found') addScore(10, to, leadUid);
+  if (tk === 'found') addScore(fk === 'waste' ? 15 : 10, to, leadUid);
   else if (fk === 'waste' && tk === 'tab') addScore(5, to, leadUid);
   else if (fk === 'found' && tk === 'tab') addScore(-15, to, leadUid);
 }
@@ -2379,6 +2379,17 @@ function pickFact(seed) {
   return i;
 }
 const timeBonus = (ms) => Math.max(0, Math.round(1000 - 2 * ms / 1000)); // what a win now would add: 1000 less 2 a second
+// Untimed Standard move-efficiency win bonus (W1-S2-01, OQ-WF6-01, CD-WF6-03, CD-WF1-02): strictly Standard non-Spider.
+const EFF_PAR = {
+  freecell:  { parCeil: 160, ptsPerMove: 5, maxBonus: 540 },
+  yukon:     { parCeil: 140, ptsPerMove: 5, maxBonus: 475 },
+  klondike1: { parCeil: 220, ptsPerMove: 3, maxBonus: 450 },
+  klondike3: { parCeil: 240, ptsPerMove: 3, maxBonus: 450 },
+};
+const efficiencyBonus = (k, moves) => {
+  const cfg = EFF_PAR[k];
+  return cfg && moves > 0 ? Math.max(0, Math.min(cfg.maxBonus, Math.round((cfg.parCeil - moves) * cfg.ptsPerMove))) : 0;
+};
 let lastWin = null;
 function onWin(delay) {
   loadArt(LATE_ART); // the ticket stock, ready long before the ceremony ends
@@ -2387,6 +2398,7 @@ function onWin(delay) {
   const scoring = settings.scoring, isTimed = S.mode !== 'spider' && scoring === 'timed', scoredMode = scoring !== 'none';
   let bonus = 0, effBonus = 0;
   if (isTimed) { bonus = timeBonus(S.elapsedMs); addScore(bonus); }
+  else if (S.mode !== 'spider' && scoring === 'standard' && S.moves > 0) { effBonus = efficiencyBonus(k, S.moves); if (effBonus > 0) addScore(effBonus); }
   // Orthogonal victory flags (W1-S4-02, CD-WF6-04, CD-WF1-06): first-ever retried wins (!alreadyWon) still advance
   // meta.totalWins, Bath Ticket punches, meta.gradeWins, UNLOCKS, completion/Daily ACH, and course/daily milestoneCue,
   // while streaks, PBs, pb/streak cues, and speed/unaided execution ACH remain strictly guarded against peeked restarts.
@@ -6956,7 +6968,7 @@ const MODALS = {
     return head('Settings') + tabBar('Settings sections', 'stab', 'spanel', 'stab', [['gameplay', 'Gameplay'], ['comfort', 'Table & Comfort'], ['audio', 'Audio']], tab) +
       '<div id="spanel-gameplay" role="tabpanel" aria-labelledby="stab-gameplay"' + (tab === 'gameplay' ? '' : ' hidden') + '>' +
         '<div class="set set-wide"><label id="lbl-dealFairness">Deal fairness<small id="desc-dealFairness">Fair, playable deals across all seven games—choose a challenge tier, or Classic Random for an open shuffle.</small></label>' + seg('dealFairness', [['winnable', 'Winnable (Any)'], ['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard'], ['random', 'Classic Random']], true, 'desc-dealFairness') + '</div>' +
-        '<div class="set"><label id="lbl-scoring">Scoring<small id="desc-scoring">Standard awards calm points with no countdown. Timed adds a win speed bonus. None hides the score.</small></label>' + seg('scoring', [['standard', 'Standard'], ['timed', 'Timed'], ['none', 'None']], false, 'desc-scoring') + '</div>' +
+        '<div class="set"><label id="lbl-scoring">Scoring<small id="desc-scoring">Standard awards calm points plus a move-efficiency win bonus, with no countdown. Timed adds a win speed bonus. None hides the score.</small></label>' + seg('scoring', [['standard', 'Standard'], ['timed', 'Timed'], ['none', 'None']], false, 'desc-scoring') + '</div>' +
         '<div class="set"><label id="lbl-autoFoundation">Auto-move to foundations<small id="desc-autoFoundation">Safe sends up only cards nothing else needs</small></label>' + seg('autoFoundation', [['off', 'Off'], ['safe', 'Safe'], ['all', 'All']], false, 'desc-autoFoundation') + '</div>' +
         '<div class="set set-wide"><label id="lbl-tapMove">Move a card by<small id="tapNote">' + TAP_NOTES[tapMode()] + '</small></label>' + seg('tapMove', [['tap', 'Tap'], ['double', 'Double-tap'], ['select', 'Select & place'], ['drag', 'Drag only']], true, 'tapNote') + '</div>' +
         '<div class="set"><label id="lbl-tips">Show tips<small id="desc-tips">Brief table notes while you play</small></label>' + tog('tips', 'Show tips', 'desc-tips') + '</div>' +
@@ -7081,7 +7093,7 @@ const MODALS = {
     '<tr><td><kbd>H</kbd> · <kbd>A</kbd> · <kbd>N</kbd></td><td>Hint (press again for the next) · Auto-complete / Bath Ticket · New deal</td></tr>' +
     '<tr><td><kbd>M</kbd> · <kbd>Esc</kbd> · <kbd>?</kbd></td><td>Mute or unmute sound · Menu (or put cards back) · This help</td></tr>' +
     '<tr><td>Gamepad</td><td>D-pad or left stick moves the cursor · <b>A</b> picks up or drops · <b>B</b> puts back, skips ceremony, or undoes · <b>X</b> hint · <b>Y</b> draw · <b>RB</b> auto-move · <b>LB</b> redo · <b>View/Back</b> finish · <b>Start</b> menu. In dialogs, D-pad steps through controls and scrolls automatically, right stick scrolls, and <b>A</b> presses.</td></tr></table>', '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h2M11 10h2M15 10h2M7 14h10"/>') +
-    hp('Scoring', null, '<p>Klondike and Yukon: +10 to a foundation, +5 waste to column, +5 for turning a card, −15 back from a foundation, and in Klondike a recycle penalty: turning the waste back over the first time is free, then each time costs 50 points (20 in Draw 3). FreeCell: +10 per card home. Spider starts at 500, −1 a move, +100 per completed run. Standard scoring (the default) awards card points at your own pace with no countdown; Timed scoring in Settings adds a speed bonus on a win in Klondike, Yukon and FreeCell (1000 − 2 × seconds; shown beside the Score when the timer is visible), and None hides the score. Best scores are kept separately for Standard and Timed play. Undo and Hint are always free; a game that used either shows a small tag ("undo used", "hint used") and counts as assisted. Streaks, bests and the 21-bath course count only first wins without them: replaying a deal you have won, or an assisted win, still counts as a win.</p>', '<path d="M12 3l2.4 5 5.6.8-4 3.9.9 5.5L12 15.6 7.1 18.2l.9-5.5-4-3.9 5.6-.8z"/>') +
+    hp('Scoring', null, '<p>Klondike and Yukon: +10 to a foundation (+15 straight from the waste), +5 waste to column, +5 for turning a card, −15 back from a foundation, and in Klondike a recycle penalty: turning the waste back over the first time is free, then each time costs 50 points (20 in Draw 3). FreeCell: +10 per card home. Spider starts at 500, −1 a move, +100 per completed run. Standard scoring (the default) awards card points plus an untimed efficiency bonus for fewer moves on a win in Klondike, Yukon and FreeCell, with no countdown; Timed scoring in Settings adds a speed bonus on a win in Klondike, Yukon and FreeCell (1000 − 2 × seconds; shown beside the Score when the timer is visible), and None hides the score. Best scores are kept separately for Standard and Timed play. Undo and Hint are always free; a game that used either shows a small tag ("undo used", "hint used") and counts as assisted. Streaks, bests and the 21-bath course count only first wins without them: replaying a deal you have won, or an assisted win, still counts as a win.</p>', '<path d="M12 3l2.4 5 5.6.8-4 3.9.9 5.5L12 15.6 7.1 18.2l.9-5.5-4-3.9 5.6-.8z"/>') +
     hp('About the art &amp; facts', null, '<p>Art: painted with AI image tools for this game. Every card back and table is an original Art Deco painting (shipped with the game as images) inspired by Hot Springs research notes: the Fordyce skylight and lozenge brick, the Quapaw dome and sculpin, Row ironwork, the Superior\'s medallions, Medical Arts Deco, the Ouachitas, thermal water and Lake Ouachita. Colors are estimates, so the designs are "inspired by". Court cards are invented 1920s archetypes (bath attendant, jockey, bellhop, saxophonist, promenade and evening ladies, card-room and racing gentlemen), not real people. The bath ticket and neon colors are invented designs. Win-screen facts are 50 hand-picked items, each with its source named on the card; the research notes behind them are kept outside this game. In the Valley of Vapors, patience is a virtue.</p>', '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>'),
   win: () => {
     const w = lastWin; if (!w) return head('Your bath is drawn');

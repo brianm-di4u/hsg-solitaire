@@ -483,10 +483,10 @@ export const tests = [
       await t.game('act', 'move', 't1', 'f3');
       await t.page.waitForFunction(() => window.__game.getState().scene === 'win', null, { timeout: 20000 });
       let st = (await t.game('stats')).klondike1;
-      t.equal([st.played, st.won, st.bestStandardScore], [1, 1, 30], 'finishing active deal records Won 1 of 1 and bestStandardScore=30');
+      t.equal([st.played, st.won, st.bestStandardScore], [1, 1, 480], 'finishing active deal records Won 1 of 1 and bestStandardScore=480 (30 card + 450 efficiency)');
       await t.game('scene', 'records');
       let rec = await t.page.locator('#sheet').textContent();
-      t.expect(rec.includes('Won 1 of 1') && rec.includes('score 30 (Standard)') && !rec.includes('score 0'), 'Records shows Won 1 of 1 and score 30 (Standard), never score 0: ' + rec.slice(0, 260));
+      t.expect(rec.includes('Won 1 of 1') && rec.includes('score 480 (Standard)') && !rec.includes('score 0'), 'Records shows Won 1 of 1 and score 480 (Standard), never score 0: ' + rec.slice(0, 260));
       // Win a second deal and check Win rate stays 100% (never 200%)
       await t.game('setState', Object.assign(nearWinKlondike(), { deal: 502, score: 40 }));
       await t.game('act', 'move', 't0', 'f3');
