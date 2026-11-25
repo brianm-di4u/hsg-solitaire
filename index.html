@@ -2804,12 +2804,77 @@ const artImg = (name) => art[name] || null;
 const courtSet = (set) => { const a = []; for (const s of 'cdhs') for (const r of 'jqk') a.push((set === 'painted' ? 'court-' : 'deco-') + r + s); return a; };
 const TITLE_HAND_COURTS = ['ks', 'qh', 'jc', 'qs', 'js', 'kh', 'qc'];
 // Vendored OFL fonts (assets/fonts.css, data URIs) must be ready before card sprites are baked.
+const FONT_FACES = ['700 20px "Josefin Sans"', '600 20px "Josefin Sans"', '20px Limelight', '700 20px "Libre Bodoni"'];
 let fontsPending = !!(document.fonts && document.fonts.load);
+let fontBakedKey = '', fontRebakePending = false, fontRebakeCount = 0;
+function fontLoadedKey() {
+  if (!document.fonts) return '';
+  const loaded = [];
+  for (const f of document.fonts) if (f.status === 'loaded') loaded.push(f.family.replace(/['"]/g, '') + ':' + f.weight + ':' + f.style);
+  return loaded.sort().join('|');
+}
+function fontRebakeBusy() {
+  return !!(drag || cascade || winTimer || finishRun || (S && tweensActive(now())));
+}
+function flushFontRebake() {
+  if (!fontRebakePending || fontRebakeBusy()) return false;
+  fontRebakePending = false;
+  const k = fontLoadedKey();
+  if (!k || k === fontBakedKey) return false;
+  fontBakedKey = k;
+  fontRebakeCount++;
+  sprites.clear(); handSprites.clear(); skyCacheKey = ''; tableDirty = true;
+  if (S && W) relayout(true);
+  artChanged();
+  if (S && W) markDirty();
+  if (titleOn) { drawSky(now()); paintHands(); syncTitleScrollCue(); }
+  if (modalKind === 'backs') paintPickers();
+  if (modalKind === 'daily' || modalKind === 'help') paintHands('#sheet');
+  return true;
+}
+function requestFontRebake() {
+  if (fontsPending) return;
+  const k = fontLoadedKey();
+  if (!k || k === fontBakedKey) return;
+  fontRebakePending = true;
+  if (!flushFontRebake() && S && W) startLoop();
+}
 if (fontsPending) {
   const css = document.getElementById('fontCss');
-  new Promise((res) => { if (!css || css.media === 'all') res(); else { css.addEventListener('load', () => setTimeout(res, 0)); css.addEventListener('error', res); } setTimeout(res, 4000); })
-    .then(() => Promise.all(['700 20px "Josefin Sans"', '600 20px "Josefin Sans"', '20px Limelight', '700 20px "Libre Bodoni"'].map((f) => document.fonts.load(f))))
-    .catch(() => {}).finally(() => { fontsPending = false; if (S && W) relayout(true); artChanged(); });
+  const loadFourFaces = () => Promise.all(FONT_FACES.map((f) => document.fonts.load(f))).catch(() => {});
+  let bootDone = false, cssLoaded = !css || css.media === 'all';
+  const onCssReady = () => {
+    if (css && css.media !== 'all') css.media = 'all';
+    cssLoaded = true;
+    if (bootDone) setTimeout(() => { loadFourFaces().then(() => requestFontRebake()); }, 0);
+  };
+  if (css && !cssLoaded) {
+    css.addEventListener('load', onCssReady, { once: true });
+    css.addEventListener('error', () => { cssLoaded = true; }, { once: true });
+  }
+  new Promise((res) => {
+    if (cssLoaded) { res(); return; }
+    let settled = false;
+    const done = () => { if (!settled) { settled = true; res(); } };
+    css.addEventListener('load', () => setTimeout(done, 0), { once: true });
+    css.addEventListener('error', done, { once: true });
+    setTimeout(done, 4000);
+  })
+    .then(() => loadFourFaces())
+    .finally(() => {
+      bootDone = true;
+      fontsPending = false;
+      fontBakedKey = fontLoadedKey();
+      if (S && W && !fontRebakeBusy()) relayout(true);
+      else if (S && W) fontRebakePending = true;
+      artChanged();
+      if (css && css.media === 'all' && !fontBakedKey) {
+        setTimeout(() => { loadFourFaces().then(() => requestFontRebake()); }, 0);
+      }
+    });
+  if (document.fonts.addEventListener) {
+    document.fonts.addEventListener('loadingdone', () => { if (bootDone) requestFontRebake(); });
+  }
 }
 const LATE_ART = ['ticket-stock']; // fetched once the first deal is on the table
 const BRASS_ART = ['brass-corner', 'brass-slot', 'brass-cell', 'brass-recycle', 'brass-frame']; // the frame is a CSS border-image; decoding it here warms the cache
@@ -4587,6 +4652,7 @@ function loop() {
       }
     }
   }
+  if (fontRebakePending && !fontRebakeBusy()) flushFontRebake();
   // frame() may already have queued the next frame (startLoop); never queue a second one
   if (!rafId && !titleOn && (tweensActive(t) || dragAnimating(t) || (held && !reducedMotion() && t < (held.t0 || 0) + 95) || (cascade && !cascade.calm) || steam.length || Object.keys(shakes).length || (!reducedMotion() && hintState && hintState.until > t))) rafId = requestAnimationFrame(loop);
 }
@@ -5326,7 +5392,7 @@ function drawCascade(t) {
   if (el > T2 + CER.spray + 900 || (c.sprayed >= c.parts.length && !c.fly.length && el > T2 + 600 && !c.flakes.length)) endCascade();
 }
 function endCascade() {
-  if (!cascade) return; if (cascade.timer) clearTimeout(cascade.timer); cascade = null; clearEchoes(); markDirty(); openModal('win');
+  if (!cascade) return; if (cascade.timer) clearTimeout(cascade.timer); cascade = null; clearEchoes(); markDirty(); openModal('win'); flushFontRebake();
 }
 
 // 11. Input: pointer (mouse, pen, touch) and keyboard
@@ -5411,6 +5477,7 @@ function cancelDrag() {
     d.arc = 0; d.spin = 0; d.back = true; d.fromLift = relLift; d.fromRot = relRot;
   });
   startLoop();
+  flushFontRebake();
 }
 cv.addEventListener('pointerdown', (e) => {
   initAudio();
@@ -5535,6 +5602,7 @@ function finishDrag() {
     dr.run.forEach((u) => { shakes[u] = t + Math.max(0, (D[u] ? D[u].dur : 0) - 60); });
   }
   deferLand = false; flushLandCues();
+  flushFontRebake();
   startLoop();
 }
 cv.addEventListener('pointerup', (e) => {
@@ -8236,7 +8304,7 @@ window.__game = {
     for (const k in shakes) if (t - shakes[k] >= 260) delete shakes[k];
     if (steam.length) steam = steam.filter((p) => t < p.t0 + p.life);
     // a table layer marked dirty is not idle until the next frame has drawn it (that gap let tests read the old table)
-    return !artPending && !artTick && !fontsPending && !(tableDirty && !titleOn && S && L && W) && !tweensActive(t) && !drag && !cascade && !winTimer && !steam.length && !Object.keys(shakes).length && t > modalAnimUntil;
+    return !artPending && !artTick && !fontsPending && !fontRebakePending && !(tableDirty && !titleOn && S && L && W) && !tweensActive(t) && !drag && !cascade && !winTimer && !steam.length && !Object.keys(shakes).length && t > modalAnimUntil;
   },
   facts: () => FACTS.map((f) => f.slice()),
   tipsCatalog: () => {
@@ -8269,7 +8337,7 @@ window.__game = {
     hasTrail: !!(cascade && cascade.trail), flyers: cascade && cascade.fly ? cascade.fly.length : 0,
     maxFly: CER.maxFly, sprites: sprites.size, skyCached: !!skyCache, loadedArt: Object.keys(art).length,
     audioTimer: !!(kit && kit.active),
-    hudTimer: !!hudTimer, padRaf: !!PAD.raf,
+    hudTimer: !!hudTimer, padRaf: !!PAD.raf, fontRebakes: fontRebakeCount,
   }),
   scene(name, data) {
     if (name === 'title') { closeModal(false); showTitle(true); }
