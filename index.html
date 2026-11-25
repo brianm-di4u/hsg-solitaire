@@ -5265,7 +5265,50 @@ function ambientSync() {
 // 10. Win ceremony: the cards gather into a rosette under a skylight glow, then spray out like a thermal
 // Retired offscreen cascade.trail in favor of <=160 pooled dt-exact echo stamps on #cv + dt-normalized emitters (CD-WF3-07, WF-4 §1.4 & §3.2).
 const CER = { gather: 950, hold: 650, spray: 2600, steamEvery: 90, stampR: .42, maxFly: 40, maxPuffs: 24, maxFlakes: 60 };
-function startCascade() {
+function shiftCascadeClock(c, delta) {
+  if (!c || !delta) return;
+  c.t0 += delta;
+  if (c.last != null) c.last += delta;
+  if (c.steamAt) c.steamAt += delta;
+  if (c.puffs) for (const q of c.puffs) q.t0 += delta;
+  if (c.flakes) for (const q of c.flakes) if (q.t0 != null) q.t0 += delta;
+  if (c.fly) for (const f of c.fly) if (f.sqAt) f.sqAt += delta;
+  for (let i = 0; i < MAX_ECHOES; i++) if (echoPool[i].active) echoPool[i].t0 += delta;
+}
+function planCascade(c) {
+  const { cw, ch } = L, n = Math.max(1, c.parts ? c.parts.length : 52), narrow = W < H;
+  const reach = Math.hypot(cw, ch) * .5 + 10;
+  c.cx = W / 2; c.cy = H * .5;
+  c.R = Math.max(ch, Math.min(W / 2, H / 2) - reach);
+  // Height-scaled gravity with a single 0.5 bounce (OD-W5-PLAN): keeps flights ~1.5 s on phones and Spider near ~7 s.
+  const gK = n > 60 ? 4.8 : 3.1;
+  c.grav = gK * Math.max(120, H);
+  c.vyMin = (narrow ? .10 : .18) * H;
+  c.vyMax = (narrow ? .26 : .40) * H;
+  const spanX = Math.min(W, H * 1.5);
+  c.vxMin = (narrow ? .09 : .16) * spanX;
+  c.vxMax = (narrow ? .25 : .40) * spanX;
+  c.restitution = .5;
+  c.floor = H - ch * .5 - 6;
+  c.exitY = H + Math.hypot(cw, ch) * .5 + 2;
+  const y0 = c.cy - c.R, tApex = c.vyMax / c.grav, yApex = y0 - (c.vyMax * c.vyMax) / (2 * c.grav);
+  const d1 = Math.max(0, c.floor - yApex), tFall1 = Math.sqrt((2 * d1) / c.grav);
+  const vReb = c.grav * tFall1 * c.restitution, dExit = Math.max(0, c.exitY - c.floor);
+  const tAfter = (vReb + Math.sqrt(vReb * vReb + 2 * c.grav * dExit)) / c.grav;
+  c.maxFlightMs = (tApex + tFall1 + tAfter) * 1000;
+  const boundMs = c.maxFlightMs * 1.04 + 35;
+  c.spacing = Math.max(34, (CER.spray * .6) / n, boundMs / (CER.maxFly - 2));
+  c.launchSpan = Math.max(CER.spray * .6, n * c.spacing);
+  const T2 = CER.gather + CER.hold;
+  c.glowFadeStart = T2 + c.launchSpan * .45;
+  c.glowFadeDur = Math.max(600, c.launchSpan * .53);
+  const stampCapEnd = n > 60 ? T2 + c.launchSpan * .92 : Math.min(T2 + c.launchSpan * .92, T2 + 1950);
+  c.stampFadeStart = Math.min(stampCapEnd - 450, T2 + Math.min(c.launchSpan * .40, 1050));
+  c.stampFadeDur = Math.max(450, stampCapEnd - c.stampFadeStart);
+  c.steamEnd = T2 + Math.min(c.launchSpan * .65, 1600);
+  c.watchdog = T2 + c.launchSpan + c.maxFlightMs * 2 + 2500;
+}
+function startCascade(silent) {
   if (!S) return;
   clearTransientFx(true);
   if (reducedMotion()) {
@@ -5294,9 +5337,14 @@ function startCascade() {
     parts.push(rawParts[i]);
     if (i + half < rawParts.length) parts.push(rawParts[i + half]);
   }
-  cascade = { t0: now(), last: now(), parts, gone: new Set(order), cx, cy, R, fly: [], puffs: [], flakes: [], sprayed: 0, steamed: 0, steamAt: 0, stampA: 0, floorSteamAcc: 0, flakeAcc: 0 };
-  sfx('deal'); sfx('gather'); startLoop();
-  const run = cascade; setTimeout(() => { if (cascade === run) sfx('spray'); }, CER.gather + CER.hold); // the spray starts when the rosette has held
+  const t0 = now();
+  cascade = { t0, last: t0, parts, gone: new Set(order), cx, cy, R, fly: [], puffs: [], flakes: [], sprayed: 0, steamed: 0, steamAt: 0, stampA: 0, floorSteamAcc: 0, flakeAcc: 0, nextLaunchEl: CER.gather + CER.hold };
+  planCascade(cascade);
+  if (!silent) { sfx('deal'); sfx('gather'); }
+  startLoop();
+  if (!silent) {
+    const run = cascade; setTimeout(() => { if (cascade === run) sfx('spray'); }, CER.gather + CER.hold); // the spray starts when the rosette has held
+  }
 }
 function drawCascade(t) {
   const c = cascade;
@@ -5312,7 +5360,7 @@ function drawCascade(t) {
   }
   const el = t - c.t0, dt = clamp((t - c.last) / 1000, 0, .05); c.last = t;
   const { cw, ch } = L, sc = Math.min(W, H) / 800, T1 = CER.gather, T2 = T1 + CER.hold;
-  const glowA = clamp(el / T1, 0, 1) * (el < T2 + 600 ? 1 : Math.max(0, 1 - (el - T2 - 600) / 900));
+  const glowA = clamp(el / T1, 0, 1) * (el < c.glowFadeStart ? 1 : Math.max(0, 1 - (el - c.glowFadeStart) / c.glowFadeDur));
   if (glowA > 0) {
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = glowA * (lowFx ? .38 : .55);
     const g = ctx.createRadialGradient(c.cx, c.cy, 0, c.cx, c.cy, c.R * 1.35);
@@ -5325,9 +5373,9 @@ function drawCascade(t) {
     ctx.restore();
   }
   { // the Spa City mark is stamped into the ring's centre as the cards gather, and steam rises from it while they turn
-    const k = clamp((el - T1 * .5) / (T1 * .5), 0, 1), out = el < T2 + 600 ? 1 : Math.max(0, 1 - (el - T2 - 600) / 900); c.stampA = k * out;
+    const k = clamp((el - T1 * .5) / (T1 * .5), 0, 1), out = el < c.stampFadeStart ? 1 : Math.max(0, 1 - (el - c.stampFadeStart) / c.stampFadeDur); c.stampA = k * out;
     if (c.stampA > 0) { const r = c.R * CER.stampR * (1 + .22 * (1 - easeBack(k))); feltEmblem(ctx, c.cx, c.cy + r * .225, r, '#F3DA92', false, 5.5 * c.stampA); }
-    if (!lowFx && el > T1 * .4 && el < T2 + 700 && t - c.steamAt >= CER.steamEvery && c.puffs.length < CER.maxPuffs) {
+    if (!lowFx && el > T1 * .4 && el < c.steamEnd && t - c.steamAt >= CER.steamEvery && c.puffs.length < CER.maxPuffs) {
       c.steamAt = t; c.steamed++; c.puffs.push({ x: c.cx + Math.sin(c.steamed * 2.3) * c.R * .3, y: c.cy + c.R * .15, t0: t, r: cw * (.38 + (c.steamed % 4) * .07) });
     }
   }
@@ -5346,21 +5394,18 @@ function drawCascade(t) {
     while (targetRot < -Math.PI) targetRot += Math.PI * 2;
     drawCardAt(p.u, x - cw / 2, y - ch / 2, t, Math.max(hump, .25), targetRot * e);
   }
-  if (el > T2) {
-    const due = Math.min(c.parts.length, Math.floor((el - T2) / (CER.spray * .6) * c.parts.length));
-    while (c.sprayed < due && c.fly.length < CER.maxFly) {
-      const p = c.parts[c.sprayed++]; p.flying = true; const a = p.a + spin, rr = c.R * p.rFrac;
-      const x = c.cx + Math.cos(a) * rr, y = c.cy + Math.sin(a) * rr, out = Math.cos(a) >= 0 ? 1 : -1;
-      const narrow = W < H; // portrait: fall mostly downward into the open felt
-      c.fly.push({ u: p.u, x, y, vx: out * (narrow ? 40 + Math.random() * 90 : 120 + Math.random() * 200) * sc, vy: (narrow ? -60 - Math.random() * 120 : -160 - Math.random() * 220) * sc, rot: a + Math.PI / 2, vr: out * (1.5 + Math.random() * 2), echoAcc: 0, bounces: 0, sqAt: 0 });
-    }
+  while (c.sprayed < c.parts.length && el >= c.nextLaunchEl && c.fly.length < CER.maxFly) {
+    const p = c.parts[c.sprayed++]; p.flying = true; c.nextLaunchEl += c.spacing;
+    const a = p.a + spin, rr = c.R * p.rFrac;
+    const x = c.cx + Math.cos(a) * rr, y = c.cy + Math.sin(a) * rr, out = Math.cos(a) >= 0 ? 1 : -1;
+    c.fly.push({ u: p.u, x, y, vx: out * (c.vxMin + Math.random() * (c.vxMax - c.vxMin)), vy: -(c.vyMin + Math.random() * (c.vyMax - c.vyMin)), rot: a + Math.PI / 2, vr: out * (1.5 + Math.random() * 2), echoAcc: 0, bounces: 0, sqAt: 0 });
   }
-  const grav = 1700 * sc, floor = H - ch * .5 - 6;
+  const rim = Math.hypot(cw, ch) * .5 + 4;
   for (const f of c.fly) {
-    f.vy += grav * dt; f.x += f.vx * dt; f.y += f.vy * dt; f.rot += f.vr * dt;
-    const rim = Math.hypot(cw, ch) * .5 + 4; if (f.x < rim) { f.x = rim; f.vx = Math.abs(f.vx) * .7; } else if (f.x > W - rim) { f.x = W - rim; f.vx = -Math.abs(f.vx) * .7; }
-    if (f.y > floor && f.vy > 0 && f.bounces < 3) {
-      f.y = floor; f.vy *= -(.62 - f.bounces * .1); f.vx *= .92; f.vr *= .7; f.bounces++; f.sqAt = t;
+    f.vy += c.grav * dt; f.x += f.vx * dt; f.y += f.vy * dt; f.rot += f.vr * dt;
+    if (f.x < rim) { f.x = rim; f.vx = Math.abs(f.vx) * .7; } else if (f.x > W - rim) { f.x = W - rim; f.vx = -Math.abs(f.vx) * .7; }
+    if (f.y > c.floor && f.vy > 0 && f.bounces < 1) {
+      f.y = c.floor; f.vy *= -c.restitution; f.vx *= .92; f.vr *= .7; f.bounces++; f.sqAt = t;
       if (!lowFx && c.puffs.length < CER.maxPuffs) c.puffs.push({ x: f.x, y: H - 4, t0: t, r: cw * (.42 + Math.random() * .24), floor: true });
     }
     if (!lowFx) {
@@ -5372,7 +5417,7 @@ function drawCascade(t) {
       }
     }
   }
-  c.fly = c.fly.filter((f) => f.y < H + ch * 1.5);
+  c.fly = c.fly.filter((f) => f.y < c.exitY);
   // Render <=160 pooled dt-exact echo stamps directly onto #cv at crisp DPR with smooth fade to 0.0 (CD-WF3-07).
   if (!lowFx) {
     ctx.save();
@@ -5394,7 +5439,7 @@ function drawCascade(t) {
     } else drawCardAt(f.u, f.x - cw / 2, f.y - ch / 2, t, .8, f.rot);
   }
   // dt-normalized floor vapor wisps (<=24 slender elliptical plumes, diameter <= 1.4*cw) & radial rosette foil flecks (<=60).
-  if (!lowFx && el > T2 && el < T2 + CER.spray) {
+  if (!lowFx && el > T2 && el < T2 + c.launchSpan) {
     c.floorSteamAcc += dt;
     while (c.floorSteamAcc >= .09) {
       c.floorSteamAcc -= .09;
@@ -5408,7 +5453,7 @@ function drawCascade(t) {
     ctx.drawImage(img, q.x + Math.sin(k * 4 + q.r) * 14 - r * .72, q.y - k * (q.floor ? H * .45 : ch * 1.6) - r * 1.15, r * 1.44, r * 2.3);
   }
   ctx.restore();
-  if (!lowFx && el > T2 - 120 && el < T2 + CER.spray * .65) {
+  if (!lowFx && el > T2 - 120 && el < T2 + c.launchSpan * .75) {
     c.flakeAcc += dt * 42;
     while (c.flakeAcc >= 1 && c.flakes.length < CER.maxFlakes) {
       c.flakeAcc -= 1;
@@ -5428,7 +5473,7 @@ function drawCascade(t) {
     ctx.fillRect(-q.w / 2, -q.w * .3, q.w, q.w * .6); ctx.restore();
   }
   c.flakes = c.flakes.filter((q) => t - q.t0 < q.life && q.y < H + 20 && q.x > -30 && q.x < W + 30);
-  if (el > T2 + CER.spray + 900 || (c.sprayed >= c.parts.length && !c.fly.length && el > T2 + 600)) endCascade();
+  if (el > c.watchdog || (c.sprayed >= c.parts.length && !c.fly.length && el > T2 + 600)) endCascade();
 }
 function endCascade() {
   if (!cascade) return; if (cascade.timer) clearTimeout(cascade.timer); cascade = null; clearEchoes(); markDirty(); openModal('win'); flushFontRebake();
@@ -8385,6 +8430,12 @@ window.__game = {
     maxFly: CER.maxFly, sprites: sprites.size, skyCached: !!skyCache, loadedArt: Object.keys(art).length,
     audioTimer: !!(kit && kit.active),
     hudTimer: !!hudTimer, padRaf: !!PAD.raf, fontRebakes: fontRebakeCount,
+    ceremony: cascade ? (cascade.calm ? { calm: true, el: Math.round(now() - cascade.t0) } : {
+      calm: false, spacing: +(cascade.spacing || 0).toFixed(2), launchSpan: Math.round(cascade.launchSpan || 0),
+      maxFlightMs: Math.round(cascade.maxFlightMs || 0), total: cascade.parts.length, launched: cascade.sprayed,
+      remaining: cascade.parts.length - cascade.sprayed, flyers: cascade.fly.length, flakes: cascade.flakes.length,
+      el: Math.round(cascade.last - cascade.t0),
+    }) : null,
   }),
   scene(name, data) {
     if (name === 'title') { closeModal(false); showTitle(true); }
@@ -8426,15 +8477,33 @@ window.__game = {
       case 'ceremonyAt': { // render the win ceremony exactly `ms` in, then hold that frame
         if (winTimer) { clearWinTimers(); cancelAutoCues(); }
         if (!cascade) startCascade(); if (!cascade) return { ok: false };
-        frozenAt = null; const c = cascade, t0 = c.t0, end = t0 + (+a[0] || 0);
-        for (let tt = t0; tt < end && cascade === c; tt += 16) frame(tt);
+        frozenAt = null;
+        let c = cascade;
+        const targetMs = +a[0] || 0, stepMs = +a[1] > 0 ? +a[1] : 16;
+        let end = c.t0 + targetMs;
+        if (end < c.last) { startCascade(true); if (!cascade) return { ok: false }; c = cascade; end = c.t0 + targetMs; }
+        let cur = c.last;
+        while (cur + stepMs < end - 1e-6 && cascade === c) { cur += stepMs; frame(cur); }
         if (cascade === c) frame(end);
         frozenAt = end;
         let flakeMaxAge = 0;
-        if (c.flakes) for (const q of c.flakes) if (q.t0 != null) flakeMaxAge = Math.max(flakeMaxAge, end - q.t0);
-        return { ok: true, steamed: c.steamed, stamp: +c.stampA.toFixed(2), flakes: c.flakes ? c.flakes.length : 0, flakeMaxAge: Math.round(flakeMaxAge), ended: cascade !== c };
+        if (c.flakes) for (const q of c.flakes) if (q.t0 != null) flakeMaxAge = Math.max(flakeMaxAge, c.last - q.t0);
+        return {
+          ok: true, steamed: c.steamed, stamp: +c.stampA.toFixed(2),
+          spacing: c.spacing ? +c.spacing.toFixed(2) : 0,
+          launchSpan: c.launchSpan ? Math.round(c.launchSpan) : 0,
+          maxFlightMs: c.maxFlightMs ? Math.round(c.maxFlightMs) : 0,
+          total: c.parts ? c.parts.length : 0,
+          launched: c.sprayed || 0,
+          remaining: c.parts ? c.parts.length - (c.sprayed || 0) : 0,
+          flyers: c.fly ? c.fly.length : 0,
+          flakes: c.flakes ? c.flakes.length : 0,
+          flakeMaxAge: Math.round(flakeMaxAge),
+          el: Math.round(c.last - c.t0),
+          ended: cascade !== c,
+        };
       }
-      case 'unfreeze': frozenAt = null; markDirty(); return { ok: true };
+      case 'unfreeze': if (cascade && frozenAt !== null) shiftCascadeClock(cascade, now() - frozenAt); frozenAt = null; markDirty(); return { ok: true };
       case 'skip': { const t = now(); cancelAutoCues(); if (S) for (let u = 0; u < S.cards.length; u++) if (D[u]) { D[u].t0 = Math.min(D[u].t0, t - 1e5); D[u].f0 = Math.min(D[u].f0, t - 1e5); D[u].via = null; } if (winTimer) { clearWinTimers(); startCascade(); } if (cascade) endCascade(); markDirty(); return { ok: true }; }
       default: return { ok: false, reason: 'unknown action' };
     }
