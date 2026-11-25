@@ -124,8 +124,13 @@ Pressing H again cycles through the hints. A press of the Hint button, H or the 
 
 **Auto-complete.** Klondike and Yukon offer it when no face-down tableau cards remain. FreeCell offers it
 when every column and cell is in descending order with no blockers. The loop plays foundation moves (and
-stock draws in Klondike) until the game is won or a full pass makes no progress. It is animated, and
-counts as one undo step.
+virtual stock draws/recycles in Klondike without adding animation stagger padding, while preserving exact
+move counts and recycle fees) until the game is won or a full pass makes no progress. Spider Finish staggers
+each completed run fanfare to its lift delay on the cancellable auto-cue bus (while player-triggered runs at
+`d = 0` sound immediately). Under Reduced Motion, Finish and autoplay wins skip `finishRun` and enter the
+calm emblem after the standard 250 ms beat. Rotating or resizing during a Finish run cancels pending chimes
+and enters the ceremony after the 250 ms beat; opening any modal (`openModal`) cleanly tears down an active
+Finish or ceremony so the Bath Ticket opens once. Auto-complete counts as one undo step.
 
 ## 4. Input
 
@@ -173,17 +178,35 @@ counts as one undo step.
 >   (`easeBack`). Flips foreshorten with a perspective shear and a sweeping sheen. A dragged run tilts with hand
 >   speed, wears a gold rim and leaves ghost copies on fast flicks. Gold glints play where a card lands on a
 >   foundation.
-> - **Win ceremony** (`startCascade` / `drawCascade`). The board fades and dims, then the cards gather into a rosette
->   under a skylight-coloured glow, hold, and peel off in bouncing arcs that stamp a fading trail, with steam and
->   brass confetti. Then the bath ticket rises and the next of the 21 holes is punched. `act('ceremonyAt', ms)`
->   freezes one exact frame for tests.
+> - **Win ceremony** (`startCascade` / `planCascade` / `drawCascade`). The board fades and dims, then the cards gather into a rosette
+>   (950 ms) under a skylight-coloured glow, hold (650 ms with a 130 ms radial inhale), and peel off in alternating
+>   opposing-halves arcs with height-scaled gravity (`4.0·H` for 52 cards, `4.8·H` for 104-card Spider) and a single
+>   0.5-restitution floor bounce, clearing the active list as soon as each card's rotated half-diagonal clears `H`.
+>   Launch spacing is derived from the live table's worst-case single-card flight bound so simultaneous flyers stay
+>   strictly below the 40-flyer safety cap (`<= 160` pooled echo stamps, no offscreen trail), with bounded 1.45–1.95 s
+>   fading foil flakes that never gate exit. Physics runs in fixed `<= 1/60 s` substeps on one unified ceremony clock
+>   (shifting timestamps across hidden tabs/stalls and firing `sfx('spray')` on clock crossing `T2`; reduced-motion's
+>   600 ms calm timer also pauses while hidden), and mid-ceremony resize/rotation rescales active flyers, clears stale
+>   echoes, and recomputes the flight bound. Then the bath ticket rises and the next of the 21 holes is punched.
+>   `act('ceremonyAt', ms, stepMs?)` steps and holds one exact frame for tests, returning spacing/launch/flyer/flake telemetry.
 > - **Indices.** Three bundled faces (`assets/fonts.css`): Libre Bodoni for indices, Josefin Sans for the UI,
->   Limelight for display. `idxScale` gives phones a jumbo index (46% of card width). The face-up fan step is never
->   smaller than the measured rank glyph (`indexBottom`). If a column can't fit at that step, `relayout` shrinks the
->   cards in 6% steps until it does.
+>   Limelight for display. `idxScale` gives phones a jumbo index (46% of card width, 52% Large). Corner ranks are
+>   placed from measured glyph ink (`measureCornerRank`/`drawCornerRank`) so overhanging glyphs (such as `J` and `A`)
+>   stay inside the card edge and Art Deco border cutouts; `wasteFanStep` widens horizontal Klondike Draw-3 waste
+>   fans to clear the widest rank ink within the empty adjacent slot. The face-up fan step is never smaller than the
+>   measured rank glyph (`indexBottom`). If a column can't fit at that step, `relayout` shrinks the cards in 6% steps
+>   until it does. If `assets/fonts.css` arrives after the 4 s startup timeout, cards, hands, and table slot letters
+>   rebake once on arrival (deferred until idle if a drag, deal/Finish, or ceremony is running).
 > - **Courts.** Two sets: `deco-*` (flat Art Deco, the default) and `court-*` (the v2 painted portraits), chosen by
->   the `courts` setting. Deco courts are full-bleed and double-ended, with feathered ivory corners under the
->   indices. On phones they show a head-and-shoulders cameo framed by `COURT_FOCUS`.
+>   the `courts` setting. Deco courts are full-bleed and double-ended, with feathered ivory corners sized to measured
+>   rank ink. Painted and vector court panels clamp their top inset below `indexBottom` plus half the gilded frame
+>   stroke so `Q` descenders clear cleanly in Large size while preserving Standard layout and bottom clearance. On
+>   phones (`small` cards), both Deco and Painted courts render a single upright head-and-shoulders portrait filling
+>   the lower panel without a center band, cover-fit and clamped via `COURT_FOCUS` / `COURT_MOB` so no cream void shows.
+> - **Pips & small-card center suits.** Large `9` and `10` open their vertical pip span and trim pip height slightly so
+>   side-column pips keep clear separation while staying `>= 4 px` clear of both corner indices (Standard unchanged).
+>   On small phone cards, the single center suit for `2–10` and the small Ace medallion sit in the lower ivory field
+>   strictly below portrait `fanUp` (`.46h` Standard, `.48h` Large) so buried tableau cards never poke slivers.
 > - **Low-end fallback.** A watchdog (an EMA of frame CPU over 12 ms) or `?fx=low` turns off glints, confetti,
 >   ceremony steam and the glow. `?art=0` still gives the full vector look.
 
@@ -272,3 +295,4 @@ this browser".
 | `cueTones(name, arg)`, `volumeGain(v, curve)`, `masterGain()`, `dailyDealFor(mode, opts, date)` | (wave 4, batch C) the pitch of every tone a cue starts, the gain a slider position gives on a curve, the live master gain, the deal a date gives |
 | `pad()`, `sky()`, `skyDue(t)`, `scoreFx()`, `glideOf(pile)`, `hintYields(reset)`, `hintCurrent()` | (wave 4) the gamepad poll count, the title sky loop (`running`, `frames`, `gap`), the sky's 30-a-second throttle, the floating score texts, the glide time of a pile's top card, how often the last hint search yielded, the hint on show |
 | `canvasFilter()`, `tableBlur(id, px)`, `backMean(seed)` | (wave 4) whether canvas filters exist, set a table's blur and redraw, the mean colour of the Skylight back for a deck seed |
+| `cardGeometry(w, h, large)` | corner index boxes, pip boxes, `courtFocus`, per-rank measured ink boxes (`rankInk`), and small-card center suit/ace bounds (`smallCenter`) |
