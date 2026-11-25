@@ -3170,10 +3170,11 @@ function drawCourtPanel(ctx, c, w, h, small, large) {
   const img = artImg(courtArt(c)), tall = img && !small;
   // Sliver-free panel inset: desktop y=0.31*h (ph=0.64*h), mobile y>=0.485*h clear of portrait fanUp (CD-WF1-07, W6-S4-04).
   const x = w * (small ? .09 : tall ? .075 : .14);
-  const mobTop = small ? Math.max(h * .485, indexBottom(w, h, large).full + h * .025) : 0;
-  const y = small ? mobTop : h * .31;
+  const ib = indexBottom(w, h, large).full;
+  const gildHalf = Math.max(1, w * .022) * .5;
+  const y = small ? Math.max(h * .485, ib + h * .025) : Math.max(h * .31, ib + gildHalf + Math.max(1.5, h * .012));
   const pw = w - 2 * x;
-  const ph = small ? Math.max(h * .44, h - y - h * .04) : h * (tall ? .64 : .54);
+  const ph = small ? Math.max(h * .44, h - y - h * .04) : (h * (tall ? .95 : .85) - y);
   ctx.save(); rrect(ctx, x, y, pw, ph, w * .04); ctx.clip();
   if (img) {
     const hh = ph / 2;
