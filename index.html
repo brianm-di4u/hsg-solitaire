@@ -3071,9 +3071,10 @@ function drawWasteMicroSuit(ctx, c, w, h, large, col) {
   ctx.restore();
 }
 function pipLayout(r, w, h, large) {
-  const ps = w * (r >= 9 ? .155 : .175);
+  // Large 9/10 open vertical span & slightly trim pip height so side-column pips clear >=2.5px at cw=100 while clearing corner indices >=4px (W5-F5).
+  const ps = w * (r >= 9 ? (large ? .148 : .155) : .175);
   const xs = { L: w * .305, C: w * .5, R: w * .695 };
-  const topF = large ? .41 : .375, spanF = large ? .335 : .365;
+  const topF = large ? (r >= 9 ? .398 : .41) : .375, spanF = large ? (r >= 9 ? .372 : .335) : .365;
   return (PIPS[r] || []).map(([cl, f]) => ({ x: xs[cl], y: h * (topF + f * spanF), size: ps, flip: f > .5 }));
 }
 function drawFace(ctx, c, w, h, large, wastePip) {
