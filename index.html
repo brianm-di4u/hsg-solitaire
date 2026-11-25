@@ -5314,8 +5314,8 @@ function planCascade(c) {
   const reach = Math.hypot(cw, ch) * .5 + 10;
   c.cx = W / 2; c.cy = H * .5;
   c.R = Math.max(ch, Math.min(W / 2, H / 2) - reach);
-  // Height-scaled gravity with a single 0.5 bounce (OD-W5-PLAN): keeps flights ~1.5 s on phones and Spider near ~7 s.
-  const gK = n > 60 ? 4.8 : 3.1;
+  // Height-scaled gravity with a single 0.5 bounce (OD-W5-PLAN): keeps 52-card flights ~1.3-1.5 s (desktop ~5.1 s) and Spider near ~6.5 s.
+  const gK = n > 60 ? 4.8 : 4.0;
   c.grav = gK * Math.max(120, H);
   c.vyMin = (narrow ? .10 : .18) * H;
   c.vyMax = (narrow ? .26 : .40) * H;

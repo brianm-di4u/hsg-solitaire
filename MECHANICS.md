@@ -180,7 +180,7 @@ Finish or ceremony so the Bath Ticket opens once. Auto-complete counts as one un
 >   foundation.
 > - **Win ceremony** (`startCascade` / `planCascade` / `drawCascade`). The board fades and dims, then the cards gather into a rosette
 >   (950 ms) under a skylight-coloured glow, hold (650 ms with a 130 ms radial inhale), and peel off in alternating
->   opposing-halves arcs with height-scaled gravity (`3.1·H` for 52 cards, `4.8·H` for 104-card Spider) and a single
+>   opposing-halves arcs with height-scaled gravity (`4.0·H` for 52 cards, `4.8·H` for 104-card Spider) and a single
 >   0.5-restitution floor bounce, clearing the active list as soon as each card's rotated half-diagonal clears `H`.
 >   Launch spacing is derived from the live table's worst-case single-card flight bound so simultaneous flyers stay
 >   strictly below the 40-flyer safety cap (`<= 160` pooled echo stamps, no offscreen trail), with bounded 1.45–1.95 s
