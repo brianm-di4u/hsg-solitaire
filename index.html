@@ -1321,7 +1321,7 @@ function stockAction() {
       if (L && L.piles.waste) {
         const fanN = S.opts.draw === 3 ? 3 : 1, start = Math.max(0, w.length - fanN), nSpan = Math.max(0, w.length - 1 - start);
         const down = L.arr === 'side', back = !down && L.piles.stock && L.piles.stock.x > L.piles.waste.x;
-        const step = L.cw * .27, vstep = Math.max(L.idxFull + 3, L.ch * .17);
+        const step = wasteFanStep(L), vstep = Math.max(L.idxFull + 3, L.ch * .17);
         drawn.forEach((u, i) => {
           const idx = w.length - n + i, j = Math.max(0, idx - start);
           drawWaypoints[u] = { x: L.piles.waste.x + (down ? 0 : back ? (j - nSpan) * step : j * step), y: L.piles.waste.y + (down ? j * vstep : 0), delay: i * FLIP_GAP_MS };
@@ -3055,10 +3055,11 @@ function drawCornerIndex(ctx, c, w, h, rs, ss, col, tight10) {
   drawSuit(ctx, c.s, w - w * (tight10 ? .06 : .07) - ss * .45, h * .03 + ss / 2 + rs * .1, ss, col);
 }
 function drawWasteMicroSuit(ctx, c, w, h, large, col) {
-  const small = w < 58, ms = w * (small ? .195 : .17), cx = w * (small ? .145 : .138);
+  const phoneJumbo = w < 70 && innerWidth < 560, small = w < 58 || phoneJumbo;
+  const ms = w * (small ? .195 : .17), cx = w * (small ? .145 : .138);
   const ib = indexBottom(w, h, large), cy = ib.full + Math.max(2, h * .018) + ms * .5;
   ctx.save();
-  ctx.beginPath(); ctx.rect(w * .03, ib.full, w * .22, h - ib.full - h * .04); ctx.clip();
+  ctx.beginPath(); ctx.rect(w * .03, ib.full, w * .32, h - ib.full - h * .04); ctx.clip();
   const rr = ms * .95, g = ctx.createRadialGradient(cx, cy, rr * .45, cx, cy, rr);
   g.addColorStop(0, 'rgba(250,245,234,.96)'); g.addColorStop(1, 'rgba(250,245,234,0)');
   ctx.fillStyle = g; ctx.fillRect(cx - rr, cy - rr, rr * 2, rr * 2);
@@ -4354,6 +4355,20 @@ function computeLayout(fit = 1) {
     fanUp: Math.max(ch * (portrait ? (largeIdx ? .48 : .46) : largeIdx ? .31 : .25), ch * .28, ib.full + 3), fanMin: ib.full + 1,
     idxFull: ib.full, idxCap: ib.cap, fanDown: ch * (portrait ? .27 : .14), downMin: ch * .06 };
 }
+function wasteFanStep(lay) {
+  const cw = lay.cw, ch = lay.ch, large = lay.largeIdx;
+  const phoneJumbo = cw < 70 && innerWidth < 560, tight10 = phoneJumbo && large;
+  const { rs: rsK } = idxScale(cw, large), rs = cw * rsK;
+  if (!idxMeasure) idxMeasure = document.createElement('canvas').getContext('2d');
+  let maxRight = 0;
+  for (const lab of ['10', 'K', 'Q', 'A', 'J']) {
+    const b = measureCornerRank(idxMeasure, lab, cw, ch, rs, tight10);
+    if (b.inkRight > maxRight) maxRight = b.inkRight;
+  }
+  const pad = Math.max(2, cw * .035);
+  const maxStep = (cw + Math.max(0, lay.gap)) / 2;
+  return Math.min(maxStep, Math.max(cw * .27, Math.ceil(maxRight + pad)));
+}
 function computeTargets() {
   const T = []; const { cw, ch } = L;
   for (const id in S.piles) {
@@ -4373,7 +4388,7 @@ function computeTargets() {
     } else if (k === 'waste') {
       const fanN = S.opts.draw === 3 ? 3 : 1; const start = Math.max(0, p.length - fanN), n = Math.max(0, p.length - 1 - start);
       const down = L.arr === 'side', back = !down && L.piles.stock && L.piles.stock.x > b.x;
-      const step = cw * .27, vstep = Math.max(L.idxFull + 3, ch * .17);
+      const step = wasteFanStep(L), vstep = Math.max(L.idxFull + 3, ch * .17);
       p.forEach((u, i) => {
         const j = Math.max(0, i - start), x = b.x + (down ? 0 : back ? (j - n) * step : j * step), y = b.y + (down ? j * vstep : 0);
         T[u] = { x, y, pile: id }; bm.cards.push({ x, y, w: cw, h: ch, up: true });

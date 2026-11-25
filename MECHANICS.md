@@ -178,12 +178,18 @@ counts as one undo step.
 >   brass confetti. Then the bath ticket rises and the next of the 21 holes is punched. `act('ceremonyAt', ms)`
 >   freezes one exact frame for tests.
 > - **Indices.** Three bundled faces (`assets/fonts.css`): Libre Bodoni for indices, Josefin Sans for the UI,
->   Limelight for display. `idxScale` gives phones a jumbo index (46% of card width). The face-up fan step is never
->   smaller than the measured rank glyph (`indexBottom`). If a column can't fit at that step, `relayout` shrinks the
->   cards in 6% steps until it does.
+>   Limelight for display. `idxScale` gives phones a jumbo index (46% of card width, 52% Large). Corner ranks are
+>   placed from measured glyph ink (`measureCornerRank`/`drawCornerRank`) so overhanging glyphs (such as `J` and `A`)
+>   stay inside the card edge and Art Deco border cutouts; `wasteFanStep` widens horizontal Klondike Draw-3 waste
+>   fans to clear the widest rank ink within the empty adjacent slot. The face-up fan step is never smaller than the
+>   measured rank glyph (`indexBottom`). If a column can't fit at that step, `relayout` shrinks the cards in 6% steps
+>   until it does. If `assets/fonts.css` arrives after the 4 s startup timeout, cards, hands, and table slot letters
+>   rebake once on arrival (deferred until idle if a drag, deal/Finish, or ceremony is running).
 > - **Courts.** Two sets: `deco-*` (flat Art Deco, the default) and `court-*` (the v2 painted portraits), chosen by
->   the `courts` setting. Deco courts are full-bleed and double-ended, with feathered ivory corners under the
->   indices. On phones they show a head-and-shoulders cameo framed by `COURT_FOCUS`.
+>   the `courts` setting. Deco courts are full-bleed and double-ended, with feathered ivory corners sized to measured
+>   rank ink. Painted and vector court panels clamp their top inset below `indexBottom` plus half the gilded frame
+>   stroke so `Q` descenders clear cleanly in Large size while preserving Standard layout and bottom clearance. On
+>   phones they show a head-and-shoulders cameo framed by `COURT_FOCUS`.
 > - **Low-end fallback.** A watchdog (an EMA of frame CPU over 12 ms) or `?fx=low` turns off glints, confetti,
 >   ceremony steam and the glow. `?art=0` still gives the full vector look.
 
@@ -272,3 +278,4 @@ this browser".
 | `cueTones(name, arg)`, `volumeGain(v, curve)`, `masterGain()`, `dailyDealFor(mode, opts, date)` | (wave 4, batch C) the pitch of every tone a cue starts, the gain a slider position gives on a curve, the live master gain, the deal a date gives |
 | `pad()`, `sky()`, `skyDue(t)`, `scoreFx()`, `glideOf(pile)`, `hintYields(reset)`, `hintCurrent()` | (wave 4) the gamepad poll count, the title sky loop (`running`, `frames`, `gap`), the sky's 30-a-second throttle, the floating score texts, the glide time of a pile's top card, how often the last hint search yielded, the hint on show |
 | `canvasFilter()`, `tableBlur(id, px)`, `backMean(seed)` | (wave 4) whether canvas filters exist, set a table's blur and redraw, the mean colour of the Skylight back for a deck seed |
+| `cardGeometry(w, h, large)` | corner index boxes, pip boxes, `courtFocus`, and per-rank measured ink boxes (`rankInk`) |
