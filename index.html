@@ -7136,7 +7136,14 @@ const backToTable = (e) => { if (e.detail > 0 && !modalKind && !titleOn) cv.focu
 $('#bUndo').onclick = (e) => { initAudio(); undo(); backToTable(e); };
 $('#bRedo').onclick = (e) => { initAudio(); redo(); backToTable(e); };
 $('#bHint').onclick = (e) => { initAudio(); hint(true); backToTable(e); };
-$('#bAuto').onclick = (e) => { initAudio(); if (S && S.won && lastWin) { openModal('win'); return; } autoComplete(); backToTable(e); };
+$('#bAuto').onclick = (e) => {
+  initAudio();
+  if (cascade) { endCascade(); return; }
+  if (finishRun && winTimer) { skipFinish(); backToTable(e); return; }
+  if (finishSkipped && winTimer) { clearWinTimers(); musicHush = false; syncAudio(); openModal('win'); return; }
+  if (S && S.won && lastWin) { openModal('win'); return; }
+  autoComplete(); backToTable(e);
+};
 $('#assistTag').onclick = (e) => { toast(ASSISTED_NOTE); backToTable(e); };
 $('#replayTag').onclick = (e) => { const aw = S && (S.won ? !!(lastWin && lastWin.alreadyWon) : isDealAlreadyWon()); toast(aw ? REPLAY_NOTE : RETRIED_NOTE); backToTable(e); };
 $('#bMenu').onclick = () => { initAudio(); openModal('menu'); };
@@ -7387,10 +7394,18 @@ function openModal(kind, data, opts) {
   clearModalExit(); clearHover(); cancelDrag(); tickClock(); tipHide();
   if (kind === 'stats') { kind = 'ledger'; data = Object.assign({ tab: 'games' }, data || {}); }
   else if (kind === 'records') { kind = 'ledger'; data = Object.assign({ tab: 'overview' }, data || {}); }
-  if (kind !== 'win' && (winTimer || cascade)) {
+  if (winTimer || cascade || finishRun) {
+    const snapCards = !!(finishRun || winTimer);
     clearWinTimers(); cancelAutoCues();
-    if (cascade) { if (cascade.timer) clearTimeout(cascade.timer); cascade = null; }
-    musicHush = false;
+    if (snapCards && S) {
+      const t = now();
+      for (let u = 0; u < S.cards.length; u++) if (D[u]) { D[u].t0 = Math.min(D[u].t0, t - 1e5); D[u].f0 = Math.min(D[u].f0, t - 1e5); D[u].via = null; }
+      landFx = []; scoreFx = [];
+    }
+    if (cascade) { if (cascade.timer) clearTimeout(cascade.timer); cascade = null; clearEchoes(); }
+    markDirty();
+    if (kind !== 'win') musicHush = false;
+    flushFontRebake();
   }
   if (!modalKind && !(opts && opts.replace)) {
     const ae = document.activeElement;
