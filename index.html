@@ -3077,6 +3077,7 @@ function pipLayout(r, w, h, large) {
   const topF = large ? (r >= 9 ? .398 : .41) : .375, spanF = large ? (r >= 9 ? .372 : .335) : .365;
   return (PIPS[r] || []).map(([cl, f]) => ({ x: xs[cl], y: h * (topF + f * spanF), size: ps, flip: f > .5 }));
 }
+const SMALL_CENTER = { suitCy: .715, suitK: .48, aceCy: .735, aceK: .48, aceMed: 1.24 };
 function drawFace(ctx, c, w, h, large, wastePip) {
   const col = suitColor(c.s);
   cardStock(ctx, w, h);
@@ -3099,7 +3100,7 @@ function drawFace(ctx, c, w, h, large, wastePip) {
     }
     if (c.r > 10) drawCourtPanel(ctx, c, w, h, small, large);
     else if (c.r === 1) drawAce(ctx, c, w, h, small);
-    else if (small) drawSuit(ctx, c.s, w * .5, h * .64, w * .52, col);
+    else if (small) drawSuit(ctx, c.s, w * .5, h * SMALL_CENTER.suitCy, w * SMALL_CENTER.suitK, col);
     else {
       for (const p of pipLayout(c.r, w, h, large)) drawSuit(ctx, c.s, p.x, p.y, p.size, col, p.flip);
     }
@@ -3120,9 +3121,9 @@ function cardStock(ctx, w, h, back = false) {
 
 function drawAce(ctx, c, w, h, small) {
   const col = suitColor(c.s);
-  const size = w * .5; const cx = w / 2, cy = h * (small ? .71 : .6);
+  const size = w * (small ? SMALL_CENTER.aceK : .5); const cx = w / 2, cy = h * (small ? SMALL_CENTER.aceCy : .6);
   const med = artImg('ace-medallion');
-  if (med) { const ms = size * (small ? 1.32 : 1.75); ctx.save(); ctx.globalAlpha = .92; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(med, cx - ms / 2, cy - ms / 2 - (small ? 0 : size * .02), ms, ms); ctx.restore(); }
+  if (med) { const ms = size * (small ? SMALL_CENTER.aceMed : 1.75); ctx.save(); ctx.globalAlpha = .92; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(med, cx - ms / 2, cy - ms / 2 - (small ? 0 : size * .02), ms, ms); ctx.restore(); }
   // Ivory buffer halo separates black A-club / A-spade cleanly from ace-medallion's dark jade ring down to 35 px phone width (W6-S4-06).
   ctx.save(); ctx.translate(cx, cy);
   suitPath(ctx, c.s, -size * .45, -size / 2, size * .9, size);
@@ -8306,7 +8307,14 @@ window.__game = {
         bot: { x: w - bot.inkRight, y: h - bot.inkBottom, w: bot.inkRight - bot.inkLeft, h: bot.inkBottom - bot.inkTop, drawX: w - bot.x, shift: bot.shift },
       };
     }
-    return { w, h, large: !!large, topBoxes, botBoxes, ranks, rankInk, courtFocus: Object.assign({}, COURT_FOCUS) };
+    const suitSz = w * SMALL_CENTER.suitK, aceSz = w * SMALL_CENTER.aceK, aceMedSz = aceSz * SMALL_CENTER.aceMed;
+    const smallCenter = {
+      suitCy: h * SMALL_CENTER.suitCy, suitSize: suitSz,
+      suitTop: h * SMALL_CENTER.suitCy - suitSz / 2, suitBot: h * SMALL_CENTER.suitCy + suitSz / 2,
+      aceCy: h * SMALL_CENTER.aceCy, aceSize: aceSz, aceMedSize: aceMedSz,
+      aceTop: h * SMALL_CENTER.aceCy - aceMedSz / 2, aceBot: h * SMALL_CENTER.aceCy + aceMedSz / 2,
+    };
+    return { w, h, large: !!large, topBoxes, botBoxes, ranks, rankInk, smallCenter, courtFocus: Object.assign({}, COURT_FOCUS) };
   },
   cuesPlayed(clear) { const r = CUE_LOG.slice(); if (clear) { CUE_LOG.length = 0; clearCueCooldowns(); } return r; },
   frameStats(reset) {
