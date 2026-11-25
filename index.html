@@ -1218,7 +1218,7 @@ function afterAction(opts = {}) {
   let d = settleTableau(opts.delay || 0);
   if (!opts.noAutoplay) d = autoplay(d + (opts.delay ? 0 : 120));
   hintState = null;
-  if (!S.won && isWon()) { S.won = true; finishRun = d > 300; onWin(d); }
+  if (!S.won && isWon()) { const rm = reducedMotion(); S.won = true; finishRun = !rm && d > 300; onWin(rm ? 0 : d); }
   if (flipQueue.length) {
     for (const u of flipQueue) cueOnLand('flip', undefined, pilePan(pileOf(u)), u, true, 'flip');
     flipQueue.length = 0;
@@ -2106,7 +2106,7 @@ function autoComplete() {
       d = settleTableau(d);
     }
     if (d > 300) sfx('deal');
-    if (!S.won && isWon()) { S.won = true; finishRun = d > 300; onWin(d); }
+    if (!S.won && isWon()) { const rm = reducedMotion(); S.won = true; finishRun = !rm && d > 300; onWin(rm ? 0 : d); }
     relayout(); flushLandCues(); updateHUD(); scheduleSave(); scheduleStuckCheck();
     return { ok: true };
   }
@@ -2136,7 +2136,7 @@ function autoComplete() {
     } else if (!moved) break;
   }
   if (d > 300) sfx('deal');
-  if (!S.won && isWon()) { S.won = true; finishRun = d > 300; onWin(d); }
+  if (!S.won && isWon()) { const rm = reducedMotion(); S.won = true; finishRun = !rm && d > 300; onWin(rm ? 0 : d); }
   relayout(); flushLandCues(); updateHUD(); scheduleSave(); scheduleStuckCheck();
   return { ok: true };
 }
@@ -2693,7 +2693,7 @@ function onWin(delay) {
     best: beaten, totalWins: meta.totalWins, streak: clean ? st.streak : 0, assisted: S.assisted, replay, alreadyWon, retried, fact: FACTS[factIdx] };
   syncMusicIntensity();
   announce(scoring === 'none' ? 'You won!' : 'You won! Score ' + S.score);
-  winTimer = setTimeout(ceremony, Math.max(250, delay + 260));
+  winTimer = setTimeout(ceremony, reducedMotion() ? 250 : Math.max(250, delay + 260));
 }
 // The one cue the win sheet adds for what the win earned: a whole course of baths or a daily, then a new personal best, then three or more wins in a row.
 function milestoneCue(w) {
