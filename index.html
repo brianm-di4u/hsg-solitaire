@@ -4909,6 +4909,7 @@ function frame(t) {
   for (const k in shakes) if (t - shakes[k] >= 260) delete shakes[k];
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
   const { cw, ch } = L;
+  if (cascade && !cascade.calm) syncCascadeClock(t);
   const cerK = cascade ? (cascade.calm ? 1 : clamp((t - cascade.t0) / 350, 0, 1)) : 0;
   // Crossfade static #tbl watermark/skyline out smoothly during rosette ceremonies so Spa City never double-ghosts on desktop or mobile (W6-S4-03).
   if (cerK > 0 && cascade && placeDrawn && (placeDrawn.emblem || placeDrawn.skyline)) {
@@ -5265,6 +5266,7 @@ function ambientSync() {
 // 10. Win ceremony: the cards gather into a rosette under a skylight glow, then spray out like a thermal
 // Retired offscreen cascade.trail in favor of <=160 pooled dt-exact echo stamps on #cv + dt-normalized emitters (CD-WF3-07, WF-4 §1.4 & §3.2).
 const CER = { gather: 950, hold: 650, spray: 2600, steamEvery: 90, stampR: .42, maxFly: 40, maxPuffs: 24, maxFlakes: 60 };
+const CER_MAX_FRAME_MS = 120, CER_SUB_MS = 1000 / 60;
 function shiftCascadeClock(c, delta) {
   if (!c || !delta) return;
   c.t0 += delta;
@@ -5274,6 +5276,15 @@ function shiftCascadeClock(c, delta) {
   if (c.flakes) for (const q of c.flakes) if (q.t0 != null) q.t0 += delta;
   if (c.fly) for (const f of c.fly) if (f.sqAt) f.sqAt += delta;
   for (let i = 0; i < MAX_ECHOES; i++) if (echoPool[i].active) echoPool[i].t0 += delta;
+}
+function syncCascadeClock(t) {
+  const c = cascade; if (!c || c.calm) return;
+  const raw = t - c.last;
+  if (c.hiddenAt != null || document.hidden) {
+    if (raw > 0) shiftCascadeClock(c, raw);
+  } else if (raw > CER_MAX_FRAME_MS) {
+    shiftCascadeClock(c, raw - CER_SUB_MS);
+  }
 }
 function planCascade(c) {
   const { cw, ch } = L, n = Math.max(1, c.parts ? c.parts.length : 52), narrow = W < H;
@@ -5313,9 +5324,13 @@ function startCascade(silent) {
   clearTransientFx(true);
   if (reducedMotion()) {
     const cx = W / 2, cy = H * .5, reach = Math.hypot(L.cw, L.ch) * .5 + 10, R = Math.max(L.ch, Math.min(W / 2, H / 2) - reach);
-    const run = { calm: true, t0: now(), cx, cy, R, gone: new Set(), stampA: 1, steamed: 0, timer: 0 };
+    const t0 = now();
+    const run = { calm: true, t0, cx, cy, R, gone: new Set(), stampA: 1, steamed: 0, timer: 0, calmRem: 600, calmEnd: 0 };
     cascade = run;
-    run.timer = setTimeout(() => { if (cascade === run) endCascade(); }, 600);
+    if (!document.hidden) {
+      run.calmEnd = t0 + 600;
+      run.timer = setTimeout(() => { if (cascade === run) endCascade(); }, 600);
+    }
     markDirty();
     return;
   }
@@ -5338,13 +5353,10 @@ function startCascade(silent) {
     if (i + half < rawParts.length) parts.push(rawParts[i + half]);
   }
   const t0 = now();
-  cascade = { t0, last: t0, parts, gone: new Set(order), cx, cy, R, fly: [], puffs: [], flakes: [], sprayed: 0, steamed: 0, steamAt: 0, stampA: 0, floorSteamAcc: 0, flakeAcc: 0, nextLaunchEl: CER.gather + CER.hold };
+  cascade = { t0, last: t0, parts, gone: new Set(order), cx, cy, R, fly: [], puffs: [], flakes: [], sprayed: 0, steamed: 0, steamAt: 0, stampA: 0, floorSteamAcc: 0, flakeAcc: 0, nextLaunchEl: CER.gather + CER.hold, sprayPlayed: !!silent, hiddenAt: document.hidden ? t0 : null };
   planCascade(cascade);
   if (!silent) { sfx('deal'); sfx('gather'); }
   startLoop();
-  if (!silent) {
-    const run = cascade; setTimeout(() => { if (cascade === run) sfx('spray'); }, CER.gather + CER.hold); // the spray starts when the rosette has held
-  }
 }
 function drawCascade(t) {
   const c = cascade;
@@ -5358,8 +5370,69 @@ function drawCascade(t) {
     feltEmblem(ctx, c.cx, c.cy + r * .225, r, '#F3DA92', false, 5.5);
     return;
   }
-  const el = t - c.t0, dt = clamp((t - c.last) / 1000, 0, .05); c.last = t;
+  syncCascadeClock(t);
   const { cw, ch } = L, sc = Math.min(W, H) / 800, T1 = CER.gather, T2 = T1 + CER.hold;
+  const rim = Math.hypot(cw, ch) * .5 + 4;
+  const paused = c.hiddenAt != null || document.hidden;
+  const startLast = c.last, rawMs = paused ? 0 : Math.max(0, t - startLast);
+  if (rawMs > 0) {
+    const steps = Math.max(1, Math.ceil(rawMs / CER_SUB_MS));
+    const stepMs = rawMs / steps, stepDt = stepMs / 1000, dragFlake = Math.pow(.95, stepDt * 60);
+    for (let s = 1; s <= steps; s++) {
+      const subT = startLast + stepMs * s, subEl = subT - c.t0;
+      const subSpin = subEl > T1 ? (subEl - T1) / 5200 : 0;
+      if (!c.sprayPlayed && subEl >= T2 && !document.hidden) { c.sprayPlayed = true; sfx('spray'); }
+      if (!lowFx && subEl > T1 * .4 && subEl < c.steamEnd && subT - c.steamAt >= CER.steamEvery && c.puffs.length < CER.maxPuffs) {
+        c.steamAt = subT; c.steamed++; c.puffs.push({ x: c.cx + Math.sin(c.steamed * 2.3) * c.R * .3, y: c.cy + c.R * .15, t0: subT, r: cw * (.38 + (c.steamed % 4) * .07) });
+      }
+      while (c.sprayed < c.parts.length && subEl >= c.nextLaunchEl && c.fly.length < CER.maxFly) {
+        const p = c.parts[c.sprayed++]; p.flying = true; c.nextLaunchEl += c.spacing;
+        const a = p.a + subSpin, rr = c.R * p.rFrac;
+        const x = c.cx + Math.cos(a) * rr, y = c.cy + Math.sin(a) * rr, out = Math.cos(a) >= 0 ? 1 : -1;
+        c.fly.push({ u: p.u, x, y, vx: out * (c.vxMin + Math.random() * (c.vxMax - c.vxMin)), vy: -(c.vyMin + Math.random() * (c.vyMax - c.vyMin)), rot: a + Math.PI / 2, vr: out * (1.5 + Math.random() * 2), echoAcc: 0, bounces: 0, sqAt: 0 });
+      }
+      for (const f of c.fly) {
+        f.vy += c.grav * stepDt; f.x += f.vx * stepDt; f.y += f.vy * stepDt; f.rot += f.vr * stepDt;
+        if (f.x < rim) { f.x = rim; f.vx = Math.abs(f.vx) * .7; } else if (f.x > W - rim) { f.x = W - rim; f.vx = -Math.abs(f.vx) * .7; }
+        if (f.y > c.floor && f.vy > 0 && f.bounces < 1) {
+          f.y = c.floor; f.vy *= -c.restitution; f.vx *= .92; f.vr *= .7; f.bounces++; f.sqAt = subT;
+          if (!lowFx && c.puffs.length < CER.maxPuffs) c.puffs.push({ x: f.x, y: H - 4, t0: subT, r: cw * (.42 + Math.random() * .24), floor: true });
+        }
+        if (!lowFx) {
+          f.echoAcc += stepDt;
+          if (f.echoAcc >= ECHO_EVERY) {
+            f.echoAcc -= ECHO_EVERY;
+            const ep = echoPool[echoCursor]; echoCursor = (echoCursor + 1) % MAX_ECHOES;
+            ep.active = true; ep.u = f.u; ep.x = f.x; ep.y = f.y; ep.rot = f.rot; ep.t0 = subT;
+          }
+        }
+      }
+      c.fly = c.fly.filter((f) => f.y < c.exitY);
+      if (!lowFx && subEl > T2 && subEl < T2 + c.launchSpan) {
+        c.floorSteamAcc += stepDt;
+        while (c.floorSteamAcc >= .09) {
+          c.floorSteamAcc -= .09;
+          if (c.puffs.length < CER.maxPuffs) c.puffs.push({ x: Math.random() * W, y: H + 10, t0: subT, r: cw * (.45 + Math.random() * .25), floor: true });
+        }
+      }
+      if (!lowFx && subEl > T2 - 120 && subEl < T2 + c.launchSpan * .75) {
+        c.flakeAcc += stepDt * 42;
+        while (c.flakeAcc >= 1 && c.flakes.length < CER.maxFlakes) {
+          c.flakeAcc -= 1;
+          const a = Math.random() * Math.PI * 2, spd = (110 + Math.random() * 190) * sc;
+          c.flakes.push({ x: c.cx + Math.cos(a) * c.R * .85, y: c.cy + Math.sin(a) * c.R * .85, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd - 90 * sc, ph: Math.random() * 6, w: 4 + Math.random() * 5, hue: Math.random(), t0: subT, life: 1450 + Math.random() * 500 });
+        }
+        if (c.flakes.length >= CER.maxFlakes) c.flakeAcc = 0;
+      }
+      for (const q of c.flakes) {
+        q.vx *= dragFlake; q.vy = q.vy * dragFlake + 240 * sc * stepDt;
+        q.x += q.vx * stepDt; q.y += q.vy * stepDt; q.ph += stepDt * 6;
+      }
+      c.flakes = c.flakes.filter((q) => subT - q.t0 < q.life && q.y < H + 20 && q.x > -30 && q.x < W + 30);
+    }
+  }
+  c.last = t;
+  const el = t - c.t0;
   const glowA = clamp(el / T1, 0, 1) * (el < c.glowFadeStart ? 1 : Math.max(0, 1 - (el - c.glowFadeStart) / c.glowFadeDur));
   if (glowA > 0) {
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = glowA * (lowFx ? .38 : .55);
@@ -5375,9 +5448,6 @@ function drawCascade(t) {
   { // the Spa City mark is stamped into the ring's centre as the cards gather, and steam rises from it while they turn
     const k = clamp((el - T1 * .5) / (T1 * .5), 0, 1), out = el < c.stampFadeStart ? 1 : Math.max(0, 1 - (el - c.stampFadeStart) / c.stampFadeDur); c.stampA = k * out;
     if (c.stampA > 0) { const r = c.R * CER.stampR * (1 + .22 * (1 - easeBack(k))); feltEmblem(ctx, c.cx, c.cy + r * .225, r, '#F3DA92', false, 5.5 * c.stampA); }
-    if (!lowFx && el > T1 * .4 && el < c.steamEnd && t - c.steamAt >= CER.steamEvery && c.puffs.length < CER.maxPuffs) {
-      c.steamAt = t; c.steamed++; c.puffs.push({ x: c.cx + Math.sin(c.steamed * 2.3) * c.R * .3, y: c.cy + c.R * .15, t0: t, r: cw * (.38 + (c.steamed % 4) * .07) });
-    }
   }
   const spin = el > T1 ? (el - T1) / 5200 : 0;
   // Crisp 130 ms inward radial inhale right ahead of T2 eruption (WF-4 §1.4).
@@ -5394,30 +5464,6 @@ function drawCascade(t) {
     while (targetRot < -Math.PI) targetRot += Math.PI * 2;
     drawCardAt(p.u, x - cw / 2, y - ch / 2, t, Math.max(hump, .25), targetRot * e);
   }
-  while (c.sprayed < c.parts.length && el >= c.nextLaunchEl && c.fly.length < CER.maxFly) {
-    const p = c.parts[c.sprayed++]; p.flying = true; c.nextLaunchEl += c.spacing;
-    const a = p.a + spin, rr = c.R * p.rFrac;
-    const x = c.cx + Math.cos(a) * rr, y = c.cy + Math.sin(a) * rr, out = Math.cos(a) >= 0 ? 1 : -1;
-    c.fly.push({ u: p.u, x, y, vx: out * (c.vxMin + Math.random() * (c.vxMax - c.vxMin)), vy: -(c.vyMin + Math.random() * (c.vyMax - c.vyMin)), rot: a + Math.PI / 2, vr: out * (1.5 + Math.random() * 2), echoAcc: 0, bounces: 0, sqAt: 0 });
-  }
-  const rim = Math.hypot(cw, ch) * .5 + 4;
-  for (const f of c.fly) {
-    f.vy += c.grav * dt; f.x += f.vx * dt; f.y += f.vy * dt; f.rot += f.vr * dt;
-    if (f.x < rim) { f.x = rim; f.vx = Math.abs(f.vx) * .7; } else if (f.x > W - rim) { f.x = W - rim; f.vx = -Math.abs(f.vx) * .7; }
-    if (f.y > c.floor && f.vy > 0 && f.bounces < 1) {
-      f.y = c.floor; f.vy *= -c.restitution; f.vx *= .92; f.vr *= .7; f.bounces++; f.sqAt = t;
-      if (!lowFx && c.puffs.length < CER.maxPuffs) c.puffs.push({ x: f.x, y: H - 4, t0: t, r: cw * (.42 + Math.random() * .24), floor: true });
-    }
-    if (!lowFx) {
-      f.echoAcc += dt;
-      if (f.echoAcc >= ECHO_EVERY) {
-        f.echoAcc -= ECHO_EVERY;
-        const ep = echoPool[echoCursor]; echoCursor = (echoCursor + 1) % MAX_ECHOES;
-        ep.active = true; ep.u = f.u; ep.x = f.x; ep.y = f.y; ep.rot = f.rot; ep.t0 = t;
-      }
-    }
-  }
-  c.fly = c.fly.filter((f) => f.y < c.exitY);
   // Render <=160 pooled dt-exact echo stamps directly onto #cv at crisp DPR with smooth fade to 0.0 (CD-WF3-07).
   if (!lowFx) {
     ctx.save();
@@ -5438,14 +5484,6 @@ function drawCascade(t) {
       ctx.drawImage(faceSprite(f.u), -cw / 2, -ch / 2, cw, ch); ctx.restore();
     } else drawCardAt(f.u, f.x - cw / 2, f.y - ch / 2, t, .8, f.rot);
   }
-  // dt-normalized floor vapor wisps (<=24 slender elliptical plumes, diameter <= 1.4*cw) & radial rosette foil flecks (<=60).
-  if (!lowFx && el > T2 && el < T2 + c.launchSpan) {
-    c.floorSteamAcc += dt;
-    while (c.floorSteamAcc >= .09) {
-      c.floorSteamAcc -= .09;
-      if (c.puffs.length < CER.maxPuffs) c.puffs.push({ x: Math.random() * W, y: H + 10, t0: t, r: cw * (.45 + Math.random() * .25), floor: true });
-    }
-  }
   const img = puff(); ctx.save();
   c.puffs = c.puffs.filter((q) => t - q.t0 < 1800);
   for (const q of c.puffs) {
@@ -5453,27 +5491,14 @@ function drawCascade(t) {
     ctx.drawImage(img, q.x + Math.sin(k * 4 + q.r) * 14 - r * .72, q.y - k * (q.floor ? H * .45 : ch * 1.6) - r * 1.15, r * 1.44, r * 2.3);
   }
   ctx.restore();
-  if (!lowFx && el > T2 - 120 && el < T2 + c.launchSpan * .75) {
-    c.flakeAcc += dt * 42;
-    while (c.flakeAcc >= 1 && c.flakes.length < CER.maxFlakes) {
-      c.flakeAcc -= 1;
-      const a = Math.random() * Math.PI * 2, spd = (110 + Math.random() * 190) * sc;
-      c.flakes.push({ x: c.cx + Math.cos(a) * c.R * .85, y: c.cy + Math.sin(a) * c.R * .85, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd - 90 * sc, ph: Math.random() * 6, w: 4 + Math.random() * 5, hue: Math.random(), t0: t, life: 1450 + Math.random() * 500 });
-    }
-    if (c.flakes.length >= CER.maxFlakes) c.flakeAcc = 0;
-  }
-  const dragFlake = Math.pow(.95, dt * 60);
   c.flakes = c.flakes.filter((q) => t - q.t0 < q.life && q.y < H + 20 && q.x > -30 && q.x < W + 30);
   for (const q of c.flakes) {
-    q.vx *= dragFlake; q.vy = q.vy * dragFlake + 240 * sc * dt;
-    q.x += q.vx * dt; q.y += q.vy * dt; q.ph += dt * 6; const flip = Math.cos(q.ph);
-    const fk = clamp((t - q.t0) / q.life, 0, 1), fa = fk < .65 ? 1 : Math.max(0, 1 - (fk - .65) / .35);
+    const flip = Math.cos(q.ph), fk = clamp((t - q.t0) / q.life, 0, 1), fa = fk < .65 ? 1 : Math.max(0, 1 - (fk - .65) / .35);
     ctx.save(); ctx.globalAlpha = fa * fa; ctx.translate(q.x + Math.sin(q.ph * .7) * 10, q.y); ctx.rotate(q.ph * .3); ctx.scale(1, Math.abs(flip) + .08);
     ctx.fillStyle = q.hue < .7 ? (flip > 0 ? '#F3DA92' : '#B8862C') : (flip > 0 ? '#9FE0D0' : '#2A9D8F');
     ctx.fillRect(-q.w / 2, -q.w * .3, q.w, q.w * .6); ctx.restore();
   }
-  c.flakes = c.flakes.filter((q) => t - q.t0 < q.life && q.y < H + 20 && q.x > -30 && q.x < W + 30);
-  if (el > c.watchdog || (c.sprayed >= c.parts.length && !c.fly.length && el > T2 + 600)) endCascade();
+  if (!paused && (el > c.watchdog || (c.sprayed >= c.parts.length && !c.fly.length && el > T2 + 600))) endCascade();
 }
 function endCascade() {
   if (!cascade) return; if (cascade.timer) clearTimeout(cascade.timer); cascade = null; clearEchoes(); markDirty(); openModal('win'); flushFontRebake();
@@ -7062,6 +7087,28 @@ function hudClockSync() {
 }
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { cancelBuzz(); tickClock(); padStop(); if (!titleOn || saveTimer) flushSave(); } else { clockMark = now(); padWatch(); }
+  if (cascade) {
+    if (document.hidden) {
+      if (cascade.calm) {
+        if (cascade.timer) { clearTimeout(cascade.timer); cascade.timer = 0; cascade.calmRem = Math.max(0, cascade.calmEnd - now()); }
+      } else if (cascade.hiddenAt == null) {
+        cascade.hiddenAt = now();
+      }
+    } else {
+      if (cascade.calm) {
+        if (!cascade.timer && cascade.calmRem != null) {
+          const rem = Math.max(0, cascade.calmRem), run = cascade;
+          run.calmEnd = now() + rem;
+          run.timer = setTimeout(() => { if (cascade === run) endCascade(); }, rem);
+        }
+      } else if (cascade.hiddenAt != null) {
+        const gap = Math.max(0, now() - cascade.hiddenAt);
+        cascade.hiddenAt = null;
+        shiftCascadeClock(cascade, gap);
+        startLoop();
+      }
+    }
+  }
   hudClockSync();
   ambientSync();
   if (AC) {
