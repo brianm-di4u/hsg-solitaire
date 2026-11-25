@@ -2806,16 +2806,17 @@ const artImg = (name) => art[name] || null;
 const courtSet = (set) => { const a = []; for (const s of 'cdhs') for (const r of 'jqk') a.push((set === 'painted' ? 'court-' : 'deco-') + r + s); return a; };
 const TITLE_HAND_COURTS = ['ks', 'qh', 'jc', 'qs', 'js', 'kh', 'qc'];
 // Vendored OFL fonts (assets/fonts.css, data URIs) must be ready before card sprites are baked.
-const FONT_FACES = ['700 20px "Josefin Sans"', '600 20px "Josefin Sans"', '20px Limelight', '700 20px "Libre Bodoni"'];
+const FONT_FACES = ['400 20px "Josefin Sans"', '600 20px "Josefin Sans"', '700 20px "Josefin Sans"', '20px Limelight', '700 20px "Libre Bodoni"'];
 let fontsPending = !!(document.fonts && document.fonts.load);
 let fontBakedKey = '', fontRebakePending = false, fontRebakeCount = 0;
 function fontLoadedKey() {
   if (!document.fonts) return '';
-  const loaded = [];
-  for (const f of document.fonts) if (f.status === 'loaded') loaded.push(f.family.replace(/['"]/g, '') + ':' + f.weight + ':' + f.style);
-  return loaded.sort().join('|');
+  const loaded = new Set();
+  for (const f of document.fonts) if (f.status === 'loaded') loaded.add(f.family.replace(/['"]/g, '') + ':' + f.weight + ':' + f.style);
+  return [...loaded].sort().join('|');
 }
 function fontRebakeBusy() {
+  if (titleOn) return false;
   return !!(drag || cascade || winTimer || finishRun || (S && tweensActive(now())));
 }
 function flushFontRebake() {
@@ -2839,16 +2840,24 @@ function requestFontRebake() {
   const k = fontLoadedKey();
   if (!k || k === fontBakedKey) return;
   fontRebakePending = true;
-  if (!flushFontRebake() && S && W) startLoop();
+  if (!flushFontRebake() && !titleOn && S && W) startLoop();
 }
 if (fontsPending) {
   const css = document.getElementById('fontCss');
-  const loadFourFaces = () => Promise.all(FONT_FACES.map((f) => document.fonts.load(f))).catch(() => {});
+  let fontLoadFlight = null;
+  const loadAllFaces = () => {
+    if (!fontLoadFlight) {
+      fontLoadFlight = Promise.all(FONT_FACES.map((f) => document.fonts.load(f)))
+        .catch(() => {})
+        .finally(() => { fontLoadFlight = null; });
+    }
+    return fontLoadFlight;
+  };
   let bootDone = false, cssLoaded = !css || css.media === 'all';
   const onCssReady = () => {
     if (css && css.media !== 'all') css.media = 'all';
     cssLoaded = true;
-    if (bootDone) setTimeout(() => { loadFourFaces().then(() => requestFontRebake()); }, 0);
+    if (bootDone) setTimeout(() => { loadAllFaces().then(() => requestFontRebake()); }, 0);
   };
   if (css && !cssLoaded) {
     css.addEventListener('load', onCssReady, { once: true });
@@ -2862,20 +2871,32 @@ if (fontsPending) {
     css.addEventListener('error', done, { once: true });
     setTimeout(done, 4000);
   })
-    .then(() => loadFourFaces())
+    .then(() => loadAllFaces())
     .finally(() => {
       bootDone = true;
       fontsPending = false;
-      fontBakedKey = fontLoadedKey();
-      if (S && W && !fontRebakeBusy()) relayout(true);
-      else if (S && W) fontRebakePending = true;
+      const k = fontLoadedKey();
+      if (S && W && fontRebakeBusy()) {
+        if (k && k !== fontBakedKey) {
+          fontRebakePending = true;
+          if (!titleOn) startLoop();
+        }
+      } else {
+        fontBakedKey = k;
+        if (S && W) relayout(true);
+      }
       artChanged();
-      if (css && css.media === 'all' && !fontBakedKey) {
-        setTimeout(() => { loadFourFaces().then(() => requestFontRebake()); }, 0);
+      if (css && css.media === 'all' && !k) {
+        setTimeout(() => { loadAllFaces().then(() => requestFontRebake()); }, 0);
       }
     });
   if (document.fonts.addEventListener) {
-    document.fonts.addEventListener('loadingdone', () => { if (bootDone) requestFontRebake(); });
+    document.fonts.addEventListener('loadingdone', () => {
+      if (!bootDone) return;
+      const k = fontLoadedKey();
+      if (!k || k === fontBakedKey) return;
+      loadAllFaces().then(() => requestFontRebake());
+    });
   }
 }
 const LATE_ART = ['ticket-stock']; // fetched once the first deal is on the table
@@ -7294,6 +7315,7 @@ function showTitle(on, instant) {
   }
   if (on && saveTimer) flushSave();
   titleOn = on; titleEl.classList.toggle('on', on); syncInert(); syncMirror(); if (on) tabNoteHide();
+  if (on && fontRebakePending) flushFontRebake();
   if (!on && was && !instant && !reducedMotion()) {
     appEl.classList.remove('entering'); void appEl.offsetWidth; appEl.classList.add('entering');
     clearTimeout(appEnterTimer); appEnterTimer = setTimeout(() => { appEnterTimer = 0; appEl.classList.remove('entering'); }, 190);
@@ -7303,6 +7325,7 @@ function showTitle(on, instant) {
     if (skyRaf) { cancelAnimationFrame(skyRaf); skyRaf = 0; }
     freeSkyCache();
     loadArt(tablePlayArt());
+    if (fontRebakePending && !flushFontRebake() && S && W) startLoop();
     if (S && L && tableDirty) markDirty(); // a table marked dirty behind the title is drawn now, not on the next input
   }
   syncAudio();
@@ -7407,8 +7430,8 @@ function openModal(kind, data, opts) {
     if (cascade) { if (cascade.timer) clearTimeout(cascade.timer); cascade = null; clearEchoes(); }
     markDirty();
     if (kind !== 'win') musicHush = false;
-    flushFontRebake();
   }
+  if (fontRebakePending && !flushFontRebake() && !titleOn && S && W) startLoop();
   if (!modalKind && !(opts && opts.replace)) {
     const ae = document.activeElement;
     modalOpener = ae && ae !== document.body && !modalEl.contains(ae) ? ae : null;
@@ -8603,7 +8626,7 @@ window.__game = {
         };
       }
       case 'unfreeze': if (cascade && frozenAt !== null) shiftCascadeClock(cascade, now() - frozenAt); frozenAt = null; markDirty(); return { ok: true };
-      case 'skip': { const t = now(); cancelAutoCues(); if (S) for (let u = 0; u < S.cards.length; u++) if (D[u]) { D[u].t0 = Math.min(D[u].t0, t - 1e5); D[u].f0 = Math.min(D[u].f0, t - 1e5); D[u].via = null; } if (winTimer) { clearWinTimers(); startCascade(); } if (cascade) endCascade(); markDirty(); return { ok: true }; }
+      case 'skip': { const t = now(); cancelAutoCues(); if (S) for (let u = 0; u < S.cards.length; u++) if (D[u]) { D[u].t0 = Math.min(D[u].t0, t - 1e5); D[u].f0 = Math.min(D[u].f0, t - 1e5); D[u].via = null; } if (winTimer) { clearWinTimers(); startCascade(); } if (cascade) endCascade(); flushFontRebake(); markDirty(); return { ok: true }; }
       default: return { ok: false, reason: 'unknown action' };
     }
   },
