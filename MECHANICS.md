@@ -173,10 +173,17 @@ counts as one undo step.
 >   (`easeBack`). Flips foreshorten with a perspective shear and a sweeping sheen. A dragged run tilts with hand
 >   speed, wears a gold rim and leaves ghost copies on fast flicks. Gold glints play where a card lands on a
 >   foundation.
-> - **Win ceremony** (`startCascade` / `drawCascade`). The board fades and dims, then the cards gather into a rosette
->   under a skylight-coloured glow, hold, and peel off in bouncing arcs that stamp a fading trail, with steam and
->   brass confetti. Then the bath ticket rises and the next of the 21 holes is punched. `act('ceremonyAt', ms)`
->   freezes one exact frame for tests.
+> - **Win ceremony** (`startCascade` / `planCascade` / `drawCascade`). The board fades and dims, then the cards gather into a rosette
+>   (950 ms) under a skylight-coloured glow, hold (650 ms with a 130 ms radial inhale), and peel off in alternating
+>   opposing-halves arcs with height-scaled gravity (`3.1·H` for 52 cards, `4.8·H` for 104-card Spider) and a single
+>   0.5-restitution floor bounce, clearing the active list as soon as each card's rotated half-diagonal clears `H`.
+>   Launch spacing is derived from the live table's worst-case single-card flight bound so simultaneous flyers stay
+>   strictly below the 40-flyer safety cap (`<= 160` pooled echo stamps, no offscreen trail), with bounded 1.45–1.95 s
+>   fading foil flakes that never gate exit. Physics runs in fixed `<= 1/60 s` substeps on one unified ceremony clock
+>   (shifting timestamps across hidden tabs/stalls and firing `sfx('spray')` on clock crossing `T2`; reduced-motion's
+>   600 ms calm timer also pauses while hidden), and mid-ceremony resize/rotation rescales active flyers, clears stale
+>   echoes, and recomputes the flight bound. Then the bath ticket rises and the next of the 21 holes is punched.
+>   `act('ceremonyAt', ms, stepMs?)` steps and holds one exact frame for tests, returning spacing/launch/flyer/flake telemetry.
 > - **Indices.** Three bundled faces (`assets/fonts.css`): Libre Bodoni for indices, Josefin Sans for the UI,
 >   Limelight for display. `idxScale` gives phones a jumbo index (46% of card width, 52% Large). Corner ranks are
 >   placed from measured glyph ink (`measureCornerRank`/`drawCornerRank`) so overhanging glyphs (such as `J` and `A`)

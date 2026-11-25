@@ -8285,6 +8285,7 @@ function setSetting(k, v) {
 
 // 14. Resize and boot
 function resize(skipArt) {
+  const oldW = W, oldH = H;
   const r = stage.getBoundingClientRect(); W = Math.round(r.width); H = Math.round(r.height); DPR = Math.min(3, window.devicePixelRatio || 1);
   for (const c of [cv, tcv]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
   amb.width = Math.round(W * AMB.scale); amb.height = Math.round(H * AMB.scale);
@@ -8293,10 +8294,43 @@ function resize(skipArt) {
   if (S) {
     relayout(true);
     if (cascade) {
-      const reach = Math.hypot(L.cw, L.ch) * .5 + 10;
-      cascade.cx = W / 2; cascade.cy = H * .5; cascade.R = Math.max(L.ch, Math.min(W / 2, H / 2) - reach);
       cascade.cleanTbl = null;
-      if (cascade.parts) for (const p of cascade.parts) { const rr = cascade.R * (p.rFrac || 1); p.rx = cascade.cx + Math.cos(p.a) * rr; p.ry = cascade.cy + Math.sin(p.a) * rr; }
+      if (cascade.calm) {
+        const reach = Math.hypot(L.cw, L.ch) * .5 + 10;
+        cascade.cx = W / 2; cascade.cy = H * .5; cascade.R = Math.max(L.ch, Math.min(W / 2, H / 2) - reach);
+      } else {
+        const resized = oldW > 0 && oldH > 0 && (W !== oldW || H !== oldH);
+        const sx = resized ? W / oldW : 1, sy = resized ? H / oldH : 1;
+        planCascade(cascade);
+        if (cascade.parts) {
+          for (const p of cascade.parts) {
+            if (resized) { p.sx *= sx; p.sy *= sy; }
+            const rr = cascade.R * (p.rFrac || 1);
+            p.rx = cascade.cx + Math.cos(p.a) * rr; p.ry = cascade.cy + Math.sin(p.a) * rr;
+          }
+        }
+        if (resized) {
+          clearEchoes();
+          const rim = Math.hypot(L.cw, L.ch) * .5 + 4;
+          if (cascade.fly) {
+            for (const f of cascade.fly) {
+              f.x = clamp(f.x * sx, rim, Math.max(rim, W - rim));
+              const maxY = f.bounces < 1 ? cascade.floor : cascade.exitY - 2;
+              f.y = Math.min(f.y * sy, maxY);
+              f.vx *= sx; f.vy *= sy;
+            }
+          }
+          if (cascade.puffs) for (const q of cascade.puffs) { q.x *= sx; q.y *= sy; }
+          if (cascade.flakes) for (const q of cascade.flakes) { q.x *= sx; q.y *= sy; q.vx *= sx; q.vy *= sy; }
+          const elNow = (cascade.last != null ? cascade.last : now()) - cascade.t0;
+          const T2 = CER.gather + CER.hold;
+          if (elNow >= T2 && cascade.sprayed < cascade.parts.length) {
+            cascade.nextLaunchEl = Math.min(cascade.nextLaunchEl, elNow + cascade.spacing);
+            const remSpan = (cascade.parts.length - cascade.sprayed) * cascade.spacing;
+            cascade.watchdog = Math.max(cascade.watchdog, elNow + remSpan + cascade.maxFlightMs * 2 + 2500);
+          }
+        }
+      }
     }
     markDirty();
   }
