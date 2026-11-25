@@ -1152,7 +1152,9 @@ function settleTableau(delayBase) {
           runArcFx.add(u);
           if (j < run.length - 1) suppressLandFx.add(u); else milestoneLandFx.add(u);
         });
-        d += 400; S.runs++; addScore(100, 'f' + f, run[run.length - 1]); changed = true; sfx('run', undefined, pilePan('f' + f));
+        const runDelay = reducedMotion() ? 0 : d;
+        d += 400; S.runs++; addScore(100, 'f' + f, run[run.length - 1]); changed = true;
+        sfx('run', undefined, pilePan('f' + f), runDelay > 0 ? { delay: runDelay / 1000, auto: true } : undefined);
         syncShared();
         if (!isDealAlreadyWon()) { const a = earn({ wins: meta.totalWins, w: null, run: true }); if (a.length) { save('meta', meta); setTimeout(() => achToast(a), 900); } }
         announce('Completed a run of ' + SUIT_NAME[card(run[0]).s]);
