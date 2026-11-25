@@ -124,8 +124,13 @@ Pressing H again cycles through the hints. A press of the Hint button, H or the 
 
 **Auto-complete.** Klondike and Yukon offer it when no face-down tableau cards remain. FreeCell offers it
 when every column and cell is in descending order with no blockers. The loop plays foundation moves (and
-stock draws in Klondike) until the game is won or a full pass makes no progress. It is animated, and
-counts as one undo step.
+virtual stock draws/recycles in Klondike without adding animation stagger padding, while preserving exact
+move counts and recycle fees) until the game is won or a full pass makes no progress. Spider Finish staggers
+each completed run fanfare to its lift delay on the cancellable auto-cue bus (while player-triggered runs at
+`d = 0` sound immediately). Under Reduced Motion, Finish and autoplay wins skip `finishRun` and enter the
+calm emblem after the standard 250 ms beat. Rotating or resizing during a Finish run cancels pending chimes
+and enters the ceremony after the 250 ms beat; opening any modal (`openModal`) cleanly tears down an active
+Finish or ceremony so the Bath Ticket opens once. Auto-complete counts as one undo step.
 
 ## 4. Input
 
