@@ -189,7 +189,12 @@ counts as one undo step.
 >   the `courts` setting. Deco courts are full-bleed and double-ended, with feathered ivory corners sized to measured
 >   rank ink. Painted and vector court panels clamp their top inset below `indexBottom` plus half the gilded frame
 >   stroke so `Q` descenders clear cleanly in Large size while preserving Standard layout and bottom clearance. On
->   phones they show a head-and-shoulders cameo framed by `COURT_FOCUS`.
+>   phones (`small` cards), both Deco and Painted courts render a single upright head-and-shoulders portrait filling
+>   the lower panel without a center band, cover-fit and clamped via `COURT_FOCUS` / `COURT_MOB` so no cream void shows.
+> - **Pips & small-card center suits.** Large `9` and `10` open their vertical pip span and trim pip height slightly so
+>   side-column pips keep clear separation while staying `>= 4 px` clear of both corner indices (Standard unchanged).
+>   On small phone cards, the single center suit for `2–10` and the small Ace medallion sit in the lower ivory field
+>   strictly below portrait `fanUp` (`.46h` Standard, `.48h` Large) so buried tableau cards never poke slivers.
 > - **Low-end fallback.** A watchdog (an EMA of frame CPU over 12 ms) or `?fx=low` turns off glints, confetti,
 >   ceremony steam and the glow. `?art=0` still gives the full vector look.
 
@@ -278,4 +283,4 @@ this browser".
 | `cueTones(name, arg)`, `volumeGain(v, curve)`, `masterGain()`, `dailyDealFor(mode, opts, date)` | (wave 4, batch C) the pitch of every tone a cue starts, the gain a slider position gives on a curve, the live master gain, the deal a date gives |
 | `pad()`, `sky()`, `skyDue(t)`, `scoreFx()`, `glideOf(pile)`, `hintYields(reset)`, `hintCurrent()` | (wave 4) the gamepad poll count, the title sky loop (`running`, `frames`, `gap`), the sky's 30-a-second throttle, the floating score texts, the glide time of a pile's top card, how often the last hint search yielded, the hint on show |
 | `canvasFilter()`, `tableBlur(id, px)`, `backMean(seed)` | (wave 4) whether canvas filters exist, set a table's blur and redraw, the mean colour of the Skylight back for a deck seed |
-| `cardGeometry(w, h, large)` | corner index boxes, pip boxes, `courtFocus`, and per-rank measured ink boxes (`rankInk`) |
+| `cardGeometry(w, h, large)` | corner index boxes, pip boxes, `courtFocus`, per-rank measured ink boxes (`rankInk`), and small-card center suit/ace bounds (`smallCenter`) |

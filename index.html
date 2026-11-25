@@ -2910,7 +2910,15 @@ function loadArt(names) {
   }));
 }
 const COURT_FOCUS = {"deco-jc":0.645,"deco-qc":0.515,"deco-kc":0.666,"deco-jd":0.687,"deco-qd":0.644,"deco-kd":0.521,"deco-jh":0.527,"deco-qh":0.562,"deco-kh":0.532,"deco-js":0.608,"deco-qs":0.572,"deco-ks":0.53};
-const COURT_MOB = { 'deco-js': { zoom: 1.28, ay: .14 } };
+const COURT_MOB = {
+  'deco-js': { zoom: 1.28, ay: .14 },
+  'court-jh': { fx: .53, zoom: 1.32, ay: .02 },
+  'court-qc': { fx: .50, zoom: 1.26, ay: .02 },
+  'court-qd': { fx: .49, zoom: 1.24, ay: .02 },
+  'court-kc': { fx: .50, zoom: 1.24, ay: .02 },
+  'court-kh': { fx: .48, zoom: 1.28, ay: .02 },
+  'court-ks': { fx: .50, zoom: 1.28, ay: .02 },
+};
 function artChanged(name) {
   if (!name || /^(court-|deco-|ace-|back-|brass-slot|brass-cell|brass-recycle)/.test(name)) artDirty.sprites = true;
   if (!name || /^(tex-|glow-|brass-corner)/.test(name)) artDirty.table = true;
@@ -3180,11 +3188,22 @@ function drawCourtPanel(ctx, c, w, h, small, large) {
   const ph = small ? Math.max(h * .44, h - y - h * .04) : (h * (tall ? .95 : .85) - y);
   ctx.save(); rrect(ctx, x, y, pw, ph, w * .04); ctx.clip();
   if (img) {
-    const hh = ph / 2;
     ctx.fillStyle = '#F4EDE0'; ctx.fillRect(x, y, pw, ph);
-    ctx.save(); ctx.beginPath(); ctx.rect(x, y, pw, hh); ctx.clip(); coverImg(ctx, img, x, y, pw, hh, .5, .08, 1.08); ctx.restore();
-    ctx.save(); ctx.translate(x + pw, y + ph); ctx.rotate(Math.PI); ctx.beginPath(); ctx.rect(0, 0, pw, hh); ctx.clip(); coverImg(ctx, img, 0, 0, pw, hh, .5, .08, 1.08); ctx.restore();
-    courtBand(ctx, x, y + hh, pw, w, col);
+    if (small) {
+      // OD-W5-PAINTED (W5-F7): single upright portrait on small phone cards, cover-fit & clamped so no cream void shows.
+      const mob = COURT_MOB[img.artName] || { fx: .5, zoom: 1.32, ay: .02 };
+      const fx = mob.fx != null ? mob.fx : .5;
+      const k = Math.max(pw / img.naturalWidth, ph / img.naturalHeight) * mob.zoom;
+      const dw = img.naturalWidth * k, dh = img.naturalHeight * k;
+      const dx = clamp(x + pw / 2 - fx * dw, x + pw - dw, x);
+      const dy = clamp(y + (ph - dh) * mob.ay, y + ph - dh, y);
+      ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, dx, dy, dw, dh);
+    } else {
+      const hh = ph / 2;
+      ctx.save(); ctx.beginPath(); ctx.rect(x, y, pw, hh); ctx.clip(); coverImg(ctx, img, x, y, pw, hh, .5, .08, 1.08); ctx.restore();
+      ctx.save(); ctx.translate(x + pw, y + ph); ctx.rotate(Math.PI); ctx.beginPath(); ctx.rect(0, 0, pw, hh); ctx.clip(); coverImg(ctx, img, 0, 0, pw, hh, .5, .08, 1.08); ctx.restore();
+      courtBand(ctx, x, y + hh, pw, w, col);
+    }
   } else {
     ctx.fillStyle = isRed(c.s) ? '#F5E4DA' : '#E4E9E1'; ctx.fillRect(x, y, pw, ph);
     ctx.strokeStyle = 'rgba(217,162,58,.35)'; ctx.lineWidth = Math.max(.6, w * .006);
