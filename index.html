@@ -2957,13 +2957,36 @@ function indexBottom(w, h, large) {
   const base = h * .02 + size * .86;
   return { full: base + desc, cap: base + desc * .85 };
 }
-function drawCornerIndex(ctx, c, w, h, rs, ss, col, tight10) {
-  const lab = RANK_LABEL[c.r];
+function measureCornerRank(ctx, lab, w, h, fontSize, tight10) {
+  const inset = w * (tight10 ? .05 : .06);
+  const sx = lab === '10' ? (tight10 ? .76 : .84) : 1;
+  const baseY = h * .02 + fontSize * .86;
+  // Measure at a large reference size (200 px) to avoid integer pixel quantization noise in actualBoundingBoxLeft on small cards.
+  const REF = 200;
+  ctx.font = '700 ' + REF + 'px ' + SERIF;
+  const m = ctx.measureText(lab);
+  const k = fontSize / REF;
+  const abL = (m.actualBoundingBoxLeft || 0) * k;
+  const abR = (m.actualBoundingBoxRight || m.width) * k;
+  const abA = (m.actualBoundingBoxAscent || REF * .72) * k;
+  const abD = (m.actualBoundingBoxDescent || REF * .2) * k;
+  const adv = m.width * k;
+  ctx.font = '700 ' + fontSize + 'px ' + SERIF;
+  // Place rank by measured ink: never start left of inset; deep negative overhangs (e.g. J) also add .025em so ink aligns with sibling bearings.
+  const shift = abL > 0 ? abL * sx + (abL > fontSize * .04 ? fontSize * .025 : 0) : 0;
+  const drawX = inset + shift;
+  return { x: drawX, y: baseY, sx, shift, inkLeft: drawX - abL * sx, inkRight: drawX + abR * sx, inkTop: baseY - abA, inkBottom: baseY + abD, advRight: drawX + adv * sx };
+}
+function drawCornerRank(ctx, lab, w, h, fontSize, col, tight10) {
+  const b = measureCornerRank(ctx, lab, w, h, fontSize, tight10);
   ctx.fillStyle = col; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
-  ctx.font = '700 ' + rs + 'px ' + SERIF;
-  ctx.save(); ctx.translate(w * (tight10 ? .05 : .06), h * .02 + rs * .86);
-  if (lab === '10') ctx.scale(tight10 ? .76 : .84, 1);
+  ctx.save(); ctx.translate(b.x, b.y);
+  if (b.sx !== 1) ctx.scale(b.sx, 1);
   ctx.fillText(lab, 0, 0); ctx.restore();
+  return b;
+}
+function drawCornerIndex(ctx, c, w, h, rs, ss, col, tight10) {
+  drawCornerRank(ctx, RANK_LABEL[c.r], w, h, rs, col, tight10);
   drawSuit(ctx, c.s, w - w * (tight10 ? .06 : .07) - ss * .45, h * .03 + ss / 2 + rs * .1, ss, col);
 }
 function drawWasteMicroSuit(ctx, c, w, h, large, col) {
@@ -2993,17 +3016,17 @@ function drawFace(ctx, c, w, h, large, wastePip) {
   const phoneJumbo = w < 70 && innerWidth < 560, small = w < 58 || phoneJumbo, tight10 = phoneJumbo && large;
   const { rs: rsK, ss: ssK } = idxScale(w, large);
   const rs = w * rsK, ss = w * ssK, lab = RANK_LABEL[c.r];
-  drawCornerIndex(ctx, c, w, h, rs, ss, col, tight10);
+  const decoCourt = c.r > 10 && settings.courts !== 'painted' && artImg(courtArt(c));
+  if (!(decoCourt && !small)) drawCornerIndex(ctx, c, w, h, rs, ss, col, tight10);
   const tallCourt = c.r > 10 && !small && artImg(courtArt(c)); // painted & Deco courts fill the card instead
-  if (c.r > 10 && settings.courts !== 'painted' && artImg(courtArt(c))) {
+  if (decoCourt) {
     drawDecoCourt(ctx, c, w, h, small, rs, ss, col, large);
   } else {
     if (!small && !tallCourt) {
       // Mirror the top corner split on the bottom edge (inverted rank bottom-right, inverted suit bottom-left) so ranks 4-10 clear pips >= 4 px (W6-S4-03).
       ctx.save(); ctx.translate(w, h); ctx.rotate(Math.PI);
       const bs = w * .155, bss = w * .125;
-      ctx.fillStyle = col; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left'; ctx.font = '700 ' + bs + 'px ' + SERIF;
-      ctx.save(); ctx.translate(w * .06, h * .02 + bs * .86); if (lab === '10') ctx.scale(.84, 1); ctx.fillText(lab, 0, 0); ctx.restore();
+      drawCornerRank(ctx, lab, w, h, bs, col, false);
       drawSuit(ctx, c.s, w - w * .07 - bss * .45, h * .025 + bss / 2 + bs * .08, bss, col);
       ctx.restore();
     }
@@ -3110,10 +3133,10 @@ function drawDecoCourt(ctx, c, w, h, small, rs, ss, col, large) {
   const img = artImg(courtArt(c));
   const px = w * .05, py = h * .035, pw = w - 2 * px, r = w * .04;
   const tight10 = w < 70 && innerWidth < 560 && large;
-  const lab = RANK_LABEL[c.r]; ctx.font = '700 ' + rs + 'px ' + SERIF;
-  const rankW = ctx.measureText(lab).width * (lab === '10' ? (tight10 ? .76 : .84) : 1);
+  const lab = RANK_LABEL[c.r];
+  const rb = measureCornerRank(ctx, lab, w, h, rs, tight10);
   const ib = indexBottom(w, h, large);
-  const nr = { x: px, y: py, w: w * (tight10 ? .05 : .06) + rankW + w * .03 - px, h: ib.full + h * .01 - py };
+  const nr = { x: px, y: py, w: Math.max(rb.inkRight, rb.advRight) + w * .03 - px, h: ib.full + h * .01 - py };
   const sx0 = w - w * (tight10 ? .06 : .07) - ss * .9 - w * .03;
   const ns = { x: sx0, y: py, w: w - px - sx0, h: h * .03 + ss + rs * .1 + h * .01 - py };
   const fx = img.focusX != null ? img.focusX : .55;
@@ -8186,7 +8209,19 @@ window.__game = {
     for (let r = 2; r <= 10; r++) {
       ranks[r] = pipLayout(r, w, h, large).map((p) => ({ x: p.x - p.size * .45, y: p.y - p.size / 2, w: p.size * .9, h: p.size }));
     }
-    return { w, h, large: !!large, topBoxes, botBoxes, ranks, courtFocus: Object.assign({}, COURT_FOCUS) };
+    const phoneJumbo = w < 70 && innerWidth < 560, tight10 = phoneJumbo && !!large;
+    const suitX = w - w * (tight10 ? .06 : .07) - ss * .9;
+    const rankInk = {};
+    for (let r = 1; r <= 13; r++) {
+      const lab = RANK_LABEL[r];
+      const top = measureCornerRank(idxMeasure, lab, w, h, rs, tight10);
+      const bot = measureCornerRank(idxMeasure, lab, w, h, bs, false);
+      rankInk[lab] = {
+        top: { x: top.inkLeft, y: top.inkTop, w: top.inkRight - top.inkLeft, h: top.inkBottom - top.inkTop, drawX: top.x, shift: top.shift, suitLeft: suitX },
+        bot: { x: w - bot.inkRight, y: h - bot.inkBottom, w: bot.inkRight - bot.inkLeft, h: bot.inkBottom - bot.inkTop, drawX: w - bot.x, shift: bot.shift },
+      };
+    }
+    return { w, h, large: !!large, topBoxes, botBoxes, ranks, rankInk, courtFocus: Object.assign({}, COURT_FOCUS) };
   },
   cuesPlayed(clear) { const r = CUE_LOG.slice(); if (clear) { CUE_LOG.length = 0; clearCueCooldowns(); } return r; },
   frameStats(reset) {
